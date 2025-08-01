@@ -1,0 +1,128 @@
+# Dexray Insight Configuration File
+# This file contains configuration settings for API keys and analysis parameters
+
+# Signature Detection API Configuration
+# Replace "YOUR_API_KEY" with your actual API keys from the respective services
+
+# Analysis Configuration
+analysis:
+  parallel_execution:
+    enabled: true
+    max_workers: 4
+  timeout:
+    module_timeout: 300  # 5 minutes per module
+    tool_timeout: 600    # 10 minutes per tool
+
+# Module Configuration
+modules:
+  signature_detection:
+    enabled: true
+    priority: 10
+    providers:
+      virustotal:
+        enabled: false
+        api_key: "YOUR_VIRUSTOTAL_API_KEY"
+        rate_limit: 4  # requests per minute for free tier
+        
+      koodous:
+        enabled: false
+        api_key: "YOUR_KOODOUS_API_KEY"
+        
+      triage:
+        enabled: false
+        api_key: "YOUR_TRIAGE_API_KEY"
+    
+  permission_analysis:
+    enabled: true
+    priority: 20
+    critical_permissions_file: null  # Path to custom permissions file
+    use_default_critical_list: true
+    
+  string_analysis:
+    enabled: true
+    priority: 30
+    patterns:
+      ip_addresses: true
+      urls: true
+      email_addresses: true
+      domains: true
+      base64_strings: true
+    filters:
+      min_string_length: 2
+      exclude_patterns: []  # No exclusion patterns by default
+      
+  api_invocation:
+    enabled: true
+    priority: 40
+    reflection_analysis: true
+    
+  manifest_analysis:
+    enabled: true
+    priority: 15
+    extract_intent_filters: true
+    analyze_exported_components: true
+    
+  apk_diffing:
+    enabled: false
+    priority: 100
+
+# External Tools Configuration
+tools:
+  apkid:
+    enabled: true
+    timeout: 300
+    options: []
+    
+  kavanoz:
+    enabled: true
+    timeout: 600
+    output_dir: null  # If null, uses temp directory
+    
+  androguard:
+    enabled: true
+    logging_level: "WARNING"
+
+# Security Assessment Configuration
+security:
+  enable_owasp_assessment: false
+  assessments:
+    injection:
+      enabled: true
+      sql_patterns: ["SELECT", "INSERT", "UPDATE", "DELETE", "DROP"]
+      command_patterns: ["exec", "system", "runtime"]
+    broken_authentication:
+      enabled: true
+      check_weak_crypto: true
+      check_hardcoded_secrets: true
+    sensitive_data:
+      enabled: true
+      pii_patterns: ["email", "phone", "ssn", "credit_card"]
+      crypto_keys_check: true
+    broken_access_control:
+      enabled: true
+      check_exported_components: true
+      check_permissions: true
+    security_misconfiguration:
+      enabled: true
+      check_debug_flags: true
+      check_network_security: true
+    vulnerable_components:
+      enabled: true
+      check_known_libraries: true
+    insufficient_logging:
+      enabled: true
+      check_logging_practices: true
+
+# Output Configuration
+output:
+  format: "json"
+  pretty_print: true
+  include_timestamps: true
+  output_directory: "./results"
+  filename_template: "dexray_{apk_name}_{timestamp}.json"
+
+# Logging Configuration
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: null  # If null, logs to console only
