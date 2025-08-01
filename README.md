@@ -1,10 +1,10 @@
 <div align="center">
-    <img src="assets/logo.png" alt="Dexray Intercept Logo" width="500"/>
+    <img src="assets/logo.png" alt="Dexray Intercept Logo" width="400"/>
     <p></p><strong>Android Binary Static Analysis</strong></div></p>
 </div>
 
 # Sandroid - Dexray Insight
-![version](https://img.shields.io/badge/version-0.0.9.0-blue)
+![version](https://img.shields.io/badge/version-0.0.9.1-blue)
 
 Dexray Insight is part of the dynamic Sandbox SanDroid. Its purpose is to perform static analysis of Android application files (APK) using a modern OOP architecture. The tool consists of different analysis modules:
 
