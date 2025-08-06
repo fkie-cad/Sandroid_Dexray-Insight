@@ -137,7 +137,7 @@ def start_apk_static_analysis_new(apk_file_path: str, config: Configuration, pri
         security_result_file_name = ""
         # Save separate security results file if security assessment was performed
         if hasattr(results, 'security_assessment') and results.security_assessment:
-            security_result_file_name = dump_security_results_as_json_file(results.security_assessment, name)
+            security_result_file_name = dump_security_results_as_json_file(results, name)
         
         return results, result_file_name, security_result_file_name
         
@@ -172,7 +172,7 @@ def dump_results_as_json_file(results, filename: str) -> str:
     dump_json(safe_filename, results_dict)
     return safe_filename
 
-def dump_security_results_as_json_file(security_results, filename: str) -> str:
+def dump_security_results_as_json_file(results, filename: str) -> str:
     """Save security assessment results to separate JSON file"""
     current_time = datetime.now()
     timestamp = current_time.strftime("%Y-%m-%d_%H-%M-%S")
@@ -181,16 +181,21 @@ def dump_security_results_as_json_file(security_results, filename: str) -> str:
     base_filename = filename.replace(" ", "_")
     safe_filename = f"dexray_{base_filename}_security_{timestamp}.json"
     
-    # Convert security results to dict
-    if isinstance(security_results, dict):
-        security_dict = security_results
-    elif hasattr(security_results, 'to_dict'):
-        security_dict = security_results.to_dict()
+    # Get security results dict from FullAnalysisResults object
+    if hasattr(results, 'get_security_results_dict'):
+        security_dict = results.get_security_results_dict()
+    elif isinstance(results, dict):
+        security_dict = results
+    elif hasattr(results, 'to_dict'):
+        security_dict = results.to_dict()
     else:
-        security_dict = {'security_results': str(security_results)}
+        security_dict = {'security_results': str(results)}
     
-    dump_json(safe_filename, security_dict)
-    return safe_filename
+    # Only save if there are actual security results
+    if security_dict:
+        dump_json(safe_filename, security_dict)
+        return safe_filename
+    return ""
 
 class ArgParser(argparse.ArgumentParser):
     def error(self, message):

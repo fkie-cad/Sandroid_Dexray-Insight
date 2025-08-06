@@ -52,7 +52,7 @@ modules:
       exclude_patterns: []  # No exclusion patterns by default
       
   api_invocation:
-    enabled: true
+    enabled: false
     priority: 40
     reflection_analysis: true
     
@@ -107,7 +107,7 @@ tools:
 
 # Security Assessment Configuration
 security:
-  enable_owasp_assessment: true
+  enable_owasp_assessment: false
   assessments:
     injection:
       enabled: true

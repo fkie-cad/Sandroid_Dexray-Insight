@@ -72,10 +72,13 @@ class SecurityFinding:
     evidence: List[str]
     recommendations: List[str]
     cve_references: List[str] = None
+    additional_data: Dict[str, Any] = None
     
     def __post_init__(self):
         if self.cve_references is None:
             self.cve_references = []
+        if self.additional_data is None:
+            self.additional_data = {}
 
 class BaseAnalysisModule(ABC):
     """Abstract base class for all analysis modules"""

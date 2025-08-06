@@ -45,8 +45,14 @@ class FullAnalysisResults:
         if self.kavanoz_analysis is None:
             self.kavanoz_analysis = KavanozResults()
 
-    def to_dict(self) -> Dict[str, Any]:
-        """Returns the combined object as a dictionary."""
+    def to_dict(self, include_security: bool = False) -> Dict[str, Any]:
+        """
+        Returns the combined object as a dictionary.
+        
+        Args:
+            include_security: Whether to include security assessment results. 
+                            Default False to keep security separate from main results.
+        """
         result = {
             "apk_overview": self.apk_overview.to_dict() if self.apk_overview else {},
             "in_depth_analysis": self.in_depth_analysis.to_dict() if self.in_depth_analysis else {},
@@ -58,8 +64,8 @@ class FullAnalysisResults:
         if self.tracker_analysis:
             result["tracker_analysis"] = self.tracker_analysis.export_to_dict()
         
-        # Include security assessment results if available
-        if self.security_assessment:
+        # Include security assessment results only if explicitly requested
+        if include_security and self.security_assessment:
             result["security_assessment"] = self.security_assessment
         
         # Include deep analysis results if available
@@ -71,6 +77,19 @@ class FullAnalysisResults:
     def to_json(self) -> str:
         """Returns the combined object as a JSON string."""
         return json.dumps(self.to_dict(), cls=CustomJSONEncoder, indent=4)
+    
+    def get_security_results_dict(self) -> Dict[str, Any]:
+        """
+        Returns only the security assessment results as a dictionary.
+        Used for saving security results to a separate JSON file.
+        """
+        if self.security_assessment:
+            return self.security_assessment
+        return {}
+    
+    def security_results_to_json(self) -> str:
+        """Returns only the security assessment results as a JSON string."""
+        return json.dumps(self.get_security_results_dict(), cls=CustomJSONEncoder, indent=4)
 
     def print_results(self):
         """Prints the combined results as a JSON string."""

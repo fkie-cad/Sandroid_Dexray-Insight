@@ -17,6 +17,7 @@ class StringAnalysisResult(BaseResult):
     urls: List[str] = None
     domains: List[str] = None
     android_properties: Dict[str, str] = None
+    all_strings: List[str] = None  # Store all filtered strings for security analysis
     total_strings_analyzed: int = 0
     
     def __post_init__(self):
@@ -30,6 +31,8 @@ class StringAnalysisResult(BaseResult):
             self.domains = []
         if self.android_properties is None:
             self.android_properties = {}
+        if self.all_strings is None:
+            self.all_strings = []
     
     def to_dict(self) -> Dict[str, Any]:
         base_dict = super().to_dict()
@@ -39,6 +42,7 @@ class StringAnalysisResult(BaseResult):
             'urls': self.urls,
             'domains': self.domains,
             'android_properties': self.android_properties,
+            'all_strings': self.all_strings,
             'total_strings_analyzed': self.total_strings_analyzed
         })
         return base_dict
@@ -232,6 +236,7 @@ class StringAnalysisModule(BaseAnalysisModule):
                 urls=list(urls),
                 domains=list(domains),
                 android_properties=android_properties,
+                all_strings=list(strings_set),  # Include all filtered strings for security analysis
                 total_strings_analyzed=len(strings_set)
             )
             

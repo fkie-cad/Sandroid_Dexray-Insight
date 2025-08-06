@@ -513,8 +513,8 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
         # Collect all strings from various sources
         all_strings = []
         
-        # From string analysis results
-        for key in ['emails', 'urls', 'domains', 'ip_addresses']:
+        # From string analysis results - include ALL string categories
+        for key in ['emails', 'urls', 'domains', 'ip_addresses', 'interesting_strings', 'filtered_strings']:
             strings = string_data.get(key, [])
             if isinstance(strings, list):
                 all_strings.extend(strings)
@@ -525,33 +525,75 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
             all_strings.extend(android_props.keys())
             all_strings.extend([str(v) for v in android_props.values() if isinstance(v, str)])
         
-        # Also get raw strings if available (fallback to get more comprehensive coverage)
-        if hasattr(string_results, 'total_strings_analyzed') and string_results.total_strings_analyzed:
-            # Try to get raw strings from androguard if available in context
-            pass  # For now, work with categorized strings
+        # Get raw strings from the string analysis if available
+        raw_strings = string_data.get('all_strings', [])
+        if isinstance(raw_strings, list):
+            all_strings.extend(raw_strings)
+            
+        # Also try to get strings from the androguard object directly if available
+        try:
+            apk_overview = analysis_results.get('apk_overview', {})
+            if hasattr(apk_overview, 'to_dict'):
+                apk_data = apk_overview.to_dict()
+            else:
+                apk_data = apk_overview
+            
+            if isinstance(apk_data, dict):
+                # Get strings from androguard analysis if available
+                context_strings = apk_data.get('context_strings', [])
+                if isinstance(context_strings, list):
+                    all_strings.extend(context_strings)
+        except Exception as e:
+            self.logger.debug(f"Could not extract additional strings from APK overview: {e}")
+        
+        # Remove duplicates and filter out empty/None values
+        unique_strings = list(set([s for s in all_strings if s and isinstance(s, str) and len(s.strip()) > 0]))
+        self.logger.info(f"Analyzing {len(unique_strings)} unique strings for hardcoded secrets")
         
         # Detect hardcoded keys using advanced patterns
-        detected_keys = self._detect_hardcoded_keys(all_strings)
+        detected_keys = self._detect_hardcoded_keys(unique_strings)
         
-        # Group findings by severity
+        # Group findings by severity with full key extraction
         critical_findings = []
         high_findings = []
         medium_findings = []
         low_findings = []
         
+        # Store the actual detected secrets for JSON output
+        detected_secrets = {
+            'critical': [],
+            'high': [],
+            'medium': [], 
+            'low': []
+        }
+        
         for detection in detected_keys:
-            # Format evidence in secret-finder style with severity indication
-            secret_preview = detection['value'][:50] + ('...' if len(detection['value']) > 50 else '')
-            evidence_entry = f"[{detection['severity']}] {detection['type']}: {secret_preview}"
+            # Create detailed evidence entry with full key value
+            evidence_entry = {
+                'type': detection['type'],
+                'severity': detection['severity'],
+                'pattern_name': detection['pattern_name'],
+                'value': detection['value'],  # Full key value preserved
+                'full_context': detection.get('full_context', detection['value']),  # Context where found
+                'location': f"String analysis",
+                'preview': detection['value'][:100] + ('...' if len(detection['value']) > 100 else '')
+            }
+            
+            # Format for terminal display (truncated)
+            terminal_display = f"🔑 [{detection['severity']}] {detection['type']}: {evidence_entry['preview']}"
             
             if detection['severity'] == 'CRITICAL':
-                critical_findings.append(evidence_entry)
+                critical_findings.append(terminal_display)
+                detected_secrets['critical'].append(evidence_entry)
             elif detection['severity'] == 'HIGH':
-                high_findings.append(evidence_entry)
+                high_findings.append(terminal_display)
+                detected_secrets['high'].append(evidence_entry)
             elif detection['severity'] == 'MEDIUM':
-                medium_findings.append(evidence_entry)
+                medium_findings.append(terminal_display)
+                detected_secrets['medium'].append(evidence_entry)
             else:
-                low_findings.append(evidence_entry)
+                low_findings.append(terminal_display)
+                detected_secrets['low'].append(evidence_entry)
         
         # Create findings based on severity levels with secret-finder style messaging
         if critical_findings:
@@ -568,7 +610,15 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
                     "🛡️ Implement secure secret management (e.g., HashiCorp Vault, AWS Secrets Manager)",
                     "🔍 Conduct comprehensive security audit for additional exposures",
                     "📋 Establish secure development practices and secret scanning in CI/CD"
-                ]
+                ],
+                additional_data={
+                    'detected_secrets': detected_secrets['critical'],
+                    'total_secrets_found': len(detected_secrets['critical']),
+                    'analysis_metadata': {
+                        'strings_analyzed': len(unique_strings),
+                        'detection_patterns_used': len(self.key_detection_patterns)
+                    }
+                }
             ))
         
         if high_findings:
@@ -585,7 +635,15 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
                     "🔒 Implement proper OAuth2/JWT authentication flows",
                     "📊 Set up monitoring and alerting for credential usage",
                     "🛠️ Integrate secret scanning tools into development workflow"
-                ]
+                ],
+                additional_data={
+                    'detected_secrets': detected_secrets['high'],
+                    'total_secrets_found': len(detected_secrets['high']),
+                    'analysis_metadata': {
+                        'strings_analyzed': len(unique_strings),
+                        'detection_patterns_used': len(self.key_detection_patterns)
+                    }
+                }
             ))
         
         if medium_findings:
@@ -601,7 +659,15 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
                     "📝 Implement data classification and handling policies",
                     "🔐 Use secure storage mechanisms for configuration data",
                     "📋 Document and categorize legitimate high-entropy strings"
-                ]
+                ],
+                additional_data={
+                    'detected_secrets': detected_secrets['medium'],
+                    'total_secrets_found': len(detected_secrets['medium']),
+                    'analysis_metadata': {
+                        'strings_analyzed': len(unique_strings),
+                        'detection_patterns_used': len(self.key_detection_patterns)
+                    }
+                }
             ))
         
         if low_findings and len(low_findings) > 5:  # Only report low findings if there are many
@@ -616,7 +682,15 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
                     "⚡ Implement entropy-based secret detection in development pipeline",
                     "📚 Establish coding standards for handling non-secret high-entropy data",
                     "📝 Create whitelist for legitimate high-entropy strings"
-                ]
+                ],
+                additional_data={
+                    'detected_secrets': detected_secrets['low'],
+                    'total_secrets_found': len(detected_secrets['low']),
+                    'analysis_metadata': {
+                        'strings_analyzed': len(unique_strings),
+                        'detection_patterns_used': len(self.key_detection_patterns)
+                    }
+                }
             ))
         
         return findings
@@ -642,12 +716,17 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
                 pattern = pattern_config['pattern']
                 
                 try:
-                    if re.search(pattern, string, re.IGNORECASE | re.MULTILINE):
+                    match = re.search(pattern, string, re.IGNORECASE | re.MULTILINE)
+                    if match:
+                        # Extract the actual match (might be a capture group)
+                        matched_value = match.group(1) if match.groups() else match.group(0)
+                        
                         # Additional validation checks
-                        if self._validate_key_detection(string, pattern_config, key_type):
+                        if self._validate_key_detection(matched_value, pattern_config, key_type):
                             detections.append({
                                 'type': pattern_config['description'],
-                                'value': string,
+                                'value': matched_value,  # Use the extracted match, not the full string
+                                'full_context': string,  # Keep the full context for reference
                                 'severity': pattern_config['severity'],
                                 'pattern_name': key_type
                             })
