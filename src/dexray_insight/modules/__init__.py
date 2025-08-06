@@ -12,5 +12,6 @@ from . import manifest_analysis
 from . import api_invocation_analysis
 from . import tracker_analysis
 from . import behaviour_analysis
+from . import dotnet_analysis
 
 __all__ = []

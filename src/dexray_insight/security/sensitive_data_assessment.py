@@ -108,7 +108,7 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
                 'severity': 'CRITICAL'
             },
             
-            # Google Credentials
+            # Google Credentials - Enhanced patterns
             'google_oauth_token': {
                 'pattern': r'ya29\.[0-9A-Za-z\-_]+',
                 'description': 'Google OAuth Token',
@@ -117,6 +117,11 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
             'google_service_account': {
                 'pattern': r'"type":\s*"service_account"',
                 'description': 'Google (GCP) Service Account',
+                'severity': 'CRITICAL'
+            },
+            'google_api_key_aiza': {
+                'pattern': r'AIza[0-9A-Za-z\\-_]{35}',
+                'description': 'Google API Key (AIza format)',
                 'severity': 'CRITICAL'
             },
             
@@ -250,11 +255,6 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
             },
             
             # MEDIUM SEVERITY PATTERNS
-            'google_cloud_api_key': {
-                'pattern': r'AIza[0-9A-Za-z\\-_]{35}',
-                'description': 'Google Cloud API Key',
-                'severity': 'MEDIUM'
-            },
             'slack_token_legacy': {
                 'pattern': r'xox[baprs]-[0-9a-zA-Z]{10,48}',
                 'description': 'Slack Token (Legacy)',
@@ -370,6 +370,13 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
                 'severity': 'LOW',
                 'min_entropy': 5.0,
                 'max_length': 512
+            },
+            
+            # Smali const-string patterns for API keys
+            'smali_const_string_api_key': {
+                'pattern': r'const-string\s+v\d+,\s*"([^"]{20,})"',
+                'description': 'Smali const-string API key pattern',
+                'severity': 'MEDIUM'
             }
         }
         
@@ -510,28 +517,55 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
         if not isinstance(string_data, dict):
             return findings
         
-        # Collect all strings from various sources
-        all_strings = []
+        # Collect strings with location information
+        all_strings_with_location = []
         
         # From string analysis results - include ALL string categories
         for key in ['emails', 'urls', 'domains', 'ip_addresses', 'interesting_strings', 'filtered_strings']:
             strings = string_data.get(key, [])
             if isinstance(strings, list):
-                all_strings.extend(strings)
+                for string in strings:
+                    all_strings_with_location.append({
+                        'value': string,
+                        'location': f'String analysis ({key})',
+                        'file_path': None,
+                        'line_number': None
+                    })
         
         # From Android properties
         android_props = string_data.get('android_properties', {})
         if isinstance(android_props, dict):
-            all_strings.extend(android_props.keys())
-            all_strings.extend([str(v) for v in android_props.values() if isinstance(v, str)])
+            for prop_key, prop_value in android_props.items():
+                all_strings_with_location.append({
+                    'value': prop_key,
+                    'location': 'Android properties',
+                    'file_path': None,
+                    'line_number': None
+                })
+                if isinstance(prop_value, str):
+                    all_strings_with_location.append({
+                        'value': prop_value,
+                        'location': 'Android properties',
+                        'file_path': None,
+                        'line_number': None
+                    })
         
         # Get raw strings from the string analysis if available
         raw_strings = string_data.get('all_strings', [])
         if isinstance(raw_strings, list):
-            all_strings.extend(raw_strings)
-            
-        # Enhanced string extraction using behaviour analysis objects when available
+            for string in raw_strings:
+                all_strings_with_location.append({
+                    'value': string,
+                    'location': 'Raw strings',
+                    'file_path': None,
+                    'line_number': None
+                })
+        
+        # Enhanced string extraction with XML and Smali file analysis
         deep_strings_extracted = 0
+        xml_files_analyzed = 0
+        smali_files_analyzed = 0
+        
         try:
             # Check if we have behaviour analysis results with stored androguard objects
             behaviour_results = analysis_results.get('behaviour_analysis', {})
@@ -542,7 +576,20 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
                 if analysis_mode == 'deep':
                     self.logger.info("🔍 Using DEEP analysis objects for enhanced secret detection")
                     
-                    # Extract strings from DEX objects (similar to apk_api_key_extractor approach)
+                    # Get APK object for file extraction
+                    apk_obj = androguard_objs.get('apk_obj')
+                    if apk_obj:
+                        # Extract and analyze XML files (strings.xml, etc.)
+                        xml_strings = self._extract_from_xml_files(apk_obj, all_strings_with_location)
+                        xml_files_analyzed = xml_strings['files_analyzed']
+                        deep_strings_extracted += xml_strings['strings_extracted']
+                        
+                        # Extract and analyze decompiled Smali files
+                        smali_strings = self._extract_from_smali_files(apk_obj, all_strings_with_location)
+                        smali_files_analyzed = smali_strings['files_analyzed']
+                        deep_strings_extracted += smali_strings['strings_extracted']
+                    
+                    # Extract strings from DEX objects (original approach)
                     dex_obj = androguard_objs.get('dex_obj')
                     if dex_obj:
                         for i, dex in enumerate(dex_obj):
@@ -551,13 +598,18 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
                                 for string in dex_strings:
                                     string_val = str(string)
                                     if string_val and len(string_val.strip()) > 0:
-                                        all_strings.append(string_val)
+                                        all_strings_with_location.append({
+                                            'value': string_val,
+                                            'location': f'DEX file {i+1}',
+                                            'file_path': f'classes{i+1 if i > 0 else ""}.dex',
+                                            'line_number': None
+                                        })
                                         deep_strings_extracted += 1
                                 self.logger.debug(f"Extracted {len(dex_strings)} strings from DEX {i+1}")
                             except Exception as e:
                                 self.logger.debug(f"Error extracting strings from DEX {i}: {e}")
                     
-                    # Extract strings from analysis objects for method analysis (secret-finder style)
+                    # Extract strings from analysis objects for method analysis
                     dx_obj = androguard_objs.get('dx_obj')
                     if dx_obj:
                         try:
@@ -565,26 +617,38 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
                             classes = dx_obj.get_classes()
                             for cls in classes:
                                 try:
+                                    class_name = cls.name if hasattr(cls, 'name') else str(cls)
+                                    
                                     # Get class source code for pattern matching
                                     source = cls.get_source()
                                     if source:
                                         # Split source into lines and add as potential strings
                                         lines = source.split('\n')
-                                        for line in lines:
+                                        for line_no, line in enumerate(lines, 1):
                                             line = line.strip()
                                             if line and len(line) > 10:  # Skip very short lines
-                                                all_strings.append(line)
+                                                all_strings_with_location.append({
+                                                    'value': line,
+                                                    'location': f'Class {class_name}',
+                                                    'file_path': f'{class_name}.java',
+                                                    'line_number': line_no
+                                                })
                                                 deep_strings_extracted += 1
                                                 
                                     # Extract method names and field names as potential secrets
                                     for method in cls.get_methods():
                                         method_name = method.get_method().get_name()
                                         if method_name and len(method_name) > 5:
-                                            all_strings.append(method_name)
+                                            all_strings_with_location.append({
+                                                'value': method_name,
+                                                'location': f'Method in class {class_name}',
+                                                'file_path': f'{class_name}.java',
+                                                'line_number': None
+                                            })
                                             deep_strings_extracted += 1
                                             
                                 except Exception as e:
-                                    self.logger.debug(f"Error analyzing class {cls.name}: {e}")
+                                    self.logger.debug(f"Error analyzing class {cls.name if hasattr(cls, 'name') else 'unknown'}: {e}")
                                     
                         except Exception as e:
                             self.logger.debug(f"Error in analysis object string extraction: {e}")
@@ -602,20 +666,37 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
             if isinstance(apk_data, dict):
                 context_strings = apk_data.get('context_strings', [])
                 if isinstance(context_strings, list):
-                    all_strings.extend(context_strings)
+                    for string in context_strings:
+                        all_strings_with_location.append({
+                            'value': string,
+                            'location': 'APK overview',
+                            'file_path': None,
+                            'line_number': None
+                        })
                     
         except Exception as e:
             self.logger.debug(f"Could not extract additional strings from analysis objects: {e}")
             
         if deep_strings_extracted > 0:
-            self.logger.info(f"🎯 Enhanced analysis: extracted {deep_strings_extracted} additional strings from DEX/code analysis")
+            self.logger.info(f"🎯 Enhanced analysis: extracted {deep_strings_extracted} additional strings")
+            self.logger.info(f"   📄 XML files analyzed: {xml_files_analyzed}")
+            self.logger.info(f"   📱 Smali files analyzed: {smali_files_analyzed}")
+            self.logger.info(f"   📊 Total strings from DEX/code analysis: {deep_strings_extracted}")
         
-        # Remove duplicates and filter out empty/None values
-        unique_strings = list(set([s for s in all_strings if s and isinstance(s, str) and len(s.strip()) > 0]))
-        self.logger.info(f"Analyzing {len(unique_strings)} unique strings for hardcoded secrets")
+        # Remove duplicates and filter out empty/None values while preserving location info
+        unique_strings_with_location = []
+        seen_values = set()
         
-        # Detect hardcoded keys using advanced patterns
-        detected_keys = self._detect_hardcoded_keys(unique_strings)
+        for string_info in all_strings_with_location:
+            value = string_info['value']
+            if value and isinstance(value, str) and len(value.strip()) > 0 and value not in seen_values:
+                seen_values.add(value)
+                unique_strings_with_location.append(string_info)
+        
+        self.logger.info(f"Analyzing {len(unique_strings_with_location)} unique strings for hardcoded secrets")
+        
+        # Detect hardcoded keys using advanced patterns with location information
+        detected_keys = self._detect_hardcoded_keys_with_location(unique_strings_with_location)
         
         # Group findings by severity with full key extraction
         critical_findings = []
@@ -632,19 +713,27 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
         }
         
         for detection in detected_keys:
-            # Create detailed evidence entry with full key value
+            # Create detailed evidence entry with full key value and location information
             evidence_entry = {
                 'type': detection['type'],
                 'severity': detection['severity'],
                 'pattern_name': detection['pattern_name'],
                 'value': detection['value'],  # Full key value preserved
                 'full_context': detection.get('full_context', detection['value']),  # Context where found
-                'location': f"String analysis",
+                'location': detection.get('location', 'Unknown'),
+                'file_path': detection.get('file_path'),
+                'line_number': detection.get('line_number'),
                 'preview': detection['value'][:100] + ('...' if len(detection['value']) > 100 else '')
             }
             
-            # Format for terminal display (truncated)
-            terminal_display = f"🔑 [{detection['severity']}] {detection['type']}: {evidence_entry['preview']}"
+            # Format for terminal display with location info
+            location_info = detection.get('location', 'Unknown')
+            if detection.get('file_path'):
+                location_info = detection['file_path']
+                if detection.get('line_number'):
+                    location_info += f":{detection['line_number']}"
+            
+            terminal_display = f"🔑 [{detection['severity']}] {detection['type']}: {evidence_entry['preview']} (found in {location_info})"
             
             if detection['severity'] == 'CRITICAL':
                 critical_findings.append(terminal_display)
@@ -679,7 +768,9 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
                     'detected_secrets': detected_secrets['critical'],
                     'total_secrets_found': len(detected_secrets['critical']),
                     'analysis_metadata': {
-                        'strings_analyzed': len(unique_strings),
+                        'strings_analyzed': len(unique_strings_with_location),
+                        'xml_files_analyzed': xml_files_analyzed,
+                        'smali_files_analyzed': smali_files_analyzed,
                         'detection_patterns_used': len(self.key_detection_patterns)
                     }
                 }
@@ -704,7 +795,9 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
                     'detected_secrets': detected_secrets['high'],
                     'total_secrets_found': len(detected_secrets['high']),
                     'analysis_metadata': {
-                        'strings_analyzed': len(unique_strings),
+                        'strings_analyzed': len(unique_strings_with_location),
+                        'xml_files_analyzed': xml_files_analyzed,
+                        'smali_files_analyzed': smali_files_analyzed,
                         'detection_patterns_used': len(self.key_detection_patterns)
                     }
                 }
@@ -728,7 +821,9 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
                     'detected_secrets': detected_secrets['medium'],
                     'total_secrets_found': len(detected_secrets['medium']),
                     'analysis_metadata': {
-                        'strings_analyzed': len(unique_strings),
+                        'strings_analyzed': len(unique_strings_with_location),
+                        'xml_files_analyzed': xml_files_analyzed,
+                        'smali_files_analyzed': smali_files_analyzed,
                         'detection_patterns_used': len(self.key_detection_patterns)
                     }
                 }
@@ -751,7 +846,9 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
                     'detected_secrets': detected_secrets['low'],
                     'total_secrets_found': len(detected_secrets['low']),
                     'analysis_metadata': {
-                        'strings_analyzed': len(unique_strings),
+                        'strings_analyzed': len(unique_strings_with_location),
+                        'xml_files_analyzed': xml_files_analyzed,
+                        'smali_files_analyzed': smali_files_analyzed,
                         'detection_patterns_used': len(self.key_detection_patterns)
                     }
                 }
@@ -759,16 +856,17 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
         
         return findings
     
-    def _detect_hardcoded_keys(self, strings: List[str]) -> List[Dict[str, str]]:
-        """Detect hardcoded keys using comprehensive pattern matching"""
+    def _detect_hardcoded_keys_with_location(self, strings_with_location: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Detect hardcoded keys using comprehensive pattern matching with location information"""
         detections = []
         
-        for string in strings:
-            if not isinstance(string, str):
+        for string_info in strings_with_location:
+            string_value = string_info['value']
+            if not isinstance(string_value, str):
                 continue
             
             # Apply length filters
-            if len(string) < self.length_filters['min_key_length'] or len(string) > self.length_filters['max_key_length']:
+            if len(string_value) < self.length_filters['min_key_length'] or len(string_value) > self.length_filters['max_key_length']:
                 continue
             
             # Check each detection pattern
@@ -780,20 +878,24 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
                 pattern = pattern_config['pattern']
                 
                 try:
-                    match = re.search(pattern, string, re.IGNORECASE | re.MULTILINE)
+                    match = re.search(pattern, string_value, re.IGNORECASE | re.MULTILINE)
                     if match:
                         # Extract the actual match (might be a capture group)
                         matched_value = match.group(1) if match.groups() else match.group(0)
                         
                         # Additional validation checks
                         if self._validate_key_detection(matched_value, pattern_config, key_type):
-                            detections.append({
+                            detection = {
                                 'type': pattern_config['description'],
                                 'value': matched_value,  # Use the extracted match, not the full string
-                                'full_context': string,  # Keep the full context for reference
+                                'full_context': string_value,  # Keep the full context for reference
                                 'severity': pattern_config['severity'],
-                                'pattern_name': key_type
-                            })
+                                'pattern_name': key_type,
+                                'location': string_info['location'],
+                                'file_path': string_info['file_path'],
+                                'line_number': string_info['line_number']
+                            }
+                            detections.append(detection)
                             break  # Don't match multiple patterns for the same string
                             
                 except re.error as e:
@@ -816,6 +918,7 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
             'github_token_in_url': 'api_keys',
             'google_oauth_token': 'api_keys',
             'google_service_account': 'api_keys',
+            'google_api_key_aiza': 'api_keys',
             'firebase_cloud_messaging_key': 'api_keys',
             'password_in_url': 'api_keys',
             
@@ -866,7 +969,8 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
             's3_bucket_url': 'api_keys',
             'base64_key_long': 'base64_keys',
             'base64_key_medium': 'base64_keys',
-            'high_entropy_string': 'high_entropy_strings'
+            'high_entropy_string': 'high_entropy_strings',
+            'smali_const_string_api_key': 'api_keys'
         }
         
         config_key = pattern_mapping.get(key_type, 'api_keys')  # Default to api_keys
@@ -909,6 +1013,210 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
             return False
         
         return True
+    
+    def _extract_from_xml_files(self, apk_obj, all_strings_with_location: List[Dict[str, Any]]) -> Dict[str, int]:
+        """
+        Extract strings from XML files within the APK, particularly targeting strings.xml files
+        
+        Args:
+            apk_obj: Androguard APK object
+            all_strings_with_location: List to append extracted strings with location info
+            
+        Returns:
+            Dict with files_analyzed and strings_extracted counts
+        """
+        files_analyzed = 0
+        strings_extracted = 0
+        
+        try:
+            # Get all XML files from the APK
+            xml_files = [f for f in apk_obj.get_files() if f.endswith('.xml')]
+            
+            self.logger.debug(f"Found {len(xml_files)} XML files in APK")
+            
+            for xml_file in xml_files:
+                try:
+                    # Focus on common resource files that may contain API keys
+                    if any(target in xml_file.lower() for target in ['strings.xml', 'config.xml', 'keys.xml', 'api.xml', 'secrets.xml']):
+                        files_analyzed += 1
+                        
+                        # Get XML content
+                        xml_data = apk_obj.get_file(xml_file)
+                        if xml_data:
+                            # Try to decode as XML
+                            try:
+                                from xml.etree import ElementTree as ET
+                                
+                                # Parse XML content
+                                root = ET.fromstring(xml_data)
+                                
+                                # Extract strings from XML elements and attributes
+                                for elem in root.iter():
+                                    # Check element text content
+                                    if elem.text and elem.text.strip():
+                                        text_content = elem.text.strip()
+                                        if len(text_content) > 8:  # Skip very short strings
+                                            all_strings_with_location.append({
+                                                'value': text_content,
+                                                'location': f'XML element text',
+                                                'file_path': xml_file,
+                                                'line_number': None
+                                            })
+                                            strings_extracted += 1
+                                    
+                                    # Check attributes for potential API keys
+                                    for attr_name, attr_value in elem.attrib.items():
+                                        if attr_value and len(attr_value) > 8:
+                                            # Special handling for common API key attribute names
+                                            if any(key_hint in attr_name.lower() for key_hint in ['key', 'token', 'secret', 'api', 'auth']):
+                                                all_strings_with_location.append({
+                                                    'value': attr_value,
+                                                    'location': f'XML attribute ({attr_name})',
+                                                    'file_path': xml_file,
+                                                    'line_number': None
+                                                })
+                                                strings_extracted += 1
+                                            # Also extract attribute names that might be keys themselves
+                                            elif len(attr_name) > 16:
+                                                all_strings_with_location.append({
+                                                    'value': attr_name,
+                                                    'location': f'XML attribute name',
+                                                    'file_path': xml_file,
+                                                    'line_number': None
+                                                })
+                                                strings_extracted += 1
+                                                
+                                        # Look for specific patterns like <string name="google_api_key">AIzaSy...</string>
+                                        if elem.tag == 'string' and 'name' in elem.attrib:
+                                            string_name = elem.attrib['name']
+                                            if any(key_hint in string_name.lower() for key_hint in ['key', 'token', 'secret', 'api', 'auth', 'password']):
+                                                if elem.text and elem.text.strip() and len(elem.text.strip()) > 8:
+                                                    all_strings_with_location.append({
+                                                        'value': elem.text.strip(),
+                                                        'location': f'XML string resource ({string_name})',
+                                                        'file_path': xml_file,
+                                                        'line_number': None
+                                                    })
+                                                    strings_extracted += 1
+                                
+                                self.logger.debug(f"Extracted {strings_extracted} strings from {xml_file}")
+                                
+                            except ET.ParseError as e:
+                                # Try as plain text if XML parsing fails
+                                try:
+                                    text_content = xml_data.decode('utf-8', errors='ignore')
+                                    # Look for key-value patterns in the text
+                                    lines = text_content.split('\n')
+                                    for line_no, line in enumerate(lines, 1):
+                                        line = line.strip()
+                                        if len(line) > 16 and any(keyword in line.lower() for keyword in ['key', 'token', 'secret', 'api']):
+                                            all_strings_with_location.append({
+                                                'value': line,
+                                                'location': f'XML file content',
+                                                'file_path': xml_file,
+                                                'line_number': line_no
+                                            })
+                                            strings_extracted += 1
+                                except UnicodeDecodeError:
+                                    self.logger.debug(f"Could not decode {xml_file} as text")
+                                    
+                except Exception as e:
+                    self.logger.debug(f"Error processing XML file {xml_file}: {e}")
+                    
+        except Exception as e:
+            self.logger.debug(f"Error in XML file extraction: {e}")
+            
+        self.logger.debug(f"XML analysis complete: {files_analyzed} files analyzed, {strings_extracted} strings extracted")
+        return {'files_analyzed': files_analyzed, 'strings_extracted': strings_extracted}
+    
+    def _extract_from_smali_files(self, apk_obj, all_strings_with_location: List[Dict[str, Any]]) -> Dict[str, int]:
+        """
+        Extract const-string patterns from Smali code analysis
+        
+        This method attempts to access decompiled Smali code or simulate Smali analysis
+        by examining DEX bytecode for const-string instructions.
+        
+        Args:
+            apk_obj: Androguard APK object
+            all_strings_with_location: List to append extracted strings with location info
+            
+        Returns:
+            Dict with files_analyzed and strings_extracted counts
+        """
+        files_analyzed = 0
+        strings_extracted = 0
+        
+        try:
+            # Since we don't have direct access to Smali files in the APK object,
+            # we'll analyze the DEX bytecode for const-string patterns
+            
+            from androguard.core.bytecodes import dvm
+            
+            # Get DEX objects from the APK
+            for dex_name in apk_obj.get_dex_names():
+                try:
+                    dex = apk_obj.get_dex(dex_name)
+                    if dex:
+                        files_analyzed += 1
+                        
+                        # Parse DEX file
+                        dex_vm = dvm.DalvikVMFormat(dex)
+                        
+                        # Iterate through classes
+                        for class_def in dex_vm.get_classes():
+                            class_name = class_def.get_name()
+                            
+                            # Skip system classes to focus on app code
+                            if class_name.startswith('Landroid/') or class_name.startswith('Ljava/'):
+                                continue
+                                
+                            try:
+                                # Get methods in the class
+                                for method in class_def.get_methods():
+                                    method_name = method.get_name()
+                                    
+                                    # Get method bytecode
+                                    if method.get_code():
+                                        bytecode = method.get_code()
+                                        
+                                        # Look for const-string instructions in the bytecode
+                                        for instruction in bytecode.get_bc().get():
+                                            if instruction.get_name() == 'const-string':
+                                                # Extract the string value from const-string instruction
+                                                try:
+                                                    string_idx = instruction.get_ref_off_size()[0]
+                                                    string_value = dex_vm.get_string(string_idx)
+                                                    
+                                                    if string_value and len(string_value) > 8:
+                                                        # Check if this looks like a potential secret
+                                                        if any(keyword in string_value.lower() for keyword in ['key', 'token', 'secret', 'api', 'auth', 'password']) or \
+                                                           len(string_value) > 20:
+                                                            
+                                                            all_strings_with_location.append({
+                                                                'value': string_value,
+                                                                'location': f'Smali const-string in {method_name}',
+                                                                'file_path': f'{class_name}.smali',
+                                                                'line_number': None
+                                                            })
+                                                            strings_extracted += 1
+                                                            
+                                                except (IndexError, AttributeError):
+                                                    # Handle cases where string extraction fails
+                                                    continue
+                                                    
+                            except Exception as e:
+                                self.logger.debug(f"Error analyzing method {method_name} in {class_name}: {e}")
+                                continue
+                                
+                except Exception as e:
+                    self.logger.debug(f"Error processing DEX {dex_name}: {e}")
+                    continue
+                    
+        except Exception as e:
+            self.logger.debug(f"Error in Smali/DEX analysis: {e}")
+            
+        self.logger.debug(f"Smali analysis complete: {files_analyzed} DEX files analyzed, {strings_extracted} const-string patterns extracted")
+        return {'files_analyzed': files_analyzed, 'strings_extracted': strings_extracted}
     
     def _calculate_entropy(self, string: str) -> float:
         """Calculate Shannon entropy of a string"""
