@@ -193,6 +193,9 @@ class CustomJSONEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, datetime):
             return obj.isoformat()  # Convert datetime to ISO 8601 format string
+        # Handle Enum objects
+        if hasattr(obj, 'value') and hasattr(obj.__class__, '__members__'):
+            return obj.value
         # Handle dataclass objects that have a to_dict method
         if hasattr(obj, 'to_dict') and callable(getattr(obj, 'to_dict')):
             return obj.to_dict()

@@ -27,6 +27,11 @@ class SecurityAssessmentResults:
             'findings_by_severity': self._group_by_severity()
         }
     
+    def to_json(self) -> str:
+        """Convert security results to JSON string for file output"""
+        import json
+        return json.dumps(self.to_dict(), indent=4, default=str)
+    
     def _group_by_severity(self) -> Dict[str, int]:
         """Group findings by severity level"""
         severity_counts = defaultdict(int)
@@ -40,8 +45,8 @@ class SecurityAssessmentEngine:
     def __init__(self, config: Configuration):
         self.config = config
         self.security_config = config.get_security_config()
-        self.assessments = self._load_assessments()
         self.logger = logging.getLogger(__name__)
+        self.assessments = self._load_assessments()
     
     def assess(self, analysis_results: Dict[str, Any]) -> SecurityAssessmentResults:
         """
@@ -76,6 +81,17 @@ class SecurityAssessmentEngine:
                 
                 self.logger.info(f"{assessment_name} completed with {len(findings)} findings")
                 
+                # Print findings to terminal with details
+                if findings:
+                    for finding in findings:
+                        print(f"[+] {finding.category} - {finding.title}")
+                        if hasattr(finding, 'location') and finding.location:
+                            print(f"    Location: {finding.location}")
+                        if hasattr(finding, 'description') and finding.description:
+                            # Truncate description for terminal output
+                            desc = finding.description[:100] + "..." if len(finding.description) > 100 else finding.description
+                            print(f"    Description: {desc}")
+                
             except Exception as e:
                 self.logger.error(f"Assessment {assessment_name} failed: {str(e)}")
                 assessment_summary[assessment_name] = {
@@ -104,6 +120,15 @@ class SecurityAssessmentEngine:
         )
         
         self.logger.info(f"Security assessment completed with {len(all_findings)} total findings, risk score: {overall_risk_score:.2f}")
+        
+        # Print summary to terminal
+        if all_findings:
+            print(f"\n[+] Security Assessment Summary:")
+            print(f"    Total findings: {len(all_findings)}")
+            print(f"    Risk score: {overall_risk_score:.2f}")
+            print(f"    OWASP categories affected: {', '.join(owasp_categories)}")
+        else:
+            print(f"\n[+] Security Assessment completed with no findings")
         
         return results
     

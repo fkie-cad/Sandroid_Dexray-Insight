@@ -62,7 +62,7 @@ class Configuration:
                 }
             },
             'api_invocation': {
-                'enabled': True,
+                'enabled': False,
                 'priority': 40,
                 'reflection_analysis': True
             },
@@ -75,6 +75,13 @@ class Configuration:
             'apk_diffing': {
                 'enabled': False,
                 'priority': 100
+            },
+            'tracker_analysis': {
+                'enabled': True,
+                'priority': 35,
+                'fetch_exodus_trackers': True,
+                'exodus_api_url': 'https://reports.exodus-privacy.eu.org/api/trackers',
+                'api_timeout': 10
             }
         },
         'tools': {

@@ -65,6 +65,29 @@ modules:
   apk_diffing:
     enabled: false
     priority: 100
+    
+  tracker_analysis:
+    enabled: true
+    priority: 35
+    fetch_exodus_trackers: true
+    exodus_api_url: "https://reports.exodus-privacy.eu.org/api/trackers"
+    api_timeout: 10
+    
+  deep_analysis:
+    enabled: false
+    priority: 1000  # Lowest priority to run last
+    features:
+      device_model_access: true
+      imei_access: true
+      android_version_access: true
+      phone_number_access: true
+      clipboard_usage: true
+      dynamic_receivers: true
+      camera_access: true
+      running_services_access: true
+      installed_applications_access: true
+      installed_packages_access: true
+      reflection_usage: true
 
 # External Tools Configuration
 tools:
@@ -84,7 +107,7 @@ tools:
 
 # Security Assessment Configuration
 security:
-  enable_owasp_assessment: false
+  enable_owasp_assessment: true
   assessments:
     injection:
       enabled: true
@@ -98,6 +121,32 @@ security:
       enabled: true
       pii_patterns: ["email", "phone", "ssn", "credit_card"]
       crypto_keys_check: true
+      # Enhanced hardcoded key detection settings
+      key_detection:
+        enabled: true
+        # Detection patterns to enable/disable
+        patterns:
+          pem_keys: true              # PEM formatted private keys and certificates
+          ssh_keys: true              # SSH public/private keys
+          jwt_tokens: true            # JWT tokens
+          api_keys: true              # Various API keys (AWS, GitHub, Google, etc.)
+          base64_keys: true           # Base64 encoded potential keys
+          hex_keys: true              # Hexadecimal keys
+          database_connections: true  # Database connection strings
+          high_entropy_strings: true  # Generic high-entropy strings
+        # Entropy thresholds for detection
+        entropy_thresholds:
+          min_base64_entropy: 4.0     # Minimum entropy for base64 strings
+          min_hex_entropy: 3.5        # Minimum entropy for hex strings  
+          min_generic_entropy: 5.0    # Minimum entropy for generic strings
+        # String length filters
+        length_filters:
+          min_key_length: 16          # Minimum length for potential keys
+          max_key_length: 512         # Maximum length to avoid very long strings
+        # Context detection settings
+        context_detection:
+          enabled: true               # Enable context-aware detection
+          strict_mode: false          # Require context for all detections
     broken_access_control:
       enabled: true
       check_exported_components: true

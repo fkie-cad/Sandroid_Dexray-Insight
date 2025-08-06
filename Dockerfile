@@ -126,4 +126,4 @@ RUN rm -rf /var/lib/apt/lists/* /tmp/*
 ENV PATH="${PATH}:/root/.dotnet/tools"
 
 # Setze den Startbefehl zum Starten des Python-Projekts
-ENTRYPOINT ["asam"]
+ENTRYPOINT ["dexray-insight"]

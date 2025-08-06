@@ -354,7 +354,24 @@ def analyze_apk(apk_path, apk_overview, app_dic, permissions_details=False):
     native_libs = apk_overview.get_libraries()
     if len(native_libs) < 1:
         apk = APK(apk_path)
-        native_libs = [f for f in apk.get_files() if f.startswith("lib/")]
+        all_lib_files = [f for f in apk.get_files() if f.startswith("lib/")]
+        
+        # Extract native libraries from the first architecture folder under lib/
+        native_libs = []
+        if all_lib_files:
+            # Find all architecture folders under lib/
+            arch_folders = set()
+            for lib_file in all_lib_files:
+                parts = lib_file.split('/')
+                if len(parts) >= 3 and parts[0] == 'lib':  # lib/arch/file.so
+                    arch_folders.add(parts[1])
+            
+            if arch_folders:
+                # Get the first architecture folder (sorted for consistency)
+                first_arch = sorted(arch_folders)[0]
+                # Extract all .so files from this architecture folder
+                native_libs = [f for f in all_lib_files 
+                             if f.startswith(f"lib/{first_arch}/") and f.endswith('.so')]
 
     is_cross_platform = is_crossplatform(native_libs,directory_listing)
     cross_platform_framework = detect_framework(native_libs,directory_listing)

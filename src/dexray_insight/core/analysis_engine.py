@@ -528,11 +528,19 @@ class AnalysisEngine:
             kavanoz_analysis=kavanoz_results
         )
         
+        # Add tracker analysis results if available
+        tracker_result = module_results.get('tracker_analysis')
+        if tracker_result and tracker_result.status.value == 'success':
+            from ..results.TrackerAnalysisResults import TrackerAnalysisResults
+            full_results.tracker_analysis = TrackerAnalysisResults(tracker_result)
+        
+        # Add deep analysis results if available
+        deep_result = module_results.get('deep_analysis')
+        if deep_result and deep_result.status.value == 'success':
+            full_results.deep_analysis = deep_result
+        
         # Add security results if available
         if security_results:
-            # For now, just add as additional field
-            # In future versions, this could be integrated more deeply
-            if hasattr(full_results, '__dict__'):
-                full_results.__dict__['security_assessment'] = security_results.to_dict() if hasattr(security_results, 'to_dict') else security_results
+            full_results.security_assessment = security_results.to_dict() if hasattr(security_results, 'to_dict') else security_results
         
         return full_results

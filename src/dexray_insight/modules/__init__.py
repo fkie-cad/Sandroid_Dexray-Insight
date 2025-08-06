@@ -10,5 +10,7 @@ from . import permission_analysis
 from . import string_analysis
 from . import manifest_analysis
 from . import api_invocation_analysis
+from . import tracker_analysis
+from . import deep_analysis
 
 __all__ = []

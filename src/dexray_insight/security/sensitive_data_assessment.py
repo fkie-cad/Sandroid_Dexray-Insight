@@ -19,6 +19,43 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
         self.pii_patterns = config.get('pii_patterns', ['email', 'phone', 'ssn', 'credit_card'])
         self.crypto_keys_check = config.get('crypto_keys_check', True)
         
+        # Enhanced key detection configuration
+        self.key_detection_config = config.get('key_detection', {})
+        self.key_detection_enabled = self.key_detection_config.get('enabled', True)
+        
+        # Pattern enablement
+        pattern_config = self.key_detection_config.get('patterns', {})
+        self.enabled_patterns = {
+            'pem_keys': pattern_config.get('pem_keys', True),
+            'ssh_keys': pattern_config.get('ssh_keys', True),
+            'jwt_tokens': pattern_config.get('jwt_tokens', True),
+            'api_keys': pattern_config.get('api_keys', True),
+            'base64_keys': pattern_config.get('base64_keys', True),
+            'hex_keys': pattern_config.get('hex_keys', True),
+            'database_connections': pattern_config.get('database_connections', True),
+            'high_entropy_strings': pattern_config.get('high_entropy_strings', True)
+        }
+        
+        # Entropy thresholds
+        entropy_config = self.key_detection_config.get('entropy_thresholds', {})
+        self.entropy_thresholds = {
+            'min_base64_entropy': entropy_config.get('min_base64_entropy', 4.0),
+            'min_hex_entropy': entropy_config.get('min_hex_entropy', 3.5),
+            'min_generic_entropy': entropy_config.get('min_generic_entropy', 5.0)
+        }
+        
+        # Length filters
+        length_config = self.key_detection_config.get('length_filters', {})
+        self.length_filters = {
+            'min_key_length': length_config.get('min_key_length', 16),
+            'max_key_length': length_config.get('max_key_length', 512)
+        }
+        
+        # Context detection settings
+        context_config = self.key_detection_config.get('context_detection', {})
+        self.context_detection_enabled = context_config.get('enabled', True)
+        self.context_strict_mode = context_config.get('strict_mode', False)
+        
         # PII detection patterns
         self.pii_regex_patterns = {
             'email': r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b',
@@ -27,20 +64,328 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
             'credit_card': r'\b(?:\d{4}[-\s]?){3}\d{4}\b'
         }
         
-        # Crypto-related patterns
+        # Enhanced hardcoded key detection patterns (integrated from secret-finder)
+        self.key_detection_patterns = {
+            # CRITICAL SEVERITY PATTERNS
+            # Private Keys - Enhanced patterns from secret-finder
+            'pem_private_key': {
+                'pattern': r'-----BEGIN (?:RSA|DSA|EC|OPENSSH|PGP) PRIVATE KEY(?: BLOCK)?-----',
+                'description': 'Private Key',
+                'severity': 'CRITICAL'
+            },
+            'ssh_private_key': {
+                'pattern': r'-----BEGIN OPENSSH PRIVATE KEY-----[A-Za-z0-9+/\s=]+-----END OPENSSH PRIVATE KEY-----',
+                'description': 'SSH private key',
+                'severity': 'CRITICAL'
+            },
+            
+            # AWS Credentials - Enhanced from secret-finder
+            'aws_access_key': {
+                'pattern': r'(?:A3T[A-Z0-9]|AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}',
+                'description': 'AWS Access Key ID',
+                'severity': 'CRITICAL'
+            },
+            'aws_secret_key': {
+                'pattern': r'(?i)aws(?:.{0,20})?(?:secret|key|token).{0,20}?[\'"]([A-Za-z0-9/+=]{40})[\'"]',
+                'description': 'AWS Secret Access Key',
+                'severity': 'CRITICAL'
+            },
+            
+            # GitHub Tokens - Enhanced patterns
+            'github_token': {
+                'pattern': r'ghp_[0-9a-zA-Z]{36}',
+                'description': 'GitHub Token',
+                'severity': 'CRITICAL'
+            },
+            'github_fine_grained_token': {
+                'pattern': r'github_pat_[0-9a-zA-Z_]{82}',
+                'description': 'GitHub Fine-Grained Token',
+                'severity': 'CRITICAL'
+            },
+            'github_token_in_url': {
+                'pattern': r'[a-zA-Z0-9_-]*:([a-zA-Z0-9_\-]+)@github\.com',
+                'description': 'GitHub Token in URL',
+                'severity': 'CRITICAL'
+            },
+            
+            # Google Credentials
+            'google_oauth_token': {
+                'pattern': r'ya29\.[0-9A-Za-z\-_]+',
+                'description': 'Google OAuth Token',
+                'severity': 'CRITICAL'
+            },
+            'google_service_account': {
+                'pattern': r'"type":\s*"service_account"',
+                'description': 'Google (GCP) Service Account',
+                'severity': 'CRITICAL'
+            },
+            
+            # Firebase & Other Critical
+            'firebase_cloud_messaging_key': {
+                'pattern': r'AAAA[A-Za-z0-9_-]{7}:[A-Za-z0-9_-]{140}',
+                'description': 'Firebase Cloud Messaging Key',
+                'severity': 'CRITICAL'
+            },
+            'password_in_url': {
+                'pattern': r'[a-zA-Z]{3,10}://[^/\s:@]{3,20}:([^/\s:@]{3,20})@.{1,100}["\'\s]',
+                'description': 'Password in URL',
+                'severity': 'CRITICAL'
+            },
+            
+            # HIGH SEVERITY PATTERNS
+            # Generic Password/API Key Patterns
+            'generic_password': {
+                'pattern': r'(?i)\b(?:password|pass|pwd|passwd)\b\s*[:=]\s*[\'"]?([^\s\'"/\\,;<>]{8,})[\'"]?',
+                'description': 'Password',
+                'severity': 'HIGH'
+            },
+            'generic_api_key': {
+                'pattern': r'(?i)\b(?:api_key|apikey|api-key|access_key|access-key|secret_key|secret-key)\b\s*[:=]\s*[\'"]?([a-zA-Z0-9-_.]{20,})[\'"]?',
+                'description': 'Generic API Key',
+                'severity': 'HIGH'
+            },
+            'generic_secret': {
+                'pattern': r'(?i)\bsecret\b.*[\'"]([0-9a-zA-Z]{32,45})[\'"]',
+                'description': 'Generic Secret',
+                'severity': 'HIGH'
+            },
+            
+            # JWT tokens
+            'jwt_token': {
+                'pattern': r'ey[A-Za-z0-9-_=]{10,}\.[A-Za-z0-9-_=]{10,}\.?[A-Za-z0-9-_.+/=]*',
+                'description': 'JWT Token',
+                'severity': 'HIGH'
+            },
+            
+            # Service-Specific High Severity
+            'azure_client_secret': {
+                'pattern': r'(?i)\b(?:azure_client_secret|client_secret)\b\s*[:=]\s*[\'"]?([a-zA-Z0-9-~_\\.]{30,})[\'"]?',
+                'description': 'Azure Client Secret',
+                'severity': 'HIGH'
+            },
+            'heroku_api_key': {
+                'pattern': r'(?i)\b(?:heroku_api_key|heroku-api-key)\b\s*[:=]\s*[\'"]?([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})[\'"]?',
+                'description': 'Heroku API Key',
+                'severity': 'HIGH'
+            },
+            'stripe_api_key': {
+                'pattern': r'(?:sk|pk)_live_[0-9a-zA-Z]{24}',
+                'description': 'Stripe API Key',
+                'severity': 'HIGH'
+            },
+            'discord_bot_token': {
+                'pattern': r'[M-Z][a-zA-Z0-9\-_]{23}\.[a-zA-Z0-9\-_]{6}\.[a-zA-Z0-9\-_]{27,}',
+                'description': 'Discord Bot Token',
+                'severity': 'HIGH'
+            },
+            'gitlab_personal_token': {
+                'pattern': r'glpat-[0-9a-zA-Z\-_]{20}',
+                'description': 'GitLab Personal Token',
+                'severity': 'HIGH'
+            },
+            'amazon_mws_auth_token': {
+                'pattern': r'amzn\.mws\.[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}',
+                'description': 'Amazon MWS Auth Token',
+                'severity': 'HIGH'
+            },
+            'facebook_access_token': {
+                'pattern': r'EAACEdEose0cBA[0-9A-Za-z]+',
+                'description': 'Facebook Access Token',
+                'severity': 'HIGH'
+            },
+            'facebook_oauth_secret': {
+                'pattern': r'(?i)facebook.*[\'"]([0-9a-f]{32})[\'"]',
+                'description': 'Facebook OAuth Secret',
+                'severity': 'HIGH'
+            },
+            'mailchimp_api_key': {
+                'pattern': r'[0-9a-f]{32}-us[0-9]{1,2}',
+                'description': 'MailChimp API Key',
+                'severity': 'HIGH'
+            },
+            'mailgun_api_key': {
+                'pattern': r'key-[0-9a-zA-Z]{32}',
+                'description': 'Mailgun API Key',
+                'severity': 'HIGH'
+            },
+            'picatic_api_key': {
+                'pattern': r'sk_live_[0-9a-z]{32}',
+                'description': 'Picatic API Key',
+                'severity': 'HIGH'
+            },
+            'square_access_token': {
+                'pattern': r'sq0atp-[0-9A-Za-z\-_]{22}|EAAA[a-zA-Z0-9]{60}',
+                'description': 'Square Access Token',
+                'severity': 'HIGH'
+            },
+            'square_oauth_secret': {
+                'pattern': r'sq0csp-[0-9A-Za-z\-_]{43}',
+                'description': 'Square OAuth Secret',
+                'severity': 'HIGH'
+            },
+            'twitter_access_token': {
+                'pattern': r'(?i)\btwitter\b.*([1-9][0-9]+-[0-9a-zA-Z]{40})',
+                'description': 'Twitter Access Token',
+                'severity': 'HIGH'
+            },
+            'twitter_oauth_secret': {
+                'pattern': r'(?i)\btwitter\b.*[\'"]([0-9a-zA-Z]{35,44})[\'"]',
+                'description': 'Twitter OAuth Secret',
+                'severity': 'HIGH'
+            },
+            'authorization_basic': {
+                'pattern': r'basic [a-zA-Z0-9=:_\+\/-]{5,100}',
+                'description': 'Authorization Basic',
+                'severity': 'HIGH'
+            },
+            'authorization_bearer': {
+                'pattern': r'bearer [a-zA-Z0-9_\-\.=:_\+\/]{5,100}',
+                'description': 'Authorization Bearer',
+                'severity': 'HIGH'
+            },
+            'slack_token': {
+                'pattern': r'xox[p|b|o|a]-[0-9]{12}-[0-9]{12}-[0-9]{12}-[a-z0-9]{32}',
+                'description': 'Slack Token',
+                'severity': 'HIGH'
+            },
+            
+            # MEDIUM SEVERITY PATTERNS
+            'google_cloud_api_key': {
+                'pattern': r'AIza[0-9A-Za-z\\-_]{35}',
+                'description': 'Google Cloud API Key',
+                'severity': 'MEDIUM'
+            },
+            'slack_token_legacy': {
+                'pattern': r'xox[baprs]-[0-9a-zA-Z]{10,48}',
+                'description': 'Slack Token (Legacy)',
+                'severity': 'MEDIUM'
+            },
+            
+            # Database Connection URIs
+            'mongodb_uri': {
+                'pattern': r'mongodb(?:\+srv)?:\/\/[^\s]+',
+                'description': 'MongoDB URI',
+                'severity': 'MEDIUM'
+            },
+            'postgresql_uri': {
+                'pattern': r'postgres(?:ql)?:\/\/[^\s]+',
+                'description': 'PostgreSQL URI',
+                'severity': 'MEDIUM'
+            },
+            'mysql_uri': {
+                'pattern': r'mysql:\/\/[^\s]+',
+                'description': 'MySQL URI',
+                'severity': 'MEDIUM'
+            },
+            'redis_uri': {
+                'pattern': r'redis:\/\/[^\s]+',
+                'description': 'Redis URI',
+                'severity': 'MEDIUM'
+            },
+            'cloudinary_url': {
+                'pattern': r'cloudinary://[^\s]+',
+                'description': 'Cloudinary URL',
+                'severity': 'MEDIUM'
+            },
+            'firebase_url': {
+                'pattern': r'[^"\']+\.firebaseio\.com',
+                'description': 'Firebase URL',
+                'severity': 'MEDIUM'
+            },
+            'slack_webhook_url': {
+                'pattern': r'https://hooks.slack.com/services/T[a-zA-Z0-9_]{8}/B[a-zA-Z0-9_]{8}/[a-zA-Z0-9_]{24}',
+                'description': 'Slack Webhook URL',
+                'severity': 'MEDIUM'
+            },
+            
+            # SSH Public Keys and Certificates
+            'ssh_public_key': {
+                'pattern': r'ssh-(?:rsa|dss|ed25519|ecdsa) [A-Za-z0-9+/]+=*',
+                'description': 'SSH public key',
+                'severity': 'MEDIUM'
+            },
+            'pem_certificate': {
+                'pattern': r'-----BEGIN CERTIFICATE-----[A-Za-z0-9+/\s=]+-----END CERTIFICATE-----',
+                'description': 'PEM-formatted certificate',
+                'severity': 'MEDIUM'
+            },
+            
+            # Hex encoded keys
+            'hex_key_256': {
+                'pattern': r'[a-fA-F0-9]{64}',
+                'description': '256-bit hex key',
+                'severity': 'MEDIUM'
+            },
+            'hex_key_128': {
+                'pattern': r'[a-fA-F0-9]{32}',
+                'description': '128-bit hex key',
+                'severity': 'MEDIUM'
+            },
+            
+            # LOW SEVERITY PATTERNS
+            'jenkins_api_token': {
+                'pattern': r'11[0-9a-f]{32}',
+                'description': 'Jenkins API Token',
+                'severity': 'LOW'
+            },
+            'stripe_restricted_key': {
+                'pattern': r'rk_live_[0-9a-zA-Z]{24}',
+                'description': 'Stripe Restricted Key',
+                'severity': 'LOW'
+            },
+            'paypal_braintree_token': {
+                'pattern': r'access_token\$production\$[0-9a-z]{16}\$[0-9a-f]{32}',
+                'description': 'PayPal Braintree Token',
+                'severity': 'LOW'
+            },
+            'google_captcha_key': {
+                'pattern': r'6L[0-9A-Za-z-_]{38}|^6[0-9a-zA-Z_-]{39}$',
+                'description': 'Google Captcha Key',
+                'severity': 'LOW'
+            },
+            's3_bucket_url': {
+                'pattern': r'[a-zA-Z0-9._-]+\.s3\.amazonaws\.com',
+                'description': 'S3 Bucket URL',
+                'severity': 'LOW'
+            },
+            
+            # Base64 encoded keys (high entropy)
+            'base64_key_long': {
+                'pattern': r'[A-Za-z0-9+/]{64,}={0,2}',
+                'description': 'Long Base64 encoded string (potential key)',
+                'severity': 'LOW',
+                'min_entropy': 4.5
+            },
+            'base64_key_medium': {
+                'pattern': r'[A-Za-z0-9+/]{32,63}={0,2}',
+                'description': 'Medium Base64 encoded string (potential key)',
+                'severity': 'LOW',
+                'min_entropy': 4.0
+            },
+            
+            # Generic high-entropy strings
+            'high_entropy_string': {
+                'pattern': r'[A-Za-z0-9+/=]{20,}',
+                'description': 'High entropy string (potential key)',
+                'severity': 'LOW',
+                'min_entropy': 5.0,
+                'max_length': 512
+            }
+        }
+        
+        # Context keywords that increase suspicion level
+        self.key_context_keywords = {
+            'high_risk': ['password', 'secret', 'private', 'key', 'token', 'credential', 'auth'],
+            'crypto': ['aes', 'rsa', 'des', 'rc4', 'encrypt', 'decrypt', 'cipher', 'crypto'],
+            'api': ['api', 'token', 'bearer', 'oauth', 'jwt', 'auth'],
+            'database': ['db', 'database', 'connection', 'conn', 'sql', 'mysql', 'postgres']
+        }
+        
+        # Legacy crypto patterns (kept for backward compatibility)
         self.crypto_patterns = [
-            # Weak encryption algorithms
             'DES', 'RC4', 'MD5', 'SHA1',
-            
-            # Common key/password patterns
             'password', 'passwd', 'pwd', 'secret', 'key', 'token', 'api_key',
-            'private_key', 'public_key', 'certificate', 'keystore',
-            
-            # Base64 encoded patterns (potential keys/secrets)
-            r'[A-Za-z0-9+/]{20,}={0,2}',
-            
-            # Hex encoded patterns
-            r'[a-fA-F0-9]{32,}'
+            'private_key', 'public_key', 'certificate', 'keystore'
         ]
         
         # Permissions that may indicate sensitive data access
@@ -69,7 +414,7 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
             findings.extend(pii_findings)
             
             # Check for crypto keys and secrets
-            if self.crypto_keys_check:
+            if self.crypto_keys_check and self.key_detection_enabled:
                 crypto_findings = self._assess_crypto_keys_exposure(analysis_results)
                 findings.extend(crypto_findings)
             
@@ -152,7 +497,7 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
         return findings
     
     def _assess_crypto_keys_exposure(self, analysis_results: Dict[str, Any]) -> List[SecurityFinding]:
-        """Assess for exposed cryptographic keys and secrets"""
+        """Assess for exposed cryptographic keys and secrets using comprehensive detection"""
         findings = []
         
         # Get string analysis results
@@ -165,56 +510,385 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
         if not isinstance(string_data, dict):
             return findings
         
-        # Collect all strings
+        # Collect all strings from various sources
         all_strings = []
-        for key in ['emails', 'urls', 'domains']:
+        
+        # From string analysis results
+        for key in ['emails', 'urls', 'domains', 'ip_addresses']:
             strings = string_data.get(key, [])
             if isinstance(strings, list):
                 all_strings.extend(strings)
         
-        # Check Android properties for keys
+        # From Android properties
         android_props = string_data.get('android_properties', {})
         if isinstance(android_props, dict):
             all_strings.extend(android_props.keys())
+            all_strings.extend([str(v) for v in android_props.values() if isinstance(v, str)])
         
-        crypto_evidence = []
+        # Also get raw strings if available (fallback to get more comprehensive coverage)
+        if hasattr(string_results, 'total_strings_analyzed') and string_results.total_strings_analyzed:
+            # Try to get raw strings from androguard if available in context
+            pass  # For now, work with categorized strings
         
-        for string in all_strings:
-            if isinstance(string, str):
-                string_lower = string.lower()
-                
-                # Check for key/secret keywords
-                for pattern in ['password', 'passwd', 'secret', 'key', 'token', 'api_key']:
-                    if pattern in string_lower and len(string) > 10:
-                        crypto_evidence.append(f"Potential secret: {string[:40]}...")
-                        break
-                
-                # Check for Base64 patterns (potential encoded keys)
-                if re.match(r'^[A-Za-z0-9+/]{40,}={0,2}$', string):
-                    crypto_evidence.append(f"Potential Base64 encoded key: {string[:30]}...")
-                
-                # Check for hex patterns (potential keys)
-                if re.match(r'^[a-fA-F0-9]{32,}$', string):
-                    crypto_evidence.append(f"Potential hex encoded key: {string[:30]}...")
+        # Detect hardcoded keys using advanced patterns
+        detected_keys = self._detect_hardcoded_keys(all_strings)
         
-        if crypto_evidence:
+        # Group findings by severity
+        critical_findings = []
+        high_findings = []
+        medium_findings = []
+        low_findings = []
+        
+        for detection in detected_keys:
+            # Format evidence in secret-finder style with severity indication
+            secret_preview = detection['value'][:50] + ('...' if len(detection['value']) > 50 else '')
+            evidence_entry = f"[{detection['severity']}] {detection['type']}: {secret_preview}"
+            
+            if detection['severity'] == 'CRITICAL':
+                critical_findings.append(evidence_entry)
+            elif detection['severity'] == 'HIGH':
+                high_findings.append(evidence_entry)
+            elif detection['severity'] == 'MEDIUM':
+                medium_findings.append(evidence_entry)
+            else:
+                low_findings.append(evidence_entry)
+        
+        # Create findings based on severity levels with secret-finder style messaging
+        if critical_findings:
             findings.append(SecurityFinding(
                 category=self.owasp_category,
                 severity=AnalysisSeverity.CRITICAL,
-                title="Potential Hardcoded Cryptographic Keys or Secrets",
-                description="Patterns resembling cryptographic keys or secrets found in application strings, indicating potential hardcoded sensitive credentials.",
-                evidence=crypto_evidence[:10],  # Limit to first 10
+                title=f"🔴 CRITICAL: {len(critical_findings)} Hard-coded Secrets Found",
+                description=f"Found {len(critical_findings)} critical severity secrets that pose immediate security risks. These include private keys, AWS credentials, and other highly sensitive data that could lead to complete system compromise.",
+                evidence=critical_findings[:10],
                 recommendations=[
-                    "Remove all hardcoded keys and secrets from the application",
-                    "Use Android Keystore for cryptographic key storage",
-                    "Implement secure key management practices",
-                    "Use environment variables or secure configuration for API keys",
-                    "Rotate any exposed keys immediately",
-                    "Implement key derivation functions instead of hardcoded keys"
+                    "🚨 IMMEDIATE ACTION REQUIRED: Remove all hardcoded critical secrets",
+                    "🔐 Revoke and rotate all exposed credentials immediately",
+                    "📱 Use Android Keystore for cryptographic key storage",
+                    "🛡️ Implement secure secret management (e.g., HashiCorp Vault, AWS Secrets Manager)",
+                    "🔍 Conduct comprehensive security audit for additional exposures",
+                    "📋 Establish secure development practices and secret scanning in CI/CD"
+                ]
+            ))
+        
+        if high_findings:
+            findings.append(SecurityFinding(
+                category=self.owasp_category,
+                severity=AnalysisSeverity.HIGH,
+                title=f"🟠 HIGH: {len(high_findings)} API Keys and Tokens Exposed",
+                description=f"Discovered {len(high_findings)} high-risk credentials including API keys, authentication tokens, and service credentials that could enable unauthorized access to external services.",
+                evidence=high_findings[:10],
+                recommendations=[
+                    "🔑 Remove all hardcoded API keys and authentication tokens",
+                    "🔄 Rotate exposed credentials and monitor for unauthorized usage",
+                    "⚙️ Use environment variables or secure configuration management",
+                    "🔒 Implement proper OAuth2/JWT authentication flows",
+                    "📊 Set up monitoring and alerting for credential usage",
+                    "🛠️ Integrate secret scanning tools into development workflow"
+                ]
+            ))
+        
+        if medium_findings:
+            findings.append(SecurityFinding(
+                category=self.owasp_category,
+                severity=AnalysisSeverity.MEDIUM,
+                title=f"🟡 MEDIUM: {len(medium_findings)} Potential Secrets Identified",
+                description=f"Identified {len(medium_findings)} medium-risk patterns including database URIs, configuration keys, and other potentially sensitive information that should be reviewed and secured.",
+                evidence=medium_findings[:15],
+                recommendations=[
+                    "🔍 Review all identified patterns to confirm if they contain actual secrets",
+                    "🛡️ Replace confirmed sensitive data with secure configuration",
+                    "📝 Implement data classification and handling policies",
+                    "🔐 Use secure storage mechanisms for configuration data",
+                    "📋 Document and categorize legitimate high-entropy strings"
+                ]
+            ))
+        
+        if low_findings and len(low_findings) > 5:  # Only report low findings if there are many
+            findings.append(SecurityFinding(
+                category=self.owasp_category,
+                severity=AnalysisSeverity.LOW,
+                title=f"🔵 LOW: {len(low_findings)} Suspicious Patterns Detected",
+                description=f"Found {len(low_findings)} low-risk patterns with high entropy or specific formats that may indicate encoded secrets or API keys. These should be reviewed to rule out false positives.",
+                evidence=[f"📊 Total suspicious patterns found: {len(low_findings)}"] + low_findings[:5],
+                recommendations=[
+                    "🔍 Review suspicious patterns for potential secrets",
+                    "⚡ Implement entropy-based secret detection in development pipeline",
+                    "📚 Establish coding standards for handling non-secret high-entropy data",
+                    "📝 Create whitelist for legitimate high-entropy strings"
                 ]
             ))
         
         return findings
+    
+    def _detect_hardcoded_keys(self, strings: List[str]) -> List[Dict[str, str]]:
+        """Detect hardcoded keys using comprehensive pattern matching"""
+        detections = []
+        
+        for string in strings:
+            if not isinstance(string, str):
+                continue
+            
+            # Apply length filters
+            if len(string) < self.length_filters['min_key_length'] or len(string) > self.length_filters['max_key_length']:
+                continue
+            
+            # Check each detection pattern
+            for key_type, pattern_config in self.key_detection_patterns.items():
+                # Check if this pattern type is enabled
+                if not self._is_pattern_enabled(key_type):
+                    continue
+                
+                pattern = pattern_config['pattern']
+                
+                try:
+                    if re.search(pattern, string, re.IGNORECASE | re.MULTILINE):
+                        # Additional validation checks
+                        if self._validate_key_detection(string, pattern_config, key_type):
+                            detections.append({
+                                'type': pattern_config['description'],
+                                'value': string,
+                                'severity': pattern_config['severity'],
+                                'pattern_name': key_type
+                            })
+                            break  # Don't match multiple patterns for the same string
+                            
+                except re.error as e:
+                    self.logger.warning(f"Invalid regex pattern for {key_type}: {e}")
+                    continue
+        
+        return detections
+    
+    def _is_pattern_enabled(self, key_type: str) -> bool:
+        """Check if a pattern type is enabled in configuration"""
+        # Map pattern names to configuration keys - updated with all new patterns
+        pattern_mapping = {
+            # Critical patterns
+            'pem_private_key': 'pem_keys',
+            'ssh_private_key': 'ssh_keys',
+            'aws_access_key': 'api_keys',
+            'aws_secret_key': 'api_keys',
+            'github_token': 'api_keys',
+            'github_fine_grained_token': 'api_keys',
+            'github_token_in_url': 'api_keys',
+            'google_oauth_token': 'api_keys',
+            'google_service_account': 'api_keys',
+            'firebase_cloud_messaging_key': 'api_keys',
+            'password_in_url': 'api_keys',
+            
+            # High severity patterns
+            'generic_password': 'api_keys',
+            'generic_api_key': 'api_keys',
+            'generic_secret': 'api_keys',
+            'jwt_token': 'jwt_tokens',
+            'azure_client_secret': 'api_keys',
+            'heroku_api_key': 'api_keys',
+            'stripe_api_key': 'api_keys',
+            'discord_bot_token': 'api_keys',
+            'gitlab_personal_token': 'api_keys',
+            'amazon_mws_auth_token': 'api_keys',
+            'facebook_access_token': 'api_keys',
+            'facebook_oauth_secret': 'api_keys',
+            'mailchimp_api_key': 'api_keys',
+            'mailgun_api_key': 'api_keys',
+            'picatic_api_key': 'api_keys',
+            'square_access_token': 'api_keys',
+            'square_oauth_secret': 'api_keys',
+            'twitter_access_token': 'api_keys',
+            'twitter_oauth_secret': 'api_keys',
+            'authorization_basic': 'api_keys',
+            'authorization_bearer': 'api_keys',
+            'slack_token': 'api_keys',
+            
+            # Medium severity patterns
+            'google_cloud_api_key': 'api_keys',
+            'slack_token_legacy': 'api_keys',
+            'mongodb_uri': 'database_connections',
+            'postgresql_uri': 'database_connections',
+            'mysql_uri': 'database_connections',
+            'redis_uri': 'database_connections',
+            'cloudinary_url': 'database_connections',
+            'firebase_url': 'database_connections',
+            'slack_webhook_url': 'api_keys',
+            'ssh_public_key': 'ssh_keys',
+            'pem_certificate': 'pem_keys',
+            'hex_key_256': 'hex_keys',
+            'hex_key_128': 'hex_keys',
+            
+            # Low severity patterns
+            'jenkins_api_token': 'api_keys',
+            'stripe_restricted_key': 'api_keys',
+            'paypal_braintree_token': 'api_keys',
+            'google_captcha_key': 'api_keys',
+            's3_bucket_url': 'api_keys',
+            'base64_key_long': 'base64_keys',
+            'base64_key_medium': 'base64_keys',
+            'high_entropy_string': 'high_entropy_strings'
+        }
+        
+        config_key = pattern_mapping.get(key_type, 'api_keys')  # Default to api_keys
+        return self.enabled_patterns.get(config_key, True)
+    
+    def _validate_key_detection(self, string: str, pattern_config: Dict[str, Any], key_type: str) -> bool:
+        """Validate key detection with additional checks"""
+        
+        # Check minimum entropy using configured thresholds
+        min_entropy = pattern_config.get('min_entropy')
+        if min_entropy is None:
+            # Use configured entropy thresholds based on key type
+            if 'base64' in key_type:
+                min_entropy = self.entropy_thresholds['min_base64_entropy']
+            elif 'hex' in key_type:
+                min_entropy = self.entropy_thresholds['min_hex_entropy']
+            elif key_type == 'high_entropy_string':
+                min_entropy = self.entropy_thresholds['min_generic_entropy']
+        
+        if min_entropy and self._calculate_entropy(string) < min_entropy:
+            return False
+        
+        # Check maximum length if specified
+        max_length = pattern_config.get('max_length')
+        if max_length and len(string) > max_length:
+            return False
+        
+        # Check if context is required (if context detection is enabled)
+        context_required = pattern_config.get('context_required', [])
+        if context_required and self.context_detection_enabled:
+            if not self._has_required_context(string, context_required):
+                # In strict mode, require context for all matches with context_required
+                if self.context_strict_mode:
+                    return False
+                # In non-strict mode, just log a warning but allow the detection
+                self.logger.debug(f"Key detected without required context: {key_type}")
+        
+        # Skip common false positives
+        if self._is_false_positive(string):
+            return False
+        
+        return True
+    
+    def _calculate_entropy(self, string: str) -> float:
+        """Calculate Shannon entropy of a string"""
+        if not string:
+            return 0
+        
+        import math
+        from collections import Counter
+        
+        # Get frequency of each character
+        counter = Counter(string)
+        length = len(string)
+        
+        # Calculate entropy
+        entropy = 0
+        for count in counter.values():
+            probability = count / length
+            if probability > 0:
+                entropy -= probability * math.log2(probability)
+        
+        return entropy
+    
+    def _has_required_context(self, string: str, required_keywords: List[str]) -> bool:
+        """Check if string has required context keywords nearby"""
+        string_lower = string.lower()
+        
+        # Simple context check - look for keywords in the string itself
+        for keyword in required_keywords:
+            if keyword.lower() in string_lower:
+                return True
+        
+        return False
+    
+    def _is_false_positive(self, string: str) -> bool:
+        """Check for common false positives - enhanced to reduce noise from expanded patterns"""
+        string_lower = string.lower()
+        
+        # Common false positive patterns
+        false_positives = [
+            # Android/Java class names and packages
+            r'^(com|android|java|javax)\.',
+            r'\.class$',
+            r'\.java$',
+            r'\.xml$',
+            r'\.png$',
+            r'\.jpg$',
+            
+            # Common placeholder values - expanded set
+            r'^(test|example|sample|demo|placeholder|dummy)',
+            r'^(your_api_key|your_token|your_secret|insert_key_here|api_key_here)',
+            r'^(null|undefined|none|nil|empty)$',
+            r'(test|demo|sample|example).*key',
+            r'(fake|mock|stub).*',
+            
+            # Development/debugging strings
+            r'^(debug|log|print|console)',
+            r'lorem.*ipsum',
+            r'hello.*world',
+            
+            # Repeated characters (unlikely to be real keys)
+            r'^(.)\1{10,}$',
+            r'^(a|b|c|x|y|z){20,}$',
+            
+            # URLs and domains - expanded
+            r'^https?://',
+            r'\.(?:com|org|net|edu|gov|mil|int|co\.uk|de|fr|jp)(?:/|$)',
+            r'localhost',
+            r'127\.0\.0\.1',
+            r'0\.0\.0\.0',
+            
+            # Version strings and identifiers
+            r'^\d+\.\d+',
+            r'^v\d+',
+            r'version.*\d+',
+            
+            # All zeros, ones or simple patterns
+            r'^0+$',
+            r'^1+$',
+            r'^(abc|123|xyz|test){3,}$',
+            r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' if string.count('-') == 4 and len(string) == 36 and 'test' in string_lower else None,
+            
+            # Common configuration keys that aren't secrets
+            r'^(true|false|enabled|disabled|yes|no)$',
+            r'^\d+$',  # Pure numbers
+            r'^[a-z]+$' if len(string) < 8 else None,  # Short all-lowercase strings
+            
+            # File paths and system strings
+            r'^[\\/]',  # Starts with path separator
+            r'\\x[0-9a-f]{2}',  # Hex escape sequences
+            r'%[0-9a-f]{2}',  # URL encoding
+            
+            # Common Android/mobile development false positives
+            r'android.*',
+            r'build.*config',
+            r'manifest.*',
+            r'application.*id',
+            r'package.*name',
+            
+            # Base64 patterns that are likely not secrets
+            r'^data:image',  # Data URLs
+            r'iVBORw0KGgo',  # PNG header in base64
+            r'/9j/',  # JPEG header in base64
+        ]
+        
+        for pattern in false_positives:
+            if pattern and re.search(pattern, string_lower):
+                return True
+        
+        # Additional heuristic checks
+        # Skip very short strings for high-entropy patterns
+        if len(string) < 16 and any(x in string_lower for x in ['entropy', 'random', 'base64']):
+            return True
+            
+        # Skip strings that are mostly numbers
+        if len(string) > 8 and sum(c.isdigit() for c in string) / len(string) > 0.8:
+            return True
+            
+        # Skip strings with too many special characters (likely encoded data, not keys)
+        special_chars = sum(1 for c in string if not c.isalnum())
+        if len(string) > 20 and special_chars / len(string) > 0.3:
+            return True
+        
+        return False
     
     def _assess_weak_cryptography(self, analysis_results: Dict[str, Any]) -> List[SecurityFinding]:
         """Assess for weak cryptographic algorithms"""

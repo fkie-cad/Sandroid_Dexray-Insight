@@ -40,7 +40,7 @@ def print_logo():
 ⠀⠀⠀⠀⠀⠀⣿⣿⣿⡇⠀⠀⢸⣿⣿⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⣾⣿⣿⠟⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⠀⠀⠀⣿⣿⣿⡇⠀⠀⢸⣿⣿⣿⠀⠀⠀⠀⠀⠀⠀⢀⣄⠈⠛⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⠀⠀⠀⠈⠉⠉⠀⠀⠀⠀⠉⠉⠁⠀⠀⠀⠀⠀⠀⠀⠀⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀""")
-    print(f"        version: {__version__} (OOP Architecture)\n")
+    print(f"        version: {__version__}\n")
 
 def create_configuration_from_args(args) -> Configuration:
     """Create configuration object from command line arguments"""
@@ -69,6 +69,20 @@ def create_configuration_from_args(args) -> Configuration:
     if hasattr(args, 'diffing_apk') and args.diffing_apk:
         config_updates.setdefault('modules', {})['apk_diffing'] = {'enabled': True}
     
+    # Handle tracker analysis flags
+    if hasattr(args, 'tracker') and args.tracker:
+        config_updates.setdefault('modules', {})['tracker_analysis'] = {'enabled': True}
+    elif hasattr(args, 'no_tracker') and args.no_tracker:
+        config_updates.setdefault('modules', {})['tracker_analysis'] = {'enabled': False}
+    
+    # Handle API invocation analysis flag
+    if hasattr(args, 'api_invocation') and args.api_invocation:
+        config_updates.setdefault('modules', {})['api_invocation'] = {'enabled': True}
+    
+    # Handle deep analysis flag
+    if hasattr(args, 'deep') and args.deep:
+        config_updates.setdefault('modules', {})['deep_analysis'] = {'enabled': True}
+    
     # Apply configuration updates
     if config_updates:
         config._merge_config(config_updates)
@@ -77,8 +91,6 @@ def create_configuration_from_args(args) -> Configuration:
 
 def start_apk_static_analysis_new(apk_file_path: str, config: Configuration, print_results_to_terminal: bool = False, verbose: bool = False):
     """
-    New OOP-based APK static analysis function
-    
     Args:
         apk_file_path: Path to the APK file
         config: Configuration object
@@ -96,7 +108,7 @@ def start_apk_static_analysis_new(apk_file_path: str, config: Configuration, pri
         # Create analysis engine
         engine = AnalysisEngine(config)
         
-        print("[*] Starting comprehensive APK analysis with new OOP architecture...")
+        print("[*] Starting comprehensive APK analysis...")
         
         # Run analysis with androguard object
         results = engine.analyze_apk(apk_file_path, androguard_obj=androguard_obj)
@@ -123,7 +135,9 @@ def start_apk_static_analysis_new(apk_file_path: str, config: Configuration, pri
         result_file_name = dump_results_as_json_file(results, name)
         
         security_result_file_name = ""
-        # Security results are included in the main results if enabled
+        # Save separate security results file if security assessment was performed
+        if hasattr(results, 'security_assessment') and results.security_assessment:
+            security_result_file_name = dump_security_results_as_json_file(results.security_assessment, name)
         
         return results, result_file_name, security_result_file_name
         
@@ -158,9 +172,29 @@ def dump_results_as_json_file(results, filename: str) -> str:
     dump_json(safe_filename, results_dict)
     return safe_filename
 
+def dump_security_results_as_json_file(security_results, filename: str) -> str:
+    """Save security assessment results to separate JSON file"""
+    current_time = datetime.now()
+    timestamp = current_time.strftime("%Y-%m-%d_%H-%M-%S")
+    
+    # Ensure filename is safe
+    base_filename = filename.replace(" ", "_")
+    safe_filename = f"dexray_{base_filename}_security_{timestamp}.json"
+    
+    # Convert security results to dict
+    if isinstance(security_results, dict):
+        security_dict = security_results
+    elif hasattr(security_results, 'to_dict'):
+        security_dict = security_results.to_dict()
+    else:
+        security_dict = {'security_results': str(security_results)}
+    
+    dump_json(safe_filename, security_dict)
+    return safe_filename
+
 class ArgParser(argparse.ArgumentParser):
     def error(self, message):
-        print("Dexray Insight v" + __version__ + " (OOP Architecture)")
+        print("Dexray Insight v" + __version__ + " ")
         print("by " + __author__)
         print()
         print("Error: " + message)
@@ -172,7 +206,7 @@ def parse_arguments():
     """Parse command line arguments"""
     parser = ArgParser(
         add_help=False,
-        description="Dexray Insight is part of the dynamic Sandbox SanDroid. Its purpose is to do static analysis in order to get a basic understanding of an Android application. Now with modern OOP architecture!",
+        description="Dexray Insight is part of the dynamic Sandbox Sandroid. Its purpose is to do static analysis in order to get a basic understanding of an Android application.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         allow_abbrev=False,
         epilog=r"""
@@ -180,6 +214,9 @@ Examples:
   %(prog)s <path to APK> 
   %(prog)s <path to APK> -s  # Enable OWASP Top 10 security assessment
   %(prog)s <path to APK> -sig  # Enable signature checking
+  %(prog)s <path to APK> --no-tracker  # Disable tracker analysis
+  %(prog)s <path to APK> -a  # Enable API invocation analysis
+  %(prog)s <path to APK> --deep  # Enable deep behavioral analysis
 """)
 
     args = parser.add_argument_group("Arguments")
@@ -195,7 +232,7 @@ Examples:
     args.add_argument(
         '--version',
         action='version',
-        version='Dexray Insight v{version} (OOP Architecture)'.format(version=__version__),
+        version='Dexray Insight v{version}'.format(version=__version__),
         help="Display the current version of Dexray Insight."
     )
 
@@ -253,6 +290,37 @@ Examples:
         const=True,
         default=False,
         help="Enable OWASP Top 10 security analysis. This comprehensive assessment will be done after the standard analysis."
+    )
+
+    # Tracker analysis control
+    args.add_argument(
+        "-t", "--tracker",
+        required=False,
+        action="store_true",
+        help="Enable tracker analysis. This is enabled by default but can be disabled in config."
+    )
+
+    args.add_argument(
+        "--no-tracker",
+        required=False,
+        action="store_true",
+        help="Disable tracker analysis even if enabled in configuration."
+    )
+
+    # API invocation analysis control
+    args.add_argument(
+        "-a", "--api-invocation",
+        required=False,
+        action="store_true",
+        help="Enable API invocation analysis. This is disabled by default."
+    )
+    
+    # Deep analysis control
+    args.add_argument(
+        "--deep",
+        required=False,
+        action="store_true",
+        help="Enable deep behavioral analysis. Detects privacy-sensitive behaviors and advanced techniques. This is disabled by default."
     )
 
     args.add_argument("--exclude_net_libs",

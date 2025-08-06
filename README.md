@@ -4,9 +4,9 @@
 </div>
 
 # Sandroid - Dexray Insight
-![version](https://img.shields.io/badge/version-0.0.9.1-blue)
+![version](https://img.shields.io/badge/version-0.1.0.0-blue)
 
-Dexray Insight is part of the dynamic Sandbox SanDroid. Its purpose is to perform static analysis of Android application files (APK) using a modern OOP architecture. The tool consists of different analysis modules:
+Dexray Insight is part of the dynamic Sandbox SanDroid. Its purpose is to perform static analysis of Android application files (APK). The tool consists of different analysis modules:
 
 ## Features
 
@@ -35,6 +35,7 @@ To run Dexray Insight in a Docker container, start by building the Docker image:
 ```bash
 docker build -t dexray-insight .
 ```
+*Note*: This is an old container and we didn't test if it is still working
 
 Once built, you can use Docker to analyze an APK file. Mount a local directory containing the APK file into the container and run the analysis:
 
@@ -66,7 +67,7 @@ $ docker run -v $(pwd):/app/ dexray-insight /app/Sara.apk
 ⠀⠀⠀⠀⠀⠀⣿⣿⣿⡇⠀⠀⢸⣿⣿⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⣾⣿⣿⠟⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⠀⠀⠀⣿⣿⣿⡇⠀⠀⢸⣿⣿⣿⠀⠀⠀⠀⠀⠀⠀⢀⣄⠈⠛⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⠀⠀⠀⠈⠉⠉⠀⠀⠀⠀⠉⠉⠁⠀⠀⠀⠀⠀⠀⠀⠀⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-        version: 0.0.9.0 (OOP Architecture)
+        version: 0.1.0.0
 
 apkstaticanalysismonitor.api_invocation_analysis.api_analysis_modulerunning
 apkstaticanalysismonitor.signature_detection.signature_detection_modulerunning
@@ -220,6 +221,64 @@ Analyzing large APK files may produce a lot of output. You can pipe the output t
 dexray-insight <path_to_apk> | less
 ```
 
+### Do Security Analysis
+
+When we just interested in the security of an app we can use the `-s` flag in order to extend the analysis with security scanning:
+
+```bash
+dexray-insight -d DEBUG -s 67673216-93c35cc190d1713fb37f9b04894a4c1e.apk
+        Dexray Insight
+⠀⠀⠀⠀⢀⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⣀⣀⣀⣀⡀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠙⢷⣤⣤⣴⣶⣶⣦⣤⣤⡾⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣴⠾⠛⢉⣉⣉⣉⡉⠛⠷⣦⣄⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⣴⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣦⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣴⠋⣠⣴⣿⣿⣿⣿⣿⡿⣿⣶⣌⠹⣷⡀⠀⠀
+⠀⠀⠀⠀⣼⣿⣿⣉⣹⣿⣿⣿⣿⣏⣉⣿⣿⣧⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣼⠁⣴⣿⣿⣿⣿⣿⣿⣿⣿⣆⠉⠻⣧⠘⣷⠀⠀
+⠀⠀⠀⢸⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢰⡇⢰⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠀⠀⠈⠀⢹⡇⠀
+⣠⣄⠀⢠⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠀⣠⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⡇⢸⣿⠛⣿⣿⣿⣿⣿⣿⡿⠃⠀⠀⠀⠀⢸⡇⠀
+⣿⣿⡇⢸⣿⣿⣿Sandroid⣿⣿⣿⡇⢸⣿⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⣷⠀⢿⡆⠈⠛⠻⠟⠛⠉⠀⠀⠀⠀⠀⠀⣾⠃⠀
+⣿⣿⡇⢸⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡇⢸⣿⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠸⣧⡀⠻⡄⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣼⠃⠀⠀
+⣿⣿⡇⢸⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡇⢸⣿⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢼⠿⣦⣄⠀⠀⠀⠀⠀⠀⠀⣀⣴⠟⠁⠀⠀⠀
+⣿⣿⡇⢸⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡇⢸⣿⣿⠀⠀⠀⠀⠀⠀⠀⠀⣠⣾⣿⣦⠀⠀⠈⠉⠛⠓⠲⠶⠖⠚⠋⠉⠀⠀⠀⠀⠀⠀
+⠻⠟⠁⢸⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡇⠈⠻⠟⠀⠀⠀⠀⠀⠀⣠⣾⣿⣿⠟⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠉⠉⣿⣿⣿⡏⠉⠉⢹⣿⣿⣿⠉⠉⠀⠀⠀⠀⠀⠀⠀⠀⣠⣾⣿⣿⠟⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⣿⣿⣿⡇⠀⠀⢸⣿⣿⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⣾⣿⣿⠟⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⣿⣿⣿⡇⠀⠀⢸⣿⣿⣿⠀⠀⠀⠀⠀⠀⠀⢀⣄⠈⠛⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠈⠉⠉⠀⠀⠀⠀⠉⠉⠁⠀⠀⠀⠀⠀⠀⠀⠀⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+        version: 0.1.0.0
+
+[*] Analyzing APK: 67673216-93c35cc190d1713fb37f9b04894a4c1e.apk
+[*] OWASP Top 10 Security Assessment: Enabled
+[*] Parallel Execution: Enabled
+[*] Initializing Androguard analysis...
+...
++] Starting OWASP Top 10 security assessment
+[+] Running injection assessment
+[+] injection completed with 1 findings
+[+] A03:2021-Injection - Potential SQL Injection Vulnerability
+    Description: SQL query patterns found in strings that may indicate SQL injection vulnerabilities if user input is...
+[+] Running broken_access_control assessment
+[+] broken_access_control completed with 1 findings
+[+] A01:2021-Broken Access Control - Potentially Unsafe Exported Components
+    Description: Components that may be exported without proper access controls, allowing unauthorized access from ot...
+[+] Running sensitive_data assessment
+[+] sensitive_data completed with 3 findings
+[+] A02:2021-Cryptographic Failures - 🟠 HIGH: 1 API Keys and Tokens Exposed
+    Description: Discovered 1 high-risk credentials including API keys, authentication tokens, and service credential...
+[+] A02:2021-Cryptographic Failures - 🔵 LOW: 25 Suspicious Patterns Detected
+    Description: Found 25 low-risk patterns with high entropy or specific formats that may indicate encoded secrets o...
+[+] A02:2021-Cryptographic Failures - Weak Cryptographic Algorithms Detected
+    Description: Usage of weak or deprecated cryptographic algorithms that may be vulnerable to attacks.
+[+] Security assessment completed with 5 total findings, risk score: 5.80
+
+[+] Security Assessment Summary:
+    Total findings: 5
+    Risk score: 5.80
+    OWASP categories affected: A02:2021-Cryptographic Failures, A03:2021-Injection, A01:2021-Broken Access Control
+...
+Analysis completed in 32.29 seconds
+Results saved to: dexray_67673216-93c35cc190d1713fb37f9b04894a4c1e_2025-08-05_22-18-06.json
+Security analysis results saved to: dexray_67673216-93c35cc190d1713fb37f9b04894a4c1e_security_2025-08-05_22-18-06.json
+```
+Meanining the result will be saved to an addtional security json file.
 
 ## Run as Python Package
 
@@ -228,7 +287,7 @@ In addition to using Dexray Insight as a CLI tool, you can import the `dexray_in
 ```python
 from dexray_insight import asam
 
-# Run APK static analysis with modern OOP architecture
+# Run APK static analysis
 results, result_file_name, security_result_file_name = asam.start_apk_static_analysis(
     apk_file_path="<path to APK>",
     do_signature_check=False,  # Enable signature checks (VirusTotal, Koodous, Triage)

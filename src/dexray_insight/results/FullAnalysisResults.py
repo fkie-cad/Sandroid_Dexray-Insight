@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from dataclasses import dataclass
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, TYPE_CHECKING
 import json
+
+if TYPE_CHECKING:
+    from .DeepAnalysisResults import DeepAnalysisResults
 from .apkOverviewResults import APKOverview
 from ..Utils.file_utils import CustomJSONEncoder
 from .InDepthAnalysisResults import Results
 from .apkidResults import ApkidResults
 from .kavanozResults import KavanozResults
+from .TrackerAnalysisResults import TrackerAnalysisResults
 
 @dataclass
 class FullAnalysisResults:
@@ -24,6 +28,9 @@ class FullAnalysisResults:
     in_depth_analysis: Optional[Results] = None
     apkid_analysis: Optional[ApkidResults] = None
     kavanoz_analysis: Optional[KavanozResults] = None
+    security_assessment: Optional[Dict[str, Any]] = None
+    tracker_analysis: Optional[TrackerAnalysisResults] = None
+    deep_analysis: Optional['DeepAnalysisResults'] = None
 
     def __post_init__(self):
         """
@@ -40,12 +47,26 @@ class FullAnalysisResults:
 
     def to_dict(self) -> Dict[str, Any]:
         """Returns the combined object as a dictionary."""
-        return {
+        result = {
             "apk_overview": self.apk_overview.to_dict() if self.apk_overview else {},
             "in_depth_analysis": self.in_depth_analysis.to_dict() if self.in_depth_analysis else {},
             "apkid_analysis": self.apkid_analysis.to_dict() if self.apkid_analysis else {},
             "kavanoz_analysis": self.kavanoz_analysis.to_dict() if self.kavanoz_analysis else {},
         }
+        
+        # Include tracker analysis results if available
+        if self.tracker_analysis:
+            result["tracker_analysis"] = self.tracker_analysis.export_to_dict()
+        
+        # Include security assessment results if available
+        if self.security_assessment:
+            result["security_assessment"] = self.security_assessment
+        
+        # Include deep analysis results if available
+        if self.deep_analysis:
+            result["deep_analysis"] = self.deep_analysis.to_dict()
+            
+        return result
 
     def to_json(self) -> str:
         """Returns the combined object as a JSON string."""
@@ -175,6 +196,55 @@ class FullAnalysisResults:
                     print(f"   • {assembly}")
                 if len(self.in_depth_analysis.dotnetMono_assemblies) > 3:
                     print(f"   ... and {len(self.in_depth_analysis.dotnetMono_assemblies) - 3} more")
+        
+        # Tracker Analysis Summary
+        if self.tracker_analysis:
+            print(f"\n📍 TRACKER ANALYSIS")
+            print("-" * 40)
+            print(self.tracker_analysis.get_console_summary())
+        
+        # Security Assessment Summary
+        if self.security_assessment:
+            print(f"\n🛡️  SECURITY ASSESSMENT")
+            print("-" * 40)
+            
+            total_findings = self.security_assessment.get('total_findings', 0)
+            risk_score = self.security_assessment.get('overall_risk_score', 0)
+            
+            print(f"Security Findings: {total_findings}")
+            print(f"Risk Score: {risk_score:.2f}/100")
+            
+            # Show findings by severity
+            findings_by_severity = self.security_assessment.get('findings_by_severity', {})
+            if findings_by_severity:
+                severity_parts = []
+                for severity, count in findings_by_severity.items():
+                    if count > 0:
+                        severity_parts.append(f"{severity.title()}: {count}")
+                if severity_parts:
+                    print(f"Severity Distribution: {', '.join(severity_parts)}")
+            
+            # Show OWASP categories affected
+            categories = self.security_assessment.get('owasp_categories_affected', [])
+            if categories:
+                print(f"OWASP Categories: {', '.join(categories[:3])}")
+                if len(categories) > 3:
+                    print(f"   ... and {len(categories) - 3} more")
+            
+            # Show key findings
+            findings = self.security_assessment.get('findings', [])
+            if findings:
+                print(f"\nKey Findings:")
+                for finding in findings[:3]:  # Show max 3 findings
+                    title = finding.get('title', 'Security Finding')
+                    category = finding.get('category', 'Unknown')
+                    severity = finding.get('severity', 'unknown')
+                    if isinstance(severity, dict) and 'value' in severity:
+                        severity = severity['value']
+                    severity_str = severity.value if hasattr(severity, 'value') else str(severity)
+                    print(f"   • [{severity_str.upper()}] {category}: {title}")
+                if len(findings) > 3:
+                    print(f"   ... and {len(findings) - 3} more findings (see security JSON file)")
             
             # Signature results
             if self.in_depth_analysis.signatures:
@@ -336,8 +406,21 @@ class FullAnalysisResults:
                         count = len(comp_list)
                         print(f"{comp_type.replace('_', ' ').title()}: {count}")
         
+        # Deep analysis summary
+        if self.deep_analysis and hasattr(self.deep_analysis, 'findings'):
+            detected_features = self.deep_analysis.get_detected_features()
+            if detected_features:
+                print(f"\n🔍 DEEP ANALYSIS ({len(detected_features)} behaviors detected)")
+                print("-" * 40)
+                for feature in detected_features:
+                    # Convert snake_case to readable format
+                    readable_name = feature.replace('_', ' ').title()
+                    print(f"✓ {readable_name}")
+        
         print(f"\n{'='*80}")
         print("📄 Complete details saved to JSON file")
+        if self.security_assessment:
+            print("🛡️  Security findings saved to separate security JSON file")
         print("💡 Use -v flag for verbose terminal output")
         print("="*80 + "\n")
 

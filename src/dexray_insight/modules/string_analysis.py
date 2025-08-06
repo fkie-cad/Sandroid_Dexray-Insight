@@ -269,44 +269,226 @@ class StringAnalysisModule(BaseAnalysisModule):
         return [domain for domain in potential_domains if self._is_valid_domain(domain)]
     
     def _is_valid_domain(self, domain: str) -> bool:
-        """Validate if a string is a valid domain"""
-        # Check for spaces
-        if " " in domain:
+        """
+        Validate if a string is a valid domain with enhanced false positive filtering
+        
+        This method implements comprehensive filtering to reduce false positives from:
+        - Source code files (.kt, .ttl, .java, etc.)
+        - Package names and class paths
+        - Configuration files and build artifacts
+        - Version identifiers and development metadata
+        """
+        # Basic validation checks
+        if " " in domain or len(domain.strip()) != len(domain):
             return False
         
-        # Check if the string ends with uppercase letters
+        # Check if the string ends with uppercase letters (likely class names)
         if domain[-1].isupper():
             return False
         
-        # Disqualify class paths or Android properties
-        if re.search(r"^(android|com|net|java|ueventd|mraid|play|truststore|facebook)\.", domain):
+        # Enhanced file extension filtering - covers programming languages, data formats, and build artifacts
+        invalid_extensions = (
+            # Programming language files
+            ".java", ".kt", ".class", ".js", ".ts", ".py", ".rb", ".cpp", ".c", ".h", ".hpp",
+            ".cs", ".vb", ".swift", ".go", ".rs", ".scala", ".clj", ".hs", ".ml", ".php",
+            
+            # Data and markup files
+            ".xml", ".json", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf", ".properties",
+            ".html", ".htm", ".css", ".scss", ".less", ".md", ".txt", ".csv", ".tsv",
+            
+            # RDF and semantic web formats
+            ".ttl", ".rdf", ".owl", ".n3", ".nt", ".trig", ".jsonld",
+            
+            # Archive and binary files
+            ".zip", ".jar", ".aar", ".tar", ".gz", ".7z", ".rar", ".dex", ".so", ".dll",
+            ".exe", ".bin", ".dat", ".db", ".sqlite", ".realm",
+            
+            # Image and media files
+            ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".webp", ".mp4", ".avi",
+            
+            # Build and config files
+            ".gradle", ".maven", ".pom", ".lock", ".log", ".tmp", ".cache", ".bak",
+            ".rc", ".sig", ".keystore", ".jks", ".p12", ".pem", ".crt", ".key",
+            
+            # Documentation and misc
+            ".doc", ".docx", ".pdf", ".xls", ".xlsx", ".ppt", ".pptx"
+        )
+        
+        if domain.lower().endswith(invalid_extensions):
             return False
         
-        # Disqualify strings ending with known invalid extensions
-        invalid_endings = (".java", ".class", ".rc", ".sig", ".zip", ".dat", ".html", ".dex", ".bin", ".png", ".prop", ".db", ".txt", ".xml")
-        if domain.endswith(invalid_endings):
+        # Enhanced package/namespace prefixes - common in mobile and enterprise development
+        invalid_prefixes = (
+            # Android and Google
+            "android.", "androidx.", "com.android.", "com.google.", "com.google.android.",
+            "google.", "gms.", "firebase.", "play.google.", "android.support.",
+            
+            # Java and JVM ecosystem
+            "java.", "javax.", "org.apache.", "org.springframework.", "org.hibernate.",
+            "org.junit.", "org.slf4j.", "org.w3c.", "org.xml.", "org.json.",
+            
+            # .NET and Microsoft
+            "microsoft.", "system.", "windows.", "xamarin.", "mono.", "dotnet.",
+            "mscorlib.", "netstandard.", "aspnet.", "entityframework.",
+            
+            # Mobile development frameworks
+            "cordova.", "phonegap.", "react.native.", "flutter.", "ionic.", "xamarin.android.",
+            "titanium.", "sencha.", "ext.", "appcelerator.",
+            
+            # Development tools and libraries
+            "jetbrains.", "intellij.", "eclipse.", "gradle.", "maven.", "sbt.", "ant.",
+            "junit.", "mockito.", "retrofit.", "okhttp.", "gson.", "jackson.",
+            
+            # Common libraries and frameworks
+            "apache.", "commons.", "spring.", "hibernate.", "log4j.", "slf4j.",
+            "guice.", "dagger.", "butterknife.", "picasso.", "glide.", "fresco.",
+            
+            # Version control and build systems
+            "git.", "svn.", "mercurial.", "bzr.", "jenkins.", "travis.", "circle.",
+            
+            # Development artifacts
+            "debug.", "test.", "mock.", "stub.", "temp.", "tmp.", "cache.", "build.",
+            "target.", "bin.", "obj.", "out.", "dist.", "lib.", "libs.", "assets.",
+            
+            # Protocol and service prefixes
+            "http.", "https.", "ftp.", "ssh.", "tcp.", "udp.", "smtp.", "pop3.", "imap.",
+            
+            # File system and OS
+            "file.", "directory.", "folder.", "path.", "unix.", "linux.", "windows.",
+            "macos.", "ios.", "darwin.",
+            
+            # Network and infrastructure
+            "localhost.", "127.0.0.1.", "0.0.0.0.", "192.168.", "10.0.", "172.",
+            
+            # Common false positive patterns
+            "interface.", "class.", "struct.", "enum.", "const.", "static.", "final.",
+            "abstract.", "public.", "private.", "protected.", "internal.",
+            
+            # Specific problematic patterns from APK analysis
+            "ueventd.", "truststore.", "mraid.", "multidex.", "proguard.", "r8.",
+            "dex2jar.", "baksmali.", "smali.", "jadx.", "apktool.",
+            
+            # Database and ORM
+            "sqlite.", "realm.", "room.", "greenDAO.", "dbflow.", "ormlite.",
+            
+            # Analytics and crash reporting
+            "crashlytics.", "fabric.", "flurry.", "mixpanel.", "amplitude.",
+            "bugsnag.", "sentry.", "appsee.", "uxcam.",
+            
+            # Ad networks (common false positives)
+            "admob.", "adsense.", "doubleclick.", "unity3d.ads.", "chartboost.",
+            "vungle.", "applovin.", "ironsource.", "tapjoy."
+        )
+        
+        domain_lower = domain.lower()
+        if any(domain_lower.startswith(prefix) for prefix in invalid_prefixes):
             return False
         
-        # Disqualify strings starting with known invalid strings
-        invalid_starts = ("MP.", "http.", "dex.", "RCD.", "androidx.", "interface.", "Xamarin.Android")
-        if domain.startswith(invalid_starts):
+        # Enhanced invalid character detection
+        if re.search(r"[<>:{}\[\]@!#$%^&*()+=,;\"\\|`~]", domain):
             return False
         
-        # Disqualify strings containing invalid characters for domains
-        if re.search(r"[<>:{}\[\]@!#$%^&*()+=,;\"\\|]", domain):
+        # Version pattern detection (e.g., "1.2.3", "v1.0.0", "2021.1.1")
+        if re.search(r"^v?\d+\.\d+(\.\d+)*([a-z]+\d*)?$", domain, re.IGNORECASE):
             return False
         
-        # Check for invalid patterns
+        # Build identifier patterns (e.g., "build.123", "version.2.1")
+        if re.search(r"^(build|version|release|snapshot|alpha|beta|rc)\.\d+", domain, re.IGNORECASE):
+            return False
+        
+        # Enhanced invalid patterns with more comprehensive coverage
         invalid_patterns = [
-            r"\.java$", r"\.class$", r"\.dll$", r"^\w+\.gms", r"videoApi\.set",
-            r"line\.separator", r"multidex.version", r"androidx.multidex", r"dd.MM.yyyy",
-            r"document.hidelocation", r"angtrim.com.fivestarslibrary", r"^Theme",
-            r"betcheg.mlgphotomontag", r"MultiDex.lock", r".ConsoleError$", r"^\w+\.android"
+            # File extensions (regex patterns for flexibility)
+            r"\.(java|kt|class|js|ts|py|rb|cpp|c|h|hpp|cs|vb|swift|go|rs|scala|clj|hs|ml|php)$",
+            r"\.(xml|json|yaml|yml|toml|ini|cfg|conf|properties)$",
+            r"\.(ttl|rdf|owl|n3|nt|trig|jsonld)$",  # RDF/semantic web formats
+            r"\.(html|htm|css|scss|less|md|txt|csv|tsv)$",
+            r"\.(zip|jar|aar|tar|gz|7z|rar|dex|so|dll|exe|bin|dat|db|sqlite|realm)$",
+            r"\.(png|jpg|jpeg|gif|svg|ico|webp|mp4|avi)$",
+            r"\.(gradle|maven|pom|lock|log|tmp|cache|bak)$",
+            r"\.(rc|sig|keystore|jks|p12|pem|crt|key)$",
+            
+            # Development and framework patterns
+            r"^\w+\.gms\b", r"videoApi\.set", r"line\.separator", r"multidex\.version",
+            r"androidx\.multidex", r"dd\.MM\.yyyy", r"document\.hidelocation",
+            r"angtrim\.com\.fivestarslibrary", r"^Theme\b", r"betcheg\.mlgphotomontag",
+            r"MultiDex\.lock", r"\.ConsoleError$", r"^\w+\.android\b",
+            
+            # Package and class patterns
+            r"^[A-Z]\w*\.[A-Z]\w*$",  # Likely class references (e.g., "Utils.Logger")
+            r"^\w+\$\w+",  # Inner class references (e.g., "Activity$1")
+            r"\.R\.\w+$",  # Android resource references
+            r"\.BuildConfig$",  # Build configuration references
+            
+            # Version and build patterns
+            r"\.v\d+$", r"\.version\d*$", r"\.build\d*$", r"\.snapshot$",
+            r"\.alpha\d*$", r"\.beta\d*$", r"\.rc\d*$", r"\.final$",
+            
+            # Configuration and property patterns
+            r"\.debug$", r"\.release$", r"\.prod$", r"\.dev$", r"\.test$",
+            r"\.staging$", r"\.local$", r"\.config$", r"\.settings$",
+            
+            # Network and protocol patterns
+            r"^(localhost|127\.0\.0\.1|0\.0\.0\.0)$",
+            r"^192\.168\.", r"^10\.0\.", r"^172\.(1[6-9]|2[0-9]|3[01])\.",  # Private IP ranges
+            
+            # File system patterns
+            r"^[A-Z]:\\", r"^\/[a-z]+\/", r"\.\.\/", r"\.\/",  # File paths
+            
+            # Common false positive strings
+            r"^(NULL|null|undefined|true|false|yes|no|on|off)$",
+            r"^(error|warning|info|debug|trace|log)$",
+            r"^(start|stop|pause|resume|init|destroy|create|delete)$",
+            
+            # Database and SQL patterns
+            r"\.sql$", r"\.db$", r"\.sqlite$", r"^(select|insert|update|delete|create|drop|alter)\.",
+            
+            # Obfuscated or minified patterns
+            r"^[a-z]$",  # Single letter domains (likely obfuscated)
+            r"^[a-z]{1,2}\.[a-z]{1,2}$",  # Very short domain-like strings
+            
+            # Specific mobile development patterns
+            r"\.aar$", r"\.apk$", r"\.aab$", r"\.ipa$",  # Mobile app package files
+            r"cordova\.", r"phonegap\.", r"ionic\.", r"nativescript\.",
+            r"flutter\.", r"xamarin\.", r"reactnative\.", r"titanium\.",
+            
+            # Analytics and tracking patterns (common false positives)
+            r"analytics\.", r"tracking\.", r"metrics\.", r"telemetry\.",
+            r"crashlytics\.", r"firebase\.", r"amplitude\.", r"mixpanel\.",
+            
+            # Ad network patterns (common false positives)
+            r"ads\.", r"adnw\.", r"adsystem\.", r"advertising\.",
+            r"admob\.", r"doubleclick\.", r"googlesyndication\."
         ]
         
         for pattern in invalid_patterns:
-            if re.search(pattern, domain):
+            if re.search(pattern, domain, re.IGNORECASE):
                 return False
+        
+        # Additional validation: Check if domain has reasonable structure
+        parts = domain.split('.')
+        if len(parts) < 2:  # Domains should have at least 2 parts
+            return False
+        
+        # Check for reasonable TLD (top-level domain)
+        tld = parts[-1].lower()
+        if len(tld) < 2 or len(tld) > 6:  # TLD should be reasonable length
+            return False
+        
+        # Check if TLD contains only letters (no numbers in TLD)
+        if not tld.isalpha():
+            return False
+        
+        # Check for reasonable subdomain/domain lengths
+        for part in parts:
+            if len(part) == 0 or len(part) > 63:  # RFC limits
+                return False
+            if part.startswith('-') or part.endswith('-'):  # Invalid hyphen placement
+                return False
+        
+        # Final check: domain shouldn't be too long overall (RFC 1035 limit)
+        if len(domain) > 253:
+            return False
         
         return True
     
