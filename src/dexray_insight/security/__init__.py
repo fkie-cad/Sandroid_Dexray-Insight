@@ -8,4 +8,8 @@ from . import injection_assessment
 from . import broken_access_control_assessment
 from . import sensitive_data_assessment
 
-__all__ = []
+__all__ = [
+    'injection_assessment',
+    'broken_access_control_assessment',
+    'sensitive_data_assessment'
+]

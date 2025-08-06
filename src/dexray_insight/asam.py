@@ -10,11 +10,10 @@ from pathlib import Path
 
 # Import the new OOP framework
 from .core import (
-    AnalysisEngine, Configuration, AnalysisContext,
-    register_module, register_tool, register_assessment
+    AnalysisEngine, Configuration
 )
 from .Utils.log import set_logger
-from .Utils.file_utils import dump_json, split_path_file_extension, create_new_directory
+from .Utils.file_utils import dump_json, split_path_file_extension
 from .Utils import androguardObjClass
 from .about import __version__, __author__
 
@@ -411,8 +410,8 @@ def main():
             if security_result_file_name:
                 print(f"Security analysis results saved to: {security_result_file_name}")
             
-            print(f"\nThank you for using Dexray Insight!")
-            print(f"Visit https://github.com/fkie-cad/Sandroid_Dexray-Insight for more information.")
+            print("\nThank you for using Dexray Insight!")
+            print("Visit https://github.com/fkie-cad/Sandroid_Dexray-Insight for more information.")
             
             return 0
         else:

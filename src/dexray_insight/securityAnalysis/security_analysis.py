@@ -29,15 +29,14 @@ class security_analysis:
 
     def run_runtime_specific_analysis(self, runtime):
         try:
-            match runtime:
-                case "dotnetMono":
-                    self.results.dotnet_results, bug_cnt = dotnetMonoSec.execute_dotnet_mono_security_analysis(self._APP_NAME, self.dll_target_dir)
-                    print(f"[*] Identified {bug_cnt} security bugs inside the Xamarin based code")
-                case "dex":
-                    self.results.dex_results = dexSec.execute_dex_security_analysis()
-                case _:
-                    logging.info(f"No security analysis support for {runtime} available")
-                    self.results.additional_data.update({f"Couldn't analyse runtime {runtime}": f"No security analysis support for {runtime} available"})
+            if runtime == "dotnetMono":
+                self.results.dotnet_results, bug_cnt = dotnetMonoSec.execute_dotnet_mono_security_analysis(self._APP_NAME, self.dll_target_dir)
+                print(f"[*] Identified {bug_cnt} security bugs inside the Xamarin based code")
+            elif runtime == "dex":
+                self.results.dex_results = dexSec.execute_dex_security_analysis()
+            else:
+                logging.info(f"No security analysis support for {runtime} available")
+                self.results.additional_data.update({f"Couldn't analyse runtime {runtime}": f"No security analysis support for {runtime} available"})
         except Exception as e:
             logging.error(f"Exception during security analysis of: {runtime}, Error: {e}")
 

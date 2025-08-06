@@ -113,7 +113,7 @@ class FullAnalysisResults:
         # APK Overview Summary
         if self.apk_overview and hasattr(self.apk_overview, 'general_info'):
             gen_info = self.apk_overview.general_info
-            print(f"\n📋 APK INFORMATION")
+            print("\n📋 APK INFORMATION")
             print("-" * 40)
             
             # Key APK details
@@ -224,13 +224,13 @@ class FullAnalysisResults:
         
         # Tracker Analysis Summary
         if self.tracker_analysis:
-            print(f"\n📍 TRACKER ANALYSIS")
+            print("\n📍 TRACKER ANALYSIS")
             print("-" * 40)
             print(self.tracker_analysis.get_console_summary())
         
         # Security Assessment Summary
         if self.security_assessment:
-            print(f"\n🛡️  SECURITY ASSESSMENT")
+            print("\n🛡️  SECURITY ASSESSMENT")
             print("-" * 40)
             
             total_findings = self.security_assessment.get('total_findings', 0)
@@ -259,7 +259,7 @@ class FullAnalysisResults:
             # Show key findings
             findings = self.security_assessment.get('findings', [])
             if findings:
-                print(f"\nKey Findings:")
+                print("\nKey Findings:")
                 for finding in findings[:3]:  # Show max 3 findings
                     title = finding.get('title', 'Security Finding')
                     category = finding.get('category', 'Unknown')
@@ -273,7 +273,7 @@ class FullAnalysisResults:
             
             # Signature results
             if self.in_depth_analysis.signatures:
-                print(f"\n🛡️  SIGNATURE ANALYSIS")
+                print("\n🛡️  SIGNATURE ANALYSIS")
                 print("-" * 40)
                 sigs = self.in_depth_analysis.signatures
                 
@@ -292,7 +292,7 @@ class FullAnalysisResults:
         
         # Kavanoz results
         if self.kavanoz_analysis and hasattr(self.kavanoz_analysis, 'is_packed'):
-            print(f"\n📦 PACKING ANALYSIS")
+            print("\n📦 PACKING ANALYSIS")
             print("-" * 40)
             if self.kavanoz_analysis.is_packed:
                 print("⚠️  APK appears to be packed")
@@ -327,7 +327,7 @@ class FullAnalysisResults:
                     logging.getLogger(__name__).debug(f"Failed to parse APKID raw_output: {e}")
             
             if files:
-                print(f"\n🔧 COMPILER & APKID ANALYSIS")
+                print("\n🔧 COMPILER & APKID ANALYSIS")
                 print("-" * 40)
                 
                 # Collect all compiler and packer information
@@ -382,7 +382,7 @@ class FullAnalysisResults:
                 
                 # Show all compiler information
                 if compilers:
-                    print(f"🛠️  All Compiler(s) Detected:")
+                    print("🛠️  All Compiler(s) Detected:")
                     for compiler in compilers:
                         # Mark the first dex compiler if it's in the list
                         if compiler == first_dex_compiler:
@@ -393,7 +393,7 @@ class FullAnalysisResults:
                 
                 # Show packer information
                 if packers:
-                    print(f"📦 Packer(s) Detected:")
+                    print("📦 Packer(s) Detected:")
                     for packer in packers:
                         print(f"   • {packer}")
                     print()
@@ -424,7 +424,7 @@ class FullAnalysisResults:
         if self.apk_overview and hasattr(self.apk_overview, 'components'):
             components = self.apk_overview.components
             if components:
-                print(f"\n🏗️  COMPONENTS")
+                print("\n🏗️  COMPONENTS")
                 print("-" * 40)
                 for comp_type, comp_list in components.items():
                     if comp_list and len(comp_list) > 0:

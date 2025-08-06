@@ -642,7 +642,7 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
                                             all_strings_with_location.append({
                                                 'value': method_name,
                                                 'location': f'Method in class {class_name}',
-                                                'file_path': f'{class_name}.java',
+                                                'file_path': class_name + '.java',
                                                 'line_number': None
                                             })
                                             deep_strings_extracted += 1

@@ -443,7 +443,7 @@ def get_android_dm_exception_msg():
         ' find the android device identifier.'
         ' Please read official documentation.'
         ' If this error persists, set ANALYZER_IDENTIFIER in '
-        f'{get_config_loc()} or via environment variable'
+        'dexray.yaml or via environment variable'
         ' MOBSF_ANALYZER_IDENTIFIER')
 
 

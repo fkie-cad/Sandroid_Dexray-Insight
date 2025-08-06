@@ -196,7 +196,7 @@ def get_manifest(app_path, app_dir, typ, apk):
             logger.warning('Parsing AndroidManifest.xml failed')
             return manifest_file, ns, minidom.parseString(
                 bs4_xml_parser(xml_str))
-    except Exception as exp:
+    except Exception:
         msg = 'Parsing AndroidManifest.xml failed'
         logger.exception(msg)
     return manifest_file, ns, get_fallback()
@@ -342,6 +342,6 @@ def manifest_data(mfxml, ns):
         }
 
         return man_data_dic
-    except Exception as exp:
+    except Exception:
         msg = 'Extracting Manifest Data'
         logger.exception(msg)

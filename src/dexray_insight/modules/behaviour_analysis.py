@@ -567,7 +567,7 @@ class BehaviourAnalysisModule(BaseAnalysisModule):
                     if apk_obj.get_element('activity', 'android:name', activity) and \
                        apk_obj.get_element('activity', 'android:exported', activity) == 'true':
                         exported_activities.append(activity)
-                except:
+                except Exception:
                     continue
             
             # Check services
@@ -576,7 +576,7 @@ class BehaviourAnalysisModule(BaseAnalysisModule):
                     if apk_obj.get_element('service', 'android:name', service) and \
                        apk_obj.get_element('service', 'android:exported', service) == 'true':
                         exported_services.append(service)
-                except:
+                except Exception:
                     continue
                     
             # Check receivers
@@ -585,7 +585,7 @@ class BehaviourAnalysisModule(BaseAnalysisModule):
                     if apk_obj.get_element('receiver', 'android:name', receiver) and \
                        apk_obj.get_element('receiver', 'android:exported', receiver) == 'true':
                         exported_receivers.append(receiver)
-                except:
+                except Exception:
                     continue
             
             total_exported = len(exported_activities) + len(exported_services) + len(exported_receivers)

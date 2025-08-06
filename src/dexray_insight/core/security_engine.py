@@ -123,12 +123,12 @@ class SecurityAssessmentEngine:
         
         # Print summary to terminal
         if all_findings:
-            print(f"\n[+] Security Assessment Summary:")
+            print("\n[+] Security Assessment Summary:")
             print(f"    Total findings: {len(all_findings)}")
             print(f"    Risk score: {overall_risk_score:.2f}")
             print(f"    OWASP categories affected: {', '.join(owasp_categories)}")
         else:
-            print(f"\n[+] Security Assessment completed with no findings")
+            print("\n[+] Security Assessment completed with no findings")
         
         return results
     

@@ -113,7 +113,7 @@ class KavanozTool(BaseExternalTool):
             logging.getLogger("kavanoz").disabled = True
             try:
                 loguru_logger.remove()
-            except:
+            except Exception:
                 pass  # Ignore if no handlers are present
             
             # Initialize Kavanoz

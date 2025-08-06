@@ -125,7 +125,7 @@ class APKOverview:
         print("\n=== Permissions ===")
         print("Declared Permissions:")
         declared_permissions = self.permissions.get("declared_permissions", [])
-        if declared_permissions != None or len(declared_permissions) > 0:
+        if declared_permissions is not None or len(declared_permissions) > 0:
             if declared_permissions:
                 print("\n".join(f"- {perm}" for perm in declared_permissions))
             else:
@@ -142,8 +142,8 @@ class APKOverview:
         for version, certs in self.certificates.items():
             print(f"Version: {version}")
             for cert in certs:
-                for field, value in cert.items():
-                    print(f"{field.replace('_', ' ').title()}: {value}")
+                for field_name, value in cert.items():
+                    print(f"{field_name.replace('_', ' ').title()}: {value}")
                 print()
 
         print("\n=== Native Libraries ===")

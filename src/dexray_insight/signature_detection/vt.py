@@ -45,9 +45,6 @@ def vt_check_file_reputation(hash_value, config=None):
         links_value = json_response['data']['links']['self']
         last_submission_date = json_response['data']['attributes']['last_submission_date']
         last_analysis_results = json_response['data']['attributes']['last_analysis_results']
-        total_votes_value = json_response['data']['attributes']['total_votes']
-        total_votes_malicious = json_response['data']['attributes']['total_votes']['malicious']
-        total_votes_harmless = json_response['data']['attributes']['total_votes']['harmless']
 
 
         # Extract hashes

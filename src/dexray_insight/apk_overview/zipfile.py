@@ -58,7 +58,7 @@ def extract_file_based_on_header_info(apk_file, local_header_info, central_direc
             compressed_data = apk_file.read(compressed_size)
             extracted_data = zlib.decompress(compressed_data, -15)
             indicator = 'DEFLATED_TAMPERED'
-        except:
+        except Exception:
             apk_file.seek(cur_loc)
             compressed_data = apk_file.read(uncompressed_size)
             extracted_data = compressed_data

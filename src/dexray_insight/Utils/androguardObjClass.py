@@ -4,7 +4,6 @@
 from androguard.misc import AnalyzeAPK
 import logging
 from loguru import logger
-import sys
 
 class Androguard_Obj:
     def __init__(self, apk_path):

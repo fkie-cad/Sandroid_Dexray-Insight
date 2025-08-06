@@ -172,7 +172,7 @@ class StringAnalysisModule(BaseAnalysisModule):
                                     strings_set.add(string_val)
                         
                         # Comprehensive debug logging
-                        self.logger.debug(f"📊 STRING EXTRACTION SUMMARY:")
+                        self.logger.debug("📊 STRING EXTRACTION SUMMARY:")
                         self.logger.debug(f"   📁 Total raw strings in binary: {total_raw_strings}")
                         self.logger.debug(f"   📐 Filtered by min length ({self.min_string_length}): {filtered_by_length}")
                         self.logger.debug(f"   🚫 Filtered by exclude patterns: {filtered_by_exclude}")

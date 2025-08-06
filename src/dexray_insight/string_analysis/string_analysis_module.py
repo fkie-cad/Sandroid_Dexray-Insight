@@ -138,7 +138,7 @@ def list_apk_strings(dex_obj, verbose=False, pre_found_strings=List[str]):
     # Debug logging for fallback method
     import logging
     logger = logging.getLogger(__name__)
-    logger.debug(f"📊 FALLBACK STRING EXTRACTION:")
+    logger.debug("📊 FALLBACK STRING EXTRACTION:")
     logger.debug(f"   📁 Total raw strings in {len(dex_obj)} DEX files: {total_raw_strings}")
     logger.debug(f"   🔄 Unique strings after deduplication: {len(strings_set)}")
 

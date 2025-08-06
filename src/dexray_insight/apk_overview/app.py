@@ -324,8 +324,8 @@ def detect_framework(all_files: list[str], native_libs: list[str]) -> str:
 
 
 def analyze_apk(apk_path, apk_overview, app_dic, permissions_details=False):
-    if apk_overview == None:
-        apk_overview = parse_apk(app_path)
+    if apk_overview is None:
+        apk_overview = parse_apk(apk_path)
 
     # General APK information
     file_name = os.path.basename(apk_path)

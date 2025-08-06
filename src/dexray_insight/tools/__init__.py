@@ -7,4 +7,7 @@
 from . import apkid_tool
 from . import kavanoz_tool
 
-__all__ = []
+__all__ = [
+    'apkid_tool',
+    'kavanoz_tool'
+]

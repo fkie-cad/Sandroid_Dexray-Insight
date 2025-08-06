@@ -44,7 +44,7 @@ def read_netsec_config(checksum, app_dir, config, src_type):
         desc = f'{msg} from {config_file.name}'
         logger.info(desc)
         return config_file.read_text('utf8', 'ignore')
-    except Exception as exp:
+    except Exception:
         logger.exception(msg)
     return None
 

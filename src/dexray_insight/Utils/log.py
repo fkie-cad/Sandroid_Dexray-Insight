@@ -32,15 +32,14 @@ class LogFilter(logging.Filter):
 
 def set_logger(args):
     log_level = logging.ERROR  # Default to ERROR
-    match args.debug:
-        case "INFO":
-            log_level = logging.INFO
-        case "WARNING":
-            log_level = logging.WARNING
-        case "DEBUG":
-            log_level = logging.DEBUG
-        case _:
-            log_level = logging.ERROR
+    if args.debug == "INFO":
+        log_level = logging.INFO
+    elif args.debug == "WARNING":
+        log_level = logging.WARNING
+    elif args.debug == "DEBUG":
+        log_level = logging.DEBUG
+    else:
+        log_level = logging.ERROR
 
     logger = logging.getLogger()
     logger.setLevel(log_level) 

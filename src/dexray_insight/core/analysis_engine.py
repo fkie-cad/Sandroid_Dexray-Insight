@@ -437,7 +437,7 @@ class AnalysisEngine:
                 androguard_obj = context.androguard_obj
                 if androguard_obj:
                     self.logger.debug("📁 Running fallback string extraction from DEX objects")
-                    old_results = string_analysis_execute(apk_path, androguard_obj)
+                    old_results = string_analysis_execute(context.apk_path, androguard_obj)
                     
                     if old_results and len(old_results) >= 5:
                         # Process fallback results
@@ -454,7 +454,7 @@ class AnalysisEngine:
                         
                         # Debug logging
                         total_categorized = len(emails) + len(ips) + len(urls) + len(domains)
-                        self.logger.debug(f"📊 FALLBACK STRING ANALYSIS RESULTS:")
+                        self.logger.debug("📊 FALLBACK STRING ANALYSIS RESULTS:")
                         self.logger.debug(f"   📧 Email addresses: {len(emails)}")
                         self.logger.debug(f"   🌐 IP addresses: {len(ips)}")
                         self.logger.debug(f"   🔗 URLs: {len(urls)}")

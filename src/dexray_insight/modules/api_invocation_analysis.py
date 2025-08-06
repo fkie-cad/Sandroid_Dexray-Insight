@@ -94,7 +94,6 @@ class APIInvocationAnalysisModule(BaseAnalysisModule):
                 raise ValueError("Androguard object not available in context")
             
             # Get analysis objects
-            apk = context.androguard_obj.get_androguard_apk()
             dx = context.androguard_obj.get_androguard_analysisObj()
             
             api_calls = []

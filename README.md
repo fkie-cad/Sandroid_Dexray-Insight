@@ -4,9 +4,12 @@
 </div>
 
 # Sandroid - Dexray Insight
-![version](https://img.shields.io/badge/version-0.1.0.0-blue)
+![version](https://img.shields.io/badge/version-0.1.0.1-blue) [![PyPI version](https://badge.fury.io/py/dexray-insight.svg)](https://badge.fury.io/py/dexray-insight) [CI](https://github.com/fkie-cad/Sandroid_Dexray-Insight/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/fkie-cad/Sandroid_Dexray-Insight/actions/workflows/ci.yml)
+[![Ruff](https://github.com/fkie-cad/Sandroid_Dexray-Insight/actions/workflows/lint.yml/badge.svg?branch=main)](https://github.com/fkie-cad/Sandroid_Dexray-Insight/actions/workflows/lint.yml)
+[![Publish status](https://github.com/fkie-cad/Sandroid_Dexray-Insight/actions/workflows/publish.yml/badge.svg?branch=main)](https://github.com/fkie-cad/Sandroid_Dexray-Insight/actions/workflows/publish.yml)
 
-Dexray Insight is part of the dynamic Sandbox SanDroid. Its purpose is to perform static analysis of Android application files (APK). The tool consists of different analysis modules:
+
+Dexray Insight is part of the dynamic Sandbox Sandroid. Its purpose is to perform static analysis of Android application files (APK). The tool consists of different analysis modules:
 
 ## Features
 
