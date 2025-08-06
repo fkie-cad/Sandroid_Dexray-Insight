@@ -6,8 +6,8 @@ from typing import Dict, Any, List, Optional
 from ..core.base_classes import BaseResult, AnalysisStatus
 
 @dataclass
-class DeepAnalysisFinding:
-    """Represents a single deep analysis finding"""
+class BehaviourAnalysisFinding:
+    """Represents a single behaviour analysis finding"""
     feature_name: str
     detected: bool
     evidence: List[Dict[str, Any]] = field(default_factory=list)
@@ -22,16 +22,18 @@ class DeepAnalysisFinding:
         }
 
 @dataclass
-class DeepAnalysisResults(BaseResult):
-    """Results class for deep analysis module"""
-    findings: Dict[str, DeepAnalysisFinding] = field(default_factory=dict)
+class BehaviourAnalysisResults(BaseResult):
+    """Results class for behaviour analysis module"""
+    findings: Dict[str, BehaviourAnalysisFinding] = field(default_factory=dict)
     summary: Dict[str, int] = field(default_factory=dict)
+    androguard_objects: Optional[Dict[str, Any]] = field(default=None, repr=False)
     
     def to_dict(self) -> Dict[str, Any]:
         base_dict = super().to_dict()
         base_dict.update({
             'findings': {name: finding.to_dict() for name, finding in self.findings.items()},
             'summary': self.summary
+            # Note: androguard_objects are not serialized as they contain binary objects
         })
         return base_dict
     
@@ -39,7 +41,7 @@ class DeepAnalysisResults(BaseResult):
         """Add a finding to the results"""
         if evidence is None:
             evidence = []
-        self.findings[feature_name] = DeepAnalysisFinding(
+        self.findings[feature_name] = BehaviourAnalysisFinding(
             feature_name=feature_name,
             detected=detected,
             evidence=evidence,
@@ -54,10 +56,10 @@ class DeepAnalysisResults(BaseResult):
         """Get brief summary for terminal output"""
         detected = self.get_detected_features()
         if not detected:
-            return "🔍 Deep Analysis: No suspicious behaviors detected"
+            return "🔍 Behaviour Analysis: No suspicious behaviors detected"
         
         summary_parts = []
         for feature in detected:
             summary_parts.append(f"✓ {feature}")
         
-        return f"🔍 Deep Analysis: {len(detected)} behaviors detected:\n" + "\n".join(f"  {part}" for part in summary_parts)
+        return f"🔍 Behaviour Analysis: {len(detected)} behaviors detected:\n" + "\n".join(f"  {part}" for part in summary_parts)

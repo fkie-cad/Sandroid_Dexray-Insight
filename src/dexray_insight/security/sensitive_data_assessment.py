@@ -530,8 +530,69 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
         if isinstance(raw_strings, list):
             all_strings.extend(raw_strings)
             
-        # Also try to get strings from the androguard object directly if available
+        # Enhanced string extraction using behaviour analysis objects when available
+        deep_strings_extracted = 0
         try:
+            # Check if we have behaviour analysis results with stored androguard objects
+            behaviour_results = analysis_results.get('behaviour_analysis', {})
+            if hasattr(behaviour_results, 'androguard_objects'):
+                androguard_objs = behaviour_results.androguard_objects
+                analysis_mode = androguard_objs.get('mode', 'unknown')
+                
+                if analysis_mode == 'deep':
+                    self.logger.info("🔍 Using DEEP analysis objects for enhanced secret detection")
+                    
+                    # Extract strings from DEX objects (similar to apk_api_key_extractor approach)
+                    dex_obj = androguard_objs.get('dex_obj')
+                    if dex_obj:
+                        for i, dex in enumerate(dex_obj):
+                            try:
+                                dex_strings = dex.get_strings()
+                                for string in dex_strings:
+                                    string_val = str(string)
+                                    if string_val and len(string_val.strip()) > 0:
+                                        all_strings.append(string_val)
+                                        deep_strings_extracted += 1
+                                self.logger.debug(f"Extracted {len(dex_strings)} strings from DEX {i+1}")
+                            except Exception as e:
+                                self.logger.debug(f"Error extracting strings from DEX {i}: {e}")
+                    
+                    # Extract strings from analysis objects for method analysis (secret-finder style)
+                    dx_obj = androguard_objs.get('dx_obj')
+                    if dx_obj:
+                        try:
+                            # Get method analysis for more comprehensive secret detection
+                            classes = dx_obj.get_classes()
+                            for cls in classes:
+                                try:
+                                    # Get class source code for pattern matching
+                                    source = cls.get_source()
+                                    if source:
+                                        # Split source into lines and add as potential strings
+                                        lines = source.split('\n')
+                                        for line in lines:
+                                            line = line.strip()
+                                            if line and len(line) > 10:  # Skip very short lines
+                                                all_strings.append(line)
+                                                deep_strings_extracted += 1
+                                                
+                                    # Extract method names and field names as potential secrets
+                                    for method in cls.get_methods():
+                                        method_name = method.get_method().get_name()
+                                        if method_name and len(method_name) > 5:
+                                            all_strings.append(method_name)
+                                            deep_strings_extracted += 1
+                                            
+                                except Exception as e:
+                                    self.logger.debug(f"Error analyzing class {cls.name}: {e}")
+                                    
+                        except Exception as e:
+                            self.logger.debug(f"Error in analysis object string extraction: {e}")
+                            
+                elif analysis_mode == 'fast':
+                    self.logger.info("⚡ Using FAST analysis mode - basic secret detection enabled")
+                    
+            # Fallback: try to get strings from APK overview
             apk_overview = analysis_results.get('apk_overview', {})
             if hasattr(apk_overview, 'to_dict'):
                 apk_data = apk_overview.to_dict()
@@ -539,12 +600,15 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
                 apk_data = apk_overview
             
             if isinstance(apk_data, dict):
-                # Get strings from androguard analysis if available
                 context_strings = apk_data.get('context_strings', [])
                 if isinstance(context_strings, list):
                     all_strings.extend(context_strings)
+                    
         except Exception as e:
-            self.logger.debug(f"Could not extract additional strings from APK overview: {e}")
+            self.logger.debug(f"Could not extract additional strings from analysis objects: {e}")
+            
+        if deep_strings_extracted > 0:
+            self.logger.info(f"🎯 Enhanced analysis: extracted {deep_strings_extracted} additional strings from DEX/code analysis")
         
         # Remove duplicates and filter out empty/None values
         unique_strings = list(set([s for s in all_strings if s and isinstance(s, str) and len(s.strip()) > 0]))

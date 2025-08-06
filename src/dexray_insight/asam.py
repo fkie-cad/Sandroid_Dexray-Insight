@@ -81,7 +81,7 @@ def create_configuration_from_args(args) -> Configuration:
     
     # Handle deep analysis flag
     if hasattr(args, 'deep') and args.deep:
-        config_updates.setdefault('modules', {})['deep_analysis'] = {'enabled': True}
+        config_updates.setdefault('modules', {})['behaviour_analysis'] = {'enabled': True, 'deep_mode': True}
     
     # Apply configuration updates
     if config_updates:

@@ -9,21 +9,21 @@ from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass, field
 
 from ..core.base_classes import BaseAnalysisModule, AnalysisContext, AnalysisStatus, register_module
-from ..results.DeepAnalysisResults import DeepAnalysisResults, DeepAnalysisFinding
+from ..results.BehaviourAnalysisResults import BehaviourAnalysisResults, BehaviourAnalysisFinding
 
-@register_module('deep_analysis')
-class DeepAnalysisModule(BaseAnalysisModule):
-    """Module for deep behavioral analysis of Android APK files"""
+@register_module('behaviour_analysis')
+class BehaviourAnalysisModule(BaseAnalysisModule):
+    """Module for behavioral analysis of Android APK files with fast/deep modes"""
     
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
         self.logger = logging.getLogger(__name__)
     
     def get_name(self) -> str:
-        return "Deep Analysis"
+        return "Behaviour Analysis"
     
     def get_description(self) -> str:
-        return "Performs deep behavioral analysis to detect privacy-sensitive behaviors and advanced techniques"
+        return "Performs behavioral analysis to detect privacy-sensitive behaviors. Supports fast mode (APK only) and deep mode (full DEX analysis)"
     
     def get_dependencies(self) -> List[str]:
         return ["apk_overview"]  # Requires APK overview for basic analysis
@@ -32,54 +32,98 @@ class DeepAnalysisModule(BaseAnalysisModule):
         """Return lowest priority to ensure this runs last"""
         return 1000
     
-    def analyze(self, apk_path: str, context: AnalysisContext) -> DeepAnalysisResults:
+    def analyze(self, apk_path: str, context: AnalysisContext) -> BehaviourAnalysisResults:
         """
-        Perform deep behavioral analysis
+        Perform behavioral analysis in fast or deep mode
         
         Args:
             apk_path: Path to APK file
             context: Analysis context
             
         Returns:
-            DeepAnalysisResults with behavioral findings
+            BehaviourAnalysisResults with behavioral findings
         """
         start_time = time.time()
         
         try:
-            self.logger.info("Starting deep analysis...")
+            # Check if we're in deep mode
+            deep_mode = self.config.get('deep_mode', context.config.get('behaviour_analysis', {}).get('enabled', False))
+            
+            if deep_mode:
+                self.logger.info("Starting behaviour analysis in DEEP mode...")
+            else:
+                self.logger.info("Starting behaviour analysis in FAST mode...")
             
             # Validate that androguard object is available
             if not context.androguard_obj:
-                return DeepAnalysisResults(
-                    module_name="deep_analysis",
+                return BehaviourAnalysisResults(
+                    module_name="behaviour_analysis",
                     status=AnalysisStatus.FAILURE,
                     error_message="Androguard object not available in context",
                     execution_time=time.time() - start_time
                 )
             
-            # Get androguard objects
+            # Get androguard objects based on mode
             apk_obj = context.androguard_obj.get_androguard_apk()
-            dex_obj = context.androguard_obj.get_androguard_dex()
-            dx_obj = context.androguard_obj.get_androguard_analysisObj()
             
-            result = DeepAnalysisResults(
-                module_name="deep_analysis",
+            # Only get DEX objects in deep mode
+            if deep_mode:
+                dex_obj = context.androguard_obj.get_androguard_dex()
+                dx_obj = context.androguard_obj.get_androguard_analysisObj()
+                # Store these globally for security analysis access
+                context.deep_analysis_objects = {
+                    'apk_obj': apk_obj,
+                    'dex_obj': dex_obj,
+                    'dx_obj': dx_obj
+                }
+            else:
+                dex_obj = None
+                dx_obj = None
+                # Store only APK object in fast mode
+                context.fast_analysis_objects = {
+                    'apk_obj': apk_obj
+                }
+            
+            result = BehaviourAnalysisResults(
+                module_name="behaviour_analysis",
                 status=AnalysisStatus.SUCCESS,
                 execution_time=0.0
             )
             
-            # Analyze each feature
-            self._analyze_device_model_access(apk_obj, dex_obj, dx_obj, result)
-            self._analyze_imei_access(apk_obj, dex_obj, dx_obj, result)
-            self._analyze_android_version_access(apk_obj, dex_obj, dx_obj, result)
-            self._analyze_phone_number_access(apk_obj, dex_obj, dx_obj, result)
-            self._analyze_clipboard_usage(apk_obj, dex_obj, dx_obj, result)
-            self._analyze_dynamic_receivers(apk_obj, dex_obj, dx_obj, result)
-            self._analyze_camera_access(apk_obj, dex_obj, dx_obj, result)
-            self._analyze_running_services_access(apk_obj, dex_obj, dx_obj, result)
-            self._analyze_installed_applications(apk_obj, dex_obj, dx_obj, result)
-            self._analyze_installed_packages(apk_obj, dex_obj, dx_obj, result)
-            self._analyze_reflection_usage(apk_obj, dex_obj, dx_obj, result)
+            # Store androguard objects in the result for security analysis access
+            if deep_mode:
+                result.androguard_objects = {
+                    'mode': 'deep',
+                    'apk_obj': apk_obj,
+                    'dex_obj': dex_obj,
+                    'dx_obj': dx_obj
+                }
+            else:
+                result.androguard_objects = {
+                    'mode': 'fast',
+                    'apk_obj': apk_obj,
+                    'dex_obj': None,
+                    'dx_obj': None
+                }
+            
+            # Analyze each feature based on mode
+            if deep_mode:
+                # Full analysis with DEX objects
+                self._analyze_device_model_access(apk_obj, dex_obj, dx_obj, result)
+                self._analyze_imei_access(apk_obj, dex_obj, dx_obj, result)
+                self._analyze_android_version_access(apk_obj, dex_obj, dx_obj, result)
+                self._analyze_phone_number_access(apk_obj, dex_obj, dx_obj, result)
+                self._analyze_clipboard_usage(apk_obj, dex_obj, dx_obj, result)
+                self._analyze_dynamic_receivers(apk_obj, dex_obj, dx_obj, result)
+                self._analyze_camera_access(apk_obj, dex_obj, dx_obj, result)
+                self._analyze_running_services_access(apk_obj, dex_obj, dx_obj, result)
+                self._analyze_installed_applications(apk_obj, dex_obj, dx_obj, result)
+                self._analyze_installed_packages(apk_obj, dex_obj, dx_obj, result)
+                self._analyze_reflection_usage(apk_obj, dex_obj, dx_obj, result)
+            else:
+                # Fast mode - only basic APK analysis
+                self._analyze_basic_permissions(apk_obj, result)
+                self._analyze_basic_components(apk_obj, result)
             
             # Generate summary
             detected_count = len(result.get_detected_features())
@@ -91,22 +135,23 @@ class DeepAnalysisModule(BaseAnalysisModule):
             }
             
             result.execution_time = time.time() - start_time
-            self.logger.info(f"Deep analysis completed in {result.execution_time:.2f}s - {detected_count}/{total_count} behaviors detected")
+            mode_str = "DEEP" if deep_mode else "FAST"
+            self.logger.info(f"Behaviour analysis ({mode_str} mode) completed in {result.execution_time:.2f}s - {detected_count}/{total_count} behaviors detected")
             
             return result
             
         except Exception as e:
             execution_time = time.time() - start_time
-            self.logger.error(f"Deep analysis failed: {str(e)}")
+            self.logger.error(f"Behaviour analysis failed: {str(e)}")
             
-            return DeepAnalysisResults(
-                module_name="deep_analysis",
+            return BehaviourAnalysisResults(
+                module_name="behaviour_analysis",
                 status=AnalysisStatus.FAILURE,
                 error_message=str(e),
                 execution_time=execution_time
             )
     
-    def _analyze_device_model_access(self, apk_obj, dex_obj, dx_obj, result: DeepAnalysisResults):
+    def _analyze_device_model_access(self, apk_obj, dex_obj, dx_obj, result: BehaviourAnalysisResults):
         """Check if app accesses device model information"""
         evidence = []
         patterns = [
@@ -166,7 +211,7 @@ class DeepAnalysisModule(BaseAnalysisModule):
             "Application attempts to access device model information"
         )
     
-    def _analyze_imei_access(self, apk_obj, dex_obj, dx_obj, result: DeepAnalysisResults):
+    def _analyze_imei_access(self, apk_obj, dex_obj, dx_obj, result: BehaviourAnalysisResults):
         """Check if app tries to access IMEI"""
         evidence = []
         patterns = [
@@ -197,7 +242,7 @@ class DeepAnalysisModule(BaseAnalysisModule):
             "Application attempts to access device IMEI"
         )
     
-    def _analyze_android_version_access(self, apk_obj, dex_obj, dx_obj, result: DeepAnalysisResults):
+    def _analyze_android_version_access(self, apk_obj, dex_obj, dx_obj, result: BehaviourAnalysisResults):
         """Check if app accesses Android version information"""
         evidence = []
         patterns = [
@@ -217,7 +262,7 @@ class DeepAnalysisModule(BaseAnalysisModule):
             "Application accesses Android version information"
         )
     
-    def _analyze_phone_number_access(self, apk_obj, dex_obj, dx_obj, result: DeepAnalysisResults):
+    def _analyze_phone_number_access(self, apk_obj, dex_obj, dx_obj, result: BehaviourAnalysisResults):
         """Check if app tries to get phone number"""
         evidence = []
         patterns = [
@@ -253,7 +298,7 @@ class DeepAnalysisModule(BaseAnalysisModule):
             "Application attempts to access phone number"
         )
     
-    def _analyze_clipboard_usage(self, apk_obj, dex_obj, dx_obj, result: DeepAnalysisResults):
+    def _analyze_clipboard_usage(self, apk_obj, dex_obj, dx_obj, result: BehaviourAnalysisResults):
         """Check if app uses clipboard"""
         evidence = []
         patterns = [
@@ -273,7 +318,7 @@ class DeepAnalysisModule(BaseAnalysisModule):
             "Application uses clipboard functionality"
         )
     
-    def _analyze_dynamic_receivers(self, apk_obj, dex_obj, dx_obj, result: DeepAnalysisResults):
+    def _analyze_dynamic_receivers(self, apk_obj, dex_obj, dx_obj, result: BehaviourAnalysisResults):
         """Check for dynamically registered broadcast receivers"""
         evidence = []
         patterns = [
@@ -292,7 +337,7 @@ class DeepAnalysisModule(BaseAnalysisModule):
             "Application registers broadcast receivers dynamically"
         )
     
-    def _analyze_camera_access(self, apk_obj, dex_obj, dx_obj, result: DeepAnalysisResults):
+    def _analyze_camera_access(self, apk_obj, dex_obj, dx_obj, result: BehaviourAnalysisResults):
         """Check if app tries to access camera"""
         evidence = []
         patterns = [
@@ -327,7 +372,7 @@ class DeepAnalysisModule(BaseAnalysisModule):
             "Application attempts to access camera"
         )
     
-    def _analyze_running_services_access(self, apk_obj, dex_obj, dx_obj, result: DeepAnalysisResults):
+    def _analyze_running_services_access(self, apk_obj, dex_obj, dx_obj, result: BehaviourAnalysisResults):
         """Check if app tries to get running services"""
         evidence = []
         patterns = [
@@ -347,7 +392,7 @@ class DeepAnalysisModule(BaseAnalysisModule):
             "Application tries to access running services information"
         )
     
-    def _analyze_installed_applications(self, apk_obj, dex_obj, dx_obj, result: DeepAnalysisResults):
+    def _analyze_installed_applications(self, apk_obj, dex_obj, dx_obj, result: BehaviourAnalysisResults):
         """Check if app gets installed applications"""
         evidence = []
         patterns = [
@@ -376,7 +421,7 @@ class DeepAnalysisModule(BaseAnalysisModule):
             "Application accesses installed applications list"
         )
     
-    def _analyze_installed_packages(self, apk_obj, dex_obj, dx_obj, result: DeepAnalysisResults):
+    def _analyze_installed_packages(self, apk_obj, dex_obj, dx_obj, result: BehaviourAnalysisResults):
         """Check if app gets installed packages"""
         evidence = []
         patterns = [
@@ -396,7 +441,7 @@ class DeepAnalysisModule(BaseAnalysisModule):
             "Application accesses installed packages information"
         )
     
-    def _analyze_reflection_usage(self, apk_obj, dex_obj, dx_obj, result: DeepAnalysisResults):
+    def _analyze_reflection_usage(self, apk_obj, dex_obj, dx_obj, result: BehaviourAnalysisResults):
         """Check if app uses reflection"""
         evidence = []
         patterns = [
@@ -463,3 +508,91 @@ class DeepAnalysisModule(BaseAnalysisModule):
                                     })
                 except Exception as e:
                     self.logger.debug(f"Error analyzing {feature_name} in smali DEX {i}: {e}")
+
+    def _analyze_basic_permissions(self, apk_obj, result: BehaviourAnalysisResults):
+        """Fast mode: Basic permission analysis using only APK object"""
+        try:
+            permissions = apk_obj.get_permissions()
+            
+            # Check for privacy-sensitive permissions
+            sensitive_perms = [
+                'android.permission.READ_PHONE_STATE',
+                'android.permission.ACCESS_FINE_LOCATION', 
+                'android.permission.ACCESS_COARSE_LOCATION',
+                'android.permission.CAMERA',
+                'android.permission.RECORD_AUDIO',
+                'android.permission.READ_CONTACTS',
+                'android.permission.READ_SMS',
+                'android.permission.READ_CALENDAR'
+            ]
+            
+            detected_perms = [perm for perm in sensitive_perms if perm in permissions]
+            
+            result.add_finding(
+                "sensitive_permissions",
+                len(detected_perms) > 0,
+                [{'type': 'permission', 'content': perm} for perm in detected_perms],
+                f"Application requests {len(detected_perms)} privacy-sensitive permissions"
+            )
+            
+        except Exception as e:
+            self.logger.debug(f"Error in basic permission analysis: {e}")
+
+    def _analyze_basic_components(self, apk_obj, result: BehaviourAnalysisResults):
+        """Fast mode: Basic component analysis using only APK object"""
+        try:
+            # Check for exported components
+            activities = apk_obj.get_activities()
+            services = apk_obj.get_services()
+            receivers = apk_obj.get_receivers()
+            
+            exported_activities = []
+            exported_services = []
+            exported_receivers = []
+            
+            # Check activities
+            for activity in activities:
+                try:
+                    if apk_obj.get_element('activity', 'android:name', activity) and \
+                       apk_obj.get_element('activity', 'android:exported', activity) == 'true':
+                        exported_activities.append(activity)
+                except:
+                    continue
+            
+            # Check services
+            for service in services:
+                try:
+                    if apk_obj.get_element('service', 'android:name', service) and \
+                       apk_obj.get_element('service', 'android:exported', service) == 'true':
+                        exported_services.append(service)
+                except:
+                    continue
+                    
+            # Check receivers
+            for receiver in receivers:
+                try:
+                    if apk_obj.get_element('receiver', 'android:name', receiver) and \
+                       apk_obj.get_element('receiver', 'android:exported', receiver) == 'true':
+                        exported_receivers.append(receiver)
+                except:
+                    continue
+            
+            total_exported = len(exported_activities) + len(exported_services) + len(exported_receivers)
+            evidence = []
+            
+            if exported_activities:
+                evidence.extend([{'type': 'activity', 'content': act} for act in exported_activities[:5]])
+            if exported_services:
+                evidence.extend([{'type': 'service', 'content': svc} for svc in exported_services[:5]])
+            if exported_receivers:
+                evidence.extend([{'type': 'receiver', 'content': rec} for rec in exported_receivers[:5]])
+            
+            result.add_finding(
+                "exported_components",
+                total_exported > 0,
+                evidence,
+                f"Application has {total_exported} exported components that may be accessible to other apps"
+            )
+            
+        except Exception as e:
+            self.logger.debug(f"Error in basic component analysis: {e}")
