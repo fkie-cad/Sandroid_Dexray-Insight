@@ -47,7 +47,18 @@ class BehaviourAnalysisModule(BaseAnalysisModule):
         
         try:
             # Check if we're in deep mode
-            deep_mode = self.config.get('deep_mode', context.config.get('behaviour_analysis', {}).get('enabled', False))
+            # By default, run in fast mode. Deep mode is enabled via --deep flag or config
+            deep_mode = self.config.get('deep_mode', False) or context.config.get('behaviour_analysis', {}).get('deep_mode', False)
+            
+            # Module should run by default in fast mode unless explicitly disabled
+            module_enabled = context.config.get('behaviour_analysis', {}).get('enabled', True)
+            if not module_enabled:
+                return BehaviourAnalysisResults(
+                    module_name="behaviour_analysis",
+                    status=AnalysisStatus.SKIPPED,
+                    error_message="Behaviour analysis module disabled in configuration",
+                    execution_time=time.time() - start_time
+                )
             
             if deep_mode:
                 self.logger.info("Starting behaviour analysis in DEEP mode...")

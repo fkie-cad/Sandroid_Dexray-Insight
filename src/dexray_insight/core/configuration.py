@@ -82,6 +82,11 @@ class Configuration:
                 'fetch_exodus_trackers': True,
                 'exodus_api_url': 'https://reports.exodus-privacy.eu.org/api/trackers',
                 'api_timeout': 10
+            },
+            'behaviour_analysis': {
+                'enabled': True,
+                'priority': 1000,  # Lowest priority to run last
+                'deep_mode': False  # Fast mode by default, deep mode via --deep flag
             }
         },
         'tools': {

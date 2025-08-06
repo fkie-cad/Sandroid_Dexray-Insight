@@ -534,6 +534,11 @@ class AnalysisEngine:
             from ..results.TrackerAnalysisResults import TrackerAnalysisResults
             full_results.tracker_analysis = TrackerAnalysisResults(tracker_result)
         
+        # Add behaviour analysis results if available
+        behaviour_result = module_results.get('behaviour_analysis')
+        if behaviour_result and behaviour_result.status.value == 'success':
+            full_results.behaviour_analysis = behaviour_result
+        
         # Add deep analysis results if available
         deep_result = module_results.get('deep_analysis')
         if deep_result and deep_result.status.value == 'success':

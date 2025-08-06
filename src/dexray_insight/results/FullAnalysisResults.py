@@ -12,6 +12,7 @@ from .InDepthAnalysisResults import Results
 from .apkidResults import ApkidResults
 from .kavanozResults import KavanozResults
 from .TrackerAnalysisResults import TrackerAnalysisResults
+from .BehaviourAnalysisResults import BehaviourAnalysisResults
 
 @dataclass
 class FullAnalysisResults:
@@ -30,6 +31,7 @@ class FullAnalysisResults:
     kavanoz_analysis: Optional[KavanozResults] = None
     security_assessment: Optional[Dict[str, Any]] = None
     tracker_analysis: Optional[TrackerAnalysisResults] = None
+    behaviour_analysis: Optional[BehaviourAnalysisResults] = None
     deep_analysis: Optional['DeepAnalysisResults'] = None
 
     def __post_init__(self):
@@ -63,6 +65,10 @@ class FullAnalysisResults:
         # Include tracker analysis results if available
         if self.tracker_analysis:
             result["tracker_analysis"] = self.tracker_analysis.export_to_dict()
+            
+        # Include behaviour analysis results if available
+        if self.behaviour_analysis:
+            result["behaviour_analysis"] = self.behaviour_analysis.to_dict()
         
         # Include security assessment results only if explicitly requested
         if include_security and self.security_assessment:
@@ -424,6 +430,17 @@ class FullAnalysisResults:
                     if comp_list and len(comp_list) > 0:
                         count = len(comp_list)
                         print(f"{comp_type.replace('_', ' ').title()}: {count}")
+        
+        # Behaviour analysis summary
+        if self.behaviour_analysis:
+            detected_features = self.behaviour_analysis.get_detected_features()
+            if detected_features:
+                print(f"\n🔍 BEHAVIOUR ANALYSIS ({len(detected_features)} behaviors detected)")
+                print("-" * 40)
+                for feature in detected_features:
+                    # Convert snake_case to readable format
+                    readable_name = feature.replace('_', ' ').title()
+                    print(f"✓ {readable_name}")
         
         # Deep analysis summary
         if self.deep_analysis and hasattr(self.deep_analysis, 'findings'):

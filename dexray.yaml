@@ -73,9 +73,10 @@ modules:
     exodus_api_url: "https://reports.exodus-privacy.eu.org/api/trackers"
     api_timeout: 10
     
-  deep_analysis:
-    enabled: false
+  behaviour_analysis:
+    enabled: true  # Enabled by default in fast mode
     priority: 1000  # Lowest priority to run last
+    deep_mode: false  # Fast mode by default, use --deep flag for deep mode
     features:
       device_model_access: true
       imei_access: true
