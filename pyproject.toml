@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "dexray-insight"
 dynamic = ["version"]
-description = "This project is part of the dynamic Sandbox SanDroid. Its purpose is to do static analysis to grasp a basic understanding of an Android application."
+description = "This project is part of the dynamic Sandbox Sandroid. Its purpose is to do static analysis to grasp a basic understanding of an Android application. It also allows security analysis of an APK."
 readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "GPL-3.0"}
