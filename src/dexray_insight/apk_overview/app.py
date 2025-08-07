@@ -352,7 +352,11 @@ def analyze_apk(apk_path, apk_overview, app_dic, permissions_details=False):
     # Directory listing inside the APK
     directory_listing = apk_overview.get_files()
     native_libs = apk_overview.get_libraries()
-    if len(native_libs) < 1:
+    
+    # Check if native_libs contains actual .so files or just framework library names
+    has_actual_so_files = any(lib.endswith('.so') for lib in native_libs)
+    
+    if len(native_libs) < 1 or not has_actual_so_files:
         apk = APK(apk_path)
         all_lib_files = [f for f in apk.get_files() if f.startswith("lib/")]
         
@@ -369,9 +373,11 @@ def analyze_apk(apk_path, apk_overview, app_dic, permissions_details=False):
             if arch_folders:
                 # Get the first architecture folder (sorted for consistency)
                 first_arch = sorted(arch_folders)[0]
-                # Extract all .so files from this architecture folder
-                native_libs = [f for f in all_lib_files 
-                             if f.startswith(f"lib/{first_arch}/") and f.endswith('.so')]
+                # Extract all .so files from this architecture folder and get just the filename
+                so_files = [f for f in all_lib_files 
+                           if f.startswith(f"lib/{first_arch}/") and f.endswith('.so')]
+                # Extract just the library names without duplicates
+                native_libs = list(set([os.path.basename(f) for f in so_files]))
 
     is_cross_platform = is_crossplatform(native_libs,directory_listing)
     cross_platform_framework = detect_framework(native_libs,directory_listing)
