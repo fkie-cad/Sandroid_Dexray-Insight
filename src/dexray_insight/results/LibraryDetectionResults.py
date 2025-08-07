@@ -9,6 +9,9 @@ class LibraryDetectionMethod(Enum):
     HEURISTIC = "heuristic"
     SIMILARITY = "similarity"
     HYBRID = "hybrid"
+    NATIVE = "native"
+    SMALI = "smali"
+    MANIFEST = "manifest"
 
 class LibraryCategory(Enum):
     ANALYTICS = "analytics"
@@ -24,21 +27,63 @@ class LibraryCategory(Enum):
     MEDIA = "media"
     DATABASE = "database"
     TESTING = "testing"
+    ANDROIDX = "androidx"
+    KOTLIN = "kotlin"
+    BUILD_SYSTEM = "build_system"
     UNKNOWN = "unknown"
+
+class LibraryType(Enum):
+    ANDROIDX = "androidx"
+    MATERIAL_DESIGN = "material_design"
+    KOTLIN_INFRASTRUCTURE = "kotlin_infrastructure"
+    NATIVE_LIBRARY = "native_library"
+    THIRD_PARTY_SDK = "third_party_sdk"
+    BUILD_SYSTEM = "build_system"
+    GOOGLE_SERVICES = "google_services"
+    UNKNOWN = "unknown"
+
+class RiskLevel(Enum):
+    CRITICAL = "critical"
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+    UNKNOWN = "unknown"
+
+class LibrarySource(Enum):
+    SMALI_CLASSES = "smali_classes"
+    NATIVE_LIBS = "native_libs"
+    MANIFEST = "manifest"
+    BUILD_CONFIG = "build_config"
+    GRADLE_DEPS = "gradle_deps"
 
 @dataclass
 class DetectedLibrary:
-    """Represents a detected third-party library"""
+    """Represents a detected third-party library with comprehensive analysis"""
     name: str
     package_name: Optional[str] = None
     version: Optional[str] = None
     category: LibraryCategory = LibraryCategory.UNKNOWN
+    library_type: LibraryType = LibraryType.UNKNOWN
     confidence: float = 1.0
     detection_method: LibraryDetectionMethod = LibraryDetectionMethod.HEURISTIC
     evidence: List[str] = None
     classes_detected: List[str] = None
     similarity_score: Optional[float] = None
     matched_signatures: List[str] = None
+    
+    # Enhanced fields for comprehensive analysis
+    location: Optional[str] = None  # Where found in APK (e.g., "smali*/androidx/core/")
+    risk_level: RiskLevel = RiskLevel.UNKNOWN
+    age_years_behind: Optional[float] = None  # How many years behind current version
+    source: LibrarySource = LibrarySource.SMALI_CLASSES
+    architectures: List[str] = None  # For native libraries: ["arm64-v8a", "armeabi-v7a"]
+    file_paths: List[str] = None  # Actual file paths detected
+    size_bytes: Optional[int] = None  # Size of library files
+    description: Optional[str] = None  # Description of the library
+    vendor: Optional[str] = None  # Library vendor/organization
+    latest_version: Optional[str] = None  # Latest known version
+    release_date: Optional[str] = None  # Release date if known
+    vulnerabilities: List[str] = None  # Known CVEs or security issues
     
     def __post_init__(self):
         if self.evidence is None:
@@ -47,6 +92,12 @@ class DetectedLibrary:
             self.classes_detected = []
         if self.matched_signatures is None:
             self.matched_signatures = []
+        if self.architectures is None:
+            self.architectures = []
+        if self.file_paths is None:
+            self.file_paths = []
+        if self.vulnerabilities is None:
+            self.vulnerabilities = []
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary representation"""
@@ -55,13 +106,50 @@ class DetectedLibrary:
             'package_name': self.package_name,
             'version': self.version,
             'category': self.category.value,
+            'library_type': self.library_type.value,
             'confidence': self.confidence,
             'detection_method': self.detection_method.value,
             'evidence': self.evidence,
             'classes_detected': self.classes_detected,
             'similarity_score': self.similarity_score,
-            'matched_signatures': self.matched_signatures
+            'matched_signatures': self.matched_signatures,
+            'location': self.location,
+            'risk_level': self.risk_level.value,
+            'age_years_behind': self.age_years_behind,
+            'source': self.source.value,
+            'architectures': self.architectures,
+            'file_paths': self.file_paths,
+            'size_bytes': self.size_bytes,
+            'description': self.description,
+            'vendor': self.vendor,
+            'latest_version': self.latest_version,
+            'release_date': self.release_date,
+            'vulnerabilities': self.vulnerabilities
         }
+    
+    def get_age_description(self) -> str:
+        """Get human-readable age description"""
+        if self.age_years_behind is None:
+            return "Unknown"
+        elif self.age_years_behind < 1:
+            return "Current"
+        elif self.age_years_behind < 2:
+            return f"~{self.age_years_behind:.1f} year behind"
+        else:
+            return f"~{self.age_years_behind:.0f} years behind"
+    
+    def get_risk_description(self) -> str:
+        """Get human-readable risk description"""
+        if self.risk_level == RiskLevel.CRITICAL:
+            return "Critical Risk"
+        elif self.risk_level == RiskLevel.HIGH:
+            return "High Risk"
+        elif self.risk_level == RiskLevel.MEDIUM:
+            return "Medium Risk"
+        elif self.risk_level == RiskLevel.LOW:
+            return "Low Risk"
+        else:
+            return "Unknown Risk"
 
 @dataclass
 class LibraryDetectionResults:

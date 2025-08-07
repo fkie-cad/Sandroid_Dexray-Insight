@@ -109,7 +109,9 @@ def filter_android_properties(strings: List[str]) -> Tuple[Dict[str, str], List[
     return filtered_properties, remaining_strings
 
 
-def list_apk_strings(dex_obj, verbose=False, pre_found_strings=List[str]):
+def list_apk_strings(dex_obj, verbose=False, pre_found_strings=None):
+    if pre_found_strings is None:
+        pre_found_strings = []
     
     # Set to store unique strings
     strings_set = set()
@@ -163,7 +165,9 @@ def list_apk_strings(dex_obj, verbose=False, pre_found_strings=List[str]):
     return filteredStrings
 
 
-def string_analysis_execute(apk_path, androguard_obj, pre_found_strings=List[str]):
+def string_analysis_execute(apk_path, androguard_obj, pre_found_strings=None):
+    if pre_found_strings is None:
+        pre_found_strings = []
     dex_obj = androguard_obj.get_androguard_dex()
     results = list_apk_strings(dex_obj, pre_found_strings=pre_found_strings)
 

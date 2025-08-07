@@ -18,9 +18,9 @@ from .Utils import androguardObjClass
 from .about import __version__, __author__
 
 # Import modules to register them (imports are needed for registration)
-# from . import modules  # This will register all analysis modules
-# from . import tools    # This will register all external tools  
-# from . import security # This will register all security assessments
+from . import modules  # This will register all analysis modules  # noqa: F401
+from . import tools    # This will register all external tools  # noqa: F401
+from . import security # This will register all security assessments  # noqa: F401
 
 def print_logo():
     print("""        Dexray Insight

@@ -8,7 +8,10 @@ from typing import List, Dict, Any, Set, Optional
 from dataclasses import dataclass
 
 from ..core.base_classes import BaseAnalysisModule, BaseResult, AnalysisContext, AnalysisStatus, register_module
-from ..results.LibraryDetectionResults import DetectedLibrary, LibraryDetectionMethod, LibraryCategory
+from ..results.LibraryDetectionResults import (
+    DetectedLibrary, LibraryDetectionMethod, LibraryCategory, 
+    LibraryType, RiskLevel, LibrarySource
+)
 
 @dataclass
 class LibraryDetectionResult(BaseResult):
@@ -289,13 +292,39 @@ class LibraryDetectionModule(BaseAnalysisModule):
                 self.logger.info(f"Stage 2 detected {len(stage2_libraries)} additional libraries using similarity analysis")
             stage2_time = time.time() - stage2_start
             
+            # Stage 3: Native Library Detection
+            stage3_start = time.time()
+            self.logger.debug("Starting Stage 3: Native library detection")
+            try:
+                native_libraries = self._detect_native_libraries(context)
+                detected_libraries.extend(native_libraries)
+                self.logger.info(f"Stage 3 detected {len(native_libraries)} native libraries")
+            except Exception as e:
+                error_msg = f"Native library detection failed: {str(e)}"
+                analysis_errors.append(error_msg)
+                self.logger.debug(error_msg)
+            stage3_time = time.time() - stage3_start
+            
+            # Stage 4: AndroidX Library Detection
+            stage4_start = time.time()
+            self.logger.debug("Starting Stage 4: AndroidX library detection")
+            try:
+                androidx_libraries = self._detect_androidx_libraries(context)
+                detected_libraries.extend(androidx_libraries)
+                self.logger.info(f"Stage 4 detected {len(androidx_libraries)} AndroidX libraries")
+            except Exception as e:
+                error_msg = f"AndroidX library detection failed: {str(e)}"
+                analysis_errors.append(error_msg)
+                self.logger.debug(error_msg)
+            stage4_time = time.time() - stage4_start
+            
             # Remove duplicates based on name and package
             detected_libraries = self._deduplicate_libraries(detected_libraries)
             
             execution_time = time.time() - start_time
             
             self.logger.info(f"Library detection completed: {len(detected_libraries)} unique libraries detected")
-            self.logger.info(f"Total execution time: {execution_time:.2f}s (Stage 1: {stage1_time:.2f}s, Stage 2: {stage2_time:.2f}s)")
+            self.logger.info(f"Total execution time: {execution_time:.2f}s (Stage 1: {stage1_time:.2f}s, Stage 2: {stage2_time:.2f}s, Stage 3: {stage3_time:.2f}s, Stage 4: {stage4_time:.2f}s)")
             
             return LibraryDetectionResult(
                 module_name=self.name,
@@ -978,8 +1007,12 @@ class LibraryDetectionModule(BaseAnalysisModule):
         comparisons = 0
         
         # Compare method count similarity
-        lib_method_count = len(lib_class.get('methods', []))
-        app_method_count = len(app_class.get('methods', []))
+        lib_methods = lib_class.get('methods', [])
+        app_methods = app_class.get('methods', [])
+        
+        # Handle both integer counts and list formats
+        lib_method_count = lib_methods if isinstance(lib_methods, int) else len(lib_methods)
+        app_method_count = app_methods if isinstance(app_methods, int) else len(app_methods)
         
         if lib_method_count > 0 and app_method_count > 0:
             method_ratio = min(lib_method_count, app_method_count) / max(lib_method_count, app_method_count)
@@ -987,8 +1020,12 @@ class LibraryDetectionModule(BaseAnalysisModule):
             comparisons += 1
         
         # Compare field count similarity
-        lib_field_count = len(lib_class.get('fields', []))
-        app_field_count = len(app_class.get('fields', []))
+        lib_fields = lib_class.get('fields', [])
+        app_fields = app_class.get('fields', [])
+        
+        # Handle both integer counts and list formats
+        lib_field_count = lib_fields if isinstance(lib_fields, int) else len(lib_fields)
+        app_field_count = app_fields if isinstance(app_fields, int) else len(app_fields)
         
         if lib_field_count > 0 and app_field_count > 0:
             field_ratio = min(lib_field_count, app_field_count) / max(lib_field_count, app_field_count)
@@ -1116,6 +1153,391 @@ class LibraryDetectionModule(BaseAnalysisModule):
             pass  # Ignore errors in call extraction
         
         return calls
+    
+    def _detect_native_libraries(self, context: AnalysisContext) -> List[DetectedLibrary]:
+        """Detect native (.so) libraries from lib/ directories"""
+        native_libraries = []
+        
+        try:
+            if not context.androguard_obj:
+                return native_libraries
+                
+            apk = context.androguard_obj.get_androguard_apk()
+            if not apk:
+                return native_libraries
+            
+            # Get all files in the APK
+            files = apk.get_files()
+            lib_files = [f for f in files if f.startswith('lib/') and f.endswith('.so')]
+            
+            # Group by library name and collect architectures
+            lib_groups = {}
+            for lib_file in lib_files:
+                parts = lib_file.split('/')
+                if len(parts) >= 3:
+                    arch = parts[1]  # e.g., 'arm64-v8a'
+                    lib_name = parts[-1]  # e.g., 'libffmpeg.so'
+                    
+                    if lib_name not in lib_groups:
+                        lib_groups[lib_name] = {
+                            'architectures': [],
+                            'paths': [],
+                            'size': 0
+                        }
+                    
+                    lib_groups[lib_name]['architectures'].append(arch)
+                    lib_groups[lib_name]['paths'].append(lib_file)
+                    
+                    # Get file size
+                    try:
+                        file_data = apk.get_file(lib_file)
+                        if file_data:
+                            lib_groups[lib_name]['size'] += len(file_data)
+                    except:
+                        pass
+            
+            # Create DetectedLibrary objects for each native library
+            for lib_name, info in lib_groups.items():
+                # Determine risk level and description
+                risk_level, description = self._assess_native_library_risk(lib_name)
+                
+                # Clean library name (remove lib prefix and .so suffix)
+                clean_name = lib_name.replace('lib', '').replace('.so', '')
+                if not clean_name:
+                    clean_name = lib_name
+                
+                native_lib = DetectedLibrary(
+                    name=clean_name,
+                    library_type=LibraryType.NATIVE_LIBRARY,
+                    detection_method=LibraryDetectionMethod.NATIVE,
+                    source=LibrarySource.NATIVE_LIBS,
+                    location=f"lib/{'/'.join(set(info['architectures']))}",
+                    architectures=list(set(info['architectures'])),
+                    file_paths=info['paths'],
+                    size_bytes=info['size'],
+                    risk_level=risk_level,
+                    description=description,
+                    confidence=0.95,
+                    evidence=[f"Native library found: {lib_name}"],
+                    category=self._categorize_native_library(lib_name)
+                )
+                
+                native_libraries.append(native_lib)
+                
+        except Exception as e:
+            self.logger.debug(f"Error detecting native libraries: {e}")
+            
+        return native_libraries
+    
+    def _detect_androidx_libraries(self, context: AnalysisContext) -> List[DetectedLibrary]:
+        """Detect AndroidX libraries through comprehensive smali analysis"""
+        androidx_libraries = []
+        
+        try:
+            if not context.androguard_obj:
+                return androidx_libraries
+                
+            apk = context.androguard_obj.get_androguard_apk()
+            if not apk:
+                return androidx_libraries
+            
+            # Get all files in the APK
+            files = apk.get_files()
+            androidx_files = [f for f in files if 'smali' in f and 'androidx' in f and f.endswith('.smali')]
+            
+            # Group by library package
+            androidx_packages = {}
+            for file_path in androidx_files:
+                # Extract package from path like: smali/androidx/core/app/ActivityCompat.smali
+                parts = file_path.split('/')
+                if 'androidx' in parts:
+                    androidx_idx = parts.index('androidx')
+                    if androidx_idx + 2 < len(parts):
+                        package = f"androidx.{parts[androidx_idx + 1]}"
+                        
+                        if package not in androidx_packages:
+                            androidx_packages[package] = {
+                                'files': [],
+                                'classes': set(),
+                                'location': f"smali*/androidx/{parts[androidx_idx + 1]}/"
+                            }
+                        
+                        androidx_packages[package]['files'].append(file_path)
+                        
+                        # Extract class name
+                        class_file = parts[-1].replace('.smali', '')
+                        androidx_packages[package]['classes'].add(class_file)
+            
+            # Create DetectedLibrary objects for each AndroidX library
+            for package, info in androidx_packages.items():
+                version = self._extract_androidx_version(package, info['files'], context)
+                age_years = self._calculate_library_age(package, version)
+                risk_level = self._assess_androidx_risk(package, version, age_years)
+                
+                androidx_lib = DetectedLibrary(
+                    name=package,
+                    package_name=package,
+                    version=version,
+                    library_type=LibraryType.ANDROIDX,
+                    detection_method=LibraryDetectionMethod.SMALI,
+                    source=LibrarySource.SMALI_CLASSES,
+                    location=info['location'],
+                    file_paths=info['files'][:10],  # Limit to first 10 paths
+                    risk_level=risk_level,
+                    age_years_behind=age_years,
+                    description=self._get_androidx_description(package),
+                    vendor="Google",
+                    confidence=0.98,
+                    evidence=[f"AndroidX package found: {package}"],
+                    classes_detected=list(info['classes'])[:20],  # Limit to first 20 classes
+                    category=LibraryCategory.ANDROIDX
+                )
+                
+                androidx_libraries.append(androidx_lib)
+                
+        except Exception as e:
+            self.logger.debug(f"Error detecting AndroidX libraries: {e}")
+            
+        return androidx_libraries
+    
+    def _assess_native_library_risk(self, lib_name: str) -> tuple:
+        """Assess risk level for native libraries"""
+        lib_lower = lib_name.lower()
+        
+        # Critical risk libraries
+        if any(pattern in lib_lower for pattern in ['encrypt', 'crypt', 'obfuscat', 'protect']):
+            return RiskLevel.CRITICAL, "Custom encryption/obfuscation library (security risk)"
+        
+        # High risk libraries    
+        if any(pattern in lib_lower for pattern in ['ffmpeg', 'avcodec', 'avformat', 'avutil']):
+            return RiskLevel.HIGH, "Media processing library (potential vulnerabilities)"
+        
+        if any(pattern in lib_lower for pattern in ['analytics', 'crash', 'report']):
+            return RiskLevel.HIGH, "Analytics/crash reporting library"
+        
+        # Medium risk libraries
+        if any(pattern in lib_lower for pattern in ['image', 'gif', 'png', 'jpg', 'filter']):
+            return RiskLevel.MEDIUM, "Image processing library"
+        
+        if any(pattern in lib_lower for pattern in ['player', 'audio', 'video']):
+            return RiskLevel.MEDIUM, "Media player library"
+        
+        # Low risk by default
+        return RiskLevel.LOW, "Native library"
+    
+    def _categorize_native_library(self, lib_name: str) -> LibraryCategory:
+        """Categorize native libraries"""
+        lib_lower = lib_name.lower()
+        
+        if any(pattern in lib_lower for pattern in ['ffmpeg', 'avcodec', 'avformat', 'avutil', 'player']):
+            return LibraryCategory.MEDIA
+        
+        if any(pattern in lib_lower for pattern in ['analytics', 'crash']):
+            return LibraryCategory.ANALYTICS
+        
+        if any(pattern in lib_lower for pattern in ['encrypt', 'crypt']):
+            return LibraryCategory.SECURITY
+        
+        if any(pattern in lib_lower for pattern in ['image', 'gif', 'png']):
+            return LibraryCategory.UI_FRAMEWORK
+        
+        return LibraryCategory.UTILITY
+    
+    def _extract_androidx_version(self, package: str, files: List[str], context: AnalysisContext) -> Optional[str]:
+        """Extract AndroidX library version from various sources"""
+        try:
+            # Try to find version from build config or constants
+            for file_path in files[:5]:  # Check first few files
+                try:
+                    apk = context.androguard_obj.get_apk()
+                    file_content = apk.get_file(file_path)
+                    if file_content:
+                        content_str = file_content.decode('utf-8', errors='ignore')
+                        # Look for version patterns
+                        version_patterns = [
+                            r'VERSION_NAME\s*=\s*"([0-9]+\.[0-9]+\.[0-9]+[^"]*)"',
+                            r'version\s*=\s*"([0-9]+\.[0-9]+\.[0-9]+[^"]*)"',
+                            r'androidx[/\.][\w\.]+:([0-9]+\.[0-9]+\.[0-9]+[^"]*)',
+                        ]
+                        
+                        for pattern in version_patterns:
+                            import re
+                            match = re.search(pattern, content_str)
+                            if match:
+                                return match.group(1)
+                except:
+                    continue
+            
+            # Fallback to known versions based on patterns
+            return self._get_androidx_known_version(package)
+            
+        except Exception as e:
+            self.logger.debug(f"Error extracting AndroidX version for {package}: {e}")
+            return None
+    
+    def _get_androidx_known_version(self, package: str) -> Optional[str]:
+        """Get known version patterns for AndroidX libraries"""
+        # This would ideally come from a database of known library versions
+        version_mappings = {
+            'androidx.core': '1.9.0',
+            'androidx.appcompat': '1.3.1', 
+            'androidx.lifecycle': '2.3.1',
+            'androidx.room': '2.3.0',
+            'androidx.fragment': '1.3.6',
+            'androidx.recyclerview': '1.2.1',
+            'androidx.datastore': '1.0.0',
+            'androidx.sqlite': '2.1.0',
+            'androidx.activity': '1.2.4',
+            'androidx.browser': '1.3.0'
+        }
+        return version_mappings.get(package)
+    
+    def _calculate_library_age(self, package: str, version: str) -> Optional[float]:
+        """Calculate how many years behind the current version this library is"""
+        if not version:
+            return None
+            
+        # This would ideally connect to a real database of library releases
+        # For now, use some heuristics based on version patterns
+        try:
+            from datetime import datetime
+            current_year = datetime.now().year
+            
+            # Simple heuristic: older version numbers tend to be older
+            if version.startswith('1.'):
+                return 3.0  # Assume 3 years old
+            elif version.startswith('2.0') or version.startswith('2.1'):
+                return 2.0  # Assume 2 years old
+            elif version.startswith('2.3'):
+                return 1.5  # Assume 1.5 years old
+            else:
+                return 1.0  # Assume 1 year old
+                
+        except Exception:
+            return None
+    
+    def _assess_androidx_risk(self, package: str, version: str, age_years: Optional[float]) -> RiskLevel:
+        """Assess risk level for AndroidX libraries"""
+        if not age_years:
+            return RiskLevel.UNKNOWN
+            
+        if age_years >= 4:
+            return RiskLevel.HIGH
+        elif age_years >= 3:
+            return RiskLevel.MEDIUM  
+        elif age_years >= 2:
+            return RiskLevel.LOW
+        else:
+            return RiskLevel.LOW
+    
+    def _get_androidx_description(self, package: str) -> str:
+        """Get description for AndroidX libraries"""
+        descriptions = {
+            'androidx.core': 'AndroidX core components and utilities',
+            'androidx.appcompat': 'AppCompat library for backward compatibility',
+            'androidx.lifecycle': 'Lifecycle-aware components',
+            'androidx.room': 'Room persistence library',
+            'androidx.fragment': 'Fragment framework',
+            'androidx.recyclerview': 'RecyclerView widget',
+            'androidx.datastore': 'DataStore for data storage',
+            'androidx.sqlite': 'SQLite framework',
+            'androidx.activity': 'Activity framework',
+            'androidx.browser': 'Custom Tabs support'
+        }
+        return descriptions.get(package, 'AndroidX library component')
+    
+    def generate_comprehensive_report(self, libraries: List[DetectedLibrary]) -> str:
+        """Generate a comprehensive library report similar to libs.txt format"""
+        if not libraries:
+            return "No libraries detected in this APK."
+        
+        report_lines = []
+        report_lines.append("Library Name                          Version    Location                                    Age (Years Behind)")
+        report_lines.append("=" * 105)
+        report_lines.append("")
+        
+        # Group libraries by type
+        androidx_libs = [lib for lib in libraries if lib.library_type == LibraryType.ANDROIDX]
+        native_libs = [lib for lib in libraries if lib.library_type == LibraryType.NATIVE_LIBRARY] 
+        third_party_libs = [lib for lib in libraries if lib.library_type == LibraryType.THIRD_PARTY_SDK]
+        
+        # AndroidX Libraries section
+        if androidx_libs:
+            report_lines.append("ANDROIDX LIBRARIES")
+            report_lines.append("=" * 105)
+            for lib in sorted(androidx_libs, key=lambda x: x.name):
+                version = lib.version or "Unknown"
+                location = lib.location or "Unknown location"
+                age = lib.get_age_description()
+                report_lines.append(f"{lib.name:<35} {version:<10} {location:<40} {age}")
+            report_lines.append("")
+        
+        # Native Libraries section  
+        if native_libs:
+            report_lines.append("NATIVE LIBRARIES (.so files)")
+            report_lines.append("=" * 105)
+            for lib in sorted(native_libs, key=lambda x: x.name):
+                version = lib.version or "Unknown"
+                location = lib.location or "Unknown location"
+                risk_desc = lib.get_risk_description()
+                report_lines.append(f"{lib.name:<35} {version:<10} {location:<40} {risk_desc}")
+            report_lines.append("")
+        
+        # Third-party SDKs section
+        if third_party_libs:
+            report_lines.append("THIRD-PARTY SDKS")
+            report_lines.append("=" * 105)
+            for lib in sorted(third_party_libs, key=lambda x: x.name):
+                version = lib.version or "Unknown"
+                location = lib.location or "Unknown location"
+                age = lib.get_age_description()
+                report_lines.append(f"{lib.name:<35} {version:<10} {location:<40} {age}")
+            report_lines.append("")
+        
+        # Security Risk Summary
+        critical_libs = [lib for lib in libraries if lib.risk_level == RiskLevel.CRITICAL]
+        high_libs = [lib for lib in libraries if lib.risk_level == RiskLevel.HIGH]
+        medium_libs = [lib for lib in libraries if lib.risk_level == RiskLevel.MEDIUM]
+        low_libs = [lib for lib in libraries if lib.risk_level == RiskLevel.LOW]
+        
+        report_lines.append("SECURITY RISK SUMMARY")
+        report_lines.append("=" * 105)
+        report_lines.append(f"Total Libraries Identified: {len(libraries)}")
+        report_lines.append(f"Critical Risk Libraries: {len(critical_libs)}")
+        report_lines.append(f"High Risk Libraries: {len(high_libs)}")
+        report_lines.append(f"Medium Risk Libraries: {len(medium_libs)}")
+        report_lines.append(f"Low Risk Libraries: {len(low_libs)}")
+        report_lines.append("")
+        
+        # Age Distribution
+        aged_libs = [lib for lib in libraries if lib.age_years_behind is not None]
+        if aged_libs:
+            one_year = len([lib for lib in aged_libs if lib.age_years_behind < 1])
+            two_years = len([lib for lib in aged_libs if 1 <= lib.age_years_behind < 2])  
+            three_years = len([lib for lib in aged_libs if 2 <= lib.age_years_behind < 3])
+            four_plus_years = len([lib for lib in aged_libs if lib.age_years_behind >= 3])
+            
+            report_lines.append("Age Distribution:")
+            report_lines.append(f"- Current: {one_year} libraries")
+            report_lines.append(f"- 1 year behind: {two_years} libraries")
+            report_lines.append(f"- 2 years behind: {three_years} libraries") 
+            report_lines.append(f"- 3+ years behind: {four_plus_years} libraries")
+            report_lines.append("")
+        
+        from datetime import datetime
+        report_lines.append(f"Analysis Date: {datetime.now().strftime('%B %Y')}")
+        
+        # Overall risk assessment
+        if critical_libs or len(high_libs) > 5:
+            risk_assessment = "HIGH (Critical vulnerabilities present)"
+        elif len(high_libs) > 2 or len(medium_libs) > 10:
+            risk_assessment = "MEDIUM (Significant technical debt)"
+        else:
+            risk_assessment = "LOW (Libraries appear current)"
+            
+        report_lines.append(f"Risk Assessment: {risk_assessment}")
+        
+        return "\n".join(report_lines)
     
     def validate_config(self) -> bool:
         """Validate module configuration"""

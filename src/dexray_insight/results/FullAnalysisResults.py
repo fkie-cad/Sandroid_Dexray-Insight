@@ -122,19 +122,39 @@ class FullAnalysisResults:
             print("\n📋 APK INFORMATION")
             print("-" * 40)
             
-            # Key APK details
-            if 'app_name' in gen_info:
-                print(f"App Name: {gen_info['app_name']}")
-            if 'package_name' in gen_info:
-                print(f"Package: {gen_info['package_name']}")
-            if 'main_activity' in gen_info and gen_info['main_activity']:
-                print(f"Main Activity: {gen_info['main_activity']}")
-            if 'version_name' in gen_info:
-                print(f"Version: {gen_info['version_name']}")
+            # File details
+            if 'file_name' in gen_info:
+                print(f"File Name: {gen_info['file_name']}")
             if 'file_size' in gen_info:
                 print(f"File Size: {gen_info['file_size']}")
             if 'md5' in gen_info:
-                print(f"MD5: {gen_info['md5'][:16]}...")
+                print(f"Md5: {gen_info['md5']}")
+            if 'sha1' in gen_info:
+                print(f"Sha1: {gen_info['sha1']}")
+            if 'sha256' in gen_info:
+                print(f"Sha256: {gen_info['sha256']}")
+                
+            # App details
+            if 'app_name' in gen_info:
+                print(f"App Name: {gen_info['app_name']}")
+            if 'package_name' in gen_info:
+                print(f"Package Name: {gen_info['package_name']}")
+            if 'main_activity' in gen_info and gen_info['main_activity']:
+                print(f"Main Activity: {gen_info['main_activity']}")
+                
+            # SDK and version info
+            if 'target_sdk' in gen_info and gen_info['target_sdk']:
+                print(f"Target Sdk: {gen_info['target_sdk']}")
+            if 'min_sdk' in gen_info and gen_info['min_sdk']:
+                print(f"Min Sdk: {gen_info['min_sdk']}")
+            if 'max_sdk' in gen_info and gen_info['max_sdk']:
+                print(f"Max Sdk: {gen_info['max_sdk']}")
+            else:
+                print("Max Sdk: None")
+            if 'android_version_name' in gen_info and gen_info['android_version_name']:
+                print(f"Android Version Name: {gen_info['android_version_name']}")
+            if 'android_version_code' in gen_info and gen_info['android_version_code']:
+                print(f"Android Version Code: {gen_info['android_version_code']}")
                 
             # Cross-platform info
             if self.apk_overview.is_cross_platform:
