@@ -1,5 +1,5 @@
 <div align="center">
-    <img src="assets/logo.png" alt="Dexray Intercept Logo" width="400"/>
+    <img src="https://raw.githubusercontent.com/fkie-cad/Sandroid_Dexray-Insight/refs/heads/main/assets/logo.png" alt="Dexray Insight Logo" width="400"/>
     <p></p><strong>Android Binary Static Analysis</strong></div></p>
 </div>
 
