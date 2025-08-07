@@ -103,7 +103,33 @@ class Configuration:
             'androguard': {
                 'enabled': True,
                 'logging_level': 'WARNING'
+            },
+            # Decompilation and Analysis Tools
+            'jadx': {
+                'enabled': True,
+                'path': None,  # Set to JADX executable path
+                'timeout': 900,  # 15 minutes
+                'options': ['--no-debug-info', '--no-inline-anonymous', '--show-bad-code']
+            },
+            'apktool': {
+                'enabled': True,
+                'path': None,  # Set to apktool JAR path
+                'timeout': 600,  # 10 minutes
+                'java_options': ['-Xmx2g'],  # Java heap options
+                'options': ['--no-debug-info']
             }
+        },
+        'temporal_analysis': {
+            'enabled': True,
+            'base_directory': './temp_analysis',  # Base directory for temporal analysis
+            'cleanup_after_analysis': False,  # Set to True to cleanup directories after analysis
+            'directory_structure': {
+                'unzipped_folder': 'unzipped',       # Folder name for unzipped APK contents
+                'jadx_folder': 'jadxResults',        # Folder name for JADX decompiled results
+                'apktool_folder': 'apktoolResults',  # Folder name for apktool results
+                'logs_folder': 'logs'                # Folder name for tool execution logs
+            },
+            'preserve_on_error': True  # Keep directories if analysis fails
         },
         'security': {
             'enable_owasp_assessment': False,
@@ -267,6 +293,10 @@ class Configuration:
     def get_tool_config(self, tool_name: str) -> Dict[str, Any]:
         """Get configuration for a specific external tool"""
         return self.config.get('tools', {}).get(tool_name, {})
+    
+    def get_temporal_analysis_config(self) -> Dict[str, Any]:
+        """Get temporal analysis configuration"""
+        return self.config.get('temporal_analysis', {})
     
     def get_security_config(self) -> Dict[str, Any]:
         """Get security assessment configuration"""

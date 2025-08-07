@@ -13,6 +13,7 @@ from .base_classes import (
 )
 from .configuration import Configuration
 from .security_engine import SecurityAssessmentEngine
+from .temporal_directory import TemporalDirectoryManager
 from ..results.FullAnalysisResults import FullAnalysisResults
 
 @dataclass
@@ -126,7 +127,7 @@ class AnalysisEngine:
         self.security_engine = SecurityAssessmentEngine(config) if config.enable_security_assessment else None
         self.logger = logging.getLogger(__name__)
     
-    def analyze_apk(self, apk_path: str, requested_modules: Optional[List[str]] = None, androguard_obj: Optional[Any] = None) -> FullAnalysisResults:
+    def analyze_apk(self, apk_path: str, requested_modules: Optional[List[str]] = None, androguard_obj: Optional[Any] = None, timestamp: Optional[str] = None) -> FullAnalysisResults:
         """
         Perform comprehensive APK analysis
         
@@ -134,6 +135,7 @@ class AnalysisEngine:
             apk_path: Path to the APK file
             requested_modules: Optional list of specific modules to run
             androguard_obj: Optional pre-initialized Androguard object
+            timestamp: Optional timestamp for temporal directory naming
             
         Returns:
             FullAnalysisResults containing all analysis results
@@ -144,19 +146,51 @@ class AnalysisEngine:
         if requested_modules is None:
             requested_modules = self._get_enabled_modules()
         
-        # Create analysis context
-        context = AnalysisContext(
-            apk_path=apk_path,
-            config=self.config.to_dict(),
-            androguard_obj=androguard_obj
-        )
+        # Initialize temporal directory manager
+        temporal_manager = TemporalDirectoryManager(self.config, self.logger)
         
         try:
+            # Create temporal directory structure and process APK with external tools
+            temporal_paths = None
+            tool_results = {}
+            
+            if self.config.get_temporal_analysis_config().get('enabled', True):
+                self.logger.info("Creating temporal directory structure...")
+                temporal_paths = temporal_manager.create_temporal_directory(apk_path, timestamp)
+                
+                if temporal_paths:
+                    # Process APK with external tools (unzip, JADX, apktool)
+                    self.logger.info("Processing APK with external tools...")
+                    external_tool_results = temporal_manager.process_apk_with_tools(apk_path, temporal_paths)
+                    
+                    # Log tool execution results
+                    for tool_name, success in external_tool_results.items():
+                        if success:
+                            self.logger.info(f"✓ {tool_name.upper()} completed successfully")
+                        else:
+                            self.logger.warning(f"✗ {tool_name.upper()} failed or was skipped")
+                    
+                    tool_results['temporal_processing'] = {
+                        'temporal_directory': str(temporal_paths.base_dir),
+                        'tools_executed': external_tool_results
+                    }
+            
+            # Create analysis context with temporal paths
+            context = AnalysisContext(
+                apk_path=apk_path,
+                config=self.config.to_dict(),
+                androguard_obj=androguard_obj,
+                temporal_paths=temporal_paths,
+                jadx_available=temporal_manager.check_tool_availability('jadx'),
+                apktool_available=temporal_manager.check_tool_availability('apktool')
+            )
+            
             # Execute analysis modules
             module_results = self._execute_analysis_modules(context, requested_modules)
             
-            # Execute external tools
-            tool_results = self._execute_external_tools(apk_path)
+            # Execute remaining external tools (apkid, kavanoz, etc.)
+            legacy_tool_results = self._execute_external_tools(apk_path)
+            tool_results.update(legacy_tool_results)
             
             # Perform security assessment if enabled
             security_results = None
@@ -170,10 +204,27 @@ class AnalysisEngine:
             total_time = time.time() - start_time
             self.logger.info(f"Analysis completed in {total_time:.2f} seconds")
             
+            # Cleanup temporal directory if configured
+            if temporal_paths and self.config.get_temporal_analysis_config().get('cleanup_after_analysis', False):
+                self.logger.info("Cleaning up temporal directory...")
+                temporal_manager.cleanup_temporal_directory(temporal_paths)
+            elif temporal_paths:
+                self.logger.info(f"Temporal directory preserved at: {temporal_paths.base_dir}")
+            
             return results
             
         except Exception as e:
             self.logger.error(f"Analysis failed: {str(e)}")
+            
+            # Handle temporal directory cleanup on error
+            if temporal_paths:
+                preserve_on_error = self.config.get_temporal_analysis_config().get('preserve_on_error', True)
+                if not preserve_on_error:
+                    self.logger.info("Cleaning up temporal directory due to analysis failure...")
+                    temporal_manager.cleanup_temporal_directory(temporal_paths, force=True)
+                else:
+                    self.logger.info(f"Temporal directory preserved for debugging at: {temporal_paths.base_dir}")
+            
             # Log the full traceback for debugging
             import traceback
             self.logger.debug(f"Full traceback:\n{traceback.format_exc()}")

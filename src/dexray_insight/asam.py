@@ -109,8 +109,11 @@ def start_apk_static_analysis_new(apk_file_path: str, config: Configuration, pri
         
         print("[*] Starting comprehensive APK analysis...")
         
+        # Generate timestamp for consistent naming across temporal directory and output files
+        timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+        
         # Run analysis with androguard object
-        results = engine.analyze_apk(apk_file_path, androguard_obj=androguard_obj)
+        results = engine.analyze_apk(apk_file_path, androguard_obj=androguard_obj, timestamp=timestamp)
         
         if print_results_to_terminal:
             # Use analyst-friendly summary by default, full JSON if verbose is enabled
@@ -131,12 +134,12 @@ def start_apk_static_analysis_new(apk_file_path: str, config: Configuration, pri
         
         # Save results to file
         base_dir, name, file_ext = split_path_file_extension(apk_file_path)
-        result_file_name = dump_results_as_json_file(results, name)
+        result_file_name = dump_results_as_json_file(results, name, timestamp)
         
         security_result_file_name = ""
         # Save separate security results file if security assessment was performed
         if hasattr(results, 'security_assessment') and results.security_assessment:
-            security_result_file_name = dump_security_results_as_json_file(results, name)
+            security_result_file_name = dump_security_results_as_json_file(results, name, timestamp)
         
         return results, result_file_name, security_result_file_name
         
@@ -153,10 +156,11 @@ def start_apk_static_analysis_new(apk_file_path: str, config: Configuration, pri
         
         return None, "", ""
 
-def dump_results_as_json_file(results, filename: str) -> str:
+def dump_results_as_json_file(results, filename: str, timestamp: str = None) -> str:
     """Save analysis results to JSON file"""
-    current_time = datetime.now()
-    timestamp = current_time.strftime("%Y-%m-%d_%H-%M-%S")
+    if timestamp is None:
+        current_time = datetime.now()
+        timestamp = current_time.strftime("%Y-%m-%d_%H-%M-%S")
     
     # Ensure filename is safe
     base_filename = filename.replace(" ", "_")
@@ -171,10 +175,11 @@ def dump_results_as_json_file(results, filename: str) -> str:
     dump_json(safe_filename, results_dict)
     return safe_filename
 
-def dump_security_results_as_json_file(results, filename: str) -> str:
+def dump_security_results_as_json_file(results, filename: str, timestamp: str = None) -> str:
     """Save security assessment results to separate JSON file"""
-    current_time = datetime.now()
-    timestamp = current_time.strftime("%Y-%m-%d_%H-%M-%S")
+    if timestamp is None:
+        current_time = datetime.now()
+        timestamp = current_time.strftime("%Y-%m-%d_%H-%M-%S")
     
     # Ensure filename is safe
     base_filename = filename.replace(" ", "_")

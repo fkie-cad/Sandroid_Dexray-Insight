@@ -26,8 +26,12 @@ class AnalysisContext:
     apk_path: str
     config: Dict[str, Any]
     androguard_obj: Optional[Any] = None
-    unzip_path: Optional[str] = None
+    unzip_path: Optional[str] = None  # Legacy field for backwards compatibility
     module_results: Dict[str, Any] = None
+    # Temporal directory paths (new)
+    temporal_paths: Optional[Any] = None  # TemporalDirectoryPaths object
+    jadx_available: bool = False
+    apktool_available: bool = False
     
     def __post_init__(self):
         if self.module_results is None:
@@ -36,6 +40,24 @@ class AnalysisContext:
     def add_result(self, module_name: str, result: Any):
         """Add a module result to the context for use by dependent modules"""
         self.module_results[module_name] = result
+    
+    def get_unzipped_dir(self) -> Optional[str]:
+        """Get path to unzipped APK directory (temporal or legacy)"""
+        if self.temporal_paths:
+            return str(self.temporal_paths.unzipped_dir)
+        return self.unzip_path
+    
+    def get_jadx_dir(self) -> Optional[str]:
+        """Get path to JADX decompiled directory"""
+        if self.temporal_paths:
+            return str(self.temporal_paths.jadx_dir)
+        return None
+    
+    def get_apktool_dir(self) -> Optional[str]:
+        """Get path to apktool results directory"""
+        if self.temporal_paths:
+            return str(self.temporal_paths.apktool_dir)
+        return None
     
     def get_result(self, module_name: str) -> Optional[Any]:
         """Get a result from a previously executed module"""

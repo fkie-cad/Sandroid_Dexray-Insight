@@ -11,10 +11,11 @@ obj/
 *.ap_
 *.pyz
 
-#testeing of 3rd party projects
+#testing dirs
 apk_api_key_extractor/
 secret-finder/
 research/
+temp_analysis/
 
 # venv
 env/
