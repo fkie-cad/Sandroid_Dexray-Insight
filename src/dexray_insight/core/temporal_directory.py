@@ -3,12 +3,11 @@
 
 import os
 import shutil
-import tempfile
 import zipfile
 import subprocess
 import logging
 from pathlib import Path
-from typing import Dict, Optional, List, Union
+from typing import Dict, Optional
 from datetime import datetime
 from dataclasses import dataclass
 

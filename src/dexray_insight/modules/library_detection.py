@@ -1193,7 +1193,7 @@ class LibraryDetectionModule(BaseAnalysisModule):
                         file_data = apk.get_file(lib_file)
                         if file_data:
                             lib_groups[lib_name]['size'] += len(file_data)
-                    except:
+                    except Exception:
                         pass
             
             # Create DetectedLibrary objects for each native library
@@ -1365,7 +1365,7 @@ class LibraryDetectionModule(BaseAnalysisModule):
                             match = re.search(pattern, content_str)
                             if match:
                                 return match.group(1)
-                except:
+                except Exception:
                     continue
             
             # Fallback to known versions based on patterns
@@ -1400,9 +1400,6 @@ class LibraryDetectionModule(BaseAnalysisModule):
         # This would ideally connect to a real database of library releases
         # For now, use some heuristics based on version patterns
         try:
-            from datetime import datetime
-            current_year = datetime.now().year
-            
             # Simple heuristic: older version numbers tend to be older
             if version.startswith('1.'):
                 return 3.0  # Assume 3 years old
