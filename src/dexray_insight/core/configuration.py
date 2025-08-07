@@ -87,6 +87,22 @@ class Configuration:
                 'enabled': True,
                 'priority': 1000,  # Lowest priority to run last
                 'deep_mode': False  # Fast mode by default, deep mode via --deep flag
+            },
+            'native_analysis': {
+                'enabled': True,
+                'priority': 50,  # Run after library_detection and string_analysis
+                'requires_temporal_analysis': True,  # Only run when APK is unzipped
+                'architectures': ['arm64-v8a'],  # Primary 64-bit ARM
+                'file_patterns': ['*.so'],  # Native shared libraries
+                'modules': {
+                    'string_extraction': {
+                        'enabled': True,
+                        'min_string_length': 4,
+                        'max_string_length': 1024,
+                        'encoding': 'utf-8',
+                        'fallback_encodings': ['latin1', 'ascii']
+                    }
+                }
             }
         },
         'tools': {
@@ -117,6 +133,13 @@ class Configuration:
                 'timeout': 600,  # 10 minutes
                 'java_options': ['-Xmx2g'],  # Java heap options
                 'options': ['--no-debug-info']
+            },
+            # Native Binary Analysis Tools
+            'radare2': {
+                'enabled': True,
+                'path': None,  # Set to radare2 binary path (uses system PATH if None)
+                'timeout': 120,  # 2 minutes per binary analysis
+                'options': ['-2']  # Radare2 options: -2 for no stderr output
             }
         },
         'temporal_analysis': {

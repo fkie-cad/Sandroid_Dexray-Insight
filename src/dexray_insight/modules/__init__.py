@@ -14,6 +14,7 @@ from . import tracker_analysis
 from . import behaviour_analysis
 from . import dotnet_analysis
 from . import library_detection
+from . import native  # Native binary analysis modules
 
 __all__ = [
     'apk_overview_analysis',
@@ -25,5 +26,6 @@ __all__ = [
     'tracker_analysis',
     'behaviour_analysis',
     'dotnet_analysis',
-    'library_detection'
+    'library_detection',
+    'native'
 ]

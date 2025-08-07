@@ -44,7 +44,8 @@ dependencies = [
     "bs4",
     "apkid",
     "kavanoz",
-    "python-magic"
+    "python-magic",
+    "r2pipe"
 ]
 
 [project.urls]

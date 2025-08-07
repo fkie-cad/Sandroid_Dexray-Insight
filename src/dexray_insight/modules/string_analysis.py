@@ -108,7 +108,9 @@ class StringAnalysisModule(BaseAnalysisModule):
         self.exclude_patterns = self.filters.get('exclude_patterns', [])
     
     def get_dependencies(self) -> List[str]:
-        """No dependencies for string analysis"""
+        """Dependencies for string analysis"""
+        # Optional dependency on native_analysis to get native strings
+        # This is optional because string analysis can run without native analysis
         return []
     
     def analyze(self, apk_path: str, context: AnalysisContext) -> StringAnalysisResult:
@@ -136,6 +138,12 @@ class StringAnalysisModule(BaseAnalysisModule):
             pre_found_strings = context.get_result('dotnet_analysis')
             if pre_found_strings and isinstance(pre_found_strings, list):
                 strings_set.update(pre_found_strings)
+            
+            # Add native strings from native analysis
+            native_strings = context.module_results.get('native_strings', [])
+            if native_strings:
+                self.logger.debug(f"Adding {len(native_strings)} strings from native analysis")
+                strings_set.update(native_strings)
             
             # Extract strings from DEX files if androguard object is available
             if context.androguard_obj:
