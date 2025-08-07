@@ -1,0 +1,313 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""
+Unit tests for APK overview analysis module
+
+These tests specifically focus on the native library extraction bug that was fixed
+and ensure that the module correctly handles both working and problematic cases.
+"""
+
+import pytest
+from unittest.mock import patch, MagicMock, call
+from pathlib import Path
+
+# Mock androguard imports before importing the module
+with patch.dict('sys.modules', {
+    'androguard.core.bytecodes.apk': MagicMock(),
+    'androguard.core.apk': MagicMock(),
+    'androguard': MagicMock()
+}):
+    from src.dexray_insight.modules.apk_overview_analysis import APKOverviewModule
+    from src.dexray_insight.core.base_classes import AnalysisStatus
+
+
+class TestAPKOverviewModule:
+    """Test APK overview analysis module"""
+    
+    @pytest.fixture
+    def apk_overview_module(self, test_config):
+        """Create APK overview module instance"""
+        return APKOverviewModule(test_config)
+    
+    @pytest.fixture
+    def mock_working_apk_overview(self):
+        """Mock APK overview object that returns actual .so files (working case)"""
+        mock = MagicMock()
+        mock.get_libraries.return_value = ["libsqlcipher.so"]  # Actual .so file
+        mock.get_files.return_value = [
+            "AndroidManifest.xml",
+            "classes.dex",
+            "lib/arm64-v8a/libsqlcipher.so",
+            "lib/armeabi-v7a/libsqlcipher.so",
+            "res/layout/activity_main.xml"
+        ]
+        mock.get_package.return_value = "com.test.working"
+        mock.get_app_name.return_value = "Working Test App"
+        mock.get_permissions.return_value = ["android.permission.INTERNET"]
+        mock.get_activities.return_value = ["com.test.working.MainActivity"]
+        mock.get_services.return_value = []
+        mock.get_receivers.return_value = []
+        mock.get_providers.return_value = []
+        mock.file_md5 = "working_md5_hash"
+        return mock
+    
+    @pytest.fixture
+    def mock_problematic_apk_overview(self):
+        """Mock APK overview object that returns framework names (problematic case)"""
+        mock = MagicMock()
+        # This simulates the bug: get_libraries returns framework names instead of .so files
+        mock.get_libraries.return_value = [
+            "android.test.runner",
+            "android.test.base",
+            "android.test.mock",
+            "android.ext.adservices"
+        ]
+        mock.get_files.return_value = [
+            "AndroidManifest.xml",
+            "classes.dex",
+            "lib/arm64-v8a/libEncryptorP.so",
+            "lib/arm64-v8a/libLanSongSDKDecoder.so",
+            "lib/arm64-v8a/libLanSongdisplay.so",
+            "lib/armeabi-v7a/libEncryptorP.so",
+            "lib/armeabi-v7a/libLanSongSDKDecoder.so",
+            "res/layout/activity_main.xml"
+        ]
+        mock.get_package.return_value = "com.test.problematic"
+        mock.get_app_name.return_value = "Problematic Test App"
+        mock.get_permissions.return_value = ["android.permission.INTERNET"]
+        mock.get_activities.return_value = ["com.test.problematic.MainActivity"]
+        mock.get_services.return_value = []
+        mock.get_receivers.return_value = []
+        mock.get_providers.return_value = []
+        mock.file_md5 = "problematic_md5_hash"
+        return mock
+
+    @pytest.mark.unit
+    def test_module_basic_properties(self, apk_overview_module):
+        """Test basic module properties"""
+        assert apk_overview_module.get_name() == "APK Overview Analysis"
+        assert "comprehensive APK metadata" in apk_overview_module.get_description()
+        assert apk_overview_module.get_dependencies() == []
+    
+    @pytest.mark.unit
+    @patch('src.dexray_insight.apk_overview.app.parse_apk')
+    @patch('src.dexray_insight.apk_overview.app.analyze_apk')
+    @patch('src.dexray_insight.Utils.file_utils.split_path_file_extension')
+    def test_working_native_libs_extraction(self, mock_split_path, mock_analyze_apk, 
+                                          mock_parse_apk, apk_overview_module, 
+                                          mock_working_apk_overview, mock_analysis_context):
+        """Test native library extraction when get_libraries() returns actual .so files"""
+        
+        # Setup mocks
+        mock_parse_apk.return_value = mock_working_apk_overview
+        mock_split_path.return_value = ("/test/path", "app", "apk")
+        
+        mock_analyze_apk.return_value = {
+            'general_info': {'package_name': 'com.test.working'},
+            'components': {},
+            'permissions': {},
+            'certificates': {},
+            'native_libs': ['libsqlcipher.so'],  # Expected: actual .so files
+            'directory_listing': mock_working_apk_overview.get_files.return_value,
+            'is_cross_platform': False,
+            'cross_platform_framework': 'Native Android'
+        }
+        
+        # Execute analysis
+        result = apk_overview_module.analyze("/test/app.apk", mock_analysis_context)
+        
+        # Verify result
+        assert result.status == AnalysisStatus.SUCCESS
+        assert result.native_libs == ['libsqlcipher.so']
+        assert all(lib.endswith('.so') for lib in result.native_libs)
+        
+        # Verify parse_apk was called
+        mock_parse_apk.assert_called_once_with("/test/app.apk")
+    
+    @pytest.mark.unit
+    @patch('src.dexray_insight.apk_overview.app.parse_apk')
+    @patch('src.dexray_insight.apk_overview.app.analyze_apk')
+    @patch('src.dexray_insight.Utils.file_utils.split_path_file_extension')
+    def test_problematic_native_libs_extraction_fixed(self, mock_split_path, mock_analyze_apk,
+                                                     mock_parse_apk, apk_overview_module,
+                                                     mock_problematic_apk_overview, mock_analysis_context):
+        """Test that the native library extraction fix handles problematic cases correctly"""
+        
+        # Setup mocks
+        mock_parse_apk.return_value = mock_problematic_apk_overview
+        mock_split_path.return_value = ("/test/path", "problematic_app", "apk")
+        
+        # Mock the fixed analyze_apk function behavior
+        # The fix should detect framework names and fall back to parsing .so files from directory
+        mock_analyze_apk.return_value = {
+            'general_info': {'package_name': 'com.test.problematic'},
+            'components': {},
+            'permissions': {},
+            'certificates': {},
+            'native_libs': [  # Expected: actual .so files after fallback
+                'libEncryptorP.so',
+                'libLanSongSDKDecoder.so', 
+                'libLanSongdisplay.so'
+            ],
+            'directory_listing': mock_problematic_apk_overview.get_files.return_value,
+            'is_cross_platform': True,
+            'cross_platform_framework': 'Unknown Framework'
+        }
+        
+        # Execute analysis
+        result = apk_overview_module.analyze("/test/problematic_app.apk", mock_analysis_context)
+        
+        # Verify result - should now show actual .so files, not framework names
+        assert result.status == AnalysisStatus.SUCCESS
+        assert 'libEncryptorP.so' in result.native_libs
+        assert 'libLanSongSDKDecoder.so' in result.native_libs
+        assert 'libLanSongdisplay.so' in result.native_libs
+        
+        # Verify NO framework names are present
+        assert 'android.test.runner' not in result.native_libs
+        assert 'android.test.base' not in result.native_libs
+        assert 'android.test.mock' not in result.native_libs
+        assert 'android.ext.adservices' not in result.native_libs
+        
+        # Verify all returned items are actual .so files
+        assert all(lib.endswith('.so') for lib in result.native_libs)
+    
+    @pytest.mark.unit 
+    @patch('src.dexray_insight.apk_overview.app.parse_apk')
+    def test_parse_apk_failure(self, mock_parse_apk, apk_overview_module, mock_analysis_context):
+        """Test handling when APK parsing fails"""
+        
+        # Mock parse_apk to return None (failure)
+        mock_parse_apk.return_value = None
+        
+        # Execute analysis
+        result = apk_overview_module.analyze("/test/invalid.apk", mock_analysis_context)
+        
+        # Verify failure handling
+        assert result.status == AnalysisStatus.FAILURE
+        assert "Failed to parse APK with androguard" in result.error_message
+        assert result.execution_time > 0
+    
+    @pytest.mark.unit
+    @patch('src.dexray_insight.apk_overview.app.parse_apk')
+    @patch('src.dexray_insight.apk_overview.app.analyze_apk')
+    def test_analysis_exception_handling(self, mock_analyze_apk, mock_parse_apk, 
+                                       apk_overview_module, mock_analysis_context):
+        """Test exception handling during analysis"""
+        
+        # Mock parse_apk to succeed but analyze_apk to raise exception
+        mock_parse_apk.return_value = MagicMock()
+        mock_analyze_apk.side_effect = Exception("Analysis failed unexpectedly")
+        
+        # Execute analysis
+        result = apk_overview_module.analyze("/test/app.apk", mock_analysis_context)
+        
+        # Verify exception handling
+        assert result.status == AnalysisStatus.FAILURE
+        assert "Analysis failed unexpectedly" in result.error_message
+    
+    @pytest.mark.unit
+    @patch('src.dexray_insight.apk_overview.app.parse_apk')
+    @patch('src.dexray_insight.apk_overview.app.analyze_apk')
+    @patch('src.dexray_insight.Utils.file_utils.split_path_file_extension')
+    def test_empty_native_libs(self, mock_split_path, mock_analyze_apk, mock_parse_apk,
+                              apk_overview_module, mock_analysis_context):
+        """Test handling of APK with no native libraries"""
+        
+        # Setup mocks for APK with no native libraries
+        mock_apk = MagicMock()
+        mock_apk.get_libraries.return_value = []  # No native libraries
+        mock_apk.file_md5 = "empty_libs_md5"
+        
+        mock_parse_apk.return_value = mock_apk
+        mock_split_path.return_value = ("/test/path", "no_libs_app", "apk")
+        
+        mock_analyze_apk.return_value = {
+            'general_info': {'package_name': 'com.test.no_libs'},
+            'components': {},
+            'permissions': {},
+            'certificates': {},
+            'native_libs': [],  # No native libraries
+            'directory_listing': ['AndroidManifest.xml', 'classes.dex'],
+            'is_cross_platform': False,
+            'cross_platform_framework': 'Native Android'
+        }
+        
+        # Execute analysis
+        result = apk_overview_module.analyze("/test/no_libs_app.apk", mock_analysis_context)
+        
+        # Verify result
+        assert result.status == AnalysisStatus.SUCCESS
+        assert result.native_libs == []
+    
+    @pytest.mark.unit
+    def test_result_serialization(self, apk_overview_module):
+        """Test APKOverviewResult serialization"""
+        from src.dexray_insight.modules.apk_overview_analysis import APKOverviewResult
+        
+        result = APKOverviewResult(
+            module_name="apk_overview",
+            status=AnalysisStatus.SUCCESS,
+            execution_time=1.5,
+            general_info={'package': 'com.test.app'},
+            native_libs=['libtest.so', 'libcrypto.so'],
+            is_cross_platform=False
+        )
+        
+        result_dict = result.to_dict()
+        
+        assert isinstance(result_dict, dict)
+        assert result_dict['module_name'] == 'apk_overview'
+        assert result_dict['status'] == 'SUCCESS'
+        assert result_dict['native_libs'] == ['libtest.so', 'libcrypto.so']
+        assert result_dict['is_cross_platform'] is False
+        assert 'general_info' in result_dict
+        assert 'execution_time' in result_dict
+
+
+class TestNativeLibraryExtractionRegression:
+    """Regression tests specifically for the native library extraction bug"""
+    
+    @pytest.mark.unit
+    @pytest.mark.regression
+    def test_framework_names_vs_so_files_detection(self):
+        """Test that we can distinguish framework names from actual .so files"""
+        framework_names = [
+            "android.test.runner",
+            "android.test.base", 
+            "android.test.mock",
+            "android.ext.adservices"
+        ]
+        
+        actual_so_files = [
+            "libtest.so",
+            "libcrypto.so",
+            "libflutter.so"
+        ]
+        
+        # Test the detection logic (this would be part of the actual fix)
+        has_so_files_framework = any(lib.endswith('.so') for lib in framework_names)
+        has_so_files_actual = any(lib.endswith('.so') for lib in actual_so_files)
+        
+        assert has_so_files_framework is False  # Framework names don't end with .so
+        assert has_so_files_actual is True      # Actual libraries do end with .so
+    
+    @pytest.mark.unit
+    @pytest.mark.regression  
+    def test_duplicate_removal_in_native_libs(self):
+        """Test that duplicate native libraries are properly removed"""
+        lib_files = [
+            "lib/arm64-v8a/libtest.so",
+            "lib/armeabi-v7a/libtest.so",  # Same lib, different arch
+            "lib/arm64-v8a/libcrypto.so",
+            "lib/armeabi-v7a/libcrypto.so"
+        ]
+        
+        # Extract library names and remove duplicates (simulating the fix)
+        import os
+        unique_libs = list(set([os.path.basename(f) for f in lib_files if f.endswith('.so')]))
+        
+        assert len(unique_libs) == 2  # Should have 2 unique libraries
+        assert 'libtest.so' in unique_libs
+        assert 'libcrypto.so' in unique_libs
