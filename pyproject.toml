@@ -38,7 +38,13 @@ dependencies = [
     "requests",
     "pyyaml",
     "colorama",
-    "tqdm"
+    "tqdm",
+    "lz4",
+    "xxhash",
+    "bs4",
+    "apkid",
+    "kavanoz",
+    "python-magic"
 ]
 
 [project.urls]

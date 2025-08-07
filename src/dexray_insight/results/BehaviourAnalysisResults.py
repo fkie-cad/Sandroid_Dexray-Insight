@@ -3,7 +3,7 @@
 
 from dataclasses import dataclass, field
 from typing import Dict, Any, List, Optional
-from ..core.base_classes import BaseResult, AnalysisStatus
+from ..core.base_classes import BaseResult
 
 @dataclass
 class BehaviourAnalysisFinding:

@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 import json
-from dataclasses import dataclass, asdict, field
-from typing import List, Dict, Any, Optional
+from dataclasses import dataclass, field
+from typing import Dict, Any, Optional
 from ..Utils.file_utils import CustomJSONEncoder
 
 @dataclass

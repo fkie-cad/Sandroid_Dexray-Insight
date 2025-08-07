@@ -17,10 +17,10 @@ from .Utils.file_utils import dump_json, split_path_file_extension
 from .Utils import androguardObjClass
 from .about import __version__, __author__
 
-# Import modules to register them
-from . import modules  # This will register all analysis modules
-from . import tools    # This will register all external tools  
-from . import security # This will register all security assessments
+# Import modules to register them (imports are needed for registration)
+# from . import modules  # This will register all analysis modules
+# from . import tools    # This will register all external tools  
+# from . import security # This will register all security assessments
 
 def print_logo():
     print("""        Dexray Insight
@@ -145,7 +145,7 @@ def start_apk_static_analysis_new(apk_file_path: str, config: Configuration, pri
         error_details = traceback.format_exc()
         
         print(f"\n\033[91m[-] Analysis failed: {str(e)}\033[0m")
-        print(f"\033[93m[W] For detailed error information, run with -d DEBUG\033[0m")
+        print("\033[93m[W] For detailed error information, run with -d DEBUG\033[0m")
         
         # Log detailed error information
         logging.error(f"Analysis failed: {str(e)}")

@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 import logging
-import importlib
 from .runtimes import dotnetMonoSec, dexSec
 from ..results.SecurityAnalysisResults import SecurityAnalysisResults
 from ..Utils import androguardObjClass

@@ -3,7 +3,7 @@
 from ..Utils.file_utils import CustomJSONEncoder
 import json
 from dataclasses import dataclass, asdict, field
-from typing import Dict, List, Any
+from typing import Dict, Any
 
 @dataclass
 class KavanozResults:

@@ -13,6 +13,7 @@ from .apkidResults import ApkidResults
 from .kavanozResults import KavanozResults
 from .TrackerAnalysisResults import TrackerAnalysisResults
 from .BehaviourAnalysisResults import BehaviourAnalysisResults
+from .LibraryDetectionResults import LibraryDetectionResults
 
 @dataclass
 class FullAnalysisResults:
@@ -32,6 +33,7 @@ class FullAnalysisResults:
     security_assessment: Optional[Dict[str, Any]] = None
     tracker_analysis: Optional[TrackerAnalysisResults] = None
     behaviour_analysis: Optional[BehaviourAnalysisResults] = None
+    library_detection: Optional[LibraryDetectionResults] = None
     deep_analysis: Optional['DeepAnalysisResults'] = None
 
     def __post_init__(self):
@@ -69,6 +71,10 @@ class FullAnalysisResults:
         # Include behaviour analysis results if available
         if self.behaviour_analysis:
             result["behaviour_analysis"] = self.behaviour_analysis.to_dict()
+        
+        # Include library detection results if available
+        if self.library_detection:
+            result["library_detection"] = self.library_detection.get_detailed_results()["library_detection"]
         
         # Include security assessment results only if explicitly requested
         if include_security and self.security_assessment:
@@ -227,6 +233,12 @@ class FullAnalysisResults:
             print("\n📍 TRACKER ANALYSIS")
             print("-" * 40)
             print(self.tracker_analysis.get_console_summary())
+        
+        # Library Detection Summary
+        if self.library_detection:
+            print("\n📚 LIBRARY DETECTION")
+            print("-" * 40)
+            print(self.library_detection.get_console_summary())
         
         # Security Assessment Summary
         if self.security_assessment:

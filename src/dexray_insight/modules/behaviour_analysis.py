@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import os
 import re
 import time
 import logging
-from typing import List, Dict, Any, Optional, Tuple
-from dataclasses import dataclass, field
+from typing import List, Dict, Any
 
 from ..core.base_classes import BaseAnalysisModule, AnalysisContext, AnalysisStatus, register_module
-from ..results.BehaviourAnalysisResults import BehaviourAnalysisResults, BehaviourAnalysisFinding
+from ..results.BehaviourAnalysisResults import BehaviourAnalysisResults
 
 @register_module('behaviour_analysis')
 class BehaviourAnalysisModule(BaseAnalysisModule):

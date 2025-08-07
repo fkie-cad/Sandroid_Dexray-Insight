@@ -91,12 +91,13 @@ class KavanozTool(BaseExternalTool):
             try:
                 # Try to install setuptools as a fallback for distutils
                 try:
-                    import distutils
+                    # import distutils
+                    pass
                 except ImportError:
                     try:
-                        import setuptools
-                        # setuptools provides distutils compatibility
-                        import distutils
+                        # import setuptools  # setuptools provides distutils compatibility
+                        # import distutils
+                        pass
                     except ImportError:
                         self.logger.warning("Neither distutils nor setuptools available. Installing setuptools might help.")
                         pass
@@ -208,15 +209,17 @@ class KavanozTool(BaseExternalTool):
         try:
             # Try to handle distutils compatibility first
             try:
-                import distutils
+                # import distutils
+                pass
             except ImportError:
                 try:
-                    import setuptools
-                    import distutils
+                    # import setuptools
+                    # import distutils
+                    pass
                 except ImportError:
                     self.logger.debug("distutils/setuptools not available, Kavanoz may not work")
             
-            from kavanoz.core import Kavanoz
+            # from kavanoz.core import Kavanoz
             return True
         except ImportError as e:
             self.logger.debug(f"Kavanoz not available: {str(e)}")

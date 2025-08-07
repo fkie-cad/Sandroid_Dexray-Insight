@@ -13,6 +13,7 @@ from . import api_invocation_analysis
 from . import tracker_analysis
 from . import behaviour_analysis
 from . import dotnet_analysis
+from . import library_detection
 
 __all__ = [
     'apk_overview_analysis',
@@ -23,5 +24,6 @@ __all__ = [
     'api_invocation_analysis',
     'tracker_analysis',
     'behaviour_analysis',
-    'dotnet_analysis'
+    'dotnet_analysis',
+    'library_detection'
 ]

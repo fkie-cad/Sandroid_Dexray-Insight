@@ -5,7 +5,7 @@ import time
 import logging
 import re
 import requests
-from typing import List, Dict, Any, Set, Tuple, Optional
+from typing import List, Dict, Any, Set, Optional
 from dataclasses import dataclass
 from urllib.parse import urlparse
 

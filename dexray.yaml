@@ -89,6 +89,38 @@ modules:
       installed_applications_access: true
       installed_packages_access: true
       reflection_usage: true
+      
+  library_detection:
+    enabled: true
+    priority: 25  # Run after string and manifest analysis but before tracker analysis
+    
+    # Stage 1: Heuristic Detection Configuration
+    enable_heuristic: true
+    confidence_threshold: 0.7  # Minimum confidence for heuristic detections
+    
+    # Stage 2: Similarity Detection Configuration (LibScan-inspired)
+    enable_similarity: true
+    similarity_threshold: 0.85  # Minimum similarity score for detections (LibScan default)
+    class_similarity_threshold: 0.7  # Threshold for individual class matching
+    
+    # Custom library patterns (extends built-in patterns)
+    custom_patterns: {}
+    # Example custom pattern:
+    # custom_patterns:
+    #   "My Custom Library":
+    #     packages: ["com.example.mylibrary"]
+    #     category: "utility"
+    #     classes: ["MyLibraryMain", "MyLibraryHelper"]
+    #     permissions: ["android.permission.INTERNET"]
+    
+    # Analysis features
+    features:
+      package_analysis: true      # Analyze package names for library indicators
+      class_analysis: true        # Analyze class names and hierarchies
+      manifest_analysis: true     # Check manifest for library-specific elements
+      method_analysis: true       # Analyze method signatures and opcodes
+      call_chain_analysis: true   # Analyze method call relationships
+      structural_analysis: true   # Compare class dependency structures
 
 # External Tools Configuration
 tools:

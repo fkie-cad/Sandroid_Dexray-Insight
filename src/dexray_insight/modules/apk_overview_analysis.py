@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import os
 import time
 import logging
-from typing import List, Dict, Any, Union
+from typing import List, Dict, Any
 from dataclasses import dataclass, field
 from pathlib import Path
 

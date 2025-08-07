@@ -14,6 +14,7 @@ obj/
 #testeing of 3rd party projects
 apk_api_key_extractor/
 secret-finder/
+research/
 
 # venv
 env/

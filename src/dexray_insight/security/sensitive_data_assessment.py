@@ -1058,7 +1058,7 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
                                         if len(text_content) > 8:  # Skip very short strings
                                             all_strings_with_location.append({
                                                 'value': text_content,
-                                                'location': f'XML element text',
+                                                'location': 'XML element text',
                                                 'file_path': xml_file,
                                                 'line_number': None
                                             })
@@ -1080,7 +1080,7 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
                                             elif len(attr_name) > 16:
                                                 all_strings_with_location.append({
                                                     'value': attr_name,
-                                                    'location': f'XML attribute name',
+                                                    'location': 'XML attribute name',
                                                     'file_path': xml_file,
                                                     'line_number': None
                                                 })
@@ -1101,7 +1101,7 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
                                 
                                 self.logger.debug(f"Extracted {strings_extracted} strings from {xml_file}")
                                 
-                            except ET.ParseError as e:
+                            except ET.ParseError:
                                 # Try as plain text if XML parsing fails
                                 try:
                                     text_content = xml_data.decode('utf-8', errors='ignore')
@@ -1112,7 +1112,7 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
                                         if len(line) > 16 and any(keyword in line.lower() for keyword in ['key', 'token', 'secret', 'api']):
                                             all_strings_with_location.append({
                                                 'value': line,
-                                                'location': f'XML file content',
+                                                'location': 'XML file content',
                                                 'file_path': xml_file,
                                                 'line_number': line_no
                                             })

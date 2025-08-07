@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import os
 import subprocess
 import json
 import shutil
 import logging
 from typing import Dict, Any, Optional
-from pathlib import Path
 
 from ..core.base_classes import BaseExternalTool, register_tool
 from ..results.apkidResults import ApkidResults, ApkidFileAnalysis

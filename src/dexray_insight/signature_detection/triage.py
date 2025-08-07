@@ -3,7 +3,6 @@
 
 import requests
 import logging
-from datetime import datetime
 from ..core.configuration import Configuration
 
 
