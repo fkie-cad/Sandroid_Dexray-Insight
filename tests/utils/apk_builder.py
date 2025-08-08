@@ -9,12 +9,9 @@ These APKs are designed to test specific functionality without requiring
 real-world APK samples.
 """
 
-import os
 import zipfile
-import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Dict, List, Any, Optional
-import tempfile
+from typing import Dict, List, Any
 import struct
 
 

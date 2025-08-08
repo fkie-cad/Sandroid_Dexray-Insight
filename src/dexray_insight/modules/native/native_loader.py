@@ -10,7 +10,6 @@ coordinates the execution of native analysis modules.
 """
 
 import time
-import logging
 import shutil
 from pathlib import Path
 from typing import Dict, Any, List, Optional
@@ -373,7 +372,8 @@ class NativeAnalysisLoader(BaseAnalysisModule):
                 # Close r2pipe connection
                 try:
                     r2.quit()
-                except:
+                except Exception:
+                    # Ignore r2pipe cleanup errors
                     pass
                     
             except Exception as e:

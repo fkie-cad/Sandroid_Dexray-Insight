@@ -113,7 +113,7 @@ class NativeStringExtractionModule(BaseNativeModule):
                         if isinstance(obj, dict):
                             string_content = obj.get('string', '')
                             offset = obj.get('vaddr', obj.get('paddr', 0))
-                            length = obj.get('length', len(string_content))
+                            # length = obj.get('length', len(string_content))  # Unused variable
                             
                             if self._is_valid_string_length(string_content):
                                 strings.append(NativeStringSource(

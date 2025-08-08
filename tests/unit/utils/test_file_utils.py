@@ -6,7 +6,6 @@ Unit tests for file utility functions
 """
 
 import pytest
-import tempfile
 from pathlib import Path
 
 from src.dexray_insight.Utils.file_utils import split_path_file_extension

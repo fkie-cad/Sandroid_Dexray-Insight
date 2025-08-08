@@ -9,7 +9,6 @@ import pytest
 import tempfile
 import yaml
 from pathlib import Path
-from unittest.mock import patch, MagicMock
 
 from src.dexray_insight.core.configuration import Configuration
 

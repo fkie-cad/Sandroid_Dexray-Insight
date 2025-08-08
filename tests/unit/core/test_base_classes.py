@@ -7,11 +7,9 @@ Unit tests for base classes and analysis framework
 
 import pytest
 import time
-from unittest.mock import MagicMock, patch
-from pathlib import Path
 
 from src.dexray_insight.core.base_classes import (
-    BaseResult, BaseAnalysisModule, BaseAnalysisModule, AnalysisContext, 
+    BaseResult, BaseAnalysisModule, AnalysisContext, 
     AnalysisStatus, register_module
 )
 
