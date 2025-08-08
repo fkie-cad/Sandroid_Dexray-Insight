@@ -48,6 +48,37 @@ dependencies = [
     "r2pipe"
 ]
 
+[project.optional-dependencies]
+test = [
+    "pytest>=7.4.0",
+    "pytest-mock>=3.11.1",
+    "pytest-cov>=4.1.0",
+    "pytest-benchmark>=4.0.0",
+    "pytest-xdist>=3.3.1",
+    "pytest-timeout>=2.1.0",
+    "pytest-asyncio>=0.21.1",
+    "factory-boy>=3.3.0",
+    "responses>=0.23.0",
+    "freezegun>=1.2.2",
+    "zipfile36>=0.1.3",
+]
+dev = [
+    "black>=23.7.0",
+    "flake8>=6.0.0",
+    "mypy>=1.5.0",
+    "pytest>=7.4.0",
+    "pytest-mock>=3.11.1",
+    "pytest-cov>=4.1.0",
+    "pytest-benchmark>=4.0.0",
+    "pytest-xdist>=3.3.1",
+    "pytest-timeout>=2.1.0",
+    "pytest-asyncio>=0.21.1",
+    "factory-boy>=3.3.0",
+    "responses>=0.23.0",
+    "freezegun>=1.2.2",
+    "zipfile36>=0.1.3",
+]
+
 [project.urls]
 Homepage = "https://github.com/fkie-cad/Sandroid_Dexray-Insight"
 Repository = "https://github.com/fkie-cad/Sandroid_Dexray-Insight"
