@@ -72,8 +72,11 @@ For production use:
    cd Sandroid_Dexray-Insight
    python3 -m pip install .
 
-   # Or install dependencies only
-   python3 -m pip install -r requirements.txt
+   # Or install directly via PyPI
+   python3 -m pip install dexray-insight
+   
+   # Verify installation
+   dexray-insight --version   
 
 Virtual Environment Setup (Recommended)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

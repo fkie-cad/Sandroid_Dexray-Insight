@@ -22,8 +22,8 @@ sys.path.insert(0, os.path.abspath('../src'))
 # -- Project information -----------------------------------------------------
 
 project = 'Dexray Insight'
-copyright = '2024, SanDroid Project'
-author = 'SanDroid Project'
+copyright = '2024, Sandroid Project'
+author = 'Sandroid Project'
 
 # Get version from the package
 try:
@@ -166,7 +166,7 @@ man_pages = [
 
 # Texinfo output options
 texinfo_documents = [
-    (master_doc, 'DexrayInsight', f'{project} Documentation',
-     author, 'DexrayInsight', 'Android APK Static Analysis Tool.',
+    (master_doc, 'Dexray Insight', f'{project} Documentation',
+     author, 'Dexray Insight', 'Android APK Static Analysis Tool.',
      'Miscellaneous'),
 ]

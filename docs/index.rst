@@ -1,7 +1,7 @@
 Dexray Insight Documentation
 ============================
 
-**Dexray Insight** is a comprehensive Python-based Android APK static analysis tool that performs security analysis using a modern object-oriented architecture. It's part of the SanDroid dynamic sandbox project and provides multiple analysis modules for examining Android applications.
+**Dexray Insight** is a comprehensive Python-based Android APK static analysis tool that performs security analysis using a modern object-oriented architecture. It's part of the Sandroid dynamic sandbox project and provides multiple analysis modules for examining Android applications.
 
 .. image:: https://img.shields.io/badge/Python-3.8%2B-blue.svg
    :target: https://www.python.org/downloads/
@@ -32,7 +32,7 @@ Quick Start
    python3 -m pip install -e .
 
    # Standard installation
-   python3 -m pip install .
+   python3 -m pip install dexray-insight
 
 **Basic Usage**::
 
@@ -48,8 +48,8 @@ Quick Start
    # Deep behavioral analysis
    dexray-insight path/to/app.apk --deep
 
-   # With custom configuration
-   dexray-insight path/to/app.apk -c dexray.yaml
+   # With custom configuration (the configuration file dexray.yaml will be used by default)
+   dexray-insight path/to/app.apk -c mydexray.yaml
 
 Documentation Contents
 ----------------------

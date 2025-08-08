@@ -12,7 +12,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 from typing import Dict, Any, List
 
-from tests.utils.apk_builder import SyntheticAPKBuilder
+from .utils.apk_builder import SyntheticAPKBuilder
 
 
 def pytest_configure(config):
