@@ -1,0 +1,503 @@
+name: Documentation
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'docs/**'
+      - 'src/**'
+      - '.github/workflows/docs.yml'
+      - 'pyproject.toml'
+      - 'requirements.txt'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'docs/**'
+      - 'src/**'
+      - '.github/workflows/docs.yml'
+      - 'pyproject.toml'
+      - 'requirements.txt'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Full history for version detection
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        cache: 'pip'
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          libxml2-dev \
+          libxslt1-dev \
+          zlib1g-dev \
+          pandoc
+    
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .
+        pip install -r docs/requirements.txt
+    
+    - name: Install documentation dependencies
+      run: |
+        pip install \
+          sphinx \
+          sphinx-rtd-theme \
+          sphinx-autodoc-typehints \
+          myst-parser \
+          sphinxcontrib-mermaid
+    
+    - name: Configure Sphinx
+      run: |
+        # Ensure docs directory exists and has proper structure
+        mkdir -p docs/_static docs/_templates
+        
+        # Check if conf.py exists and is properly configured
+        if [ ! -f docs/conf.py ]; then
+          echo "Error: docs/conf.py not found"
+          exit 1
+        fi
+    
+    - name: Build documentation with Sphinx
+      run: |
+        cd docs
+        
+        # Clean any previous builds
+        make clean || true
+        
+        # Build HTML documentation
+        sphinx-build -b html -d _build/doctrees . _build/html
+        
+        # Check for warnings and errors
+        if [ $? -ne 0 ]; then
+          echo "Sphinx build failed"
+          exit 1
+        fi
+        
+        # Verify essential files were created
+        if [ ! -f "_build/html/index.html" ]; then
+          echo "Error: index.html not generated"
+          exit 1
+        fi
+    
+    - name: Check documentation completeness
+      run: |
+        cd docs/_build/html
+        
+        # Check for broken links (basic check)
+        python -c "
+        import os
+        import re
+        from pathlib import Path
+        
+        html_files = list(Path('.').rglob('*.html'))
+        print(f'Generated {len(html_files)} HTML files')
+        
+        # Check for missing critical pages
+        critical_pages = ['index.html', 'installation.html', 'cli_usage.html', 'configuration.html']
+        missing_pages = []
+        
+        for page in critical_pages:
+            if not Path(page).exists():
+                missing_pages.append(page)
+        
+        if missing_pages:
+            print(f'Missing critical pages: {missing_pages}')
+            exit(1)
+        
+        print('Documentation build verification passed')
+        "
+    
+    - name: Setup Pages
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      uses: actions/configure-pages@v3
+    
+    - name: Upload to GitHub Pages
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      uses: actions/upload-pages-artifact@v2
+      with:
+        path: docs/_build/html
+    
+    - name: Upload documentation artifact
+      if: github.event_name == 'pull_request'
+      uses: actions/upload-artifact@v3
+      with:
+        name: documentation-preview
+        path: docs/_build/html
+        retention-days: 7
+
+  deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v2
+
+  link-check:
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Download documentation artifact
+      uses: actions/download-artifact@v3
+      with:
+        name: documentation-preview
+        path: docs-preview
+    
+    - name: Install link checker
+      run: |
+        npm install -g linkinator
+    
+    - name: Check documentation links
+      run: |
+        # Start a local server for link checking
+        cd docs-preview
+        python -m http.server 8000 &
+        SERVER_PID=$!
+        
+        # Wait for server to start
+        sleep 5
+        
+        # Run link checker
+        linkinator http://localhost:8000 \
+          --recurse \
+          --skip "^mailto:" \
+          --skip "^tel:" \
+          --skip "https://github.com/fkie-cad/Sandroid_Dexray-Insight" \
+          --format json > link_results.json
+        
+        # Kill the server
+        kill $SERVER_PID
+        
+        # Check results
+        python -c "
+        import json
+        
+        with open('link_results.json') as f:
+            results = json.load(f)
+        
+        passed = results['passed']
+        failed = results['failed'] if 'failed' in results else 0
+        
+        print(f'Link check results: {passed} passed, {failed} failed')
+        
+        if failed > 0:
+            print('Failed links:')
+            for link in results.get('links', []):
+                if link.get('status') and link['status'] >= 400:
+                    print(f'  {link[\"url\"]} - {link[\"status\"]}')
+            exit(1)
+        
+        print('All links passed!')
+        "
+
+  spell-check:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Install spell checker
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y aspell aspell-en
+    
+    - name: Run spell check on documentation
+      run: |
+        # Create custom dictionary for technical terms
+        cat << 'EOF' > .aspell.en.pws
+        personal_ws-1.1 en 200
+        APK
+        Androguard
+        Dexray
+        SanDroid
+        VirusTotal
+        Koodous
+        Triage
+        Radare2
+        JADX
+        APKTool
+        Xamarin
+        ReactNative
+        libflutter
+        libapp
+        libhermes
+        libmonodroid
+        apktool
+        androguard
+        r2pipe
+        Frida
+        OAuth
+        JWT
+        API
+        URL
+        IP
+        JSON
+        YAML
+        CLI
+        SDK
+        UI
+        UX
+        iOS
+        macOS
+        Ubuntu
+        CentOS
+        WSL2
+        PyPI
+        Github
+        stackoverflow
+        cryptographic
+        obfuscation
+        decompilation
+        bytecode
+        metadata
+        hardcoded
+        configs
+        filesystem
+        subprocess
+        timestamp
+        regex
+        enum
+        unicode
+        utf8
+        ascii
+        latin1
+        EOF
+        
+        # Check documentation files for spelling
+        find docs -name "*.rst" -exec aspell --personal=.aspell.en.pws --lang=en_US check {} \;
+        
+        # Check for common technical writing issues
+        python -c "
+        import re
+        from pathlib import Path
+        
+        issues = []
+        
+        for rst_file in Path('docs').rglob('*.rst'):
+            content = rst_file.read_text()
+            
+            # Check for common issues
+            if 'it\\'s' in content.lower():
+                issues.append(f'{rst_file}: Use \"it is\" instead of \"it\\'s\" in technical documentation')
+            
+            if re.search(r'[a-z]\s+[A-Z]', content):
+                matches = re.findall(r'[a-z]\s+[A-Z][a-z]+', content)
+                for match in matches[:3]:  # Show first 3 examples
+                    if not any(word in match for word in ['API', 'APK', 'URL', 'JSON', 'CLI']):
+                        issues.append(f'{rst_file}: Possible capitalization issue: \"{match}\"')
+        
+        if issues:
+            print('Documentation issues found:')
+            for issue in issues[:10]:  # Limit output
+                print(f'  {issue}')
+        else:
+            print('No documentation issues found')
+        "
+
+  accessibility-check:
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Download documentation artifact
+      uses: actions/download-artifact@v3
+      with:
+        name: documentation-preview
+        path: docs-preview
+    
+    - name: Install accessibility checker
+      run: |
+        npm install -g @axe-core/cli
+    
+    - name: Run accessibility check
+      run: |
+        # Start local server
+        cd docs-preview
+        python -m http.server 8000 &
+        SERVER_PID=$!
+        
+        # Wait for server
+        sleep 5
+        
+        # Run accessibility check
+        axe http://localhost:8000 \
+          --exit \
+          --stdout \
+          --tags wcag2a,wcag2aa
+        
+        # Kill server
+        kill $SERVER_PID
+
+  performance-check:
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Download documentation artifact
+      uses: actions/download-artifact@v3
+      with:
+        name: documentation-preview
+        path: docs-preview
+    
+    - name: Check documentation performance
+      run: |
+        cd docs-preview
+        
+        # Check file sizes
+        python -c "
+        import os
+        from pathlib import Path
+        
+        total_size = 0
+        large_files = []
+        
+        for html_file in Path('.').rglob('*.html'):
+            size = html_file.stat().st_size
+            total_size += size
+            
+            if size > 500 * 1024:  # 500KB threshold
+                large_files.append((str(html_file), size // 1024))
+        
+        print(f'Total documentation size: {total_size // 1024}KB')
+        
+        if large_files:
+            print('Large HTML files (>500KB):')
+            for filename, size_kb in large_files:
+                print(f'  {filename}: {size_kb}KB')
+        
+        # Check for optimization issues
+        issues = []
+        
+        for html_file in Path('.').rglob('*.html'):
+            content = html_file.read_text()
+            
+            # Check for unoptimized images
+            if 'data:image' in content and len(content) > 1024 * 1024:
+                issues.append(f'{html_file}: Contains large inline images')
+            
+            # Check for excessive inline styles
+            if content.count('<style>') > 5:
+                issues.append(f'{html_file}: Contains excessive inline styles')
+        
+        if issues:
+            print('Performance issues found:')
+            for issue in issues:
+                print(f'  {issue}')
+        else:
+            print('No performance issues detected')
+        "
+
+  notify-pr:
+    runs-on: ubuntu-latest
+    needs: [build, link-check, spell-check, accessibility-check, performance-check]
+    if: github.event_name == 'pull_request' && always()
+    
+    steps:
+    - name: Comment on PR
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const { data: checks } = await github.rest.checks.listForRef({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            ref: context.sha,
+          });
+          
+          const docChecks = checks.check_runs.filter(check => 
+            check.name.includes('build') || 
+            check.name.includes('link-check') || 
+            check.name.includes('spell-check') ||
+            check.name.includes('accessibility-check') ||
+            check.name.includes('performance-check')
+          );
+          
+          let status = '✅ Documentation checks passed';
+          let details = [];
+          
+          const failedChecks = docChecks.filter(check => check.conclusion === 'failure');
+          
+          if (failedChecks.length > 0) {
+            status = '❌ Documentation checks failed';
+            details = failedChecks.map(check => `- ${check.name}: ${check.conclusion}`);
+          }
+          
+          const body = `## 📚 Documentation Build Status
+
+          ${status}
+
+          ${details.length > 0 ? '### Failed Checks:\n' + details.join('\n') : ''}
+
+          ### Preview
+          Documentation preview will be available after the build completes.
+          
+          ### Checks Performed
+          - 🔧 Sphinx build
+          - 🔗 Link validation  
+          - 📝 Spell check
+          - ♿ Accessibility check
+          - ⚡ Performance check
+
+          ---
+          *This comment is automatically generated by the documentation workflow.*`;
+
+          // Find existing comment
+          const { data: comments } = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+          });
+
+          const existingComment = comments.find(comment => 
+            comment.body.includes('📚 Documentation Build Status')
+          );
+
+          if (existingComment) {
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: existingComment.id,
+              body: body
+            });
+          } else {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });
+          }
