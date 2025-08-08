@@ -1,0 +1,31 @@
+# Documentation build requirements for Dexray Insight
+
+# Core Sphinx packages
+sphinx>=5.0.0
+sphinx-rtd-theme>=1.2.0
+sphinx-autodoc-typehints>=1.19.0
+
+# Additional Sphinx extensions
+sphinxcontrib-mermaid>=0.8.0
+myst-parser>=0.18.0
+
+# API documentation support
+sphinx-autoapi>=2.0.0
+
+# Enhanced documentation features
+sphinx-copybutton>=0.5.0
+sphinx-inline-tabs>=2022.1.2b11
+sphinx-design>=0.3.0
+
+# Code highlighting
+pygments>=2.13.0
+
+# Documentation testing
+doc8>=0.11.0
+sphinx-lint>=0.6.0
+
+# Link checking
+linkchecker>=10.2.0
+
+# Performance and optimization
+Pillow>=9.0.0  # Image processing for documentation
