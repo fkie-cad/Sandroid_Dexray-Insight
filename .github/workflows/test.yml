@@ -65,7 +65,7 @@ jobs:
     
     - name: Run regression tests
       run: |
-        if pytest tests/ --collect-only -m regression -q | grep -q "collected"; then
+        if pytest tests/ --collect-only -m regression | grep -qE "[0-9]+ tests? collected"; then
           pytest tests/ -v -m regression
         else
           echo "No regression tests found, skipping..."
