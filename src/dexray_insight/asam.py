@@ -42,51 +42,129 @@ def print_logo():
     print(f"        version: {__version__}\n")
 
 def create_configuration_from_args(args) -> Configuration:
-    """Create configuration object from command line arguments"""
+    """
+    Create configuration object from command line arguments.
     
+    Refactored to use single-responsibility functions following SOLID principles.
+    Maintains exact same behavior as original while improving maintainability.
+    
+    Args:
+        args: Command line arguments namespace
+        
+    Returns:
+        Configuration object with applied command line overrides
+    """
     # Create base configuration
     config = Configuration()
     
-    # Update configuration based on command line arguments
-    config_updates = {}
+    # Build configuration updates using refactored single-purpose functions
+    config_updates = _build_configuration_updates(args)
     
-    # Enable/disable signature detection
+    # Apply configuration updates if any were generated
+    if config_updates:
+        config._merge_config(config_updates)
+    
+    return config
+
+
+def _process_signature_flags(args, config_updates: dict) -> None:
+    """
+    Process signature detection related command line flags.
+    
+    Single Responsibility: Handle only signature detection flag processing.
+    
+    Args:
+        args: Command line arguments namespace
+        config_updates: Dictionary to update with configuration changes
+    """
     if hasattr(args, 'signaturecheck') and args.signaturecheck:
         config_updates.setdefault('modules', {})['signature_detection'] = {'enabled': True}
+
+
+def _process_security_flags(args, config_updates: dict) -> None:
+    """
+    Process security analysis related command line flags.
     
-    # Enable/disable security analysis
+    Single Responsibility: Handle only security analysis flag processing.
+    
+    Args:
+        args: Command line arguments namespace
+        config_updates: Dictionary to update with configuration changes
+    """
     if hasattr(args, 'sec') and args.sec:
         config_updates.setdefault('security', {})['enable_owasp_assessment'] = True
+
+
+def _process_logging_flags(args, config_updates: dict) -> None:
+    """
+    Process logging related command line flags.
     
-    # Set logging level based on debug/verbose flags
+    Single Responsibility: Handle only logging configuration flag processing.
+    
+    Args:
+        args: Command line arguments namespace
+        config_updates: Dictionary to update with configuration changes
+    """
     if hasattr(args, 'debug') and args.debug:
         config_updates.setdefault('logging', {})['level'] = args.debug.upper()
     elif hasattr(args, 'verbose') and args.verbose:
         config_updates.setdefault('logging', {})['level'] = 'DEBUG'
+
+
+def _process_analysis_flags(args, config_updates: dict) -> None:
+    """
+    Process analysis module related command line flags.
     
-    # Set APK diffing if specified
+    Single Responsibility: Handle only analysis module flag processing.
+    
+    Args:
+        args: Command line arguments namespace
+        config_updates: Dictionary to update with configuration changes
+    """
+    # APK diffing
     if hasattr(args, 'diffing_apk') and args.diffing_apk:
         config_updates.setdefault('modules', {})['apk_diffing'] = {'enabled': True}
     
-    # Handle tracker analysis flags
+    # Tracker analysis
     if hasattr(args, 'tracker') and args.tracker:
         config_updates.setdefault('modules', {})['tracker_analysis'] = {'enabled': True}
     elif hasattr(args, 'no_tracker') and args.no_tracker:
         config_updates.setdefault('modules', {})['tracker_analysis'] = {'enabled': False}
     
-    # Handle API invocation analysis flag
+    # API invocation analysis
     if hasattr(args, 'api_invocation') and args.api_invocation:
         config_updates.setdefault('modules', {})['api_invocation'] = {'enabled': True}
     
-    # Handle deep analysis flag
+    # Deep behavior analysis
     if hasattr(args, 'deep') and args.deep:
-        config_updates.setdefault('modules', {})['behaviour_analysis'] = {'enabled': True, 'deep_mode': True}
+        config_updates.setdefault('modules', {})['behaviour_analysis'] = {
+            'enabled': True, 
+            'deep_mode': True
+        }
+
+
+def _build_configuration_updates(args) -> dict:
+    """
+    Build configuration updates from command line arguments.
     
-    # Apply configuration updates
-    if config_updates:
-        config._merge_config(config_updates)
+    Single Responsibility: Coordinate all flag processing to build complete config updates.
+    Following Open/Closed Principle: Easy to extend with new flag processors.
     
-    return config
+    Args:
+        args: Command line arguments namespace
+        
+    Returns:
+        Dictionary containing all configuration updates
+    """
+    config_updates = {}
+    
+    # Process different categories of flags using single-responsibility functions
+    _process_signature_flags(args, config_updates)
+    _process_security_flags(args, config_updates)  
+    _process_logging_flags(args, config_updates)
+    _process_analysis_flags(args, config_updates)
+    
+    return config_updates
 
 def start_apk_static_analysis_new(apk_file_path: str, config: Configuration, print_results_to_terminal: bool = False, verbose: bool = False):
     """

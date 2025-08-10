@@ -23,6 +23,9 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "slow: Tests that take more than 10 seconds")
     config.addinivalue_line("markers", "benchmark: Performance benchmark tests")
     config.addinivalue_line("markers", "regression: Tests for known bug scenarios")
+    config.addinivalue_line("markers", "refactored: Tests for newly refactored functions")
+    config.addinivalue_line("markers", "performance: Performance and benchmarking tests")
+    config.addinivalue_line("markers", "security: Security-focused tests")
 
 
 # ========================
@@ -274,6 +277,46 @@ def mock_analysis_context():
     context.logger = MagicMock()
     
     return context
+
+
+# ========================
+# Analysis Engine Fixtures (for TDD refactoring)
+# ========================
+
+@pytest.fixture
+def analysis_engine_config():
+    """Create a test configuration for AnalysisEngine"""
+    from dexray_insight.core.configuration import Configuration
+    return Configuration()
+
+@pytest.fixture
+def analysis_engine_logger():
+    """Create a mock logger for AnalysisEngine testing"""
+    return MagicMock()
+
+@pytest.fixture
+def analysis_engine(analysis_engine_config):
+    """Create an AnalysisEngine instance for testing"""
+    from dexray_insight.core.analysis_engine import AnalysisEngine
+    return AnalysisEngine(analysis_engine_config)
+
+@pytest.fixture
+def valid_apk_path():
+    """Create a temporary valid APK path for testing"""
+    import os
+    with tempfile.NamedTemporaryFile(suffix='.apk', delete=False) as tmp:
+        tmp.write(b'PK\x03\x04')  # Minimal ZIP header
+        yield tmp.name
+    if os.path.exists(tmp.name):
+        os.unlink(tmp.name)
+
+@pytest.fixture
+def mock_temporal_manager():
+    """Create a mock temporal directory manager"""
+    mock = MagicMock()
+    mock.create_temporal_directory.return_value = MagicMock()
+    mock.check_tool_availability.return_value = True
+    return mock
 
 
 # ========================
