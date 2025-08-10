@@ -33,7 +33,7 @@ classifiers = [
 ]
 dependencies = [
     # Add your dependencies here - extracted from the imports in your code
-    "androguard",
+    "androguard>=3.4.0",  # Ensure modern version with proper multidex support
     "lxml",
     "requests",
     "pyyaml",

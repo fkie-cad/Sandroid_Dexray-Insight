@@ -111,12 +111,46 @@ class FullAnalysisResults:
         """
         Prints a concise, analyst-friendly summary of the analysis results.
         Shows key findings with truncated details for better readability.
+        
+        Refactored to use single-responsibility functions following SOLID principles.
+        Maintains exact same behavior as original while improving maintainability.
+        
+        Each section is now handled by a dedicated function with single responsibility:
+        - Header formatting
+        - APK information display  
+        - Permissions analysis
+        - String analysis summary
+        - Security assessment
+        - Tool analysis results
+        - Component and behavior analysis
+        - Footer formatting
+        """
+        # Use refactored single-responsibility functions for each section
+        self._print_summary_header()
+        self._print_apk_information()
+        self._print_permissions_summary()
+        self._print_string_analysis_summary()
+        self._print_security_assessment_summary()
+        self._print_tool_analysis_summary()
+        self._print_component_behavior_summary()
+        self._print_summary_footer()
+
+    def _print_summary_header(self):
+        """
+        Print formatted header for analysis summary.
+        
+        Single Responsibility: Display the standardized header section only.
         """
         print("\n" + "="*80)
         print("📱 DEXRAY INSIGHT ANALYSIS SUMMARY")
         print("="*80)
+
+    def _print_apk_information(self):
+        """
+        Print APK file and application information.
         
-        # APK Overview Summary
+        Single Responsibility: Display APK metadata and application details only.
+        """
         if self.apk_overview and hasattr(self.apk_overview, 'general_info'):
             gen_info = self.apk_overview.general_info
             print("\n📋 APK INFORMATION")
@@ -159,8 +193,13 @@ class FullAnalysisResults:
             # Cross-platform info
             if self.apk_overview.is_cross_platform:
                 print(f"🔗 Cross-Platform: {self.apk_overview.cross_platform_framework}")
+
+    def _print_permissions_summary(self):
+        """
+        Print permissions analysis with critical permission highlighting.
         
-        # Security-relevant permissions
+        Single Responsibility: Display permissions information with categorization only.
+        """
         if self.apk_overview and hasattr(self.apk_overview, 'permissions'):
             perms = self.apk_overview.permissions.get('permissions', [])
             if perms:
@@ -182,8 +221,13 @@ class FullAnalysisResults:
                 other_perms = [p for p in perms if p not in critical_perms]
                 if other_perms:
                     print(f"ℹ️  Other Permissions: {len(other_perms)} (see full JSON for details)")
+
+    def _print_string_analysis_summary(self):
+        """
+        Print string analysis results with categorization and truncation.
         
-        # String analysis findings
+        Single Responsibility: Display string analysis findings only.
+        """
         if self.in_depth_analysis:
             # Count string analysis results for summary
             email_count = len(self.in_depth_analysis.strings_emails) if self.in_depth_analysis.strings_emails else 0
@@ -247,7 +291,13 @@ class FullAnalysisResults:
                     print(f"   • {assembly}")
                 if len(self.in_depth_analysis.dotnetMono_assemblies) > 3:
                     print(f"   ... and {len(self.in_depth_analysis.dotnetMono_assemblies) - 3} more")
+
+    def _print_security_assessment_summary(self):
+        """
+        Print security assessment results with findings and risk scoring.
         
+        Single Responsibility: Display security analysis findings only.
+        """
         # Tracker Analysis Summary
         if self.tracker_analysis:
             print("\n📍 TRACKER ANALYSIS")
@@ -321,7 +371,13 @@ class FullAnalysisResults:
                 
                 if sigs.get('triage'):
                     print(f"Triage: {sigs['triage']}")
+
+    def _print_tool_analysis_summary(self):
+        """
+        Print results from external analysis tools (APKID, Kavanoz, Signatures).
         
+        Single Responsibility: Display tool-specific analysis results only.
+        """
         # Kavanoz results
         if self.kavanoz_analysis and hasattr(self.kavanoz_analysis, 'is_packed'):
             print("\n📦 PACKING ANALYSIS")
@@ -451,7 +507,13 @@ class FullAnalysisResults:
                             if matches and shown < 3:
                                 print(f"   {category.replace('_', ' ').title()}: {', '.join(matches[:2])}")
                                 shown += 1
+
+    def _print_component_behavior_summary(self):
+        """
+        Print component analysis and behavioral analysis results.
         
+        Single Responsibility: Display component and behavior analysis findings only.
+        """
         # Components summary
         if self.apk_overview and hasattr(self.apk_overview, 'components'):
             components = self.apk_overview.components
@@ -484,7 +546,13 @@ class FullAnalysisResults:
                     # Convert snake_case to readable format
                     readable_name = feature.replace('_', ' ').title()
                     print(f"✓ {readable_name}")
+
+    def _print_summary_footer(self):
+        """
+        Print formatted footer with usage hints and file information.
         
+        Single Responsibility: Display the standardized footer section only.
+        """
         print(f"\n{'='*80}")
         print("📄 Complete details saved to JSON file")
         if self.security_assessment:
