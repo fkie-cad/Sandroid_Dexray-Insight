@@ -19,6 +19,7 @@ from .heuristic_engine import HeuristicDetectionEngine
 from .similarity_engine import SimilarityDetectionEngine
 from .native_engine import NativeLibraryDetectionEngine
 from .androidx_engine import AndroidXDetectionEngine
+from .apktool_detection_engine import ApktoolDetectionEngine
 
 # Import result class - need to handle circular import
 from typing import TYPE_CHECKING
@@ -42,6 +43,7 @@ class LibraryDetectionCoordinator:
         self.similarity_engine = SimilarityDetectionEngine(parent_module)
         self.native_engine = NativeLibraryDetectionEngine(parent_module)
         self.androidx_engine = AndroidXDetectionEngine(parent_module)
+        self.apktool_engine = ApktoolDetectionEngine(parent_module.config, parent_module.logger)
         
     def execute_full_analysis(self, apk_path: str, context: AnalysisContext) -> 'LibraryDetectionResult':
         """
@@ -96,6 +98,20 @@ class LibraryDetectionCoordinator:
             androidx_libraries = androidx_result['libraries']
             detected_libraries.extend(androidx_libraries)
             stage_timings['stage4_time'] = androidx_result['execution_time']
+            
+            # Stage 5: Apktool-based Detection (requires apktool extraction)
+            if self.apktool_engine.is_available(context):
+                self.logger.info("Apktool results available, running apktool-based detection")
+                try:
+                    apktool_libraries = self.apktool_engine.detect_libraries(context, analysis_errors)
+                    detected_libraries.extend(apktool_libraries)
+                    self.logger.info(f"Apktool detection found {len(apktool_libraries)} libraries")
+                except Exception as e:
+                    error_msg = f"Apktool detection engine failed: {str(e)}"
+                    self.logger.error(error_msg)
+                    analysis_errors.append(error_msg)
+            else:
+                self.logger.debug("Apktool results not available, skipping apktool-based detection")
             
             # Remove duplicates
             detected_libraries = self.parent._deduplicate_libraries(detected_libraries)

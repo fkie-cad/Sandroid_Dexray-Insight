@@ -113,6 +113,27 @@ modules:
     #     classes: ["MyLibraryMain", "MyLibraryHelper"]
     #     permissions: ["android.permission.INTERNET"]
     
+    # Stage 5: Apktool-based Detection Configuration (requires apktool extraction)
+    apktool_detection:
+      # Individual detection methods can be enabled/disabled
+      enable_pattern_detection: true     # Pattern matching using IzzyOnDroid library definitions
+      enable_properties_detection: true  # Scan for .properties files with version info
+      enable_buildconfig_detection: true # Extract info from BuildConfig.smali files
+      
+      # Automatic updates for library definitions
+      auto_update_definitions: true      # Check for newer definitions on startup
+      
+      # Library definition URLs (IzzyOnDroid repository)
+      libsmali_url: "https://gitlab.com/IzzyOnDroid/repo/-/raw/master/lib/libsmali.jsonl"
+      libinfo_url: "https://gitlab.com/IzzyOnDroid/repo/-/raw/master/lib/libinfo.jsonl"
+      
+      # Local paths for library definition files
+      libsmali_path: "./libsmali.jsonl"  # Local path for smali patterns
+      libinfo_path: "./libinfo.jsonl"    # Local path for library info
+      
+      # Note: Set auto_update_definitions to false and customize paths above 
+      # if you want to use your own library definition files
+    
     # Analysis features
     features:
       package_analysis: true      # Analyze package names for library indicators

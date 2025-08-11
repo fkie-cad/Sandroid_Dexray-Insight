@@ -12,14 +12,21 @@ class LibraryDetectionMethod(Enum):
     NATIVE = "native"
     SMALI = "smali"
     MANIFEST = "manifest"
+    PATTERN_MATCHING = "pattern_matching"
+    FILE_ANALYSIS = "file_analysis"
+    BUILDCONFIG_ANALYSIS = "buildconfig_analysis"
 
 class LibraryCategory(Enum):
     ANALYTICS = "analytics"
     ADVERTISING = "advertising"
+    TRACKING = "tracking"
     CRASH_REPORTING = "crash_reporting"
     SOCIAL_MEDIA = "social_media"
+    SOCIAL = "social"
     NETWORKING = "networking"
+    NETWORK = "network"
     UI_FRAMEWORK = "ui_framework"
+    UI_COMPONENT = "ui_component"
     UTILITY = "utility"
     SECURITY = "security"
     PAYMENT = "payment"
@@ -27,6 +34,7 @@ class LibraryCategory(Enum):
     MEDIA = "media"
     DATABASE = "database"
     TESTING = "testing"
+    DEVELOPMENT = "development"
     ANDROIDX = "androidx"
     KOTLIN = "kotlin"
     BUILD_SYSTEM = "build_system"
@@ -38,6 +46,7 @@ class LibraryType(Enum):
     KOTLIN_INFRASTRUCTURE = "kotlin_infrastructure"
     NATIVE_LIBRARY = "native_library"
     THIRD_PARTY_SDK = "third_party_sdk"
+    THIRD_PARTY = "third_party"
     BUILD_SYSTEM = "build_system"
     GOOGLE_SERVICES = "google_services"
     UNKNOWN = "unknown"
@@ -55,6 +64,8 @@ class LibrarySource(Enum):
     MANIFEST = "manifest"
     BUILD_CONFIG = "build_config"
     GRADLE_DEPS = "gradle_deps"
+    PROPERTIES_FILES = "properties_files"
+    APKTOOL_EXTRACTED = "apktool_extracted"
 
 @dataclass
 class DetectedLibrary:
@@ -84,6 +95,9 @@ class DetectedLibrary:
     latest_version: Optional[str] = None  # Latest known version
     release_date: Optional[str] = None  # Release date if known
     vulnerabilities: List[str] = None  # Known CVEs or security issues
+    url: Optional[str] = None  # Library homepage/repository URL
+    license: Optional[str] = None  # License information
+    anti_features: List[str] = None  # Anti-features (tracking, ads, etc.)
     
     def __post_init__(self):
         if self.evidence is None:
@@ -98,6 +112,8 @@ class DetectedLibrary:
             self.file_paths = []
         if self.vulnerabilities is None:
             self.vulnerabilities = []
+        if self.anti_features is None:
+            self.anti_features = []
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary representation"""

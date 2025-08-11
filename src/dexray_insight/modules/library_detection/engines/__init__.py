@@ -15,6 +15,7 @@ from .heuristic_engine import HeuristicDetectionEngine
 from .similarity_engine import SimilarityDetectionEngine  
 from .native_engine import NativeLibraryDetectionEngine
 from .androidx_engine import AndroidXDetectionEngine
+from .apktool_detection_engine import ApktoolDetectionEngine
 from .coordinator import LibraryDetectionCoordinator
 
 __all__ = [
@@ -22,5 +23,6 @@ __all__ = [
     'SimilarityDetectionEngine', 
     'NativeLibraryDetectionEngine',
     'AndroidXDetectionEngine',
+    'ApktoolDetectionEngine',
     'LibraryDetectionCoordinator'
 ]
