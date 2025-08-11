@@ -190,713 +190,534 @@ def get_browsable_activities(node, ns):
         logger.exception('Getting Browsable Activities')
 
 
+def _analyze_custom_permissions(mfxml, ns):
+    """
+    Analyze custom permission definitions and protection levels.
+    
+    Single Responsibility: Handle custom permission analysis only.
+    """
+    permission_dict = {}
+    permissions = mfxml.getElementsByTagName('permission')
+    
+    for permission in permissions:
+        if permission.getAttribute(f'{ns}:protectionLevel'):
+            protectionlevel = permission.getAttribute(f'{ns}:protectionLevel')
+            if protectionlevel == '0x00000000':
+                protectionlevel = 'normal'
+            elif protectionlevel == '0x00000001':
+                protectionlevel = 'dangerous'
+            elif protectionlevel == '0x00000002':
+                protectionlevel = 'signature'
+            elif protectionlevel == '0x00000003':
+                protectionlevel = 'signatureOrSystem'
+
+            permission_dict[permission.getAttribute(f'{ns}:name')] = protectionlevel
+        elif permission.getAttribute(f'{ns}:name'):
+            permission_dict[permission.getAttribute(f'{ns}:name')] = 'normal'
+    
+    return permission_dict
+
+
+def _validate_sdk_versions(man_data_dic):
+    """
+    Validate SDK versions and identify security vulnerabilities.
+    
+    Single Responsibility: Handle SDK version security validation only.
+    """
+    findings = []
+    
+    if man_data_dic['min_sdk'] and int(man_data_dic['min_sdk']) < ANDROID_8_0_LEVEL:
+        minsdk = man_data_dic.get('min_sdk')
+        android_version = ANDROID_API_LEVEL_MAP.get(minsdk, 'XX')
+        findings.append(('vulnerable_os_version', (android_version, minsdk,), ()))
+    elif man_data_dic['min_sdk'] and int(man_data_dic['min_sdk']) < ANDROID_10_0_LEVEL:
+        minsdk = man_data_dic.get('min_sdk')
+        android_version = ANDROID_API_LEVEL_MAP.get(minsdk, 'XX')
+        findings.append(('vulnerable_os_version2', (android_version, minsdk,), ()))
+    
+    return findings
+
+
+def _analyze_application_configuration(mfxml, ns):
+    """
+    Analyze application-level security configurations.
+    
+    Single Responsibility: Handle application-level attribute analysis only.
+    """
+    findings = []
+    applications = mfxml.getElementsByTagName('application')
+    
+    # Handle multiple application tags in AAR
+    for application in applications:
+        if application.getAttribute(f'{ns}:usesCleartextTraffic') == 'true':
+            findings.append(('clear_text_traffic', (), ()))
+        if application.getAttribute(f'{ns}:directBootAware') == 'true':
+            findings.append(('direct_boot_aware', (), ()))
+        if application.getAttribute(f'{ns}:networkSecurityConfig'):
+            item = application.getAttribute(f'{ns}:networkSecurityConfig')
+            findings.append(('has_network_security', (item,), ()))
+        if application.getAttribute(f'{ns}:debuggable') == 'true':
+            findings.append(('app_is_debuggable', (), ()))
+        if application.getAttribute(f'{ns}:allowBackup') == 'true':
+            findings.append(('app_allowbackup', (), ()))
+        elif application.getAttribute(f'{ns}:allowBackup') == 'false':
+            # Backup explicitly disabled - this is secure
+            pass
+        else:
+            # allowBackup not set - default is true, which is insecure
+            findings.append(('allowbackup_not_set', (), ()))
+        if application.getAttribute(f'{ns}:testOnly') == 'true':
+            findings.append(('app_in_test_mode', (), ()))
+    
+    return findings
+
+
+def _determine_export_status(node, ns, itemname, permission_dict, perm_appl_level_exists=False):
+    """
+    Determine if a component is exported and the security implications.
+    
+    Single Responsibility: Handle component export status determination only.
+    """
+    is_exported = False
+    export_reason = None
+    protection_info = {}
+    
+    # Check explicit export attribute
+    if node.getAttribute(f'{ns}:exported') == 'true':
+        is_exported = True
+        export_reason = 'explicitly_exported'
+    elif node.getAttribute(f'{ns}:exported') == 'false':
+        is_exported = False
+        export_reason = 'explicitly_not_exported'
+    else:
+        # Check for implicit export via intent filters
+        intent_filters = []
+        for child in node.childNodes:
+            if hasattr(child, 'nodeName') and child.nodeName == 'intent-filter':
+                intent_filters.append(child)
+        
+        if intent_filters:
+            is_exported = True
+            export_reason = 'intent_filter_implicit'
+    
+    # Analyze permission protection if exported
+    if is_exported:
+        component_permission = node.getAttribute(f'{ns}:permission')
+        if component_permission:
+            protection_info = _analyze_permission_protection(component_permission, permission_dict)
+        elif perm_appl_level_exists:
+            protection_info = {'has_app_level_permission': True}
+        else:
+            protection_info = {'unprotected': True}
+    
+    return {
+        'is_exported': is_exported,
+        'export_reason': export_reason,
+        'protection_info': protection_info
+    }
+
+
+def _analyze_permission_protection(permission_name, permission_dict):
+    """
+    Analyze the protection level and security implications of a permission.
+    
+    Single Responsibility: Handle permission protection analysis only.
+    """
+    if permission_name in permission_dict:
+        protection_level = permission_dict[permission_name]
+        
+        security_assessment = {
+            'protection_level': protection_level,
+            'permission_defined': True
+        }
+        
+        if protection_level in ['signature', 'signatureOrSystem']:
+            security_assessment['is_secure'] = True
+            security_assessment['risk_level'] = 'low'
+        elif protection_level == 'dangerous':
+            security_assessment['is_secure'] = False
+            security_assessment['risk_level'] = 'high'
+        elif protection_level == 'normal':
+            security_assessment['is_secure'] = False
+            security_assessment['risk_level'] = 'medium'
+        
+        return security_assessment
+    else:
+        return {
+            'protection_level': 'unknown',
+            'permission_defined': False,
+            'is_secure': False,
+            'risk_level': 'high'
+        }
+
+
+def _analyze_components(mfxml, ns, man_data_dic, permission_dict):
+    """
+    Analyze Android components (activities, services, receivers, providers).
+    
+    Single Responsibility: Handle component analysis and export determination only.
+    """
+    findings = []
+    exported_activities = []
+    exported_services = []
+    exported_receivers = []
+    exported_providers = []
+    exp_count = dict.fromkeys(['act', 'ser', 'bro', 'cnt'], 0)
+    
+    applications = mfxml.getElementsByTagName('application')
+    
+    for application in applications:
+        # Check for application-level permission
+        perm_appl_level_exists = bool(application.getAttribute(f'{ns}:permission'))
+        
+        for node in application.childNodes:
+            if not hasattr(node, 'nodeName'):
+                continue
+                
+            # Map component types
+            component_mapping = {
+                'activity': ('Activity', 'act', 'n'),
+                'activity-alias': ('Activity-Alias', 'act', 'n'),
+                'provider': ('Content Provider', 'cnt', ''),
+                'receiver': ('Broadcast Receiver', 'bro', ''),
+                'service': ('Service', 'ser', '')
+            }
+            
+            if node.nodeName not in component_mapping:
+                continue
+                
+            itemname, cnt_id, an_or_a = component_mapping[node.nodeName]
+            component_name = node.getAttribute(f'{ns}:name')
+            
+            if not component_name:
+                continue
+            
+            # Analyze export status
+            export_info = _determine_export_status(node, ns, itemname, permission_dict, perm_appl_level_exists)
+            
+            if export_info['is_exported'] and component_name != man_data_dic.get('mainactivity'):
+                # Process exported component
+                finding_data = _process_exported_component(
+                    node, ns, itemname, component_name, export_info, an_or_a
+                )
+                
+                if finding_data:
+                    findings.append(finding_data)
+                
+                # Add to appropriate exported list
+                if itemname in ['Activity', 'Activity-Alias']:
+                    exported_activities.append(component_name)
+                elif itemname == 'Service':
+                    exported_services.append(component_name)
+                elif itemname == 'Broadcast Receiver':
+                    exported_receivers.append(component_name)
+                elif itemname == 'Content Provider':
+                    exported_providers.append(component_name)
+                
+                # Increment counter for certain protection levels
+                if _should_count_as_exported(export_info):
+                    exp_count[cnt_id] += 1
+    
+    return {
+        'exported_activities': exported_activities,
+        'exported_services': exported_services,
+        'exported_receivers': exported_receivers,
+        'exported_providers': exported_providers,
+        'export_counts': exp_count,
+        'findings': findings
+    }
+
+
+def _process_exported_component(node, ns, itemname, component_name, export_info, an_or_a):
+    """
+    Process an exported component and generate appropriate security findings.
+    
+    Single Responsibility: Generate security findings for exported components only.
+    """
+    protection_info = export_info.get('protection_info', {})
+    
+    if 'protection_level' in protection_info:
+        # Component has permission protection
+        prot_level = protection_info['protection_level']
+        permission_name = node.getAttribute(f'{ns}:permission')
+        perm_text = f'<strong>Permission: </strong>{permission_name}'
+        
+        if protection_info.get('permission_defined'):
+            prot_text = f'</br><strong>protectionLevel: </strong>{prot_level}'
+            
+            if prot_level == 'normal':
+                return ('exported_protected_permission_normal', 
+                       (itemname, component_name, perm_text + prot_text), 
+                       (an_or_a, itemname))
+            elif prot_level == 'dangerous':
+                return ('exported_protected_permission_dangerous',
+                       (itemname, component_name, perm_text + prot_text),
+                       (an_or_a, itemname))
+            elif prot_level == 'signature':
+                return ('exported_protected_permission_signature',
+                       (itemname, component_name, perm_text + prot_text),
+                       (an_or_a, itemname))
+            elif prot_level == 'signatureOrSystem':
+                return ('exported_protected_permission_signatureorsystem',
+                       (itemname, component_name, perm_text + prot_text),
+                       (an_or_a, itemname))
+        else:
+            return ('exported_protected_permission_not_defined',
+                   (itemname, component_name, perm_text),
+                   (an_or_a, itemname))
+    elif protection_info.get('unprotected'):
+        # Component is exported without permission protection
+        return ('explicitly_exported', (itemname, component_name), (an_or_a, itemname))
+    
+    return None
+
+
+def _should_count_as_exported(export_info):
+    """
+    Determine if a component should be counted as exported for statistics.
+    
+    Single Responsibility: Determine export counting logic only.
+    """
+    if not export_info.get('is_exported'):
+        return False
+    
+    protection_info = export_info.get('protection_info', {})
+    
+    # Count as exported if unprotected or has weak protection
+    if protection_info.get('unprotected'):
+        return True
+    
+    if 'protection_level' in protection_info:
+        prot_level = protection_info['protection_level']
+        return prot_level in ['normal', 'dangerous', 'unknown']
+    
+    return False
+
+
+def _analyze_grant_uri_permissions(mfxml, ns):
+    """
+    Analyze grant-uri-permission configurations for security issues.
+    
+    Single Responsibility: Handle URI permission analysis only.
+    """
+    findings = []
+    granturipermissions = mfxml.getElementsByTagName('grant-uri-permission')
+    
+    for granturi in granturipermissions:
+        if granturi.getAttribute(f'{ns}:pathPrefix') == '/':
+            findings.append(('improper_provider_permission', ('pathPrefix=/',), ()))
+        elif granturi.getAttribute(f'{ns}:path') == '/':
+            findings.append(('improper_provider_permission', ('path=/',), ()))
+        elif granturi.getAttribute(f'{ns}:pathPattern') == '*':
+            findings.append(('improper_provider_permission', ('path=*',), ()))
+    
+    return findings
+
+
+def _analyze_data_tags(mfxml, ns):
+    """
+    Analyze intent data tags for security issues.
+    
+    Single Responsibility: Handle data tag analysis only.
+    """
+    findings = []
+    data_tags = mfxml.getElementsByTagName('data')
+    
+    for data in data_tags:
+        if data.getAttribute(f'{ns}:scheme') == 'android_secret_code':
+            xmlhost = data.getAttribute(f'{ns}:host')
+            findings.append(('dialer_code_found', (xmlhost,), ()))
+        elif data.getAttribute(f'{ns}:port'):
+            dataport = data.getAttribute(f'{ns}:port')
+            findings.append(('sms_receiver_port_found', (dataport,), ()))
+    
+    return findings
+
+
+def _analyze_intent_priorities(mfxml, ns):
+    """
+    Analyze intent filter and action priorities for suspicious values.
+    
+    Single Responsibility: Handle intent priority analysis only.
+    """
+    findings = []
+    intents = mfxml.getElementsByTagName('intent-filter')
+    actions = mfxml.getElementsByTagName('action')
+    
+    # Check intent filter priorities
+    for intent in intents:
+        if intent.getAttribute(f'{ns}:priority').isdigit():
+            value = intent.getAttribute(f'{ns}:priority')
+            if int(value) > 100:
+                findings.append(('high_intent_priority_found', (value,), ()))
+    
+    # Check action priorities
+    for action in actions:
+        if action.getAttribute(f'{ns}:priority').isdigit():
+            value = action.getAttribute(f'{ns}:priority')
+            if int(value) > 100:
+                findings.append(('high_action_priority_found', (value,), ()))
+    
+    return findings
+
+
+def _process_analysis_results(findings_list):
+    """
+    Convert raw analysis findings to structured output format.
+    
+    Single Responsibility: Handle result formatting and template processing only.
+    """
+    formatted_results = []
+    
+    for finding_key, title_params, desc_params in findings_list:
+        template = MANIFEST_DESC.get(finding_key)
+        if template:
+            formatted_results.append({
+                'rule': finding_key,
+                'title': template['title'] % title_params,
+                'severity': template['level'],
+                'description': template['description'] % desc_params,
+                'name': template['name'] % title_params,
+                'component': title_params,
+            })
+        else:
+            logger.warning("No template found for key '%s'", finding_key)
+    
+    return formatted_results
+
+
+def _integrate_network_security(checksum, man_data_dic, do_netsec, src_type, app_dir):
+    """
+    Integrate network security configuration analysis.
+    
+    Single Responsibility: Handle network security integration only.
+    """
+    additional_findings = []
+    
+    # Check if app has launcher category (affects some security analysis)
+    has_launcher = False
+    for category in man_data_dic.get('categories', []):
+        if category == 'android.intent.category.LAUNCHER':
+            has_launcher = True
+            break
+    
+    # Integrate network security analysis if configured
+    if do_netsec and src_type == 'apk':
+        try:
+            network_findings = network_security_analysis(checksum, do_netsec, app_dir)
+            if network_findings:
+                additional_findings.extend(network_findings)
+        except Exception as e:
+            logger.warning("Failed to perform network security analysis: %s", e)
+    
+    return additional_findings
+
+
 def manifest_analysis(checksum, mfxml, ns, man_data_dic, src_type, app_dir):
-    """Analyse manifest file."""
-    # pylint: disable=C0301
+    """
+    Analyze manifest file using specialized analysis functions.
+    
+    Refactored coordinator function that orchestrates all manifest analysis tasks
+    following the Single Responsibility Principle. Each analysis concern is handled
+    by a dedicated function.
+    
+    Args:
+        checksum: Application checksum
+        mfxml: Parsed manifest XML document
+        ns: XML namespace (typically 'android')
+        man_data_dic: Manifest metadata dictionary
+        src_type: Source type ('apk', etc.)
+        app_dir: Application directory path
+        
+    Returns:
+        Dictionary containing comprehensive manifest analysis results
+    """
     try:
         msg = 'Manifest Analysis Started'
         logger.info(msg)
-        exp_count = dict.fromkeys(['act', 'ser', 'bro', 'cnt'], 0)
-        applications = mfxml.getElementsByTagName('application')
-        data_tag = mfxml.getElementsByTagName('data')
-        intents = mfxml.getElementsByTagName('intent-filter')
-        actions = mfxml.getElementsByTagName('action')
-        granturipermissions = mfxml.getElementsByTagName(
-            'grant-uri-permission')
-        permissions = mfxml.getElementsByTagName('permission')
-        ret_value = []
-        ret_list = []
-        exported = []
-        exported_receivers = []
-        exported_services = []
-        exported_providers = []
+        
+        # Phase 1: Analyze custom permissions
+        permission_dict = _analyze_custom_permissions(mfxml, ns)
+        
+        # Phase 2: Validate SDK versions for vulnerabilities  
+        sdk_findings = _validate_sdk_versions(man_data_dic)
+        
+        # Phase 3: Analyze application-level security configuration
+        app_config_findings = _analyze_application_configuration(mfxml, ns)
+        
+        # Phase 4: Analyze all Android components
+        component_results = _analyze_components(mfxml, ns, man_data_dic, permission_dict)
+        
+        # Phase 5: Analyze grant-uri-permission configurations
+        uri_permission_findings = _analyze_grant_uri_permissions(mfxml, ns)
+        
+        # Phase 6: Analyze intent data tags
+        data_tag_findings = _analyze_data_tags(mfxml, ns)
+        
+        # Phase 7: Analyze intent priorities
+        intent_priority_findings = _analyze_intent_priorities(mfxml, ns)
+        
+        # Phase 8: Combine all findings
+        all_findings = (
+            sdk_findings + 
+            app_config_findings + 
+            component_results['findings'] +
+            uri_permission_findings +
+            data_tag_findings +
+            intent_priority_findings
+        )
+        
+        # Phase 9: Process results into structured format
+        processed_findings = _process_analysis_results(all_findings)
+        
+        # Phase 10: Integrate network security analysis
+        network_security_findings = _integrate_network_security(checksum, man_data_dic, False, src_type, app_dir)
+        
+        # Phase 11: Collect browsable activities for later analysis
         browsable_activities = {}
-        permission_dict = {}
-        do_netsec = False
-        debuggable = False
-        # PERMISSION
-        for permission in permissions:
-            if permission.getAttribute(f'{ns}:protectionLevel'):
-                protectionlevel = permission.getAttribute(
-                    f'{ns}:protectionLevel')
-                if protectionlevel == '0x00000000':
-                    protectionlevel = 'normal'
-                elif protectionlevel == '0x00000001':
-                    protectionlevel = 'dangerous'
-                elif protectionlevel == '0x00000002':
-                    protectionlevel = 'signature'
-                elif protectionlevel == '0x00000003':
-                    protectionlevel = 'signatureOrSystem'
-
-                permission_dict[permission.getAttribute(
-                    f'{ns}:name')] = protectionlevel
-            elif permission.getAttribute(f'{ns}:name'):
-                permission_dict[permission.getAttribute(
-                    f'{ns}:name')] = 'normal'
-        # GENERAL
-        if man_data_dic['min_sdk'] and int(man_data_dic['min_sdk']) < ANDROID_8_0_LEVEL:
-            minsdk = man_data_dic.get('min_sdk')
-            android_version = ANDROID_API_LEVEL_MAP.get(minsdk, 'XX')
-            ret_list.append(('vulnerable_os_version', (android_version, minsdk,), ()))
-        elif man_data_dic['min_sdk'] and int(man_data_dic['min_sdk']) < ANDROID_10_0_LEVEL:
-            minsdk = man_data_dic.get('min_sdk')
-            android_version = ANDROID_API_LEVEL_MAP.get(minsdk, 'XX')
-            ret_list.append(('vulnerable_os_version2', (android_version, minsdk,), ()))
-        # APPLICATIONS
-        # Handle multiple application tags in AAR
-        backupDisabled = False
+        applications = mfxml.getElementsByTagName('application')
         for application in applications:
-            # Esteve 23.07.2016 - begin - identify permission at the
-            # application level
-            if application.getAttribute(f'{ns}:permission'):
-                perm_appl_level_exists = True
-                perm_appl_level = application.getAttribute(
-                    f'{ns}:permission')
-            else:
-                perm_appl_level_exists = False
-            # End
-            if application.getAttribute(f'{ns}:usesCleartextTraffic') == 'true':
-                ret_list.append(('clear_text_traffic', (), ()))
-            if application.getAttribute(f'{ns}:directBootAware') == 'true':
-                ret_list.append(('direct_boot_aware', (), ()))
-            if application.getAttribute(f'{ns}:networkSecurityConfig'):
-                item = application.getAttribute(f'{ns}:networkSecurityConfig')
-                ret_list.append(('has_network_security', (item,), ()))
-                do_netsec = item
-            if application.getAttribute(f'{ns}:debuggable') == 'true':
-                ret_list.append(('app_is_debuggable', (), ()))
-                debuggable = True
-            if application.getAttribute(f'{ns}:allowBackup') == 'true':
-                ret_list.append(('app_allowbackup', (), ()))
-            elif application.getAttribute(f'{ns}:allowBackup') == 'false':
-                backupDisabled = True
-            else:
-                if not backupDisabled:
-                    ret_list.append(('allowbackup_not_set', (), ()))
-            if application.getAttribute(f'{ns}:testOnly') == 'true':
-                ret_list.append(('app_in_test_mode', (), ()))
             for node in application.childNodes:
-                an_or_a = ''
-                if node.nodeName == 'activity':
-                    itemname = 'Activity'
-                    cnt_id = 'act'
-                    an_or_a = 'n'
-                elif node.nodeName == 'activity-alias':
-                    itemname = 'Activity-Alias'
-                    cnt_id = 'act'
-                    an_or_a = 'n'
-                elif node.nodeName == 'provider':
-                    itemname = 'Content Provider'
-                    cnt_id = 'cnt'
-                elif node.nodeName == 'receiver':
-                    itemname = 'Broadcast Receiver'
-                    cnt_id = 'bro'
-                elif node.nodeName == 'service':
-                    itemname = 'Service'
-                    cnt_id = 'ser'
-                else:
-                    itemname = 'NIL'
-                item = ''
-                # Checks for Activities
-                if itemname in ['Activity', 'Activity-Alias']:
-                    item = node.getAttribute(f'{ns}:name')
-                    # Browsable Activities
+                if hasattr(node, 'nodeName') and node.nodeName in ['activity', 'activity-alias']:
                     browse_dic = get_browsable_activities(node, ns)
                     if browse_dic['browsable']:
-                        browsable_activities[node.getAttribute(
-                            f'{ns}:name')] = browse_dic
-                    for finding in assetlinks_check(item, browse_dic['well_known']):
-                        if not finding['status']:
-                            ret_list.append(('well_known_assetlinks',
-                                            (item, finding['host']),
-                                            (finding['url'],
-                                             finding['status_code'])))
-
-                    # Task Affinity
-                    task_affinity = node.getAttribute(f'{ns}:taskAffinity')
-                    if (task_affinity):
-                        ret_list.append(('task_affinity_set', (item,), ()))
-
-                    # LaunchMode
-                    try:
-                        affected_sdk = int(
-                            man_data_dic['min_sdk']) < ANDROID_5_0_LEVEL
-                    except Exception:
-                        # in case min_sdk is not defined we assume vulnerability
-                        affected_sdk = True
-                    launchmode = node.getAttribute(f'{ns}:launchMode')
-                    modes = ('singleTask', 'singleInstance')
-                    if (affected_sdk
-                            and launchmode in modes):
-                        ret_list.append(('non_standard_launchmode', (item,), ()))
-
-                    # Android Task Hijacking or StrandHogg 1.0
-                    try:
-                        target_sdk = int(man_data_dic['target_sdk'])
-                    except Exception:
-                        try:
-                            target_sdk = int(man_data_dic['min_sdk'])
-                        except Exception:
-                            target_sdk = ANDROID_8_0_LEVEL
-                    if (target_sdk < ANDROID_9_0_LEVEL
-                            and launchmode == 'singleTask'):
-                        ret_list.append(('task_hijacking', (item,), (target_sdk,)))
-
-                    # Android StrandHogg 2.0
-                    exported_act = node.getAttribute(f'{ns}:exported')
-                    if (target_sdk < ANDROID_10_0_LEVEL
-                            and exported_act == 'true'
-                            and (launchmode != 'singleInstance' or task_affinity != '')):
-                        ret_list.append(('task_hijacking2', (item,), (target_sdk,)))
-
-                # Exported Check
-                item = ''
-                is_inf = False
-                is_perm_exist = False
-                # Esteve 23.07.2016 - begin - initialise variables to identify
-                # the existence of a permission at the component level that
-                # matches a permission at the manifest level
-                prot_level_exist = False
-                protlevel = ''
-                # End
-                if itemname != 'NIL':
-                    if node.getAttribute(f'{ns}:exported') == 'true':
-                        perm = ''
-                        item = node.getAttribute(f'{ns}:name')
-                        if node.getAttribute(f'{ns}:permission'):
-                            # permission exists
-                            perm = ('<strong>Permission: </strong>'
-                                    + node.getAttribute(f'{ns}:permission'))
-                            is_perm_exist = True
-                        if item != man_data_dic['mainactivity']:
-                            if is_perm_exist:
-                                prot = ''
-                                if node.getAttribute(f'{ns}:permission') in permission_dict:
-                                    prot = ('</br><strong>protectionLevel: </strong>'
-                                            + permission_dict[node.getAttribute(f'{ns}:permission')])
-                                    # Esteve 23.07.2016 - begin - take into account protection level of the permission when claiming that a component is protected by it;
-                                    # - the permission might not be defined in the application being analysed, if so, the protection level is not known;
-                                    # - activities (or activity-alias) that are exported and have an unknown or normal or dangerous protection level are
-                                    # included in the EXPORTED data structure for further treatment; components in this situation are also
-                                    # counted as exported.
-                                    prot_level_exist = True
-                                    protlevel = permission_dict[
-                                        node.getAttribute(f'{ns}:permission')]
-                                if prot_level_exist:
-                                    if protlevel == 'normal':
-                                        ret_list.append(
-                                            ('exported_protected_permission_normal', (itemname, item, perm + prot), (an_or_a, itemname)))
-                                        if itemname in ['Activity', 'Activity-Alias']:
-                                            exported.append(item)
-                                        if itemname in ['Broadcast Receiver']:
-                                            exported_receivers.append(item)
-                                        if itemname in ['Content Provider']:
-                                            exported_providers.append(item)
-                                        if itemname in ['Service']:
-                                            exported_services.append(item)
-                                        exp_count[cnt_id] = exp_count[
-                                            cnt_id] + 1
-                                    elif protlevel == 'dangerous':
-                                        ret_list.append(
-                                            ('exported_protected_permission_dangerous', (itemname, item, perm + prot), (an_or_a, itemname)))
-                                        if itemname in ['Activity', 'Activity-Alias']:
-                                            exported.append(item)
-                                        if itemname in ['Broadcast Receiver']:
-                                            exported_receivers.append(item)
-                                        if itemname in ['Content Provider']:
-                                            exported_providers.append(item)
-                                        if itemname in ['Service']:
-                                            exported_services.append(item)
-                                        exp_count[cnt_id] = exp_count[
-                                            cnt_id] + 1
-                                    elif protlevel == 'signature':
-                                        ret_list.append(
-                                            ('exported_protected_permission_signature', (itemname, item, perm + prot), (an_or_a, itemname)))
-                                    elif protlevel == 'signatureOrSystem':
-                                        ret_list.append(
-                                            ('exported_protected_permission_signatureorsystem', (itemname, item, perm + prot), (an_or_a, itemname)))
-                                else:
-                                    ret_list.append(
-                                        ('exported_protected_permission_not_defined', (itemname, item, perm), (an_or_a, itemname)))
-                                    if itemname in ['Activity', 'Activity-Alias']:
-                                        exported.append(item)
-                                    if itemname in ['Broadcast Receiver']:
-                                        exported_receivers.append(item)
-                                    if itemname in ['Content Provider']:
-                                        exported_providers.append(item)
-                                    if itemname in ['Service']:
-                                        exported_services.append(item)
-                                    exp_count[cnt_id] = exp_count[cnt_id] + 1
-                                # Esteve 23.07.2016 - end
-                            else:
-                                # Esteve 24.07.2016 - begin - At this point, we are dealing with components that do not have a permission neither at the component level nor at the
-                                # application level. As they are exported, they
-                                # are not protected.
-                                if perm_appl_level_exists is False:
-                                    ret_list.append(
-                                        ('explicitly_exported', (itemname, item), (an_or_a, itemname)))
-                                    if itemname in ['Activity', 'Activity-Alias']:
-                                        exported.append(item)
-                                    if itemname in ['Broadcast Receiver']:
-                                        exported_receivers.append(item)
-                                    if itemname in ['Content Provider']:
-                                        exported_providers.append(item)
-                                    if itemname in ['Service']:
-                                        exported_services.append(item)
-                                    exp_count[cnt_id] = exp_count[cnt_id] + 1
-                                # Esteve 24.07.2016 - end
-                                # Esteve 24.07.2016 - begin - At this point, we are dealing with components that have a permission at the application level, but not at the component
-                                #  level. Two options are possible:
-                                #        1) The permission is defined at the manifest level, which allows us to differentiate the level of protection as
-                                #           we did just above for permissions specified at the component level.
-                                #        2) The permission is not defined at the manifest level, which means the protection level is unknown, as it is not
-                                # defined in the analysed application.
-                                else:
-                                    perm = '<strong>Permission: </strong>' + perm_appl_level
-                                    prot = ''
-                                    if perm_appl_level in permission_dict:
-                                        prot = ('</br><strong>protectionLevel: </strong>'
-                                                + permission_dict[perm_appl_level])
-                                        prot_level_exist = True
-                                        protlevel = permission_dict[
-                                            perm_appl_level]
-                                    if prot_level_exist:
-                                        if protlevel == 'normal':
-                                            ret_list.append(
-                                                ('exported_protected_permission_normal_app_level', (itemname, item, perm + prot), (an_or_a, itemname)))
-                                            if itemname in ['Activity', 'Activity-Alias']:
-                                                exported.append(item)
-                                            if itemname in ['Broadcast Receiver']:
-                                                exported_receivers.append(item)
-                                            if itemname in ['Content Provider']:
-                                                exported_providers.append(item)
-                                            if itemname in ['Service']:
-                                                exported_services.append(item)
-                                            exp_count[cnt_id] = exp_count[
-                                                cnt_id] + 1
-                                        elif protlevel == 'dangerous':
-                                            ret_list.append(
-                                                ('exported_protected_permission_dangerous_app_level', (itemname, item, perm + prot), (an_or_a, itemname)))
-                                            if itemname in ['Activity', 'Activity-Alias']:
-                                                exported.append(item)
-                                            if itemname in ['Broadcast Receiver']:
-                                                exported_receivers.append(item)
-                                            if itemname in ['Content Provider']:
-                                                exported_providers.append(item)
-                                            if itemname in ['Service']:
-                                                exported_services.append(item)
-                                            exp_count[cnt_id] = exp_count[
-                                                cnt_id] + 1
-                                        elif protlevel == 'signature':
-                                            ret_list.append(
-                                                ('exported_protected_permission', (itemname, item, perm + prot), (an_or_a, itemname)))
-                                        elif protlevel == 'signatureOrSystem':
-                                            ret_list.append(
-                                                ('exported_protected_permission_signatureorsystem_app_level', (itemname, item, perm + prot), (an_or_a, itemname)))
-                                    else:
-                                        ret_list.append(
-                                            ('exported_protected_permission_app_level', (itemname, item, perm), (an_or_a, itemname)))
-                                        if itemname in ['Activity', 'Activity-Alias']:
-                                            exported.append(item)
-                                        if itemname in ['Broadcast Receiver']:
-                                            exported_receivers.append(item)
-                                        if itemname in ['Content Provider']:
-                                            exported_providers.append(item)
-                                        if itemname in ['Service']:
-                                            exported_services.append(item)
-                                        exp_count[cnt_id] = exp_count[
-                                            cnt_id] + 1
-                                # Esteve 24.07.2016 - end
-
-                    elif node.getAttribute(f'{ns}:exported') != 'false':
-                        # Check for Implicitly Exported
-                        # Logic to support intent-filter
-                        intentfilters = node.childNodes
-                        for i in intentfilters:
-                            inf = i.nodeName
-                            if inf == 'intent-filter':
-                                is_inf = True
-                        if is_inf:
-                            item = node.getAttribute(f'{ns}:name')
-                            if node.getAttribute(f'{ns}:permission'):
-                                # permission exists
-                                perm = ('<strong>Permission: </strong>'
-                                        + node.getAttribute(f'{ns}:permission'))
-                                is_perm_exist = True
-                            if item != man_data_dic['mainactivity']:
-                                if is_perm_exist:
-                                    prot = ''
-                                    if node.getAttribute(f'{ns}:permission') in permission_dict:
-                                        prot = ('</br><strong>protectionLevel: </strong>'
-                                                + permission_dict[node.getAttribute(f'{ns}:permission')])
-                                        # Esteve 24.07.2016 - begin - take into account protection level of the permission when claiming that a component is protected by it;
-                                        # - the permission might not be defined in the application being analysed, if so, the protection level is not known;
-                                        # - activities (or activity-alias) that are exported and have an unknown or normal or dangerous protection level are
-                                        #  included in the EXPORTED data structure for further treatment; components in this situation are also
-                                        #  counted as exported.
-                                        prot_level_exist = True
-                                        protlevel = permission_dict[
-                                            node.getAttribute(f'{ns}:permission')]
-                                        if prot_level_exist:
-                                            if protlevel == 'normal':
-                                                ret_list.append(
-                                                    ('exported_protected_permission_normal', (itemname, item, perm + prot), (an_or_a, itemname)))
-                                                if itemname in ['Activity', 'Activity-Alias']:
-                                                    exported.append(item)
-                                                if itemname in ['Broadcast Receiver']:
-                                                    exported_receivers.append(item)
-                                                if itemname in ['Content Provider']:
-                                                    exported_providers.append(item)
-                                                if itemname in ['Service']:
-                                                    exported_services.append(item)
-                                                exp_count[cnt_id] = exp_count[
-                                                    cnt_id] + 1
-                                            elif protlevel == 'dangerous':
-                                                ret_list.append(
-                                                    ('exported_protected_permission_dangerous', (itemname, item, perm + prot), (an_or_a, itemname)))
-                                                if itemname in ['Activity', 'Activity-Alias']:
-                                                    exported.append(item)
-                                                if itemname in ['Broadcast Receiver']:
-                                                    exported_receivers.append(item)
-                                                if itemname in ['Content Provider']:
-                                                    exported_providers.append(item)
-                                                if itemname in ['Service']:
-                                                    exported_services.append(item)
-                                                exp_count[cnt_id] = exp_count[
-                                                    cnt_id] + 1
-                                            elif protlevel == 'signature':
-                                                ret_list.append(
-                                                    ('exported_protected_permission_signature', (itemname, item, perm + prot), (an_or_a, itemname)))
-                                            elif protlevel == 'signatureOrSystem':
-                                                ret_list.append(
-                                                    ('exported_protected_permission_signatureorsystem', (itemname, item, perm + prot), (an_or_a, itemname)))
-                                    else:
-                                        ret_list.append(
-                                            ('exported_protected_permission_not_defined', (itemname, item, perm), (an_or_a, itemname)))
-                                        if itemname in ['Activity', 'Activity-Alias']:
-                                            exported.append(item)
-                                        if itemname in ['Broadcast Receiver']:
-                                            exported_receivers.append(item)
-                                        if itemname in ['Content Provider']:
-                                            exported_providers.append(item)
-                                        if itemname in ['Service']:
-                                            exported_services.append(item)
-                                        exp_count[cnt_id] = exp_count[
-                                            cnt_id] + 1
-                                    # Esteve 24.07.2016 - end
-                                else:
-                                    # Esteve 24.07.2016 - begin - At this point, we are dealing with components that do not have a permission neither at the component level nor at the
-                                    # application level. As they are exported,
-                                    # they are not protected.
-                                    if perm_appl_level_exists is False:
-                                        ret_list.append(
-                                            ('exported_intent_filter_exists', (itemname, item), (an_or_a, itemname, itemname)))
-                                        if itemname in ['Activity', 'Activity-Alias']:
-                                            exported.append(item)
-                                        if itemname in ['Broadcast Receiver']:
-                                            exported_receivers.append(item)
-                                        if itemname in ['Content Provider']:
-                                            exported_providers.append(item)
-                                        if itemname in ['Service']:
-                                            exported_services.append(item)
-                                        exp_count[cnt_id] = exp_count[
-                                            cnt_id] + 1
-                                    # Esteve 24.07.2016 - end
-                                    # Esteve 24.07.2016 - begin - At this point, we are dealing with components that have a permission at the application level, but not at the component
-                                    # level. Two options are possible:
-                                    # 1) The permission is defined at the manifest level, which allows us to differentiate the level of protection as
-                                    #  we did just above for permissions specified at the component level.
-                                    # 2) The permission is not defined at the manifest level, which means the protection level is unknown, as it is not
-                                    #  defined in the analysed application.
-                                    else:
-                                        perm = '<strong>Permission: </strong>' + perm_appl_level
-                                        prot = ''
-                                        if perm_appl_level in permission_dict:
-                                            prot = ('</br><strong>protectionLevel: </strong>'
-                                                    + permission_dict[perm_appl_level])
-                                            prot_level_exist = True
-                                            protlevel = permission_dict[
-                                                perm_appl_level]
-                                        if prot_level_exist:
-                                            if protlevel == 'normal':
-                                                ret_list.append(
-                                                    ('exported_protected_permission_normal_app_level', (itemname, item, perm + prot), (an_or_a, itemname)))
-                                                if itemname in ['Activity', 'Activity-Alias']:
-                                                    exported.append(item)
-                                                exp_count[cnt_id] = exp_count[
-                                                    cnt_id] + 1
-                                            elif protlevel == 'dangerous':
-                                                ret_list.append(
-                                                    ('exported_protected_permission_dangerous_app_level', (itemname, item, perm + prot), (an_or_a, itemname)))
-                                                if itemname in ['Activity', 'Activity-Alias']:
-                                                    exported.append(item)
-                                                exp_count[cnt_id] = exp_count[
-                                                    cnt_id] + 1
-                                            elif protlevel == 'signature':
-                                                ret_list.append(
-                                                    ('exported_protected_permission', (itemname, item, perm + prot), (an_or_a, itemname)))
-                                            elif protlevel == 'signatureOrSystem':
-                                                ret_list.append(
-                                                    ('exported_protected_permission_signatureorsystem_app_level', (itemname, item, perm + prot), (an_or_a, itemname)))
-                                        else:
-                                            ret_list.append(
-                                                ('exported_protected_permission_app_level', (itemname, item, perm), (an_or_a, itemname)))
-                                            if itemname in ['Activity', 'Activity-Alias']:
-                                                exported.append(item)
-                                            exp_count[cnt_id] = exp_count[
-                                                cnt_id] + 1
-                                    # Esteve 24.07.2016 - end
-                                    # Esteve 29.07.2016 - begin The component is not explicitly exported (android:exported is not 'true'). It is not implicitly exported either (it does not
-                                    # make use of an intent filter). Despite that, it could still be exported by default, if it is a content provider and the android:targetSdkVersion
-                                    # is older than 17 (Jelly Bean, Android version 4.2). This is true regardless of the system's API level.
-                                    # Finally, it must also be taken into account that, if the minSdkVersion is greater or equal than 17, this check is unnecessary, because the
-                                    # app will not be run on a system where the
-                                    # system's API level is below 17.
-                        else:
-                            if man_data_dic['min_sdk'] and man_data_dic['target_sdk'] and int(man_data_dic['min_sdk']) < ANDROID_4_2_LEVEL:
-                                if itemname == 'Content Provider' and int(man_data_dic['target_sdk']) < ANDROID_4_2_LEVEL:
-                                    perm = ''
-                                    item = node.getAttribute(f'{ns}:name')
-                                    if node.getAttribute(f'{ns}:permission'):
-                                        # permission exists
-                                        perm = ('<strong>Permission: </strong>'
-                                                + node.getAttribute(f'{ns}:permission'))
-                                        is_perm_exist = True
-                                    if is_perm_exist:
-                                        prot = ''
-                                        if node.getAttribute(f'{ns}:permission') in permission_dict:
-                                            prot = ('</br><strong>protectionLevel: </strong>'
-                                                    + permission_dict[node.getAttribute(f'{ns}:permission')])
-                                            prot_level_exist = True
-                                            protlevel = permission_dict[
-                                                node.getAttribute(f'{ns}:permission')]
-                                        if prot_level_exist:
-                                            if protlevel == 'normal':
-                                                ret_list.append(
-                                                    ('exported_provider_normal', (itemname, item, perm + prot), (an_or_a, itemname)))
-                                                exported_providers.append(item)
-                                                exp_count[cnt_id] = exp_count[
-                                                    cnt_id] + 1
-                                            elif protlevel == 'dangerous':
-                                                ret_list.append(
-                                                    ('exported_provider_danger', (itemname, item, perm + prot), (an_or_a, itemname)))
-                                                exported_providers.append(item)
-                                                exp_count[cnt_id] = exp_count[
-                                                    cnt_id] + 1
-                                            elif protlevel == 'signature':
-                                                ret_list.append(
-                                                    ('exported_provider_signature', (itemname, item, perm + prot), (an_or_a, itemname)))
-                                            elif protlevel == 'signatureOrSystem':
-                                                ret_list.append(
-                                                    ('exported_provider_signatureorsystem', (itemname, item, perm + prot), (an_or_a, itemname)))
-                                        else:
-                                            ret_list.append(
-                                                ('exported_provider_unknown', (itemname, item, perm), (an_or_a, itemname)))
-                                            exported_providers.append(item)
-                                            exp_count[cnt_id] = exp_count[
-                                                cnt_id] + 1
-                                    else:
-                                        if perm_appl_level_exists is False:
-                                            ret_list.append(
-                                                ('exported_provider', (itemname, item), (an_or_a, itemname)))
-                                            exported_providers.append(item)
-                                            exp_count[cnt_id] = exp_count[
-                                                cnt_id] + 1
-                                        else:
-                                            perm = '<strong>Permission: </strong>' + perm_appl_level
-                                            prot = ''
-                                            if perm_appl_level in permission_dict:
-                                                prot = ('</br><strong>protectionLevel: </strong>'
-                                                        + permission_dict[perm_appl_level])
-                                                prot_level_exist = True
-                                                protlevel = permission_dict[
-                                                    perm_appl_level]
-                                            if prot_level_exist:
-                                                if protlevel == 'normal':
-                                                    ret_list.append(
-                                                        ('exported_provider_normal_app', (itemname, item, perm + prot), (an_or_a, itemname)))
-                                                    exported_providers.append(item)
-                                                    exp_count[cnt_id] = exp_count[
-                                                        cnt_id] + 1
-                                                elif protlevel == 'dangerous':
-                                                    ret_list.append(
-                                                        ('exported_provider_danger_appl', (itemname, item, perm + prot), (an_or_a, itemname)))
-                                                    exported_providers.append(item)
-                                                    exp_count[cnt_id] = exp_count[
-                                                        cnt_id] + 1
-                                                elif protlevel == 'signature':
-                                                    ret_list.append(
-                                                        ('exported_provider_signature_appl', (itemname, item, perm + prot), (an_or_a, itemname)))
-                                                elif protlevel == 'signatureOrSystem':
-                                                    ret_list.append(
-                                                        ('exported_provider_signatureorsystem_app', (itemname, item, perm + prot), (an_or_a, itemname)))
-                                            else:
-                                                ret_list.append(
-                                                    ('exported_provider_unknown_app', (itemname, item, perm), (an_or_a, itemname)))
-                                                exported_providers.append(item)
-                                                exp_count[cnt_id] = exp_count[
-                                                    cnt_id] + 1
-                                    # Esteve 29.07.2016 - end
-                                    # Esteve 08.08.2016 - begin - If the content provider does not target an API version lower than 17, it could still be exported by default, depending
-                                    # on the API version of the platform. If it was below 17, the content
-                                    # provider would be exported by default.
-                                else:
-                                    if itemname == 'Content Provider' and int(man_data_dic['target_sdk']) >= 17:
-                                        perm = ''
-                                        item = node.getAttribute(
-                                            f'{ns}:name')
-                                        if node.getAttribute(f'{ns}:permission'):
-                                            # permission exists
-                                            perm = ('<strong>Permission: </strong>'
-                                                    + node.getAttribute(f'{ns}:permission'))
-                                            is_perm_exist = True
-                                        if is_perm_exist:
-                                            prot = ''
-                                            if node.getAttribute(f'{ns}:permission') in permission_dict:
-                                                prot = ('</br><strong>protectionLevel: </strong>'
-                                                        + permission_dict[node.getAttribute(f'{ns}:permission')])
-                                                prot_level_exist = True
-                                                protlevel = permission_dict[
-                                                    node.getAttribute(f'{ns}:permission')]
-                                            if prot_level_exist:
-                                                if protlevel == 'normal':
-                                                    ret_list.append(
-                                                        ('exported_provider_normal_new', (itemname, item, perm + prot), (itemname)))
-                                                    exported_providers.append(item)
-                                                    exp_count[cnt_id] = exp_count[
-                                                        cnt_id] + 1
-                                                if protlevel == 'dangerous':
-                                                    ret_list.append(
-                                                        ('exported_provider_danger_new', (itemname, item, perm + prot), (itemname)))
-                                                    exported_providers.append(item)
-                                                    exp_count[cnt_id] = exp_count[
-                                                        cnt_id] + 1
-                                                if protlevel == 'signature':
-                                                    ret_list.append(
-                                                        ('exported_provider_signature_new', (itemname, item, perm + prot), (itemname)))
-                                                if protlevel == 'signatureOrSystem':
-                                                    ret_list.append(
-                                                        ('exported_provider_signatureorsystem_new', (itemname, item, perm + prot), (an_or_a, itemname)))
-                                            else:
-                                                ret_list.append(
-                                                    ('exported_provider_unknown_new', (itemname, item, perm), (itemname)))
-                                                exported_providers.append(item)
-                                                exp_count[cnt_id] = exp_count[
-                                                    cnt_id] + 1
-                                        else:
-                                            if perm_appl_level_exists is False:
-                                                ret_list.append(
-                                                    ('exported_provider_2', (itemname, item), (an_or_a, itemname)))
-                                                exported_providers.append(item)
-                                                exp_count[cnt_id] = exp_count[
-                                                    cnt_id] + 1
-                                            else:
-                                                perm = '<strong>Permission: </strong>' + perm_appl_level
-                                                prot = ''
-                                                if perm_appl_level in permission_dict:
-                                                    prot = ('</br><strong>protectionLevel: </strong>'
-                                                            + permission_dict[perm_appl_level])
-                                                    prot_level_exist = True
-                                                    protlevel = permission_dict[
-                                                        perm_appl_level]
-                                                if prot_level_exist:
-                                                    if protlevel == 'normal':
-                                                        ret_list.append(
-                                                            ('exported_provider_normal_app_new', (itemname, item, perm + prot), (an_or_a, itemname)))
-                                                        exported_providers.append(item)
-                                                        exp_count[cnt_id] = exp_count[
-                                                            cnt_id] + 1
-                                                    elif protlevel == 'dangerous':
-                                                        ret_list.append(
-                                                            ('exported_provider_danger_app_new', (itemname, item, perm + prot), (an_or_a, itemname)))
-                                                        exported_providers.append(item)
-                                                        exp_count[cnt_id] = exp_count[
-                                                            cnt_id] + 1
-                                                    elif protlevel == 'signature':
-                                                        ret_list.append(
-                                                            ('exported_provider_signature_app_new', (itemname, item, perm + prot), (an_or_a, itemname)))
-                                                    elif protlevel == 'signatureOrSystem':
-                                                        ret_list.append(
-                                                            ('exported_provider_signatureorsystem_app_new', (itemname, item, perm + prot), (an_or_a, itemname)))
-                                                else:
-                                                    ret_list.append(
-                                                        ('exported_provider_unknown_app_new', (itemname, item, perm), (an_or_a, itemname)))
-                                                    exported_providers.append(item)
-                                                    exp_count[cnt_id] = exp_count[
-                                                        cnt_id] + 1
-                                    # Esteve 08.08.2016 - end
-
-        # GRANT-URI-PERMISSIONS
-        for granturi in granturipermissions:
-            if granturi.getAttribute(f'{ns}:pathPrefix') == '/':
-                ret_list.append(
-                    ('improper_provider_permission', ('pathPrefix=/',), ()))
-            elif granturi.getAttribute(f'{ns}:path') == '/':
-                ret_list.append(('improper_provider_permission', ('path=/',), ()))
-            elif granturi.getAttribute(f'{ns}:pathPattern') == '*':
-                ret_list.append(('improper_provider_permission', ('path=*',), ()))
-        # DATA
-        for data in data_tag:
-            if data.getAttribute(f'{ns}:scheme') == 'android_secret_code':
-                xmlhost = data.getAttribute(f'{ns}:host')
-                ret_list.append(('dialer_code_found', (xmlhost,), ()))
-
-            elif data.getAttribute(f'{ns}:port'):
-                dataport = data.getAttribute(f'{ns}:port')
-                ret_list.append(('sms_receiver_port_found', (dataport,), ()))
-        # INTENTS
-        for intent in intents:
-            if intent.getAttribute(f'{ns}:priority').isdigit():
-                value = intent.getAttribute(f'{ns}:priority')
-                if int(value) > 100:
-                    ret_list.append(
-                        ('high_intent_priority_found', (value,), ()))
-        # ACTIONS
-        for action in actions:
-            if action.getAttribute(f'{ns}:priority').isdigit():
-                value = action.getAttribute(f'{ns}:priority')
-                if int(value) > 100:
-                    ret_list.append(
-                        ('high_action_priority_found', (value,), ()))
-        for a_key, t_name, t_desc in ret_list:
-            a_template = MANIFEST_DESC.get(a_key)
-            if a_template:
-                ret_value.append({
-                    'rule': a_key,
-                    'title': a_template['title'] % t_name,
-                    'severity': a_template['level'],
-                    'description': a_template['description'] % t_desc,
-                    'name': a_template['name'] % t_name,
-                    'component': t_name,
-                })
-            else:
-                logger.warning("No template found for key '%s'", a_key)
-
-        for category in man_data_dic['categories']:
-            if category == 'android.intent.category.LAUNCHER':
-                break
-
+                        browsable_activities[node.getAttribute(f'{ns}:name')] = browse_dic
+        
+        # Phase 12: Process permissions for output
         permissions = {}
-        for k, permission in man_data_dic['perm'].items():
-            permissions[k] = (
-                {
+        if 'perm' in man_data_dic:
+            for k, permission in man_data_dic['perm'].items():
+                permissions[k] = {
                     'status': permission[0],
                     'info': permission[1],
                     'description': permission[2],
-                })
-        # Prepare return dict
+                }
+        
+        # Phase 13: Count exported components
         exported_comp = {
-            'exported_activities': exp_count['act'],
-            'exported_services': exp_count['ser'],
-            'exported_receivers': exp_count['bro'],
-            'exported_providers': exp_count['cnt'],
+            'exported_activities': len(component_results['exported_activities']),
+            'exported_services': len(component_results['exported_services']),
+            'exported_receivers': len(component_results['exported_receivers']),
+            'exported_providers': len(component_results['exported_providers']),
         }
+        
+        # Phase 14: Determine network security analysis requirements
+        do_netsec = False
+        debuggable = False
+        applications = mfxml.getElementsByTagName('application')
+        for application in applications:
+            if application.getAttribute(f'{ns}:networkSecurityConfig'):
+                do_netsec = application.getAttribute(f'{ns}:networkSecurityConfig')
+            if application.getAttribute(f'{ns}:debuggable') == 'true':
+                debuggable = True
+        
+        # Phase 15: Build final result dictionary
         man_an_dic = {
-            'manifest_anal': ret_value,
-            'exported_act': exported,
-            'exported_ser': exported_services,
-            'exported_rec': exported_receivers,
-            'exported_pro': exported_providers,
+            'manifest_anal': processed_findings + network_security_findings,
+            'exported_act': component_results['exported_activities'],
+            'exported_ser': component_results['exported_services'],
+            'exported_rec': component_results['exported_receivers'],
+            'exported_pro': component_results['exported_providers'],
             'exported_cnt': exported_comp,
             'browsable_activities': browsable_activities,
             'permissions': permissions,

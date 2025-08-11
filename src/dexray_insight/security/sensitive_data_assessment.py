@@ -12,13 +12,52 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
     """OWASP A02:2021 - Cryptographic Failures / Sensitive Data Exposure assessment"""
     
     def __init__(self, config: Dict[str, Any]):
+        """
+        Initialize SensitiveDataAssessment with comprehensive configuration.
+        
+        Refactored to use single-responsibility functions following SOLID principles.
+        Maintains exact same behavior as original while improving maintainability.
+        
+        Each section is now handled by a dedicated function with single responsibility:
+        - Basic configuration and logging
+        - Pattern enablement configuration  
+        - Threshold and context configuration
+        - PII pattern compilation
+        - Critical security pattern setup
+        - High/medium severity pattern setup
+        - Low severity and context pattern setup
+        - Legacy compatibility setup
+        """
         super().__init__(config)
+        
+        # Use refactored single-responsibility functions for each configuration section
+        self._initialize_basic_configuration(config)
+        self._setup_pattern_enablement(config)
+        self._initialize_threshold_configuration(config)
+        self._compile_pii_patterns()
+        self._setup_critical_security_patterns()
+        self._setup_high_medium_severity_patterns()
+        self._setup_low_severity_context_patterns()
+        self._setup_legacy_compatibility()
+
+    def _initialize_basic_configuration(self, config: Dict[str, Any]):
+        """
+        Initialize basic class configuration and logging.
+        
+        Single Responsibility: Set up core class attributes, logging, and OWASP category only.
+        """
         self.logger = logging.getLogger(__name__)
         self.owasp_category = "A02:2021-Cryptographic Failures"
         
         self.pii_patterns = config.get('pii_patterns', ['email', 'phone', 'ssn', 'credit_card'])
         self.crypto_keys_check = config.get('crypto_keys_check', True)
+
+    def _setup_pattern_enablement(self, config: Dict[str, Any]):
+        """
+        Configure which detection patterns are enabled.
         
+        Single Responsibility: Handle pattern enablement configuration only.
+        """
         # Enhanced key detection configuration
         self.key_detection_config = config.get('key_detection', {})
         self.key_detection_enabled = self.key_detection_config.get('enabled', True)
@@ -35,9 +74,15 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
             'database_connections': pattern_config.get('database_connections', True),
             'high_entropy_strings': pattern_config.get('high_entropy_strings', True)
         }
+
+    def _initialize_threshold_configuration(self, config: Dict[str, Any]):
+        """
+        Set up entropy thresholds, length filters, and context detection.
         
-        # Entropy thresholds
-        entropy_config = self.key_detection_config.get('entropy_thresholds', {})
+        Single Responsibility: Configure detection thresholds and context settings only.
+        """
+        # Entropy thresholds - uses self.key_detection_config set by pattern enablement
+        entropy_config = getattr(self, 'key_detection_config', {}).get('entropy_thresholds', {})
         self.entropy_thresholds = {
             'min_base64_entropy': entropy_config.get('min_base64_entropy', 4.0),
             'min_hex_entropy': entropy_config.get('min_hex_entropy', 3.5),
@@ -45,17 +90,23 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
         }
         
         # Length filters
-        length_config = self.key_detection_config.get('length_filters', {})
+        length_config = getattr(self, 'key_detection_config', {}).get('length_filters', {})
         self.length_filters = {
             'min_key_length': length_config.get('min_key_length', 16),
             'max_key_length': length_config.get('max_key_length', 512)
         }
         
         # Context detection settings
-        context_config = self.key_detection_config.get('context_detection', {})
+        context_config = getattr(self, 'key_detection_config', {}).get('context_detection', {})
         self.context_detection_enabled = context_config.get('enabled', True)
         self.context_strict_mode = context_config.get('strict_mode', False)
+
+    def _compile_pii_patterns(self):
+        """
+        Compile PII detection regex patterns.
         
+        Single Responsibility: Create PII regex patterns only.
+        """
         # PII detection patterns
         self.pii_regex_patterns = {
             'email': r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b',
@@ -63,8 +114,13 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
             'ssn': r'\b\d{3}-?\d{2}-?\d{4}\b',
             'credit_card': r'\b(?:\d{4}[-\s]?){3}\d{4}\b'
         }
+
+    def _setup_critical_security_patterns(self):
+        """
+        Set up CRITICAL severity security detection patterns.
         
-        # Enhanced hardcoded key detection patterns (integrated from secret-finder)
+        Single Responsibility: Define critical security patterns only.
+        """
         self.key_detection_patterns = {
             # CRITICAL SEVERITY PATTERNS
             # Private Keys - Enhanced patterns from secret-finder
@@ -135,9 +191,17 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
                 'pattern': r'[a-zA-Z]{3,10}://[^/\s:@]{3,20}:([^/\s:@]{3,20})@.{1,100}["\'\s]',
                 'description': 'Password in URL',
                 'severity': 'CRITICAL'
-            },
-            
-            # HIGH SEVERITY PATTERNS
+            }
+        }
+
+    def _setup_high_medium_severity_patterns(self):
+        """
+        Set up HIGH and MEDIUM severity security detection patterns.
+        
+        Single Responsibility: Define high and medium severity patterns only.
+        """
+        # HIGH SEVERITY PATTERNS
+        high_patterns = {
             # Generic Password/API Key Patterns
             'generic_password': {
                 'pattern': r'(?i)\b(?:password|pass|pwd|passwd)\b\s*[:=]\s*[\'"]?([^\s\'"/\\,;<>]{8,})[\'"]?',
@@ -252,9 +316,11 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
                 'pattern': r'xox[p|b|o|a]-[0-9]{12}-[0-9]{12}-[0-9]{12}-[a-z0-9]{32}',
                 'description': 'Slack Token',
                 'severity': 'HIGH'
-            },
-            
-            # MEDIUM SEVERITY PATTERNS
+            }
+        }
+        
+        # MEDIUM SEVERITY PATTERNS
+        medium_patterns = {
             'slack_token_legacy': {
                 'pattern': r'xox[baprs]-[0-9a-zA-Z]{10,48}',
                 'description': 'Slack Token (Legacy)',
@@ -322,7 +388,28 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
                 'severity': 'MEDIUM'
             },
             
-            # LOW SEVERITY PATTERNS
+            # Smali const-string patterns for API keys
+            'smali_const_string_api_key': {
+                'pattern': r'const-string\s+v\d+,\s*"([^"]{20,})"',
+                'description': 'Smali const-string API key pattern',
+                'severity': 'MEDIUM'
+            }
+        }
+        
+        # Add to existing patterns - initialize if doesn't exist
+        if not hasattr(self, 'key_detection_patterns'):
+            self.key_detection_patterns = {}
+        self.key_detection_patterns.update(high_patterns)
+        self.key_detection_patterns.update(medium_patterns)
+
+    def _setup_low_severity_context_patterns(self):
+        """
+        Set up LOW severity patterns and context keywords.
+        
+        Single Responsibility: Define low severity patterns and context detection only.
+        """
+        # LOW SEVERITY PATTERNS
+        low_patterns = {
             'jenkins_api_token': {
                 'pattern': r'11[0-9a-f]{32}',
                 'description': 'Jenkins API Token',
@@ -370,15 +457,13 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
                 'severity': 'LOW',
                 'min_entropy': 5.0,
                 'max_length': 512
-            },
-            
-            # Smali const-string patterns for API keys
-            'smali_const_string_api_key': {
-                'pattern': r'const-string\s+v\d+,\s*"([^"]{20,})"',
-                'description': 'Smali const-string API key pattern',
-                'severity': 'MEDIUM'
             }
         }
+        
+        # Add to existing patterns - initialize if doesn't exist
+        if not hasattr(self, 'key_detection_patterns'):
+            self.key_detection_patterns = {}
+        self.key_detection_patterns.update(low_patterns)
         
         # Context keywords that increase suspicion level
         self.key_context_keywords = {
@@ -387,7 +472,13 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
             'api': ['api', 'token', 'bearer', 'oauth', 'jwt', 'auth'],
             'database': ['db', 'database', 'connection', 'conn', 'sql', 'mysql', 'postgres']
         }
+
+    def _setup_legacy_compatibility(self):
+        """
+        Maintain backward compatibility with legacy patterns and permissions.
         
+        Single Responsibility: Set up legacy compatibility patterns and sensitive permissions only.
+        """
         # Legacy crypto patterns (kept for backward compatibility)
         self.crypto_patterns = [
             'DES', 'RC4', 'MD5', 'SHA1',
