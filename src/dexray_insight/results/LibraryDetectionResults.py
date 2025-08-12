@@ -99,6 +99,14 @@ class DetectedLibrary:
     license: Optional[str] = None  # License information
     anti_features: List[str] = None  # Anti-features (tracking, ads, etc.)
     
+    # Version analysis fields
+    years_behind: Optional[float] = None  # How many years behind the latest version
+    major_versions_behind: Optional[int] = None  # How many major versions behind
+    security_risk: Optional[str] = None  # LOW, MEDIUM, HIGH, CRITICAL, UNKNOWN
+    version_recommendation: Optional[str] = None  # Recommendation for updating
+    version_analysis_date: Optional[str] = None  # When version analysis was performed
+    smali_path: Optional[str] = None  # Smali path where library was found
+    
     def __post_init__(self):
         if self.evidence is None:
             self.evidence = []
@@ -140,7 +148,17 @@ class DetectedLibrary:
             'vendor': self.vendor,
             'latest_version': self.latest_version,
             'release_date': self.release_date,
-            'vulnerabilities': self.vulnerabilities
+            'vulnerabilities': self.vulnerabilities,
+            'url': self.url,
+            'license': self.license,
+            'anti_features': self.anti_features,
+            # Version analysis fields
+            'years_behind': self.years_behind,
+            'major_versions_behind': self.major_versions_behind,
+            'security_risk': self.security_risk,
+            'version_recommendation': self.version_recommendation,
+            'version_analysis_date': self.version_analysis_date,
+            'smali_path': self.smali_path
         }
     
     def get_age_description(self) -> str:
@@ -153,6 +171,46 @@ class DetectedLibrary:
             return f"~{self.age_years_behind:.1f} year behind"
         else:
             return f"~{self.age_years_behind:.0f} years behind"
+    
+    def format_version_output(self) -> str:
+        """
+        Format library with version information for console output.
+        
+        Format: library name (version): smali path : years behind
+        Example: Gson (2.8.5): /com/google/gson/ : 2.1 years behind
+        """
+        if not self.version:
+            return f"{self.name}: version unknown"
+        
+        # Build the output string components
+        base_output = f"{self.name} ({self.version})"
+        
+        # Add smali path if available
+        if self.smali_path:
+            base_output += f": {self.smali_path}"
+        
+        # Add version analysis if available
+        if self.years_behind is not None:
+            years_part = f": {self.years_behind} years behind"
+            
+            # Add security risk indicator
+            risk_indicator = ""
+            if self.security_risk == "CRITICAL":
+                risk_indicator = " ⚠️ CRITICAL"
+            elif self.security_risk == "HIGH":
+                risk_indicator = " ⚠️ HIGH RISK"
+            elif self.security_risk == "MEDIUM":
+                risk_indicator = " ⚠️ MEDIUM RISK"
+            
+            base_output += years_part + risk_indicator
+        else:
+            # Show that version analysis was attempted but failed/unavailable
+            if hasattr(self, 'latest_version') and self.latest_version:
+                base_output += f": latest {self.latest_version} available"
+            else:
+                base_output += ": version analysis pending"
+        
+        return base_output
     
     def get_risk_description(self) -> str:
         """Get human-readable risk description"""

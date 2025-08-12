@@ -85,6 +85,7 @@ Documentation Contents
    :caption: Advanced Topics
 
    advanced/security_assessment
+   version_analysis
    advanced/native_analysis
    advanced/custom_modules
    advanced/docker_usage

@@ -26,6 +26,7 @@ from dexray_insight.results.LibraryDetectionResults import (
     DetectedLibrary, LibraryDetectionMethod, LibraryCategory, 
     LibraryType, RiskLevel, LibrarySource
 )
+from ..utils.version_analyzer import get_version_analyzer
 
 
 class ApktoolDetectionEngine:
@@ -67,6 +68,9 @@ class ApktoolDetectionEngine:
         self._libs_by_path: Optional[Dict[str, dict]] = None
         self._id_to_paths: Optional[Dict[str, List[str]]] = None
         
+        # Initialize version analyzer (will be updated with security context later)
+        self.version_analyzer = get_version_analyzer(config)
+        
         # Check for newer library definitions on startup
         if self.config.get('auto_update_definitions', True):
             self._update_library_definitions()
@@ -107,6 +111,20 @@ class ApktoolDetectionEngine:
             errors.append("Apktool extraction results not available for library detection")
             return []
         
+        # IMPORTANT: Update version analyzer with security context BEFORE any detection phases
+        # This ensures that _enhance_library_with_version_analysis calls use the correct security context
+        security_analysis_enabled = context.config.get('security', {}).get('enable_owasp_assessment', False)
+        full_config = dict(self.config)
+        full_config.update(context.config.get('modules', {}).get('library_detection', {}))
+        self.version_analyzer = get_version_analyzer(
+            {'version_analysis': full_config.get('version_analysis', {})}, 
+            security_analysis_enabled=security_analysis_enabled
+        )
+        
+        self.logger.debug(f"Version analyzer configured: security_analysis_enabled={security_analysis_enabled}, "
+                         f"security_analysis_only={self.version_analyzer.security_analysis_only}, "
+                         f"version_analysis_enabled={self.version_analyzer.enable_version_checking}")
+        
         detected_libraries = []
         temporal_paths = context.temporal_paths
         apktool_dir = temporal_paths.apktool_dir
@@ -137,6 +155,8 @@ class ApktoolDetectionEngine:
             
             analysis_time = time.time() - start_time
             self.logger.info(f"Apktool detection completed in {analysis_time:.2f}s: {len(detected_libraries)} libraries")
+            
+            # Version analysis printing moved to main library detection module for proper ordering
             
         except Exception as e:
             error_msg = f"Error in apktool-based library detection: {str(e)}"
@@ -277,6 +297,7 @@ class ApktoolDetectionEngine:
         """Check if library path exists in any smali root directory"""
         smali_roots = self._find_smali_roots(apktool_dir)
         if not smali_roots:
+            self.logger.debug(f"No smali roots found in {apktool_dir}")
             return False
         
         # Normalize lib_path (remove leading slash)
@@ -285,7 +306,13 @@ class ApktoolDetectionEngine:
         for smali_root in smali_roots:
             candidate = smali_root / Path(rel_path.replace("/", os.sep))
             if candidate.exists() and candidate.is_dir():
+                self.logger.debug(f"Found library path {lib_path} in {smali_root}")
                 return True
+            else:
+                # Debug missing paths for AndroidX only
+                if "androidx" in lib_path.lower():
+                    self.logger.debug(f"AndroidX path not found: {candidate} (from {lib_path})")
+        
         return False
     
     def _scan_lib_patterns(self, apktool_dir: Path, errors: List[str]) -> List[DetectedLibrary]:
@@ -315,19 +342,49 @@ class ApktoolDetectionEngine:
                 errors.append("No library patterns loaded for pattern detection")
                 return detected_libraries
             
+            # Count AndroidX patterns for debugging
+            androidx_patterns = [path for path in self._libs_by_path.keys() if "androidx" in path.lower()]
+            self.logger.debug(f"Total AndroidX patterns in libsmali.jsonl: {len(androidx_patterns)}")
+            
             # Check each library pattern against smali directories
             for lib_path, definition in self._libs_by_path.items():
                 if self._lib_dir_exists(apktool_dir, lib_path):
+                    # Debug AndroidX finds
+                    if "androidx" in lib_path.lower():
+                        self.logger.debug(f"AndroidX pattern MATCHED: {lib_path} -> {definition.get('name', 'unknown')}")
+                    
                     library = self._create_detected_library_from_definition(
                         definition, LibraryDetectionMethod.PATTERN_MATCHING, lib_path
                     )
                     if library:
+                        # Debug AndroidX library creation
+                        if "androidx" in lib_path.lower():
+                            self.logger.debug(f"AndroidX library CREATED: {library.name} (Category: {library.category.name})")
+                        # Enhance library with version analysis if version is available
+                        if library.version:
+                            self._enhance_library_with_version_analysis(library)
                         detected_libraries.append(library)
+                        # Debug AndroidX library addition to list
+                        if "androidx" in lib_path.lower():
+                            # Filter by smali_path containing androidx, not by name!
+                            current_androidx = [lib.name for lib in detected_libraries if hasattr(lib, 'smali_path') and lib.smali_path and 'androidx' in lib.smali_path]
+                            self.logger.debug(f"AndroidX ADDED to list: {library.name} (List now has {len(current_androidx)} AndroidX libs: {current_androidx})")
+                    else:
+                        # Debug failed library creation
+                        if "androidx" in lib_path.lower():
+                            self.logger.debug(f"AndroidX library CREATION FAILED for {lib_path} -> {definition.get('name', 'unknown')}")
+                elif "androidx" in lib_path.lower():
+                    # Debug AndroidX misses
+                    self.logger.debug(f"AndroidX pattern NOT found: {lib_path}")
                         
         except Exception as e:
             error_msg = f"Error in pattern-based library detection: {str(e)}"
             self.logger.error(error_msg)
             errors.append(error_msg)
+        
+        # Final debug before return
+        final_androidx = [lib for lib in detected_libraries if hasattr(lib, 'smali_path') and lib.smali_path and 'androidx' in lib.smali_path]
+        self.logger.debug(f"FINAL RETURN: {len(detected_libraries)} total libraries, {len(final_androidx)} AndroidX")
         
         return detected_libraries
     
@@ -353,16 +410,38 @@ class ApktoolDetectionEngine:
                                 client = val.strip()
                     
                     if client and version:
+                        # Try to get enhanced library information from mapping
+                        from ..utils.library_mappings import get_library_mapping
+                        
+                        mapping = get_library_mapping(client)
+                        display_name = mapping.display_name if mapping else client
+                        category_str = mapping.category if mapping else "unknown"
+                        description = mapping.description if mapping else ""
+                        url = mapping.official_url if mapping else ""
+                        
+                        # Map category string to enum
+                        category = self._map_category_string_to_enum(category_str)
+                        
                         library = DetectedLibrary(
-                            name=client,
+                            name=display_name,
+                            package_name=client,
                             version=version,
                             detection_method=LibraryDetectionMethod.FILE_ANALYSIS,
-                            category=LibraryCategory.UNKNOWN,
+                            category=category,
                             confidence=0.9,
                             evidence=[f"Found in properties file: {properties_file.name}"],
                             file_paths=[str(properties_file.relative_to(apktool_dir))],
-                            source=LibrarySource.PROPERTIES_FILES
+                            source=LibrarySource.PROPERTIES_FILES,
+                            smali_path=str(properties_file.relative_to(apktool_dir)),
+                            url=url
                         )
+                        
+                        # Add description to evidence if available
+                        if description:
+                            library.evidence.append(f"Description: {description}")
+                        
+                        # Enhance with version analysis
+                        self._enhance_library_with_version_analysis(library)
                         detected_libraries.append(library)
                         
                 except Exception as e:
@@ -434,8 +513,12 @@ class ApktoolDetectionEngine:
                             confidence=0.8,
                             evidence=[f"Found in BuildConfig.smali: {buildconfig_file.name}"],
                             file_paths=[str(buildconfig_file.relative_to(apktool_dir))],
-                            source=LibrarySource.SMALI_CLASSES
+                            source=LibrarySource.SMALI_CLASSES,
+                            smali_path=str(buildconfig_file.relative_to(apktool_dir))
                         )
+                        # Enhance with version analysis if version is available
+                        if version:
+                            self._enhance_library_with_version_analysis(library)
                         detected_libraries.append(library)
                         
                 except Exception as e:
@@ -508,7 +591,8 @@ class ApktoolDetectionEngine:
                 source=LibrarySource.SMALI_CLASSES,
                 url=url,
                 license=license_info,
-                anti_features=anti_features
+                anti_features=anti_features,
+                smali_path=lib_path  # Include the smali path where library was found
             )
             
         except Exception as e:
@@ -517,22 +601,38 @@ class ApktoolDetectionEngine:
     
     def _map_type_to_category(self, lib_type: str) -> LibraryCategory:
         """Map library type string to LibraryCategory enum"""
-        type_mapping = {
+        return self._map_category_string_to_enum(lib_type)
+    
+    def _map_category_string_to_enum(self, category_str: str) -> LibraryCategory:
+        """Map category string to LibraryCategory enum"""
+        category_mapping = {
             'ads': LibraryCategory.ADVERTISING,
+            'advertising': LibraryCategory.ADVERTISING,
             'analytics': LibraryCategory.ANALYTICS,
             'tracking': LibraryCategory.TRACKING,
             'crash': LibraryCategory.CRASH_REPORTING,
             'social': LibraryCategory.SOCIAL,
             'ui': LibraryCategory.UI_COMPONENT,
             'network': LibraryCategory.NETWORK,
+            'networking': LibraryCategory.NETWORK,
             'utility': LibraryCategory.UTILITY,
             'security': LibraryCategory.SECURITY,
             'testing': LibraryCategory.TESTING,
-            'development': LibraryCategory.DEVELOPMENT
+            'development': LibraryCategory.DEVELOPMENT,
+            'core': LibraryCategory.UTILITY,
+            'authentication': LibraryCategory.SECURITY,
+            'location': LibraryCategory.UTILITY,
+            'maps': LibraryCategory.UTILITY,
+            'media': LibraryCategory.UTILITY,
+            'messaging': LibraryCategory.NETWORKING,
+            'billing': LibraryCategory.UTILITY,
+            'serialization': LibraryCategory.UTILITY,
+            'imaging': LibraryCategory.UTILITY,
+            'ml': LibraryCategory.UTILITY
         }
         
-        lib_type_lower = lib_type.lower()
-        return type_mapping.get(lib_type_lower, LibraryCategory.UNKNOWN)
+        category_lower = category_str.lower()
+        return category_mapping.get(category_lower, LibraryCategory.UNKNOWN)
     
     def _deduplicate_libraries(self, libraries: List[DetectedLibrary]) -> List[DetectedLibrary]:
         """Remove duplicate libraries based on name and package"""
@@ -558,3 +658,154 @@ class ApktoolDetectionEngine:
                     existing.evidence.extend([e for e in library.evidence if e not in existing.evidence])
         
         return deduplicated
+    
+    def _enhance_library_with_version_analysis(self, library: DetectedLibrary):
+        """
+        Enhance detected library with version analysis information.
+        
+        Args:
+            library: DetectedLibrary object to enhance with version analysis
+        """
+        try:
+            if not library.version:
+                self.logger.debug(f"Version analysis SKIPPED: {library.name} - no version available")
+                return
+                
+            # Debug logging to track what names are being passed
+            self.logger.info(f"🔍 VERSION ANALYSIS: Processing {library.name} v{library.version} (package: {library.package_name}, security_enabled: {self.version_analyzer.security_analysis_enabled})")
+                
+            # Use package_name as primary identifier for version analysis (better for mappings)
+            # Fall back to display name if no package_name available
+            identifier_name = library.package_name if library.package_name else library.name
+            
+            # Perform version analysis
+            analysis = self.version_analyzer.analyze_library_version(
+                identifier_name, library.version, library.package_name
+            )
+            
+            self.logger.info(f"📊 VERSION RESULT: {library.name} -> years_behind={analysis.years_behind}, risk={analysis.security_risk}, recommendation='{analysis.recommendation[:50]}...')")
+            
+            # Update library with analysis results
+            library.years_behind = analysis.years_behind
+            library.major_versions_behind = analysis.major_versions_behind
+            library.security_risk = analysis.security_risk
+            library.version_recommendation = analysis.recommendation
+            library.version_analysis_date = analysis.analysis_date.isoformat()
+            library.latest_version = analysis.latest_version
+            
+            # Update risk level based on version analysis
+            if analysis.security_risk == "CRITICAL":
+                library.risk_level = RiskLevel.CRITICAL
+            elif analysis.security_risk == "HIGH":
+                library.risk_level = RiskLevel.HIGH
+            elif analysis.security_risk == "MEDIUM" and library.risk_level == RiskLevel.LOW:
+                library.risk_level = RiskLevel.MEDIUM
+                
+        except Exception as e:
+            self.logger.debug(f"Version analysis failed for {library.name}: {e}")
+    
+    def _print_version_analysis_results(self, libraries: List[DetectedLibrary]):
+        """
+        Print enhanced version analysis results to console.
+        
+        Format: library name (version): smali path : years behind
+        Example: Gson (2.8.5): /com/google/gson/ : 2.1 years behind
+        """
+        libraries_with_versions = [lib for lib in libraries if lib.version]
+        
+        if not libraries_with_versions:
+            self.logger.info("No libraries with version information found for version analysis display")
+            return
+        
+        self.logger.info(f"Found {len(libraries_with_versions)} libraries with version information for analysis")
+            
+        print("\n" + "="*80)
+        print("📚 LIBRARY VERSION ANALYSIS")
+        print("="*80)
+        
+        # Group libraries by security risk and also include libraries without risk assessment
+        critical_libs = [lib for lib in libraries_with_versions if lib.security_risk == "CRITICAL"]
+        high_risk_libs = [lib for lib in libraries_with_versions if lib.security_risk == "HIGH"]
+        medium_risk_libs = [lib for lib in libraries_with_versions if lib.security_risk == "MEDIUM"]
+        low_risk_libs = [lib for lib in libraries_with_versions if lib.security_risk in ["LOW", None]]
+        
+        # Also show ALL libraries with versions, even if version analysis failed
+        all_versioned_libs = libraries_with_versions
+        
+        self.logger.info(f"Version analysis grouping: Critical={len(critical_libs)}, High={len(high_risk_libs)}, Medium={len(medium_risk_libs)}, Low={len(low_risk_libs)}, Total={len(all_versioned_libs)}")
+        
+        # Print critical libraries first
+        if critical_libs:
+            print(f"\n⚠️  CRITICAL RISK LIBRARIES ({len(critical_libs)}):")
+            print("-" * 40)
+            for lib in sorted(critical_libs, key=lambda x: x.years_behind or 0, reverse=True):
+                print(f"   {lib.format_version_output()}")
+                if lib.version_recommendation:
+                    print(f"   └─ {lib.version_recommendation}")
+        
+        # Print high risk libraries
+        if high_risk_libs:
+            print(f"\n⚠️  HIGH RISK LIBRARIES ({len(high_risk_libs)}):")
+            print("-" * 40)
+            for lib in sorted(high_risk_libs, key=lambda x: x.years_behind or 0, reverse=True):
+                print(f"   {lib.format_version_output()}")
+                if lib.version_recommendation:
+                    print(f"   └─ {lib.version_recommendation}")
+        
+        # Print medium risk libraries
+        if medium_risk_libs:
+            print(f"\n⚠️  MEDIUM RISK LIBRARIES ({len(medium_risk_libs)}):")
+            print("-" * 40)
+            for lib in sorted(medium_risk_libs, key=lambda x: x.years_behind or 0, reverse=True):
+                print(f"   {lib.format_version_output()}")
+        
+        # Print low risk libraries (summary only)
+        if low_risk_libs:
+            current_libs = [lib for lib in low_risk_libs if (lib.years_behind or 0) < 0.5]
+            outdated_libs = [lib for lib in low_risk_libs if (lib.years_behind or 0) >= 0.5]
+            
+            if outdated_libs:
+                print(f"\n📋 OUTDATED LIBRARIES ({len(outdated_libs)}):")
+                print("-" * 40)
+                for lib in sorted(outdated_libs, key=lambda x: x.years_behind or 0, reverse=True):
+                    print(f"   {lib.format_version_output()}")
+            
+            if current_libs:
+                print(f"\n✅ CURRENT LIBRARIES ({len(current_libs)}):")
+                print("-" * 40)
+                for lib in sorted(current_libs, key=lambda x: x.name):
+                    print(f"   {lib.format_version_output()}")
+        
+        # ALWAYS show all libraries with versions, even if risk analysis failed
+        if all_versioned_libs and not (critical_libs or high_risk_libs or medium_risk_libs):
+            print(f"\n📚 ALL LIBRARIES WITH VERSION INFO ({len(all_versioned_libs)}):")
+            print("-" * 60)
+            for lib in sorted(all_versioned_libs, key=lambda x: x.name.lower()):
+                formatted = lib.format_version_output()
+                print(f"   {formatted}")
+                
+                # Show additional info if available
+                if hasattr(lib, 'latest_version') and lib.latest_version and lib.latest_version != lib.version:
+                    print(f"   └─ Latest available: {lib.latest_version}")
+                if lib.version_recommendation and "Unable to determine" not in lib.version_recommendation:
+                    print(f"   └─ {lib.version_recommendation}")
+        
+        # Print summary statistics
+        total_libs = len(libraries_with_versions)
+        if total_libs > 0:
+            print(f"\n📊 SUMMARY:")
+            print("-" * 40)
+            print(f"   Total libraries analyzed: {total_libs}")
+            print(f"   Critical risk: {len(critical_libs)}")
+            print(f"   High risk: {len(high_risk_libs)}")  
+            print(f"   Medium risk: {len(medium_risk_libs)}")
+            print(f"   Low risk: {len(low_risk_libs)}")
+            
+            libs_with_years = [lib for lib in libraries_with_versions if lib.years_behind is not None]
+            if libs_with_years:
+                avg_years = sum(lib.years_behind for lib in libs_with_years) / len(libs_with_years)
+                print(f"   Average years behind: {avg_years:.1f}")
+            else:
+                print(f"   Years behind analysis: Not available (API timeouts/errors)")
+        
+        print("="*80)

@@ -116,7 +116,7 @@ modules:
     # Stage 5: Apktool-based Detection Configuration (requires apktool extraction)
     apktool_detection:
       # Individual detection methods can be enabled/disabled
-      enable_pattern_detection: true     # Pattern matching using IzzyOnDroid library definitions
+      enable_pattern_detection: false    # Pattern matching using IzzyOnDroid library definitions - disabled for faster testing
       enable_properties_detection: true  # Scan for .properties files with version info
       enable_buildconfig_detection: true # Extract info from BuildConfig.smali files
       
@@ -133,6 +133,27 @@ modules:
       
       # Note: Set auto_update_definitions to false and customize paths above 
       # if you want to use your own library definition files
+    
+    # Version Analysis Configuration (NEW)  
+    version_analysis:
+      enabled: true                     # Enable version analysis and "years behind" calculation
+      security_analysis_only: true     # Only run version analysis during security analysis (-s flag)
+      api_timeout: 5                    # Timeout for API calls to version databases (seconds)
+      cache_duration_hours: 24          # Cache duration for version information
+      
+      # Version sources (in order of preference)
+      sources:
+        maven_central: true             # Check Maven Central for Android/Java libraries
+        npm_registry: true              # Check npm for JavaScript libraries
+        pypi: true                      # Check PyPI for Python libraries (Kivy apps)
+        custom_database: false          # Use custom version database (extend as needed)
+      
+      # Console output options
+      console_output:
+        enabled: true                   # Show enhanced version analysis in console
+        show_recommendations: true      # Show update recommendations
+        group_by_risk: true            # Group libraries by security risk level
+        show_summary: true             # Show summary statistics
     
     # Analysis features
     features:
@@ -222,7 +243,8 @@ temporal_analysis:
 
 # Security Assessment Configuration
 security:
-  enable_owasp_assessment: false
+  # enable_owasp_assessment: false  # Commented out to allow CLI -s flag to work
+  # Use -s flag to enable security analysis or set to true here to enable by default
   assessments:
     injection:
       enabled: true

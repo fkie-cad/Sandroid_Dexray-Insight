@@ -88,6 +88,33 @@ class Configuration:
                 'priority': 1000,  # Lowest priority to run last
                 'deep_mode': False  # Fast mode by default, deep mode via --deep flag
             },
+            'library_detection': {
+                'enabled': True,
+                'priority': 25,
+                'enable_heuristic': True,
+                'enable_similarity': True,
+                'confidence_threshold': 0.7,
+                'similarity_threshold': 0.85,
+                'class_similarity_threshold': 0.7,
+                'version_analysis': {
+                    'enabled': True,
+                    'security_analysis_only': True,  # Only run during security analysis
+                    'api_timeout': 5,
+                    'cache_duration_hours': 24,
+                    'sources': {
+                        'maven_central': True,
+                        'npm_registry': True,
+                        'pypi': True,
+                        'custom_database': False
+                    },
+                    'console_output': {
+                        'enabled': True,
+                        'show_recommendations': True,
+                        'group_by_risk': True,
+                        'show_summary': True
+                    }
+                }
+            },
             'native_analysis': {
                 'enabled': True,
                 'priority': 50,  # Run after library_detection and string_analysis

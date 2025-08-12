@@ -309,6 +309,9 @@ class FullAnalysisResults:
             print("\n📚 LIBRARY DETECTION")
             print("-" * 40)
             print(self.library_detection.get_console_summary())
+            
+            # Show version analysis results if available and security analysis was enabled
+            self._print_version_analysis_summary()
         
         # Security Assessment Summary
         if self.security_assessment:
@@ -575,3 +578,135 @@ class FullAnalysisResults:
             self.apkid_analysis.update_from_dict(updates["apkid_analysis"])
         if "kavanoz_analysis" in updates and self.kavanoz_analysis:
             self.kavanoz_analysis.update_from_dict(updates["kavanoz_analysis"])
+
+    def _print_version_analysis_summary(self):
+        """
+        Print version analysis results as part of the library detection summary.
+        Only displays when security analysis is enabled and libraries have version information.
+        """
+        if not self.library_detection or not hasattr(self.library_detection, 'detected_libraries'):
+            return
+            
+        # Check if security analysis was performed (indicator that version analysis might have run)
+        if not self.security_assessment:
+            return
+            
+        # Get libraries with version information
+        libraries = self.library_detection.detected_libraries or []
+        libraries_with_versions = [lib for lib in libraries if hasattr(lib, 'version') and lib.version]
+        
+        if not libraries_with_versions:
+            return
+            
+        # Check if any libraries have version analysis results
+        libraries_with_analysis = [lib for lib in libraries_with_versions 
+                                 if hasattr(lib, 'years_behind') and lib.years_behind is not None]
+        
+        if not libraries_with_analysis:
+            return
+            
+        print(f"\n📚 LIBRARY VERSION ANALYSIS")
+        print("="*80)
+        print(f"Version analysis grouping: {len(libraries_with_analysis)} libraries analyzed")
+        
+        # Group libraries by security risk
+        critical_libs = [lib for lib in libraries_with_analysis if hasattr(lib, 'security_risk') and lib.security_risk == "CRITICAL"]
+        high_risk_libs = [lib for lib in libraries_with_analysis if hasattr(lib, 'security_risk') and lib.security_risk == "HIGH"]
+        medium_risk_libs = [lib for lib in libraries_with_analysis if hasattr(lib, 'security_risk') and lib.security_risk == "MEDIUM"]
+        low_risk_libs = [lib for lib in libraries_with_analysis if not hasattr(lib, 'security_risk') or lib.security_risk in ["LOW", None]]
+        
+        # Print critical libraries first
+        if critical_libs:
+            print(f"\n⚠️  CRITICAL RISK LIBRARIES ({len(critical_libs)}):")
+            print("-" * 40)
+            for lib in sorted(critical_libs, key=lambda x: getattr(x, 'years_behind', 0), reverse=True):
+                formatted = self._format_library_version_output(lib)
+                print(f"   {formatted}")
+                if hasattr(lib, 'version_recommendation') and lib.version_recommendation:
+                    print(f"   └─ {lib.version_recommendation}")
+        
+        # Print high risk libraries  
+        if high_risk_libs:
+            print(f"\n⚠️  HIGH RISK LIBRARIES ({len(high_risk_libs)}):")
+            print("-" * 40)
+            for lib in sorted(high_risk_libs, key=lambda x: getattr(x, 'years_behind', 0), reverse=True):
+                formatted = self._format_library_version_output(lib)
+                print(f"   {formatted}")
+                if hasattr(lib, 'version_recommendation') and lib.version_recommendation:
+                    print(f"   └─ {lib.version_recommendation}")
+        
+        # Print medium risk libraries
+        if medium_risk_libs:
+            print(f"\n⚠️  MEDIUM RISK LIBRARIES ({len(medium_risk_libs)}):")
+            print("-" * 40)
+            for lib in sorted(medium_risk_libs, key=lambda x: getattr(x, 'years_behind', 0), reverse=True):
+                formatted = self._format_library_version_output(lib)
+                print(f"   {formatted}")
+        
+        # Print low risk libraries (summary only)
+        if low_risk_libs:
+            current_libs = [lib for lib in low_risk_libs if getattr(lib, 'years_behind', 0) < 0.5]
+            outdated_libs = [lib for lib in low_risk_libs if getattr(lib, 'years_behind', 0) >= 0.5]
+            
+            if outdated_libs:
+                print(f"\n📋 OUTDATED LIBRARIES ({len(outdated_libs)}):")
+                print("-" * 40)
+                for lib in sorted(outdated_libs, key=lambda x: getattr(x, 'years_behind', 0), reverse=True):
+                    formatted = self._format_library_version_output(lib)
+                    print(f"   {formatted}")
+            
+            if current_libs:
+                print(f"\n✅ CURRENT LIBRARIES ({len(current_libs)}):")
+                print("-" * 40)
+                for lib in sorted(current_libs, key=lambda x: getattr(x, 'name', '')):
+                    formatted = self._format_library_version_output(lib)
+                    print(f"   {formatted}")
+        
+        # Print summary statistics
+        if libraries_with_analysis:
+            print(f"\n📊 SUMMARY:")
+            print("-" * 40)
+            print(f"   Total libraries analyzed: {len(libraries_with_analysis)}")
+            print(f"   Critical risk: {len(critical_libs)}")
+            print(f"   High risk: {len(high_risk_libs)}")
+            print(f"   Medium risk: {len(medium_risk_libs)}")
+            print(f"   Low risk: {len(low_risk_libs)}")
+            
+            years_values = [lib.years_behind for lib in libraries_with_analysis if hasattr(lib, 'years_behind') and lib.years_behind is not None]
+            if years_values:
+                avg_years = sum(years_values) / len(years_values)
+                print(f"   Average years behind: {avg_years:.1f}")
+        
+        print("="*80)
+    
+    def _format_library_version_output(self, library):
+        """
+        Format version analysis output for console display.
+        
+        Format: library name (version): smali path : years behind
+        Example: Gson (2.8.5): /com/google/gson/ : 2.1 years behind
+        """
+        name = getattr(library, 'name', 'Unknown')
+        version = getattr(library, 'version', 'Unknown')
+        years_behind = getattr(library, 'years_behind', None)
+        smali_path = getattr(library, 'smali_path', '')
+        security_risk = getattr(library, 'security_risk', None)
+        
+        # Format smali path part
+        path_part = f": {smali_path} " if smali_path else ""
+        
+        if years_behind is not None:
+            years_part = f": {years_behind} years behind"
+            
+            # Add security risk indicator
+            risk_indicator = ""
+            if security_risk == "CRITICAL":
+                risk_indicator = " ⚠️ CRITICAL"
+            elif security_risk == "HIGH": 
+                risk_indicator = " ⚠️ HIGH RISK"
+            elif security_risk == "MEDIUM":
+                risk_indicator = " ⚠️ MEDIUM RISK"
+                
+            return f"{name} ({version}){path_part}{years_part}{risk_indicator}"
+        else:
+            return f"{name} ({version}){path_part}: version analysis unavailable"
