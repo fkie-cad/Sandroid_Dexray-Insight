@@ -403,6 +403,223 @@ class AnalysisEngine:
         
         return results
     
+    def _build_apk_overview(self, module_results: Dict[str, BaseResult]) -> 'APKOverview':
+        """
+        Build APK overview from analysis results.
+        
+        Single Responsibility: Create APK overview object from module results.
+        
+        Args:
+            module_results: Dictionary of module analysis results
+            
+        Returns:
+            APKOverview object populated with analysis data
+        """
+        from ..results.apkOverviewResults import APKOverview
+        
+        apk_overview = APKOverview()
+        
+        # Extract data from APK overview analysis if available
+        apk_overview_result = module_results.get('apk_overview')
+        if apk_overview_result and apk_overview_result.status.value == 'success':
+            # Copy fields from the APK overview result
+            for field_name in ['general_info', 'components', 'permissions', 'certificates', 
+                              'native_libs', 'directory_listing']:
+                if hasattr(apk_overview_result, field_name):
+                    setattr(apk_overview, field_name, getattr(apk_overview_result, field_name))
+            
+            # Handle cross-platform detection
+            if hasattr(apk_overview_result, 'is_cross_platform'):
+                apk_overview.is_cross_platform = apk_overview_result.is_cross_platform
+                apk_overview.cross_platform_framework = apk_overview_result.cross_platform_framework
+        else:
+            # Fallback: Extract basic data from manifest analysis for overview
+            self._apply_manifest_fallback_to_overview(apk_overview, module_results)
+        
+        return apk_overview
+    
+    def _apply_manifest_fallback_to_overview(self, apk_overview: 'APKOverview', 
+                                           module_results: Dict[str, BaseResult]) -> None:
+        """
+        Apply manifest analysis data as fallback for APK overview.
+        
+        Single Responsibility: Handle fallback data extraction from manifest analysis.
+        
+        Args:
+            apk_overview: APK overview object to populate
+            module_results: Dictionary of module analysis results
+        """
+        manifest_result = module_results.get('manifest_analysis')
+        if manifest_result and manifest_result.status.value == 'success':
+            if hasattr(manifest_result, 'package_name'):
+                apk_overview.app_name = manifest_result.package_name
+                apk_overview.main_activity = manifest_result.main_activity
+    
+    def _build_in_depth_analysis(self, module_results: Dict[str, BaseResult], 
+                                context: AnalysisContext) -> 'Results':
+        """
+        Build in-depth analysis results from module outputs.
+        
+        Single Responsibility: Create in-depth analysis object from module results.
+        
+        Args:
+            module_results: Dictionary of module analysis results
+            context: Analysis context for fallback operations
+            
+        Returns:
+            Results object populated with in-depth analysis data
+        """
+        from ..results.InDepthAnalysisResults import Results
+        
+        in_depth_analysis = Results()
+        
+        # Map module results to in-depth analysis structure
+        self._map_manifest_results(in_depth_analysis, module_results)
+        self._map_permission_results(in_depth_analysis, module_results)
+        self._map_signature_results(in_depth_analysis, module_results)
+        self._map_string_results(in_depth_analysis, module_results, context)
+        self._map_library_results(in_depth_analysis, module_results)
+        self._map_tracker_results(in_depth_analysis, module_results)
+        self._map_behavior_results(in_depth_analysis, module_results)
+        
+        return in_depth_analysis
+    
+    def _map_manifest_results(self, in_depth_analysis: 'Results', 
+                            module_results: Dict[str, BaseResult]) -> None:
+        """Map manifest analysis results to in-depth analysis."""
+        manifest_result = module_results.get('manifest_analysis')
+        if manifest_result and manifest_result.status.value == 'success':
+            if hasattr(manifest_result, 'intent_filters'):
+                in_depth_analysis.intents = manifest_result.intent_filters
+    
+    def _map_permission_results(self, in_depth_analysis: 'Results', 
+                              module_results: Dict[str, BaseResult]) -> None:
+        """Map permission analysis results to in-depth analysis."""
+        permission_result = module_results.get('permission_analysis')
+        if permission_result and permission_result.status.value == 'success':
+            if hasattr(permission_result, 'critical_permissions'):
+                in_depth_analysis.filtered_permissions = permission_result.critical_permissions
+    
+    def _map_signature_results(self, in_depth_analysis: 'Results', 
+                             module_results: Dict[str, BaseResult]) -> None:
+        """Map signature analysis results to in-depth analysis."""
+        signature_result = module_results.get('signature_detection')
+        if signature_result and signature_result.status.value == 'success':
+            if hasattr(signature_result, 'signatures'):
+                in_depth_analysis.signatures = signature_result.signatures
+    
+    def _map_string_results(self, in_depth_analysis: 'Results', 
+                          module_results: Dict[str, BaseResult],
+                          context: AnalysisContext) -> None:
+        """
+        Map string analysis results to in-depth analysis with fallback logic.
+        
+        Single Responsibility: Handle string analysis result mapping and fallback.
+        """
+        string_result = module_results.get('string_analysis')
+        self.logger.debug(f"String analysis result found: {string_result is not None}")
+        
+        if string_result and string_result.status.value == 'success':
+            self._apply_successful_string_results(in_depth_analysis, string_result)
+        else:
+            # Fallback to old string analysis method if new module failed
+            self._apply_string_analysis_fallback(in_depth_analysis, context)
+    
+    def _apply_successful_string_results(self, in_depth_analysis: 'Results', 
+                                       string_result: BaseResult) -> None:
+        """Apply successful string analysis results."""
+        self.logger.debug("Processing successful string analysis results")
+        
+        string_fields = ['emails', 'ip_addresses', 'urls', 'domains']
+        result_fields = ['strings_emails', 'strings_ip', 'strings_urls', 'strings_domain']
+        
+        for string_field, result_field in zip(string_fields, result_fields):
+            if hasattr(string_result, string_field):
+                value = getattr(string_result, string_field)
+                setattr(in_depth_analysis, result_field, value)
+                self.logger.debug(f"Found {len(value)} {string_field}")
+    
+    def _apply_string_analysis_fallback(self, in_depth_analysis: 'Results', 
+                                      context: AnalysisContext) -> None:
+        """Apply string analysis fallback when new module fails."""
+        self.logger.debug("🔄 String analysis module failed, using fallback method")
+        try:
+            from ..string_analysis.string_analysis_module import string_analysis_execute
+            
+            androguard_obj = context.androguard_obj
+            if androguard_obj:
+                self.logger.debug("📁 Running fallback string extraction from DEX objects")
+                old_results = string_analysis_execute(context.apk_path, androguard_obj)
+                
+                if old_results and len(old_results) >= 5:
+                    # Process fallback results
+                    in_depth_analysis.strings_emails = list(old_results[0]) if old_results[0] else []
+                    in_depth_analysis.strings_ip = list(old_results[1]) if old_results[1] else []
+                    in_depth_analysis.strings_urls = list(old_results[2]) if old_results[2] else []
+                    in_depth_analysis.strings_domain = list(old_results[3]) if old_results[3] else []
+                    
+                    self.logger.debug(f"Fallback found: {len(in_depth_analysis.strings_emails)} emails, "
+                                    f"{len(in_depth_analysis.strings_ip)} IPs, "
+                                    f"{len(in_depth_analysis.strings_urls)} URLs, "
+                                    f"{len(in_depth_analysis.strings_domain)} domains")
+        except Exception as e:
+            self.logger.error(f"String analysis fallback failed: {str(e)}")
+    
+    def _map_library_results(self, in_depth_analysis: 'Results', 
+                           module_results: Dict[str, BaseResult]) -> None:
+        """Map library detection results to in-depth analysis."""
+        library_result = module_results.get('library_detection')
+        if library_result and library_result.status.value == 'success':
+            if hasattr(library_result, 'detected_libraries'):
+                in_depth_analysis.libraries = library_result.detected_libraries
+    
+    def _map_tracker_results(self, in_depth_analysis: 'Results', 
+                           module_results: Dict[str, BaseResult]) -> None:
+        """Map tracker analysis results to in-depth analysis."""
+        tracker_result = module_results.get('tracker_analysis')
+        if tracker_result and tracker_result.status.value == 'success':
+            if hasattr(tracker_result, 'detected_trackers'):
+                in_depth_analysis.trackers = tracker_result.detected_trackers
+    
+    def _map_behavior_results(self, in_depth_analysis: 'Results', 
+                            module_results: Dict[str, BaseResult]) -> None:
+        """Map behavior analysis results to in-depth analysis."""
+        behavior_result = module_results.get('behaviour_analysis')
+        if behavior_result and behavior_result.status.value == 'success':
+            if hasattr(behavior_result, 'behaviors'):
+                in_depth_analysis.behaviors = behavior_result.behaviors
+    
+    def _build_tool_results(self, tool_results: Dict[str, Any]) -> tuple:
+        """
+        Build external tool results objects.
+        
+        Single Responsibility: Create tool result objects from tool execution results.
+        
+        Args:
+            tool_results: Dictionary of tool execution results
+            
+        Returns:
+            Tuple of (apkid_results, kavanoz_results) objects
+        """
+        from ..results.apkidResults import ApkidResults
+        from ..results.kavanozResults import KavanozResults
+        
+        # Build APKID results
+        apkid_results = ApkidResults()
+        if 'apkid' in tool_results:
+            apkid_data = tool_results['apkid']
+            if apkid_data and apkid_data.get('success'):
+                apkid_results.results = apkid_data.get('results', {})
+        
+        # Build Kavanoz results
+        kavanoz_results = KavanozResults()
+        if 'kavanoz' in tool_results:
+            kavanoz_data = tool_results['kavanoz']
+            if kavanoz_data and kavanoz_data.get('success'):
+                kavanoz_results.results = kavanoz_data.get('results', {})
+        
+        return apkid_results, kavanoz_results
+    
     def _execute_external_tools(self, apk_path: str) -> Dict[str, Any]:
         """Execute external tools"""
         results = {}
@@ -465,210 +682,41 @@ class AnalysisEngine:
                            tool_results: Dict[str, Any],
                            security_results: Optional[Any],
                            context: AnalysisContext) -> FullAnalysisResults:
-        """Create comprehensive results object"""
-        from ..results.apkOverviewResults import APKOverview
-        from ..results.InDepthAnalysisResults import Results
-        from ..results.apkidResults import ApkidResults
-        from ..results.kavanozResults import KavanozResults
+        """
+        Create comprehensive results object using focused builder methods.
         
-        # Create APK overview from dedicated analysis module
-        apk_overview = APKOverview()
+        Single Responsibility: Orchestrate the creation of FullAnalysisResults
+        by delegating to specialized builder methods.
         
-        # Extract data from APK overview analysis if available
-        apk_overview_result = module_results.get('apk_overview')
-        if apk_overview_result and apk_overview_result.status.value == 'success':
-            # Directly copy all the fields from the APK overview result
-            if hasattr(apk_overview_result, 'general_info'):
-                apk_overview.general_info = apk_overview_result.general_info
+        Args:
+            module_results: Dictionary of module analysis results
+            tool_results: Dictionary of tool execution results  
+            security_results: Optional security assessment results
+            context: Analysis context for fallback operations
             
-            if hasattr(apk_overview_result, 'components'):
-                apk_overview.components = apk_overview_result.components
-            
-            if hasattr(apk_overview_result, 'permissions'):
-                apk_overview.permissions = apk_overview_result.permissions
-            
-            if hasattr(apk_overview_result, 'certificates'):
-                apk_overview.certificates = apk_overview_result.certificates
-            
-            if hasattr(apk_overview_result, 'native_libs'):
-                apk_overview.native_libs = apk_overview_result.native_libs
-                
-            if hasattr(apk_overview_result, 'directory_listing'):
-                apk_overview.directory_listing = apk_overview_result.directory_listing
-                
-            if hasattr(apk_overview_result, 'is_cross_platform'):
-                apk_overview.is_cross_platform = apk_overview_result.is_cross_platform
-                apk_overview.cross_platform_framework = apk_overview_result.cross_platform_framework
-        else:
-            # Fallback: Extract basic data from manifest analysis for overview
-            manifest_result = module_results.get('manifest_analysis')
-            if manifest_result and manifest_result.status.value == 'success':
-                if hasattr(manifest_result, 'package_name'):
-                    apk_overview.app_name = manifest_result.package_name
-                    apk_overview.main_activity = manifest_result.main_activity
+        Returns:
+            FullAnalysisResults object with all analysis data
+        """
+        # Build different result components using focused methods
+        apk_overview = self._build_apk_overview(module_results)
+        in_depth_analysis = self._build_in_depth_analysis(module_results, context)
+        apkid_results, kavanoz_results = self._build_tool_results(tool_results)
         
-        # Create in-depth analysis results
-        in_depth_analysis = Results()
+        # Assemble final results object
+        full_results = FullAnalysisResults()
+        full_results.apk_overview = apk_overview
+        full_results.in_depth_analysis = in_depth_analysis
+        full_results.apkid_analysis = apkid_results
+        full_results.kavanoz_analysis = kavanoz_results
         
-        # Map module results to in-depth analysis
-        manifest_result = module_results.get('manifest_analysis')
-        if manifest_result and manifest_result.status.value == 'success':
-            if hasattr(manifest_result, 'intent_filters'):
-                in_depth_analysis.intents = manifest_result.intent_filters
-        
-        permission_result = module_results.get('permission_analysis')
-        if permission_result and permission_result.status.value == 'success':
-            if hasattr(permission_result, 'critical_permissions'):
-                in_depth_analysis.filtered_permissions = permission_result.critical_permissions
-        
-        signature_result = module_results.get('signature_detection')
-        if signature_result and signature_result.status.value == 'success':
-            if hasattr(signature_result, 'signatures'):
-                in_depth_analysis.signatures = signature_result.signatures
-        
-        string_result = module_results.get('string_analysis')
-        self.logger.debug(f"String analysis result found: {string_result is not None}")
-        if string_result:
-            self.logger.debug(f"String analysis status: {string_result.status.value}")
-        
-        if string_result and string_result.status.value == 'success':
-            self.logger.debug("Processing successful string analysis results")
-            if hasattr(string_result, 'emails'):
-                in_depth_analysis.strings_emails = string_result.emails
-                self.logger.debug(f"Found {len(string_result.emails)} emails")
-            if hasattr(string_result, 'ip_addresses'):
-                in_depth_analysis.strings_ip = string_result.ip_addresses
-                self.logger.debug(f"Found {len(string_result.ip_addresses)} IP addresses")
-            if hasattr(string_result, 'urls'):
-                in_depth_analysis.strings_urls = string_result.urls
-                self.logger.debug(f"Found {len(string_result.urls)} URLs")
-            if hasattr(string_result, 'domains'):
-                in_depth_analysis.strings_domain = string_result.domains
-                self.logger.debug(f"Found {len(string_result.domains)} domains")
-        else:
-            # Fallback to old string analysis method if new module failed
-            self.logger.debug("🔄 String analysis module failed, using fallback method")
-            try:
-                from ..string_analysis.string_analysis_module import string_analysis_execute
-                # Use the androguard object from context
-                androguard_obj = context.androguard_obj
-                if androguard_obj:
-                    self.logger.debug("📁 Running fallback string extraction from DEX objects")
-                    old_results = string_analysis_execute(context.apk_path, androguard_obj)
-                    
-                    if old_results and len(old_results) >= 5:
-                        # Process fallback results
-                        emails = list(old_results[0]) if old_results[0] else []
-                        ips = list(old_results[1]) if old_results[1] else []
-                        urls = list(old_results[2]) if old_results[2] else []
-                        domains = list(old_results[3]) if old_results[3] else []
-                        
-                        # Assign to results
-                        in_depth_analysis.strings_emails = emails
-                        in_depth_analysis.strings_ip = ips
-                        in_depth_analysis.strings_urls = urls
-                        in_depth_analysis.strings_domain = domains
-                        
-                        # Debug logging
-                        total_categorized = len(emails) + len(ips) + len(urls) + len(domains)
-                        self.logger.debug("📊 FALLBACK STRING ANALYSIS RESULTS:")
-                        self.logger.debug(f"   📧 Email addresses: {len(emails)}")
-                        self.logger.debug(f"   🌐 IP addresses: {len(ips)}")
-                        self.logger.debug(f"   🔗 URLs: {len(urls)}")
-                        self.logger.debug(f"   🏠 Domains: {len(domains)}")
-                        self.logger.debug(f"   ✅ Total categorized strings: {total_categorized}")
-                    else:
-                        self.logger.warning("⚠️  Fallback method returned no results")
-                else:
-                    self.logger.warning("No androguard object available for fallback")
-                    old_results = None
-            except Exception as e:
-                self.logger.error(f"Fallback string analysis failed: {str(e)}")
-        
-        # Extract tool results with better error handling
-        apkid_results = None
-        kavanoz_results = None
-        
-        if 'apkid' in tool_results:
-            apkid_tool_result = tool_results['apkid']
-            if apkid_tool_result.get('status') == 'success':
-                raw_result = apkid_tool_result.get('results') or apkid_tool_result.get('result')
-                # If raw_result is already an ApkidResults object, use it directly
-                if isinstance(raw_result, ApkidResults):
-                    apkid_results = raw_result
-                elif isinstance(raw_result, dict):
-                    # Create an ApkidResults object from dictionary data
-                    from ..results.apkidResults import ApkidFileAnalysis
-                    files = []
-                    for file_data in raw_result.get('files', []):
-                        files.append(ApkidFileAnalysis(
-                            filename=file_data.get('filename', ''),
-                            matches=file_data.get('matches', {})
-                        ))
-                    
-                    apkid_results = ApkidResults(
-                        apkid_version=raw_result.get('apkid_version', ''),
-                        files=files,
-                        rules_sha256=raw_result.get('rules_sha256', ''),
-                        raw_output=raw_result.get('raw_output', '')
-                    )
-                else:
-                    apkid_results = raw_result
-            else:
-                self.logger.warning(f"APKID tool failed: {apkid_tool_result.get('error', 'Unknown error')}")
-        
-        # Ensure we always have a valid ApkidResults object, even if empty
-        if apkid_results is None:
-            apkid_results = ApkidResults(apkid_version="")
-        
-        if 'kavanoz' in tool_results:
-            kavanoz_tool_result = tool_results['kavanoz']
-            if kavanoz_tool_result.get('status') == 'success':
-                raw_result = kavanoz_tool_result.get('results') or kavanoz_tool_result.get('result')
-                # If raw_result is already a KavanozResults object, use it directly
-                # If it's a dict, create a KavanozResults object from it
-                if isinstance(raw_result, dict):
-                    kavanoz_results = KavanozResults()  # Initialize with defaults
-                    # Update with actual data if available
-                    if hasattr(kavanoz_results, 'update_from_dict'):
-                        kavanoz_results.update_from_dict(raw_result)
-                else:
-                    kavanoz_results = raw_result
-            else:
-                self.logger.warning(f"Kavanoz tool failed: {kavanoz_tool_result.get('error', 'Unknown error')}")
-        
-        # Create full results
-        full_results = FullAnalysisResults(
-            apk_overview=apk_overview,
-            in_depth_analysis=in_depth_analysis,
-            apkid_analysis=apkid_results,
-            kavanoz_analysis=kavanoz_results
-        )
-        
-        # Add tracker analysis results if available
-        tracker_result = module_results.get('tracker_analysis')
-        if tracker_result and tracker_result.status.value == 'success':
-            from ..results.TrackerAnalysisResults import TrackerAnalysisResults
-            full_results.tracker_analysis = TrackerAnalysisResults(tracker_result)
-        
-        # Add behaviour analysis results if available
-        behaviour_result = module_results.get('behaviour_analysis')
-        if behaviour_result and behaviour_result.status.value == 'success':
-            full_results.behaviour_analysis = behaviour_result
-        
-        # Add library detection results if available
-        library_result = module_results.get('library_detection')
-        if library_result and library_result.status.value == 'success':
-            from ..results.LibraryDetectionResults import LibraryDetectionResults
-            full_results.library_detection = LibraryDetectionResults(library_result)
-        
-        # Add deep analysis results if available
-        deep_result = module_results.get('deep_analysis')
-        if deep_result and deep_result.status.value == 'success':
-            full_results.deep_analysis = deep_result
+        # Add individual module results for direct access
+        full_results.library_detection = module_results.get('library_detection')
+        full_results.tracker_analysis = module_results.get('tracker_analysis')
+        full_results.behaviour_analysis = module_results.get('behaviour_analysis')
         
         # Add security results if available
         if security_results:
             full_results.security_assessment = security_results.to_dict() if hasattr(security_results, 'to_dict') else security_results
         
         return full_results
+
