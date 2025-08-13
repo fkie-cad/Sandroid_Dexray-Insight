@@ -39,6 +39,9 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
         self._setup_high_medium_severity_patterns()
         self._setup_low_severity_context_patterns()
         self._setup_legacy_compatibility()
+        
+        # Assign detection_patterns for strategy pattern usage
+        self.detection_patterns = getattr(self, 'key_detection_patterns', {})
 
     def _initialize_basic_configuration(self, config: Dict[str, Any]):
         """
@@ -526,6 +529,110 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
             
         except Exception as e:
             self.logger.error(f"Sensitive data assessment failed: {str(e)}")
+        
+        return findings
+    
+    def _assess_weak_cryptography(self, analysis_results: Dict[str, Any]) -> List[SecurityFinding]:
+        """Assess for weak cryptographic algorithms"""
+        findings = []
+        
+        # Check API calls for weak crypto usage
+        api_results = analysis_results.get('api_invocation', {})
+        if hasattr(api_results, 'to_dict'):
+            api_data = api_results.to_dict()
+        else:
+            api_data = api_results
+        
+        if not isinstance(api_data, dict):
+            return findings
+        
+        weak_crypto_evidence = []
+        api_calls = api_data.get('api_calls', [])
+        
+        for call in api_calls:
+            if isinstance(call, dict):
+                api_name = call.get('called_class', '') + '.' + call.get('called_method', '')
+                
+                # Check for weak algorithms
+                weak_algorithms = ['DES', 'RC4', 'MD5', 'SHA1']
+                for weak_algo in weak_algorithms:
+                    if weak_algo.lower() in api_name.lower():
+                        weak_crypto_evidence.append(f"Weak algorithm usage: {api_name}")
+                        break
+        
+        # Also check strings for algorithm names
+        string_results = analysis_results.get('string_analysis', {})
+        if hasattr(string_results, 'to_dict'):
+            string_data = string_results.to_dict()
+            all_strings = []
+            for key in ['emails', 'urls', 'domains']:
+                strings = string_data.get(key, [])
+                if isinstance(strings, list):
+                    all_strings.extend(strings)
+            
+            for string in all_strings:
+                if isinstance(string, str):
+                    for weak_algo in ['DES', 'RC4', 'MD5', 'SHA1']:
+                        if weak_algo in string.upper():
+                            weak_crypto_evidence.append(f"Weak algorithm reference: {string[:50]}...")
+                            break
+        
+        if weak_crypto_evidence:
+            findings.append(SecurityFinding(
+                category=self.owasp_category,
+                severity=AnalysisSeverity.HIGH,
+                title="Weak Cryptographic Algorithms Detected",
+                description="Usage of weak or deprecated cryptographic algorithms that may be vulnerable to attacks.",
+                evidence=weak_crypto_evidence,
+                recommendations=[
+                    "Replace weak algorithms with stronger alternatives (AES, SHA-256, etc.)",
+                    "Use Android's recommended cryptographic libraries",
+                    "Implement proper key management",
+                    "Follow current cryptographic best practices",
+                    "Regularly update cryptographic implementations"
+                ]
+            ))
+        
+        return findings
+    
+    def _assess_sensitive_permissions(self, analysis_results: Dict[str, Any]) -> List[SecurityFinding]:
+        """Assess permissions that may lead to sensitive data access"""
+        findings = []
+        
+        # Get permission analysis results
+        permission_results = analysis_results.get('permission_analysis', {})
+        if hasattr(permission_results, 'to_dict'):
+            permission_data = permission_results.to_dict()
+        else:
+            permission_data = permission_results
+        
+        if not isinstance(permission_data, dict):
+            return findings
+        
+        all_permissions = permission_data.get('all_permissions', [])
+        sensitive_found = []
+        
+        for permission in all_permissions:
+            if isinstance(permission, str):
+                for sensitive_perm in self.sensitive_permissions:
+                    if sensitive_perm in permission:
+                        sensitive_found.append(permission)
+                        break
+        
+        if sensitive_found:
+            findings.append(SecurityFinding(
+                category=self.owasp_category,
+                severity=AnalysisSeverity.MEDIUM,
+                title="Sensitive Data Access Permissions",
+                description="Application requests permissions that provide access to sensitive user data.",
+                evidence=sensitive_found,
+                recommendations=[
+                    "Review if all permissions are necessary for app functionality",
+                    "Implement runtime permission requests where possible",
+                    "Provide clear explanations for why permissions are needed",
+                    "Consider alternative approaches that require fewer permissions"
+                ]
+            ))
         
         return findings
     
@@ -1649,108 +1756,3 @@ class FindingGenerationStrategy:
         
         return False
     
-    def _assess_weak_cryptography(self, analysis_results: Dict[str, Any]) -> List[SecurityFinding]:
-        """Assess for weak cryptographic algorithms"""
-        findings = []
-        
-        # Check API calls for weak crypto usage
-        api_results = analysis_results.get('api_invocation', {})
-        if hasattr(api_results, 'to_dict'):
-            api_data = api_results.to_dict()
-        else:
-            api_data = api_results
-        
-        if not isinstance(api_data, dict):
-            return findings
-        
-        weak_crypto_evidence = []
-        api_calls = api_data.get('api_calls', [])
-        
-        for call in api_calls:
-            if isinstance(call, dict):
-                api_name = call.get('called_class', '') + '.' + call.get('called_method', '')
-                
-                # Check for weak algorithms
-                weak_algorithms = ['DES', 'RC4', 'MD5', 'SHA1']
-                for weak_algo in weak_algorithms:
-                    if weak_algo.lower() in api_name.lower():
-                        weak_crypto_evidence.append(f"Weak algorithm usage: {api_name}")
-                        break
-        
-        # Also check strings for algorithm names
-        string_results = analysis_results.get('string_analysis', {})
-        if hasattr(string_results, 'to_dict'):
-            string_data = string_results.to_dict()
-            all_strings = []
-            for key in ['emails', 'urls', 'domains']:
-                strings = string_data.get(key, [])
-                if isinstance(strings, list):
-                    all_strings.extend(strings)
-            
-            for string in all_strings:
-                if isinstance(string, str):
-                    for weak_algo in ['DES', 'RC4', 'MD5', 'SHA1']:
-                        if weak_algo in string.upper():
-                            weak_crypto_evidence.append(f"Weak algorithm reference: {string[:50]}...")
-                            break
-        
-        if weak_crypto_evidence:
-            findings.append(SecurityFinding(
-                category=self.owasp_category,
-                severity=AnalysisSeverity.HIGH,
-                title="Weak Cryptographic Algorithms Detected",
-                description="Usage of weak or deprecated cryptographic algorithms that may be vulnerable to attacks.",
-                evidence=weak_crypto_evidence,
-                recommendations=[
-                    "Replace weak algorithms with stronger alternatives (AES, SHA-256, etc.)",
-                    "Use Android's recommended cryptographic libraries",
-                    "Implement proper key management",
-                    "Follow current cryptographic best practices",
-                    "Regularly update cryptographic implementations"
-                ]
-            ))
-        
-        return findings
-    
-    def _assess_sensitive_permissions(self, analysis_results: Dict[str, Any]) -> List[SecurityFinding]:
-        """Assess permissions that may lead to sensitive data access"""
-        findings = []
-        
-        # Get permission analysis results
-        permission_results = analysis_results.get('permission_analysis', {})
-        if hasattr(permission_results, 'to_dict'):
-            permission_data = permission_results.to_dict()
-        else:
-            permission_data = permission_results
-        
-        if not isinstance(permission_data, dict):
-            return findings
-        
-        all_permissions = permission_data.get('all_permissions', [])
-        sensitive_found = []
-        
-        for permission in all_permissions:
-            if isinstance(permission, str):
-                for sensitive_perm in self.sensitive_permissions:
-                    if sensitive_perm in permission:
-                        sensitive_found.append(permission)
-                        break
-        
-        if sensitive_found:
-            findings.append(SecurityFinding(
-                category=self.owasp_category,
-                severity=AnalysisSeverity.MEDIUM,
-                title="Sensitive Data Access Permissions",
-                description="Application requests permissions that provide access to sensitive user data.",
-                evidence=[f"Permission: {perm}" for perm in sensitive_found],
-                recommendations=[
-                    "Ensure sensitive data is encrypted before storage",
-                    "Implement proper data retention policies",
-                    "Use runtime permissions and explain data usage to users",
-                    "Minimize data collection to what's necessary for functionality",
-                    "Implement secure data transmission (HTTPS, certificate pinning)",
-                    "Follow platform guidelines for handling sensitive data"
-                ]
-            ))
-        
-        return findings

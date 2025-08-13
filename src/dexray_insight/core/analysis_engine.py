@@ -778,11 +778,18 @@ class AnalysisEngine:
         from ..results.kavanozResults import KavanozResults
         
         # Build APKID results
-        apkid_results = ApkidResults()
+        apkid_version = ""
         if 'apkid' in tool_results:
             apkid_data = tool_results['apkid']
             if apkid_data and apkid_data.get('success'):
-                apkid_results.results = apkid_data.get('results', {})
+                apkid_version = apkid_data.get('version', 'unknown')
+        
+        apkid_results = ApkidResults(apkid_version=apkid_version)
+        if 'apkid' in tool_results:
+            apkid_data = tool_results['apkid']
+            if apkid_data and apkid_data.get('success'):
+                apkid_results.raw_output = apkid_data.get('output', '')
+                # The results will be parsed from raw_output automatically in to_dict()
         
         # Build Kavanoz results
         kavanoz_results = KavanozResults()
@@ -882,9 +889,23 @@ class AnalysisEngine:
         full_results.apkid_analysis = apkid_results
         full_results.kavanoz_analysis = kavanoz_results
         
-        # Add individual module results for direct access
-        full_results.library_detection = module_results.get('library_detection')
-        full_results.tracker_analysis = module_results.get('tracker_analysis')
+        # Add individual module results for direct access (with proper conversions)
+        # Convert library detection result to the proper format for console display
+        library_result = module_results.get('library_detection')
+        if library_result:
+            from ..results.LibraryDetectionResults import LibraryDetectionResults
+            full_results.library_detection = LibraryDetectionResults(library_result)
+        else:
+            full_results.library_detection = None
+        
+        # Convert tracker analysis result to the proper format for console display
+        tracker_result = module_results.get('tracker_analysis')
+        if tracker_result:
+            from ..results.TrackerAnalysisResults import TrackerAnalysisResults
+            full_results.tracker_analysis = TrackerAnalysisResults(tracker_result)
+        else:
+            full_results.tracker_analysis = None
+            
         full_results.behaviour_analysis = module_results.get('behaviour_analysis')
         
         # Add security results if available
