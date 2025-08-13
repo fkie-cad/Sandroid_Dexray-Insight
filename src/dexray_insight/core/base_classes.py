@@ -9,12 +9,36 @@ import json
 import logging
 
 class AnalysisSeverity(Enum):
+    """
+    Enumeration of analysis severity levels for security findings.
+    
+    Used throughout the security assessment framework to classify
+    the severity of detected vulnerabilities and security issues.
+    
+    Values:
+        LOW: Informational findings or minor security concerns
+        MEDIUM: Moderate security issues requiring attention
+        HIGH: Serious security vulnerabilities needing prompt remediation
+        CRITICAL: Severe security issues requiring immediate action
+    """
     LOW = "low"
     MEDIUM = "medium" 
     HIGH = "high"
     CRITICAL = "critical"
 
 class AnalysisStatus(Enum):
+    """
+    Enumeration of analysis module execution statuses.
+    
+    Used to track the execution state of individual analysis modules
+    and provide consistent status reporting across the framework.
+    
+    Values:
+        SUCCESS: Module completed successfully with results
+        FAILURE: Module failed to execute due to errors
+        PARTIAL: Module completed with some issues or warnings
+        SKIPPED: Module was not executed (disabled, missing dependencies, etc.)
+    """
     SUCCESS = "success"
     FAILURE = "failure"
     PARTIAL = "partial"
@@ -22,7 +46,32 @@ class AnalysisStatus(Enum):
 
 @dataclass
 class AnalysisContext:
-    """Context object passed between modules containing shared data and results"""
+    """
+    Context object passed between modules containing shared data and results.
+    
+    The AnalysisContext serves as a shared data container that is passed between
+    analysis modules during the analysis workflow. It contains APK information,
+    configuration, and accumulated results from previous modules.
+    
+    This design enables:
+    - Data sharing between dependent modules
+    - Centralized configuration access
+    - Progressive result accumulation
+    - Temporal directory management
+    
+    Attributes:
+        apk_path: File path to the APK being analyzed
+        config: Configuration dictionary from the engine
+        androguard_obj: Optional pre-loaded Androguard analysis object
+        unzip_path: Legacy field for backwards compatibility (deprecated)
+        module_results: Dictionary storing results from completed modules
+        temporal_paths: Modern temporal directory management object
+        jadx_available: Flag indicating JADX decompiler availability
+        apktool_available: Flag indicating APKTool availability
+    
+    Design Pattern: Context Object (shares state between modules)
+    SOLID Principles: Single Responsibility (data container and accessor)
+    """
     apk_path: str
     config: Dict[str, Any]
     androguard_obj: Optional[Any] = None
@@ -38,11 +87,33 @@ class AnalysisContext:
             self.module_results = {}
     
     def add_result(self, module_name: str, result: Any):
-        """Add a module result to the context for use by dependent modules"""
+        """
+        Add a module result to the context for use by dependent modules.
+        
+        This method allows completed modules to store their results in the
+        shared context where they can be accessed by dependent modules.
+        
+        Args:
+            module_name: Name of the module storing the result
+            result: Analysis result object or data structure
+        
+        Side Effects:
+            Modifies self.module_results dictionary
+        """
         self.module_results[module_name] = result
     
     def get_unzipped_dir(self) -> Optional[str]:
-        """Get path to unzipped APK directory (temporal or legacy)"""
+        """
+        Get path to unzipped APK directory (temporal or legacy).
+        
+        This method provides backwards compatibility by checking both
+        modern temporal paths and legacy unzip paths.
+        
+        Returns:
+            str: Path to unzipped APK directory, or None if not available
+        
+        Design Pattern: Facade (hides complexity of path resolution)
+        """
         if self.temporal_paths:
             return str(self.temporal_paths.unzipped_dir)
         return self.unzip_path
@@ -103,7 +174,35 @@ class SecurityFinding:
             self.additional_data = {}
 
 class BaseAnalysisModule(ABC):
-    """Abstract base class for all analysis modules"""
+    """
+    Abstract base class for all analysis modules in the Dexray Insight framework.
+    
+    This class defines the standard interface that all analysis modules must implement.
+    It provides common functionality like configuration handling, logging setup,
+    and standardized method signatures for the analysis workflow.
+    
+    Responsibilities:
+    - Define the contract for analysis modules (analyze, get_dependencies)
+    - Provide common initialization and configuration handling
+    - Set up standardized logging for all modules
+    - Enforce consistent return types (BaseResult)
+    
+    Design Pattern: Template Method (defines algorithm structure)
+    SOLID Principles: 
+    - Interface Segregation (focused interface for analysis modules)
+    - Liskov Substitution (all modules can be used interchangeably)
+    
+    Implementation Requirements:
+    - Must implement analyze() method for core analysis logic
+    - Must implement get_dependencies() to declare module dependencies
+    - Should return results wrapped in BaseResult or its subclasses
+    
+    Attributes:
+        config: Configuration dictionary passed from AnalysisEngine
+        name: Module class name for identification
+        enabled: Flag indicating if module is enabled for execution
+        logger: Configured logger instance for this module
+    """
     
     def __init__(self, config: Dict[str, Any]):
         self.config = config
@@ -114,14 +213,31 @@ class BaseAnalysisModule(ABC):
     @abstractmethod
     def analyze(self, apk_path: str, context: AnalysisContext) -> BaseResult:
         """
-        Perform the analysis for this module
+        Perform the core analysis logic for this module.
+        
+        This is the main entry point for module execution. Implementations
+        should perform their specific analysis tasks and return structured
+        results wrapped in a BaseResult object.
         
         Args:
-            apk_path: Path to the APK file
-            context: Analysis context with shared data
+            apk_path: Absolute path to the APK file being analyzed
+            context: AnalysisContext containing shared data, configuration,
+                    and results from previously executed modules
             
         Returns:
-            BaseResult: Analysis results
+            BaseResult: Analysis results with status, data, and error information.
+                       Should include all relevant findings from this module's analysis.
+        
+        Raises:
+            Should handle internal exceptions and return results with FAILURE status
+            rather than propagating exceptions to the engine.
+        
+        Implementation Guidelines:
+        - Use self.logger for consistent logging
+        - Access configuration via self.config
+        - Use context to access shared data and previous results
+        - Return meaningful error messages in BaseResult on failure
+        - Follow single responsibility principle in analysis logic
         """
         pass
     
@@ -153,7 +269,26 @@ class BaseAnalysisModule(ABC):
         return self.config.get('priority', 100)
 
 class BaseExternalTool(ABC):
-    """Abstract base class for external tool integrations"""
+    """
+    Abstract base class for external tool integrations.
+    
+    This class defines the interface for integrating external tools like
+    APKID, Kavanoz, JADX, and APKTool into the analysis workflow.
+    
+    Responsibilities:
+    - Define standard interface for external tool execution
+    - Provide configuration management for tool-specific settings
+    - Standardize tool availability checking and execution
+    - Handle tool-specific result processing and error handling
+    
+    Design Pattern: Adapter (adapts external tools to framework interface)
+    SOLID Principles: Interface Segregation (focused interface for tools)
+    
+    Attributes:
+        config: Tool-specific configuration dictionary
+        name: Tool class name for identification
+        enabled: Flag indicating if tool is enabled for execution
+    """
     
     def __init__(self, config: Dict[str, Any]):
         self.config = config

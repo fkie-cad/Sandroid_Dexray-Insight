@@ -18,14 +18,46 @@ from ..results.FullAnalysisResults import FullAnalysisResults
 
 @dataclass
 class ExecutionPlan:
-    """Represents the execution plan for analysis modules"""
+    """
+    Represents the execution plan for analysis modules with dependency ordering.
+    
+    This dataclass encapsulates the complete execution strategy for a set of
+    analysis modules, including dependency-aware ordering and parallelization
+    opportunities.
+    
+    Attributes:
+        modules: List of all modules to be executed (includes dependencies)
+        tools: List of external tools to be executed
+        execution_order: Dependency-ordered list of modules (topological sort)
+        parallel_groups: List of lists, each inner list contains modules
+                        that can be executed in parallel with each other
+    
+    Design Pattern: Data Transfer Object (DTO)
+    Usage: Created by DependencyResolver, consumed by AnalysisEngine
+    """
     modules: List[str]
     tools: List[str]
     execution_order: List[str]
     parallel_groups: List[List[str]]
 
 class DependencyResolver:
-    """Resolves module dependencies and creates execution plan"""
+    """
+    Resolves module dependencies and creates execution plans for analysis workflows.
+    
+    This class analyzes the dependency graph between analysis modules and creates
+    optimized execution plans that respect dependencies while maximizing parallel
+    execution opportunities.
+    
+    Responsibilities:
+    - Parse module dependencies from registered analysis modules
+    - Build dependency graphs and detect circular dependencies
+    - Perform topological sorting to determine execution order
+    - Identify modules that can be executed in parallel
+    - Create structured ExecutionPlan objects for the AnalysisEngine
+    
+    Design Pattern: Dependency Injection (receives registry)
+    SOLID Principles: Single Responsibility (only handles dependency resolution)
+    """
     
     def __init__(self, registry_instance):
         self.registry = registry_instance
@@ -118,7 +150,37 @@ class DependencyResolver:
         return parallel_groups
 
 class AnalysisEngine:
-    """Main analysis engine that orchestrates all analysis activities"""
+    """
+    Main analysis engine that orchestrates all APK analysis activities.
+    
+    The AnalysisEngine serves as the central coordinator for the entire analysis
+    workflow. It manages module execution, external tool integration, result
+    aggregation, and security assessment orchestration.
+    
+    Key Features:
+    - Modular architecture with pluggable analysis modules
+    - Dependency-aware execution planning and parallel processing
+    - External tool integration (APKID, Kavanoz, JADX, etc.)
+    - Comprehensive error handling and resilience
+    - Security assessment engine integration
+    - Result aggregation and structured output generation
+    
+    Architecture Patterns:
+    - Registry Pattern: For module discovery and management
+    - Strategy Pattern: For different analysis approaches
+    - Factory Pattern: For result object creation
+    - Template Method: For analysis workflow orchestration
+    
+    SOLID Principles:
+    - Single Responsibility: Orchestrates analysis workflow
+    - Open/Closed: Extensible through module registration
+    - Dependency Inversion: Depends on abstractions (Configuration, modules)
+    
+    Usage:
+        config = Configuration()
+        engine = AnalysisEngine(config)
+        results = engine.analyze_apk('/path/to/app.apk')
+    """
     
     def __init__(self, config: Configuration):
         self.config = config
@@ -502,7 +564,18 @@ class AnalysisEngine:
     
     def _map_signature_results(self, in_depth_analysis: 'Results', 
                              module_results: Dict[str, BaseResult]) -> None:
-        """Map signature analysis results to in-depth analysis."""
+        """
+        Map signature detection results to in-depth analysis structure.
+        
+        Single Responsibility: Extract and map signature detection data to Results object.
+        
+        Args:
+            in_depth_analysis: Results object to populate with signature data
+            module_results: Dictionary containing module analysis results
+        
+        Side Effects:
+            Modifies in_depth_analysis.signatures if signature analysis succeeded
+        """
         signature_result = module_results.get('signature_detection')
         if signature_result and signature_result.status.value == 'success':
             if hasattr(signature_result, 'signatures'):
@@ -512,9 +585,22 @@ class AnalysisEngine:
                           module_results: Dict[str, BaseResult],
                           context: AnalysisContext) -> None:
         """
-        Map string analysis results to in-depth analysis with fallback logic.
+        Map string analysis results to in-depth analysis with fallback support.
         
-        Single Responsibility: Handle string analysis result mapping and fallback.
+        This method handles string analysis results with built-in fallback logic.
+        If string analysis module failed, it uses legacy string extraction methods
+        to ensure string data is always available.
+        
+        Single Responsibility: Map string analysis data with fallback handling.
+        
+        Args:
+            in_depth_analysis: Results object to populate with string data
+            module_results: Dictionary containing module analysis results
+            context: Analysis context for fallback string extraction
+        
+        Side Effects:
+            Modifies in_depth_analysis string fields (strings_emails, strings_ip, etc.)
+            May trigger fallback string extraction if module analysis failed
         """
         string_result = module_results.get('string_analysis')
         self.logger.debug(f"String analysis result found: {string_result is not None}")
@@ -527,7 +613,19 @@ class AnalysisEngine:
     
     def _apply_successful_string_results(self, in_depth_analysis: 'Results', 
                                        string_result: BaseResult) -> None:
-        """Apply successful string analysis results."""
+        """
+        Apply successful string analysis results to in-depth analysis.
+        
+        Single Responsibility: Map successful string analysis fields to Results object.
+        
+        Args:
+            in_depth_analysis: Results object to populate
+            string_result: Successful string analysis result with extracted data
+        
+        Side Effects:
+            Populates string fields in in_depth_analysis (emails, ip_addresses, urls, domains)
+            Logs debug information about string counts
+        """
         self.logger.debug("Processing successful string analysis results")
         
         string_fields = ['emails', 'ip_addresses', 'urls', 'domains']
@@ -541,7 +639,26 @@ class AnalysisEngine:
     
     def _apply_string_analysis_fallback(self, in_depth_analysis: 'Results', 
                                       context: AnalysisContext) -> None:
-        """Apply string analysis fallback when new module fails."""
+        """
+        Apply fallback string analysis when string module failed.
+        
+        This method provides resilience by using legacy string extraction methods
+        when the string analysis module fails. It directly processes the APK using
+        Androguard objects to extract string data.
+        
+        Single Responsibility: Handle fallback string extraction from Androguard objects.
+        
+        Args:
+            in_depth_analysis: Results object to populate with fallback string data
+            context: Analysis context containing APK path and Androguard objects
+        
+        Side Effects:
+            Populates string fields using legacy string_analysis_execute function
+            Logs fallback operation and any errors encountered
+        
+        Raises:
+            None: Handles all exceptions gracefully and logs errors
+        """
         self.logger.debug("🔄 String analysis module failed, using fallback method")
         try:
             from ..string_analysis.string_analysis_module import string_analysis_execute
@@ -567,7 +684,18 @@ class AnalysisEngine:
     
     def _map_library_results(self, in_depth_analysis: 'Results', 
                            module_results: Dict[str, BaseResult]) -> None:
-        """Map library detection results to in-depth analysis."""
+        """
+        Map library detection results to in-depth analysis structure.
+        
+        Single Responsibility: Extract and map library detection data to Results object.
+        
+        Args:
+            in_depth_analysis: Results object to populate with library data
+            module_results: Dictionary containing module analysis results
+        
+        Side Effects:
+            Modifies in_depth_analysis.libraries if library detection succeeded
+        """
         library_result = module_results.get('library_detection')
         if library_result and library_result.status.value == 'success':
             if hasattr(library_result, 'detected_libraries'):
@@ -575,7 +703,18 @@ class AnalysisEngine:
     
     def _map_tracker_results(self, in_depth_analysis: 'Results', 
                            module_results: Dict[str, BaseResult]) -> None:
-        """Map tracker analysis results to in-depth analysis."""
+        """
+        Map tracker analysis results to in-depth analysis structure.
+        
+        Single Responsibility: Extract and map tracker analysis data to Results object.
+        
+        Args:
+            in_depth_analysis: Results object to populate with tracker data
+            module_results: Dictionary containing module analysis results
+        
+        Side Effects:
+            Modifies in_depth_analysis.trackers if tracker analysis succeeded
+        """
         tracker_result = module_results.get('tracker_analysis')
         if tracker_result and tracker_result.status.value == 'success':
             if hasattr(tracker_result, 'detected_trackers'):
@@ -583,7 +722,18 @@ class AnalysisEngine:
     
     def _map_behavior_results(self, in_depth_analysis: 'Results', 
                             module_results: Dict[str, BaseResult]) -> None:
-        """Map behavior analysis results to in-depth analysis."""
+        """
+        Map behavior analysis results to in-depth analysis structure.
+        
+        Single Responsibility: Extract and map behavior analysis data to Results object.
+        
+        Args:
+            in_depth_analysis: Results object to populate with behavior data
+            module_results: Dictionary containing module analysis results
+        
+        Side Effects:
+            Modifies in_depth_analysis.behaviors if behavior analysis succeeded
+        """
         behavior_result = module_results.get('behaviour_analysis')
         if behavior_result and behavior_result.status.value == 'success':
             if hasattr(behavior_result, 'behaviors'):
@@ -591,7 +741,24 @@ class AnalysisEngine:
     
     def _build_tool_results(self, tool_results: Dict[str, Any]) -> tuple:
         """
-        Build external tool results objects.
+        Build external tool results objects from tool execution data.
+        
+        This method creates structured result objects for external tools like
+        APKID and Kavanoz based on their execution success and output data.
+        
+        Single Responsibility: Create tool result objects from raw tool execution data.
+        
+        Args:
+            tool_results: Dictionary containing tool execution results
+                         Expected keys: 'apkid', 'kavanoz' with 'success' and 'results' fields
+        
+        Returns:
+            tuple: (ApkidResults, KavanozResults) - Tool result objects
+                  Objects are populated with data if tool execution succeeded,
+                  otherwise they contain empty/default data
+        
+        Side Effects:
+            None: Creates new objects without modifying input data
         
         Single Responsibility: Create tool result objects from tool execution results.
         

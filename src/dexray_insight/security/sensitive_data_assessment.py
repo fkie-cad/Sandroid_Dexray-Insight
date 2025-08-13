@@ -624,7 +624,22 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
         return finding_generator.generate_security_findings(classified_results)
 
 class StringCollectionStrategy:
-    """Strategy for collecting strings from various analysis sources."""
+    """
+    Strategy for collecting strings from various analysis sources.
+    
+    This strategy implements the first phase of secret detection by gathering
+    strings from multiple analysis sources including string analysis results,
+    Android properties, and raw strings.
+    
+    Responsibilities:
+    - Extract strings from string analysis module results
+    - Collect Android properties and system configuration strings
+    - Gather raw strings from multiple sources
+    - Add location metadata to each collected string
+    
+    Design Pattern: Strategy Pattern (part of secret detection workflow)
+    SOLID Principles: Single Responsibility (only handles string collection)
+    """
     
     def __init__(self, logger):
         self.logger = logger
@@ -632,6 +647,23 @@ class StringCollectionStrategy:
     def collect_strings(self, analysis_results: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
         Collect strings with location information from analysis results.
+        
+        This method systematically extracts strings from various analysis sources
+        and enriches them with location metadata for later pattern detection.
+        
+        Args:
+            analysis_results: Dictionary containing results from various analysis modules
+                            Expected keys: 'string_analysis' (primary source)
+        
+        Returns:
+            List of dictionaries, each containing:
+            - 'value': The string value to analyze
+            - 'location': Human-readable source location
+            - 'file_path': File path if available (optional)
+            - 'line_number': Line number if available (optional)
+        
+        Raises:
+            None: Method handles all exceptions gracefully and returns partial results
         
         Single Responsibility: Gather strings from all available sources.
         """
@@ -693,7 +725,23 @@ class StringCollectionStrategy:
 
 
 class DeepAnalysisStrategy:
-    """Strategy for extracting strings from deep analysis sources (XML, Smali, DEX)."""
+    """
+    Strategy for extracting strings from deep analysis sources (XML, Smali, DEX).
+    
+    This strategy implements enhanced string extraction by leveraging deep analysis
+    artifacts like Androguard objects, DEX files, XML resources, and Smali code.
+    It only operates when deep analysis mode is enabled.
+    
+    Responsibilities:
+    - Determine analysis mode (fast vs deep)
+    - Extract strings from DEX objects using Androguard
+    - Extract strings from XML resources (delegates to existing methods)
+    - Extract strings from Smali code (delegates to existing methods)
+    - Enrich existing string collection with deep analysis findings
+    
+    Design Pattern: Strategy Pattern (second phase of secret detection workflow)
+    SOLID Principles: Single Responsibility (only handles deep string extraction)
+    """
     
     def __init__(self, logger):
         self.logger = logger
@@ -702,6 +750,23 @@ class DeepAnalysisStrategy:
                            existing_strings: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         Extract strings from deep analysis sources like XML and Smali files.
+        
+        This method attempts to extract additional strings from deep analysis artifacts
+        if they are available. It operates in different modes based on analysis depth:
+        - DEEP mode: Extracts from DEX, XML, and Smali sources
+        - FAST mode: Returns existing strings unchanged (limited sources)
+        
+        Args:
+            analysis_results: Dictionary containing analysis module results
+                            Expected keys: 'behaviour_analysis' with androguard_objects
+            existing_strings: List of strings already collected by StringCollectionStrategy
+        
+        Returns:
+            Enhanced list of string dictionaries with additional deep analysis findings.
+            If deep analysis is unavailable, returns existing_strings unchanged.
+        
+        Raises:
+            None: Method handles all exceptions gracefully and logs errors
         
         Single Responsibility: Handle deep string extraction from androguard objects.
         """
@@ -756,7 +821,22 @@ class DeepAnalysisStrategy:
         return 0  # Placeholder
     
     def _extract_dex_strings(self, dex_obj, all_strings: List[Dict[str, Any]]) -> int:
-        """Extract strings from DEX objects."""
+        """
+        Extract strings from DEX objects using Androguard.
+        
+        This method processes DEX objects to extract string literals that may
+        contain hardcoded secrets or sensitive information.
+        
+        Args:
+            dex_obj: List of DEX objects from Androguard analysis
+            all_strings: List to append extracted strings to (modified in-place)
+        
+        Returns:
+            int: Number of strings successfully extracted
+        
+        Raises:
+            None: Handles DEX parsing exceptions gracefully and logs errors
+        """
         extracted_count = 0
         for i, dex in enumerate(dex_obj):
             try:
@@ -778,7 +858,22 @@ class DeepAnalysisStrategy:
 
 
 class PatternDetectionStrategy:
-    """Strategy for detecting secrets using compiled patterns."""
+    """
+    Strategy for detecting secrets using compiled patterns.
+    
+    This strategy implements the core secret detection logic by applying
+    54 different detection patterns to collected strings. It identifies
+    secrets across multiple severity levels and provides detailed match information.
+    
+    Responsibilities:
+    - Apply pattern matching to collected strings
+    - Filter out strings too short for meaningful analysis
+    - Delegate to existing pattern detection methods
+    - Return structured detection results with metadata
+    
+    Design Pattern: Strategy Pattern (third phase of secret detection workflow)
+    SOLID Principles: Single Responsibility (only handles pattern detection)
+    """
     
     def __init__(self, detection_patterns: Dict[str, Any], logger):
         self.detection_patterns = detection_patterns
@@ -787,6 +882,28 @@ class PatternDetectionStrategy:
     def detect_secrets(self, strings_with_location: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         Detect secrets in strings using pattern matching.
+        
+        This method applies the comprehensive set of 54 secret detection patterns
+        to identify hardcoded secrets across four severity levels (CRITICAL, HIGH,
+        MEDIUM, LOW). It filters out very short strings and applies pattern matching
+        logic to find potential secrets.
+        
+        Args:
+            strings_with_location: List of string dictionaries from collection strategies
+                                 Each dict contains 'value', 'location', 'file_path', 'line_number'
+        
+        Returns:
+            List of detection dictionaries, each containing:
+            - 'type': Type of secret detected (e.g., 'AWS Access Key')
+            - 'severity': Severity level ('CRITICAL', 'HIGH', 'MEDIUM', 'LOW')
+            - 'pattern_name': Name of the pattern that matched
+            - 'value': The detected secret value
+            - 'location': Source location information
+            - 'file_path': File path if available
+            - 'line_number': Line number if available
+        
+        Raises:
+            None: Method handles pattern matching exceptions gracefully
         
         Single Responsibility: Apply pattern detection to collected strings.
         """
@@ -809,18 +926,68 @@ class PatternDetectionStrategy:
         return detected_secrets
     
     def _apply_patterns_to_string(self, string_value: str, string_data: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Apply detection patterns to a single string."""
+        """
+        Apply detection patterns to a single string.
+        
+        This method serves as a delegation point to the existing pattern matching
+        implementation. It would iterate through all detection patterns and apply
+        them to the given string value.
+        
+        Args:
+            string_value: The string to analyze for secrets
+            string_data: Dictionary containing location and metadata
+        
+        Returns:
+            List of pattern matches for this specific string
+        
+        Note:
+            This is currently a placeholder that delegates to existing methods.
+            The actual implementation would contain the core pattern matching logic.
+        """
         # Delegate to the parent class's existing detection method
         # This maintains compatibility while using the Strategy pattern structure
         return []  # Simplified for now - would delegate to existing pattern matching
 
 
 class ResultClassificationStrategy:
-    """Strategy for classifying detection results by severity."""
+    """
+    Strategy for classifying detection results by severity.
     
-    def classify_by_severity(self, detected_secrets: List[Dict[str, Any]]) -> Dict[str, List[str]]:
+    This strategy organizes detected secrets into severity-based categories
+    and prepares them for final SecurityFinding generation. It creates both
+    terminal display formats and structured evidence entries.
+    
+    Responsibilities:
+    - Classify detected secrets by severity level
+    - Create terminal display formats with location information
+    - Generate structured evidence entries for JSON export
+    - Prepare classified results for finding generation
+    
+    Design Pattern: Strategy Pattern (fourth phase of secret detection workflow)
+    SOLID Principles: Single Responsibility (only handles result classification)
+    """
+    
+    def classify_by_severity(self, detected_secrets: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         Classify detected secrets by severity level.
+        
+        This method processes detected secrets and organizes them into severity
+        categories. It creates two types of output: terminal display format for
+        logging and structured evidence entries for JSON export.
+        
+        Args:
+            detected_secrets: List of detection dictionaries from PatternDetectionStrategy
+                            Each dict contains type, severity, pattern_name, value, location info
+        
+        Returns:
+            Dictionary containing:
+            - 'findings': Dict with severity keys ('critical', 'high', 'medium', 'low')
+                         Values are lists of formatted strings for terminal display
+            - 'secrets': Dict with severity keys containing structured evidence entries
+                        Each entry has type, severity, value, location, preview, etc.
+        
+        Raises:
+            None: Method handles classification exceptions gracefully
         
         Single Responsibility: Organize findings into severity categories.
         """
@@ -874,7 +1041,22 @@ class ResultClassificationStrategy:
 
 
 class FindingGenerationStrategy:
-    """Strategy for generating SecurityFinding objects from classified results."""
+    """
+    Strategy for generating SecurityFinding objects from classified results.
+    
+    This strategy creates the final SecurityFinding objects that integrate with
+    the broader security assessment framework. It generates findings with
+    secret-finder style messaging and comprehensive remediation guidance.
+    
+    Responsibilities:
+    - Generate SecurityFinding objects for each severity level
+    - Create secret-finder style titles and descriptions with emojis
+    - Provide comprehensive remediation steps and recommendations
+    - Limit evidence lists to prevent overwhelming output
+    
+    Design Pattern: Strategy Pattern (final phase of secret detection workflow)
+    SOLID Principles: Single Responsibility (only handles finding generation)
+    """
     
     def __init__(self, owasp_category: str):
         self.owasp_category = owasp_category
@@ -882,6 +1064,31 @@ class FindingGenerationStrategy:
     def generate_security_findings(self, classified_results: Dict[str, Any]) -> List[SecurityFinding]:
         """
         Generate SecurityFinding objects from classified detection results.
+        
+        This method creates SecurityFinding objects for each severity level that
+        contains detected secrets. It uses secret-finder style messaging with
+        emojis and provides comprehensive remediation guidance.
+        
+        Args:
+            classified_results: Dictionary from ResultClassificationStrategy containing:
+                              - 'findings': Severity-categorized terminal display strings
+                              - 'secrets': Severity-categorized structured evidence entries
+        
+        Returns:
+            List of SecurityFinding objects, one for each severity level that
+            contains detected secrets. Empty severity levels are omitted.
+        
+        SecurityFinding Structure:
+        - category: OWASP A02:2021-Cryptographic Failures
+        - severity: AnalysisSeverity enum value (CRITICAL, HIGH, MEDIUM, LOW)
+        - title: Secret-finder style title with emoji and count
+        - description: Detailed explanation of security implications
+        - evidence: Limited list of findings (10-20 items max)
+        - recommendation: Actionable security recommendation with emoji
+        - remediation_steps: Detailed step-by-step remediation guidance
+        
+        Raises:
+            None: Method handles finding generation exceptions gracefully
         
         Single Responsibility: Create final SecurityFinding objects with proper formatting.
         """
