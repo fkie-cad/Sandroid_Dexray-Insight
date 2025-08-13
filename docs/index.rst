@@ -1,7 +1,7 @@
 Dexray Insight Documentation
 ============================
 
-**Dexray Insight** is a comprehensive Python-based Android APK static analysis tool that performs security analysis using a modern object-oriented architecture. It's part of the Sandroid dynamic sandbox project and provides multiple analysis modules for examining Android applications.
+**Dexray Insight** is a comprehensive Python-based Android APK static analysis tool that performs security analysis using a modern object-oriented architecture following SOLID principles. It's part of the Sandroid dynamic sandbox project and provides multiple analysis modules for examining Android applications with enhanced Strategy Pattern implementation for secret detection.
 
 .. image:: https://img.shields.io/badge/Python-3.8%2B-blue.svg
    :target: https://www.python.org/downloads/
@@ -15,11 +15,13 @@ Features
 --------
 
 * **Comprehensive APK Analysis**: Deep static analysis of Android applications
-* **Security Assessment**: OWASP Top 10 security checks with enhanced secret detection
+* **Enhanced Security Assessment**: OWASP Top 10 security checks with 54-pattern secret detection using Strategy Pattern
+* **SOLID Architecture**: Refactored codebase following Single Responsibility, Open/Closed, and other SOLID principles
+* **Strategy Pattern Implementation**: Modular secret detection with 5 focused strategies for maintainability
 * **Native Binary Analysis**: Radare2-powered analysis of .so files
-* **Third-party Library Detection**: Identify and analyze embedded libraries
+* **Third-party Library Detection**: Identify and analyze embedded libraries using multi-stage detection
 * **Signature Detection**: VirusTotal, Koodous, and Triage API integration
-* **Parallel Execution**: Multi-threaded analysis for improved performance
+* **Parallel Execution**: Multi-threaded analysis with dependency-aware scheduling
 * **Configurable Modules**: Enable/disable analysis components via YAML configuration
 * **Docker Support**: Containerized analysis environment
 
@@ -77,6 +79,7 @@ Documentation Contents
 
    api/core
    api/modules
+   api/refactored_architecture
    api/results
    api/utilities
 
@@ -85,6 +88,7 @@ Documentation Contents
    :caption: Advanced Topics
 
    advanced/security_assessment
+   advanced/architecture_patterns
    version_analysis
    advanced/native_analysis
    advanced/custom_modules
@@ -95,6 +99,7 @@ Documentation Contents
    :caption: Development
 
    contributing
+   migration_guide
    changelog
 
 Indices and Tables

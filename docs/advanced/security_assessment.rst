@@ -290,10 +290,50 @@ M10: Extraneous Functionality
 Advanced Security Features
 -------------------------
 
+Strategy Pattern Architecture for Secret Detection
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Dexray Insight's secret detection system has been refactored using the Strategy Pattern to improve maintainability, extensibility, and testability. The detection process is now organized into five focused strategies:
+
+**Strategy Pattern Workflow**:
+
+.. code-block:: python
+
+   def _assess_crypto_keys_exposure(self, analysis_results: Dict[str, Any]) -> List[SecurityFinding]:
+       # Strategy 1: String Collection
+       string_collector = StringCollectionStrategy(self.logger)
+       all_strings = string_collector.collect_strings(analysis_results)
+       
+       # Strategy 2: Deep Analysis Enhancement
+       deep_analyzer = DeepAnalysisStrategy(self.logger)
+       enhanced_strings = deep_analyzer.extract_deep_strings(analysis_results, all_strings)
+       
+       # Strategy 3: Pattern Detection
+       pattern_detector = PatternDetectionStrategy(self.detection_patterns, self.logger)
+       detected_secrets = pattern_detector.detect_secrets(enhanced_strings)
+       
+       # Strategy 4: Result Classification
+       result_classifier = ResultClassificationStrategy()
+       classified_results = result_classifier.classify_by_severity(detected_secrets)
+       
+       # Strategy 5: Finding Generation
+       finding_generator = FindingGenerationStrategy(self.owasp_category)
+       return finding_generator.generate_security_findings(classified_results)
+
+**String Collection Strategy**: Systematically gathers strings from multiple sources including string analysis results, Android properties, and raw DEX strings with location metadata.
+
+**Deep Analysis Strategy**: Enhances string collection by extracting additional strings from DEX objects, XML resources, and Smali code when deep analysis mode is enabled.
+
+**Pattern Detection Strategy**: Applies 54 different secret detection patterns across four severity levels using comprehensive pattern matching algorithms.
+
+**Result Classification Strategy**: Organizes detected secrets by severity and creates both terminal display formats and structured evidence entries for JSON export.
+
+**Finding Generation Strategy**: Creates final SecurityFinding objects with secret-finder style messaging and comprehensive remediation guidance.
+
 Enhanced Secret Detection with Secret-Finder Integration
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Dexray Insight uses secret-finder style detection with enhanced accuracy:
+The refactored system maintains secret-finder style detection with enhanced accuracy:
 
 **Smart Context Detection**:
 
