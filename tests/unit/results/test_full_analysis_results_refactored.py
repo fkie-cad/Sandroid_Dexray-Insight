@@ -14,11 +14,18 @@ Refactoring into: 8 single-purpose functions + 1 coordinator function
 """
 
 import pytest
-from unittest.mock import Mock, patch, call
+from unittest.mock import Mock, patch
 from io import StringIO
 import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'src'))
+
+# Import required classes
+from dexray_insight.results.FullAnalysisResults import FullAnalysisResults
+from dexray_insight.results.apkOverviewResults import APKOverview
+from dexray_insight.results.InDepthAnalysisResults import Results
+from dexray_insight.results.ApkidResults import ApkidResults, ApkidFileAnalysis
+from dexray_insight.results.KavanozResults import KavanozResults
 
 
 def capture_print_output(func, *args, **kwargs):

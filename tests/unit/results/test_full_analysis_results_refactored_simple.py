@@ -7,7 +7,6 @@ Avoids circular import issues by using direct module imports.
 """
 
 import pytest
-from unittest.mock import Mock, patch
 from io import StringIO
 import sys
 

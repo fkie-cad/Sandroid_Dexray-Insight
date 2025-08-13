@@ -16,6 +16,12 @@ from .security_engine import SecurityAssessmentEngine
 from .temporal_directory import TemporalDirectoryManager
 from ..results.FullAnalysisResults import FullAnalysisResults
 
+# Import result classes for type hints only
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from ..results.apkOverviewResults import APKOverview
+    from ..results.InDepthAnalysisResults import Results
+
 @dataclass
 class ExecutionPlan:
     """

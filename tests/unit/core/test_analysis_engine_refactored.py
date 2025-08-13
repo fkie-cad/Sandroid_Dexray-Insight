@@ -9,7 +9,7 @@ extracted from the original multi-purpose methods in AnalysisEngine.
 """
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 from dexray_insight.core.base_classes import AnalysisContext
 

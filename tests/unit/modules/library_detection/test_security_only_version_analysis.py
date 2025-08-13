@@ -11,10 +11,9 @@ within security analysis through configuration.
 
 import unittest
 from unittest.mock import Mock, patch
-from datetime import datetime
 
 from src.dexray_insight.modules.library_detection.utils.version_analyzer import (
-    VersionAnalyzer, VersionAnalysisResult, get_version_analyzer
+    VersionAnalyzer, get_version_analyzer
 )
 from src.dexray_insight.modules.library_detection.engines.coordinator import LibraryDetectionCoordinator
 from src.dexray_insight.core.base_classes import AnalysisContext
@@ -406,7 +405,7 @@ class TestSecurityOnlyVersionAnalysisIntegration(unittest.TestCase):
              patch.object(engine, '_deduplicate_libraries', side_effect=lambda x: x):
             
             errors = []
-            result = engine.detect_libraries(context_with_security, errors)
+            engine.detect_libraries(context_with_security, errors)
             
             # Should have created version analyzer with security context
             self.assertIsNotNone(engine.version_analyzer)
@@ -435,7 +434,7 @@ class TestSecurityOnlyVersionAnalysisIntegration(unittest.TestCase):
              patch.object(engine, '_deduplicate_libraries', side_effect=lambda x: x):
             
             errors = []
-            result = engine.detect_libraries(context_without_security, errors)
+            engine.detect_libraries(context_without_security, errors)
             
             # Should have created version analyzer without security context
             self.assertIsNotNone(engine.version_analyzer)

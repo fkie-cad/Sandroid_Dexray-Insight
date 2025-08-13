@@ -10,9 +10,8 @@ ensuring proper orchestration and result aggregation.
 
 import tempfile
 import unittest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from pathlib import Path
-from typing import List
 
 from src.dexray_insight.modules.library_detection.engines.coordinator import LibraryDetectionCoordinator
 from src.dexray_insight.modules.library_detection.engines.apktool_detection_engine import ApktoolDetectionEngine

@@ -11,22 +11,21 @@ Phase 6.5 TDD Refactoring: Main module now delegates to specialized engines
 and imports patterns/signatures from dedicated submodules.
 """
 
-import time
 import logging
 import re
 from typing import List, Dict, Any, Set, Optional
 from dataclasses import dataclass
 
-from dexray_insight.core.base_classes import BaseAnalysisModule, BaseResult, AnalysisContext, AnalysisStatus, register_module
+from dexray_insight.core.base_classes import BaseAnalysisModule, BaseResult, AnalysisContext, register_module
 from dexray_insight.results.LibraryDetectionResults import (
     DetectedLibrary, LibraryDetectionMethod, LibraryCategory, 
-    LibraryType, RiskLevel, LibrarySource
+    LibraryType, LibrarySource
 )
 
 # Import from submodules
 from .patterns import LIBRARY_PATTERNS
 from .engines import LibraryDetectionCoordinator
-from .signatures import ClassSignatureExtractor, SignatureMatcher, get_known_library_signatures
+from .signatures import ClassSignatureExtractor, SignatureMatcher
 
 
 @dataclass
@@ -194,9 +193,9 @@ class LibraryDetectionModule(BaseAnalysisModule):
             self.logger.debug("Building class dependency graph and extracting signatures...")
             
             # Extract comprehensive class features using signature extractor
-            class_features = self.signature_extractor.build_class_dependency_graph(dex_objects)
-            method_patterns = self.signature_extractor.extract_method_opcode_patterns(dex_objects)
-            call_chains = self.signature_extractor.extract_call_chain_patterns(dex_objects)
+            _ = self.signature_extractor.build_class_dependency_graph(dex_objects)
+            _ = self.signature_extractor.extract_method_opcode_patterns(dex_objects)
+            _ = self.signature_extractor.extract_call_chain_patterns(dex_objects)
             
             # Perform LibScan-style similarity matching using signature matcher
             class_signatures = self.signature_extractor.extract_class_signatures(dex_objects)

@@ -17,7 +17,7 @@ import tempfile
 import yaml
 import json
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 from dexray_insight.core.configuration import Configuration
 

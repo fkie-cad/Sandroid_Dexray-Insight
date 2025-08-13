@@ -12,7 +12,7 @@ Tests the complete pipeline including:
 """
 
 import unittest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from pathlib import Path
 
 from src.dexray_insight.modules.library_detection.library_detection_module import LibraryDetectionModule
@@ -227,7 +227,7 @@ class TestLibraryDetectionVersionAnalysisIntegration(unittest.TestCase):
     
     def test_json_export_includes_version_metadata(self):
         """Test that JSON export includes version analysis metadata"""
-        context = self._create_mock_context_with_androidx_strings()
+        _ = self._create_mock_context_with_androidx_strings()
         
         # Create a library with version analysis data
         from src.dexray_insight.results.LibraryDetectionResults import DetectedLibrary, LibraryDetectionMethod, LibrarySource, RiskLevel

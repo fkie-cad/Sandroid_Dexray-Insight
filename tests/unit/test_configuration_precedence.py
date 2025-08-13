@@ -40,18 +40,18 @@ modules:
         try:
             # Load config from file (should have security disabled)
             config = Configuration(config_path=config_path)
-            assert config.enable_security_assessment == False
+            assert not config.enable_security_assessment
             
             # Now override with CLI args equivalent
             cli_override = {'security': {'enable_owasp_assessment': True}}
             config._merge_config(cli_override)
             
             # Should now be enabled
-            assert config.enable_security_assessment == True
+            assert config.enable_security_assessment
             
             # Dict should reflect the override
             config_dict = config.to_dict()
-            assert config_dict['security']['enable_owasp_assessment'] == True
+            assert config_dict['security']['enable_owasp_assessment']
             
         finally:
             os.unlink(config_path)
@@ -80,7 +80,7 @@ security:
                 
                 # Should have loaded our custom settings
                 assert config.to_dict()['logging']['level'] == 'WARNING'
-                assert config.enable_security_assessment == False
+                assert not config.enable_security_assessment
                 
             finally:
                 os.chdir(original_cwd)
@@ -135,7 +135,7 @@ logging:
             
             config = Configuration(config_path=config_path, config_dict=override_dict)
             
-            assert config.enable_security_assessment == True
+            assert config.enable_security_assessment
             assert config.to_dict()['logging']['level'] == 'ERROR'
             
         finally:
@@ -169,11 +169,11 @@ logging:
         result = config.to_dict()
         
         # Should be overridden
-        assert result['security']['enable_owasp_assessment'] == True
-        assert result['security']['assessments']['injection']['enabled'] == False
+        assert result['security']['enable_owasp_assessment']
+        assert not result['security']['assessments']['injection']['enabled']
         
         # Should be preserved (not overridden)
-        assert result['security']['assessments']['broken_access_control']['enabled'] == True
+        assert result['security']['assessments']['broken_access_control']['enabled']
 
 
 class TestVersionAnalysisConfiguration:
@@ -199,11 +199,11 @@ class TestVersionAnalysisConfiguration:
         
         # Version analysis should be enabled but security-only
         version_config = config.get_module_config('library_detection')['version_analysis']
-        assert version_config['enabled'] == True
-        assert version_config['security_analysis_only'] == True
+        assert version_config['enabled']
+        assert version_config['security_analysis_only']
         
         # Security assessment should be disabled
-        assert config.enable_security_assessment == False
+        assert not config.enable_security_assessment
         
         # This combination should result in version analysis being skipped
         # (as tested in integration tests)
@@ -227,8 +227,8 @@ class TestVersionAnalysisConfiguration:
         config = Configuration(config_dict=config_dict)
         
         version_config = config.get_module_config('library_detection')['version_analysis']
-        assert version_config['enabled'] == True
-        assert version_config['security_analysis_only'] == False
+        assert version_config['enabled']
+        assert not version_config['security_analysis_only']
         
         # In this case, version analysis should run even without security analysis
 

@@ -9,7 +9,7 @@ and other media-related functionality.
 """
 
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Optional
 
 from ..models.behavior_evidence import BehaviorEvidence
 

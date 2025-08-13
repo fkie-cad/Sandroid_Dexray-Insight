@@ -12,9 +12,6 @@ refactored submodule architecture internally.
 """
 
 # Import everything from the new submodule structure
-from .library_detection import *
-
-# For direct imports that might be used elsewhere
 from .library_detection.library_detection_module import LibraryDetectionModule, LibraryDetectionResult
 from .library_detection.patterns import LIBRARY_PATTERNS
 

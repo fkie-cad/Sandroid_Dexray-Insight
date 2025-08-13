@@ -13,19 +13,16 @@ Tests cover all major functionality including:
 - Error handling and edge cases
 """
 
-import json
-import pytest
 import tempfile
 import unittest
-from unittest.mock import Mock, patch, mock_open, MagicMock
+from unittest.mock import Mock, patch
 from pathlib import Path
-from typing import List, Dict, Any
 
 # Import the class under test
 from dexray_insight.modules.library_detection.engines.apktool_detection_engine import ApktoolDetectionEngine
 from dexray_insight.results.LibraryDetectionResults import (
     DetectedLibrary, LibraryDetectionMethod, LibraryCategory, 
-    LibraryType, RiskLevel, LibrarySource
+    RiskLevel
 )
 
 

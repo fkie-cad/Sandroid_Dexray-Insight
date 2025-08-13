@@ -11,7 +11,7 @@ Phase 6.5 TDD Refactoring: Extracted from monolithic library_detection.py
 """
 
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 
 
 class ClassSignatureExtractor:

@@ -25,11 +25,8 @@ from .analyzers.reflection_analyzer import ReflectionAnalyzer
 # Import modes and engines
 from .modes.mode_manager import ModeManager
 from .modes.fast_mode_analyzer import FastModeAnalyzer
-from .engines.pattern_search_engine import PatternSearchEngine
 
 # Import models
-from .models.behavior_evidence import BehaviorEvidence
-from .models.analysis_context import BehaviorAnalysisContext
 
 
 @register_module('behaviour_analysis')

@@ -605,7 +605,7 @@ class FullAnalysisResults:
         if not libraries_with_analysis:
             return
             
-        print(f"\n📚 LIBRARY VERSION ANALYSIS")
+        print("\n📚 LIBRARY VERSION ANALYSIS")
         print("="*80)
         print(f"Version analysis grouping: {len(libraries_with_analysis)} libraries analyzed")
         
@@ -664,7 +664,7 @@ class FullAnalysisResults:
         
         # Print summary statistics
         if libraries_with_analysis:
-            print(f"\n📊 SUMMARY:")
+            print("\n📊 SUMMARY:")
             print("-" * 40)
             print(f"   Total libraries analyzed: {len(libraries_with_analysis)}")
             print(f"   Critical risk: {len(critical_libs)}")

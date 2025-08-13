@@ -9,7 +9,7 @@ without requiring full DEX analysis. Suitable for quick scans.
 """
 
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Optional
 
 from ..models.behavior_evidence import BehaviorEvidence
 
@@ -151,7 +151,8 @@ class FastModeAnalyzer:
             target_sdk = apk_obj.get_target_sdk_version()
             min_sdk = apk_obj.get_min_sdk_version()
             
-            metadata = {
+            # Store metadata for potential future use
+            _ = {
                 'package_name': package_name,
                 'app_name': app_name,
                 'target_sdk': target_sdk,

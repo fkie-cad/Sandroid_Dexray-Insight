@@ -14,11 +14,10 @@ Refactoring into: 13 single-purpose analysis functions + 1 coordinator
 """
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
-from xml.dom.minidom import parseString
+from unittest.mock import Mock, patch
 import sys
 import os
-from typing import Dict, Any, List
+from typing import Dict, List
 
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'src'))
@@ -60,7 +59,6 @@ class TestManifestAnalysisPermissionAnalysis:
         
         RED: This test will fail initially as the function doesn't exist yet.
         """
-        from dexray_insight.apk_overview.manifest_analysis import manifest_analysis
         
         # Arrange
         permission1 = create_mock_manifest_element('permission', {
@@ -96,7 +94,6 @@ class TestManifestAnalysisPermissionAnalysis:
         
         RED: This test will fail initially as the function doesn't exist yet.
         """
-        from dexray_insight.apk_overview.manifest_analysis import manifest_analysis
         
         # Arrange
         permission = create_mock_manifest_element('permission', {
@@ -133,7 +130,6 @@ class TestManifestAnalysisSDKVersionValidation:
         
         RED: This test will fail initially as the function doesn't exist yet.
         """
-        from dexray_insight.apk_overview.manifest_analysis import manifest_analysis
         
         # Arrange
         man_data_dic = {
@@ -161,7 +157,6 @@ class TestManifestAnalysisSDKVersionValidation:
         
         RED: This test will fail initially as the function doesn't exist yet.
         """
-        from dexray_insight.apk_overview.manifest_analysis import manifest_analysis
         
         # Arrange
         man_data_dic = {
@@ -194,7 +189,6 @@ class TestManifestAnalysisApplicationConfiguration:
         
         RED: This test will fail initially as the function doesn't exist yet.
         """
-        from dexray_insight.apk_overview.manifest_analysis import manifest_analysis
         
         # Arrange
         application = create_mock_manifest_element('application', {
@@ -233,7 +227,6 @@ class TestManifestAnalysisApplicationConfiguration:
         
         RED: This test will fail initially as the function doesn't exist yet.
         """
-        from dexray_insight.apk_overview.manifest_analysis import manifest_analysis
         
         # Arrange
         application = create_mock_manifest_element('application', {
@@ -270,7 +263,6 @@ class TestManifestAnalysisComponentAnalysis:
         
         RED: This test will fail initially as the function doesn't exist yet.
         """
-        from dexray_insight.apk_overview.manifest_analysis import manifest_analysis
         
         # Arrange
         activity = create_mock_manifest_element('activity', {
@@ -307,7 +299,6 @@ class TestManifestAnalysisComponentAnalysis:
         
         RED: This test will fail initially as the function doesn't exist yet.
         """
-        from dexray_insight.apk_overview.manifest_analysis import manifest_analysis
         
         # Arrange
         service = create_mock_manifest_element('service', {
@@ -357,7 +348,6 @@ class TestManifestAnalysisExportStatusAnalysis:
         
         RED: This test will fail initially as the function doesn't exist yet.
         """
-        from dexray_insight.apk_overview.manifest_analysis import manifest_analysis
         
         # Arrange
         component = create_mock_manifest_element('activity', {
@@ -387,7 +377,6 @@ class TestManifestAnalysisExportStatusAnalysis:
         
         RED: This test will fail initially as the function doesn't exist yet.
         """
-        from dexray_insight.apk_overview.manifest_analysis import manifest_analysis
         
         # Arrange
         intent_filter = create_mock_manifest_element('intent-filter', {})
@@ -428,7 +417,6 @@ class TestManifestAnalysisPermissionProtectionAnalysis:
         
         RED: This test will fail initially as the function doesn't exist yet.
         """
-        from dexray_insight.apk_overview.manifest_analysis import manifest_analysis
         
         # Arrange
         component_permission = 'com.test.SIGNATURE_PERMISSION'
@@ -455,7 +443,6 @@ class TestManifestAnalysisPermissionProtectionAnalysis:
         
         RED: This test will fail initially as the function doesn't exist yet.
         """
-        from dexray_insight.apk_overview.manifest_analysis import manifest_analysis
         
         # Arrange
         component_permission = 'com.test.DANGEROUS_PERMISSION'
@@ -492,7 +479,6 @@ class TestManifestAnalysisDataTagAnalysis:
         
         RED: This test will fail initially as the function doesn't exist yet.
         """
-        from dexray_insight.apk_overview.manifest_analysis import manifest_analysis
         
         # Arrange
         data_tag = create_mock_manifest_element('data', {
@@ -523,7 +509,6 @@ class TestManifestAnalysisDataTagAnalysis:
         
         RED: This test will fail initially as the function doesn't exist yet.
         """
-        from dexray_insight.apk_overview.manifest_analysis import manifest_analysis
         
         # Arrange
         data_tag = create_mock_manifest_element('data', {
@@ -562,7 +547,6 @@ class TestManifestAnalysisIntentPriorityAnalysis:
         
         RED: This test will fail initially as the function doesn't exist yet.
         """
-        from dexray_insight.apk_overview.manifest_analysis import manifest_analysis
         
         # Arrange
         intent_filter = create_mock_manifest_element('intent-filter', {
@@ -610,7 +594,6 @@ class TestManifestAnalysisGrantUriPermissionAnalysis:
         
         RED: This test will fail initially as the function doesn't exist yet.
         """
-        from dexray_insight.apk_overview.manifest_analysis import manifest_analysis
         
         # Arrange
         grant_uri1 = create_mock_manifest_element('grant-uri-permission', {
@@ -655,7 +638,6 @@ class TestManifestAnalysisResultProcessing:
         
         RED: This test will fail initially as the function doesn't exist yet.
         """
-        from dexray_insight.apk_overview.manifest_analysis import manifest_analysis
         
         # Arrange
         raw_findings = [
@@ -764,7 +746,7 @@ class TestManifestAnalysisRefactoredMain:
             mock_network_security.return_value = []
             
             # Act - This will test the refactored version once implemented
-            result = manifest_analysis(checksum, mfxml, ns, man_data_dic, src_type, app_dir)
+            manifest_analysis(checksum, mfxml, ns, man_data_dic, src_type, app_dir)
             
             # Assert - All analysis functions should be called
             mock_permissions.assert_called_once()

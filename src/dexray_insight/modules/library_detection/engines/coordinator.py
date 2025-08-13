@@ -11,8 +11,7 @@ Phase 6.5 TDD Refactoring: Extracted from monolithic library_detection.py
 """
 
 import time
-import logging
-from typing import List, Dict, Any
+from typing import List
 from ....core.base_classes import AnalysisContext, AnalysisStatus
 from ....results.LibraryDetectionResults import DetectedLibrary
 from .heuristic_engine import HeuristicDetectionEngine
@@ -259,7 +258,7 @@ class LibraryDetectionCoordinator:
         # Print summary statistics
         total_libs = len(libraries_with_versions)
         if total_libs > 0:
-            print(f"\n📊 SUMMARY:")
+            print("\n📊 SUMMARY:")
             print("-" * 40)
             print(f"   Total libraries analyzed: {total_libs}")
             print(f"   Critical risk: {len(critical_libs)}")

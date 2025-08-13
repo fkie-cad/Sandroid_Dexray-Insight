@@ -11,7 +11,6 @@ Phase 6.5 TDD Refactoring: Extracted from monolithic library_detection.py
 """
 
 import time
-import logging
 from typing import List, Dict, Any
 from ....core.base_classes import AnalysisContext
 

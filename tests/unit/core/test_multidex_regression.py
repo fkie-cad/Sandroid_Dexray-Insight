@@ -10,11 +10,10 @@ instead of all available DEX files.
 """
 
 import pytest
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import Mock, patch
 import tempfile
 import os
 import zipfile
-from argparse import Namespace
 
 from dexray_insight.Utils.androguardObjClass import Androguard_Obj
 from dexray_insight.core.analysis_engine import AnalysisEngine

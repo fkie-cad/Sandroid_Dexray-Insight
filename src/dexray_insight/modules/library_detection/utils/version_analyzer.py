@@ -9,11 +9,10 @@ for determining how outdated detected libraries are.
 """
 
 import re
-import time
 import logging
 import requests
 from datetime import datetime, timedelta
-from typing import Optional, Dict, List, Tuple, Any
+from typing import Optional, Dict, Tuple, Any
 from dataclasses import dataclass
 from packaging import version
 
@@ -227,7 +226,7 @@ class VersionAnalyzer:
         """Check Maven Central for latest version using improved mapping"""
         try:
             # Import library mappings
-            from .library_mappings import get_library_mapping, get_maven_coordinates
+            from .library_mappings import get_maven_coordinates
             
             # Try to get proper Maven coordinates from mapping
             maven_coords = get_maven_coordinates(library_name)
@@ -273,7 +272,7 @@ class VersionAnalyzer:
             for i, query in enumerate(strategies):
                 self.logger.debug(f"Maven Central strategy {i+1}: {query}")
                 
-                url = f"https://search.maven.org/solrsearch/select"
+                url = "https://search.maven.org/solrsearch/select"
                 params = {
                     'q': query,
                     'rows': 5,  # Get more results for better matching

@@ -19,17 +19,16 @@ Target methods: Refactored AnalysisEngine helper methods
 """
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock, call
+from unittest.mock import Mock, patch
 import sys
 import os
-from typing import Dict, Any, List
 
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'src'))
 
 from dexray_insight.core.analysis_engine import AnalysisEngine
 from dexray_insight.core.configuration import Configuration  
-from dexray_insight.core.base_classes import BaseResult, AnalysisStatus, AnalysisContext
+from dexray_insight.core.base_classes import BaseResult, AnalysisContext
 
 
 @pytest.mark.unit

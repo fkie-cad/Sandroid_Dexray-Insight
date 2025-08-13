@@ -19,8 +19,7 @@ import time
 import logging
 import requests
 from pathlib import Path
-from typing import Dict, List, Any, Set, Optional, Tuple
-from urllib.parse import urlparse
+from typing import Dict, List, Any, Optional
 
 from dexray_insight.results.LibraryDetectionResults import (
     DetectedLibrary, LibraryDetectionMethod, LibraryCategory, 
@@ -793,7 +792,7 @@ class ApktoolDetectionEngine:
         # Print summary statistics
         total_libs = len(libraries_with_versions)
         if total_libs > 0:
-            print(f"\n📊 SUMMARY:")
+            print("\n📊 SUMMARY:")
             print("-" * 40)
             print(f"   Total libraries analyzed: {total_libs}")
             print(f"   Critical risk: {len(critical_libs)}")
@@ -806,6 +805,6 @@ class ApktoolDetectionEngine:
                 avg_years = sum(lib.years_behind for lib in libs_with_years) / len(libs_with_years)
                 print(f"   Average years behind: {avg_years:.1f}")
             else:
-                print(f"   Years behind analysis: Not available (API timeouts/errors)")
+                print("   Years behind analysis: Not available (API timeouts/errors)")
         
         print("="*80)

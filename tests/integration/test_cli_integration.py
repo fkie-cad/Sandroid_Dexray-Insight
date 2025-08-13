@@ -150,7 +150,6 @@ class TestConfigurationIntegration:
         sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
         
         from dexray_insight.asam import parse_arguments, create_configuration_from_args
-        import argparse
         
         # Mock sys.argv
         original_argv = sys.argv
@@ -159,14 +158,14 @@ class TestConfigurationIntegration:
             
             args = parse_arguments()
             assert hasattr(args, 'sec')
-            assert args.sec == True
+            assert args.sec
             
             config = create_configuration_from_args(args)
-            assert config.enable_security_assessment == True
+            assert config.enable_security_assessment
             
             # Check dict representation
             config_dict = config.to_dict()
-            assert config_dict['security']['enable_owasp_assessment'] == True
+            assert config_dict['security']['enable_owasp_assessment']
             
         finally:
             sys.argv = original_argv

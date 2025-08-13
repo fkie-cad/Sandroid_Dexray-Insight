@@ -14,10 +14,9 @@ Refactoring into: 8 single-purpose initialization functions + 1 coordinator
 """
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import patch
 import sys
 import os
-from typing import Dict, Any
 
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'src'))
@@ -542,7 +541,7 @@ class TestSensitiveDataAssessmentRefactoredInit:
              patch.object(SensitiveDataAssessment, '_setup_legacy_compatibility') as mock_legacy:
             
             # Act - This will test the refactored version
-            assessment = SensitiveDataAssessment(config)
+            SensitiveDataAssessment(config)
             
             # Assert - All functions should be called in the correct order
             mock_basic.assert_called_once_with(config)

@@ -772,8 +772,9 @@ class DeepAnalysisStrategy:
         """
         all_strings = existing_strings.copy()
         deep_strings_extracted = 0
-        xml_files_analyzed = 0
-        smali_files_analyzed = 0
+        # Track analysis counts for potential future use
+        _ = 0  # xml_files_analyzed 
+        _ = 0  # smali_files_analyzed
         
         try:
             # Check if we have behaviour analysis results with stored androguard objects

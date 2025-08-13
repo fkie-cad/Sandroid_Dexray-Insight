@@ -14,7 +14,6 @@ Following SOLID principles and code quality standards:
 """
 
 import pytest
-from unittest.mock import Mock, MagicMock
 from argparse import Namespace
 
 from dexray_insight.core.configuration import Configuration

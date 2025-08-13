@@ -12,7 +12,7 @@ Phase 8 TDD Refactoring: Extracted from monolithic string_analysis.py
 
 import logging
 import re
-from typing import Set, List
+from typing import Set
 from dexray_insight.core.base_classes import AnalysisContext
 
 

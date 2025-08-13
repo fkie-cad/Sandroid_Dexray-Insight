@@ -19,10 +19,9 @@ Target components: Strategy pattern classes in SensitiveDataAssessment
 """
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock
 import sys
 import os
-from typing import Dict, Any, List
 
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'src'))
@@ -330,7 +329,7 @@ class TestPatternDetectionStrategy:
         ]
         
         # Act
-        result = strategy.detect_secrets(strings_with_empty)
+        strategy.detect_secrets(strings_with_empty)
         
         # Assert - Only strings with length >= 3 should be processed
         strategy.logger.info.assert_any_call("🔍 Scanning 4 strings for secrets...")
