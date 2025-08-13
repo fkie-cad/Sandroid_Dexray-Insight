@@ -17,6 +17,7 @@ from .utils.apk_builder import SyntheticAPKBuilder
 
 def pytest_configure(config):
     """Configure pytest with custom markers"""
+    # Original test markers
     config.addinivalue_line("markers", "unit: Fast unit tests (< 1s)")
     config.addinivalue_line("markers", "integration: Medium integration tests (1-10s)")
     config.addinivalue_line("markers", "e2e: Slow end-to-end tests (10s+)")
@@ -26,6 +27,14 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "refactored: Tests for newly refactored functions")
     config.addinivalue_line("markers", "performance: Performance and benchmarking tests")
     config.addinivalue_line("markers", "security: Security-focused tests")
+    
+    # Real APK testing markers
+    config.addinivalue_line("markers", "real_apk: Tests that use real APK samples from example_samples/")
+    config.addinivalue_line("markers", "ci_safe: Tests safe for CI/GitHub Actions (uses only exampleapp-release.apk)")
+    config.addinivalue_line("markers", "local_dev: Tests for local development environment (may use all samples)")
+    config.addinivalue_line("markers", "malware_sample: Tests that use malware samples (local development only)")
+    config.addinivalue_line("markers", "real_apk_regression: Regression tests using real APK samples")
+    config.addinivalue_line("markers", "real_apk_performance: Performance tests with real APKs")
 
 
 # ========================

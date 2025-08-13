@@ -11,14 +11,22 @@ tests/
 │   ├── modules/            # Analysis module tests
 │   └── utils/              # Utility function tests
 ├── integration/            # Medium integration tests (1-10s each)
+│   ├── test_real_apk_ci_safe.py      # CI-safe real APK tests
+│   └── test_real_apk_local_dev.py    # Local development real APK tests
 ├── e2e/                   # Slow end-to-end tests (10s+ each)
+│   └── test_real_apk_e2e.py          # End-to-end real APK tests
+├── regression/            # Regression prevention tests
+│   └── test_real_apk_regression.py   # Real APK regression tests
 ├── fixtures/              # Test data and expected results
 │   ├── synthetic_apks/    # Generated test APKs
 │   ├── expected_results/  # Golden file test data
-│   └── mock_responses/    # API response mocks
+│   ├── mock_responses/    # API response mocks
+│   ├── real_apk_fixtures.py          # Real APK testing fixtures
+│   └── test_results_cache/           # Cached baseline results
 ├── utils/                 # Test utilities
 │   └── apk_builder.py     # Synthetic APK generator
 ├── conftest.py           # Shared pytest fixtures
+├── run_real_apk_tests.py # Real APK test runner script
 └── README.md             # This file
 ```
 
@@ -377,5 +385,74 @@ make test-fast
 - jadx
 - r2pipe
 - Various security scanners
+
+## Real APK Testing with Clean vs. Malicious Samples
+
+### Clean APK Testing (CI-Safe)
+
+The CI environment uses `exampleapp-release.apk`, which is a legitimate application without security vulnerabilities:
+
+```bash
+# Test with clean APK (CI-safe)
+python tests/run_real_apk_tests.py --ci-only
+```
+
+**Expected Results for Clean APKs:**
+- Risk scores ≤ 50 (low risk)
+- Minimal or no high-severity security findings
+- Tests validate assessment **functionality**, not finding detection
+- False positives are logged but don't fail tests
+
+### Malicious APK Testing (Local Development)
+
+Local development may include malware samples for comprehensive testing:
+
+```bash
+# Test with all available samples (including malware)
+python tests/run_real_apk_tests.py --local-dev
+```
+
+**Expected Results for Malicious APKs:**
+- Higher risk scores (varies by sample)
+- Multiple security findings across categories
+- Tests validate **detection effectiveness**
+- Missing detections may indicate assessment gaps
+
+### APK Classification
+
+Tests automatically classify APKs based on filename indicators:
+
+- **Clean indicators**: `exampleapp`, `sample`, `test`, `demo`
+- **Malicious indicators**: `malware`, `bianlian`, `trojan`, `virus`, `backdoor`
+- **Unknown**: Neither clean nor malicious indicators
+
+### Security Assessment Expectations
+
+#### Clean APK Validation
+```python
+# Example clean APK test expectations
+assert risk_score <= 50, "Clean APK should have low risk score"
+if findings:
+    for finding in findings:
+        severity = finding.get('severity', '').upper()
+        if severity in ['CRITICAL', 'HIGH']:
+            print(f"⚠ High severity finding in clean APK: {finding.get('title')}")
+```
+
+#### Malicious APK Validation
+```python
+# Example malicious APK test expectations
+if is_malicious_sample:
+    assert risk_score > 0 or findings, "Malicious APK should have security issues detected"
+    print(f"✓ Security assessment detected issues in malicious sample")
+```
+
+### Regression Testing
+
+Baseline comparison accounts for APK type:
+
+- **Clean APK baselines**: Focus on assessment consistency and process validation
+- **Malicious APK baselines**: Focus on detection capability maintenance
+- **Separate cache files**: Prevent cross-contamination of expectations
 
 For questions or issues with the testing framework, see the project documentation or create an issue in the repository.
