@@ -636,85 +636,85 @@ class TestExistingSensitiveDataAssessmentMethods:
         assert hasattr(assessment, '_assess_crypto_keys_exposure')
         assert callable(assessment._assess_crypto_keys_exposure)
     
-    def test_detect_hardcoded_keys_with_location_method_exists(self):
-        """Test that _detect_hardcoded_keys_with_location method exists."""
+    def test_initialize_basic_configuration_method_exists(self):
+        """Test that _initialize_basic_configuration method exists."""
         from dexray_insight.security.sensitive_data_assessment import SensitiveDataAssessment
         
         config = {}
         assessment = SensitiveDataAssessment(config)
         
-        assert hasattr(assessment, '_detect_hardcoded_keys_with_location')
-        assert callable(assessment._detect_hardcoded_keys_with_location)
+        assert hasattr(assessment, '_initialize_basic_configuration')
+        assert callable(assessment._initialize_basic_configuration)
     
-    def test_is_pattern_enabled_method_exists(self):
-        """Test that _is_pattern_enabled method exists."""
+    def test_setup_pattern_enablement_method_exists(self):
+        """Test that _setup_pattern_enablement method exists."""
         from dexray_insight.security.sensitive_data_assessment import SensitiveDataAssessment
         
         config = {}
         assessment = SensitiveDataAssessment(config)
         
-        assert hasattr(assessment, '_is_pattern_enabled')
-        assert callable(assessment._is_pattern_enabled)
+        assert hasattr(assessment, '_setup_pattern_enablement')
+        assert callable(assessment._setup_pattern_enablement)
     
-    def test_validate_key_detection_method_exists(self):
-        """Test that _validate_key_detection method exists."""
+    def test_initialize_threshold_configuration_method_exists(self):
+        """Test that _initialize_threshold_configuration method exists."""
         from dexray_insight.security.sensitive_data_assessment import SensitiveDataAssessment
         
         config = {}
         assessment = SensitiveDataAssessment(config)
         
-        assert hasattr(assessment, '_validate_key_detection')
-        assert callable(assessment._validate_key_detection)
+        assert hasattr(assessment, '_initialize_threshold_configuration')
+        assert callable(assessment._initialize_threshold_configuration)
     
-    def test_extract_from_xml_files_method_exists(self):
-        """Test that _extract_from_xml_files method exists."""
+    def test_compile_pii_patterns_method_exists(self):
+        """Test that _compile_pii_patterns method exists."""
         from dexray_insight.security.sensitive_data_assessment import SensitiveDataAssessment
         
         config = {}
         assessment = SensitiveDataAssessment(config)
         
-        assert hasattr(assessment, '_extract_from_xml_files')
-        assert callable(assessment._extract_from_xml_files)
+        assert hasattr(assessment, '_compile_pii_patterns')
+        assert callable(assessment._compile_pii_patterns)
     
-    def test_extract_from_smali_files_method_exists(self):
-        """Test that _extract_from_smali_files method exists."""
+    def test_setup_critical_security_patterns_method_exists(self):
+        """Test that _setup_critical_security_patterns method exists."""
         from dexray_insight.security.sensitive_data_assessment import SensitiveDataAssessment
         
         config = {}
         assessment = SensitiveDataAssessment(config)
         
-        assert hasattr(assessment, '_extract_from_smali_files')
-        assert callable(assessment._extract_from_smali_files)
+        assert hasattr(assessment, '_setup_critical_security_patterns')
+        assert callable(assessment._setup_critical_security_patterns)
     
-    def test_calculate_entropy_method_exists(self):
-        """Test that _calculate_entropy method exists."""
+    def test_setup_high_medium_severity_patterns_method_exists(self):
+        """Test that _setup_high_medium_severity_patterns method exists."""
         from dexray_insight.security.sensitive_data_assessment import SensitiveDataAssessment
         
         config = {}
         assessment = SensitiveDataAssessment(config)
         
-        assert hasattr(assessment, '_calculate_entropy')
-        assert callable(assessment._calculate_entropy)
+        assert hasattr(assessment, '_setup_high_medium_severity_patterns')
+        assert callable(assessment._setup_high_medium_severity_patterns)
     
-    def test_has_required_context_method_exists(self):
-        """Test that _has_required_context method exists."""
+    def test_setup_low_severity_context_patterns_method_exists(self):
+        """Test that _setup_low_severity_context_patterns method exists."""
         from dexray_insight.security.sensitive_data_assessment import SensitiveDataAssessment
         
         config = {}
         assessment = SensitiveDataAssessment(config)
         
-        assert hasattr(assessment, '_has_required_context')
-        assert callable(assessment._has_required_context)
+        assert hasattr(assessment, '_setup_low_severity_context_patterns')
+        assert callable(assessment._setup_low_severity_context_patterns)
     
-    def test_is_false_positive_method_exists(self):
-        """Test that _is_false_positive method exists."""
+    def test_setup_legacy_compatibility_method_exists(self):
+        """Test that _setup_legacy_compatibility method exists."""
         from dexray_insight.security.sensitive_data_assessment import SensitiveDataAssessment
         
         config = {}
         assessment = SensitiveDataAssessment(config)
         
-        assert hasattr(assessment, '_is_false_positive')
-        assert callable(assessment._is_false_positive)
+        assert hasattr(assessment, '_setup_legacy_compatibility')
+        assert callable(assessment._setup_legacy_compatibility)
     
     def test_assess_weak_cryptography_method_exists(self):
         """Test that _assess_weak_cryptography method exists."""

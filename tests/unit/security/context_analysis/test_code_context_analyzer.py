@@ -63,8 +63,16 @@ class TestCodeContextAnalyzer:
         }
         
         analysis_results = {
-            'string_analysis': Mock(),
-            'behaviour_analysis': Mock()
+            'string_analysis': {
+                'all_strings': ['AIzaSyTestKey123456789012345678901234', 'other_string'],
+                'emails': [],
+                'urls': [],
+                'domains': [],
+                'ip_addresses': []
+            },
+            'behaviour_analysis': {
+                'deep_analysis': {'strings': []}
+            }
         }
         
         context = analyzer.analyze_string_context(finding, analysis_results)
@@ -84,8 +92,16 @@ class TestCodeContextAnalyzer:
         }
         
         analysis_results = {
-            'string_analysis': Mock(),
-            'behaviour_analysis': Mock()
+            'string_analysis': {
+                'all_strings': ['secret_api_key_123', 'other_string'],
+                'emails': [],
+                'urls': [],
+                'domains': [],
+                'ip_addresses': []
+            },
+            'behaviour_analysis': {
+                'deep_analysis': {'strings': []}
+            }
         }
         
         context = analyzer.analyze_string_context(finding, analysis_results)
@@ -103,7 +119,15 @@ class TestCodeContextAnalyzer:
             'line_number': 25
         }
         
-        analysis_results = {'string_analysis': Mock()}
+        analysis_results = {
+            'string_analysis': {
+                'all_strings': ['test_api_key', 'other_string'],
+                'emails': [],
+                'urls': [],
+                'domains': [],
+                'ip_addresses': []
+            }
+        }
         
         context = analyzer.analyze_string_context(finding, analysis_results)
         
@@ -119,7 +143,15 @@ class TestCodeContextAnalyzer:
             'line_number': 15
         }
         
-        analysis_results = {'string_analysis': Mock()}
+        analysis_results = {
+            'string_analysis': {
+                'all_strings': ['gradle_api_key', 'other_string'],
+                'emails': [],
+                'urls': [],
+                'domains': [],
+                'ip_addresses': []
+            }
+        }
         
         context = analyzer.analyze_string_context(finding, analysis_results)
         

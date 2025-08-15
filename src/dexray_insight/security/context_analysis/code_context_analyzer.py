@@ -160,10 +160,21 @@ class CodeContextAnalyzer:
         file_path_lower = file_path.lower()
         
         # Check in priority order (most specific first)
-        for location_type, patterns in self.file_type_patterns.items():
-            for pattern in patterns:
-                if re.search(pattern, file_path_lower):
-                    return location_type
+        # Order matters: check more specific patterns before generic ones
+        priority_order = [
+            CodeLocation.TEST_CODE,
+            CodeLocation.BUILD_SCRIPT,
+            CodeLocation.CONFIGURATION_FILE,
+            CodeLocation.RESOURCE_FILE,
+            CodeLocation.SOURCE_CODE  # Most generic, check last
+        ]
+        
+        for location_type in priority_order:
+            if location_type in self.file_type_patterns:
+                patterns = self.file_type_patterns[location_type]
+                for pattern in patterns:
+                    if re.search(pattern, file_path_lower):
+                        return location_type
         
         return CodeLocation.UNKNOWN
     
