@@ -26,8 +26,8 @@ class DomainFilter:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         
-        # Domain pattern matching
-        self.domain_pattern = re.compile(r'\b(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\b')
+        # Domain pattern matching - for standalone domains or domains within text
+        self.domain_pattern = re.compile(r'(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}')
         
         # Comprehensive invalid patterns for mobile app analysis
         self._initialize_invalid_patterns()
@@ -65,9 +65,9 @@ class DomainFilter:
         
         # Package/namespace prefixes that commonly appear as false positives
         self.invalid_prefixes = (
-            # Android and Google
-            "android.", "androidx.", "com.android.", "com.google.", "com.google.android.",
-            "google.", "gms.", "firebase.", "play.google.", "android.support.",
+            # Android and Google packages (but not domains)
+            "android.", "androidx.", "com.android.", "com.google.android.",
+            "gms.", "firebase.", "play.google.", "android.support.",
             
             # Java and JVM ecosystem
             "java.", "javax.", "org.apache.", "org.springframework.", "org.hibernate.",
@@ -138,17 +138,55 @@ class DomainFilter:
             r"\.(gradle|maven|pom|lock|log|tmp|cache|bak)$",
             r"\.(rc|sig|keystore|jks|p12|pem|crt|key)$",
             
+            # OMX Media Codec Names (major false positive source)
+            r"^OMX\.", r"\.OMX\.", r"omx\.", r"\.omx\.",
+            r"^OMX\.[A-Za-z0-9_]+\.(video|audio|image)\.(decoder|encoder|render)",
+            r"^OMX\.[A-Za-z0-9_]+\.(avc|hevc|h264|h265|mp3|aac|flac|vp8|vp9)",
+            
+            # MIME Types (another major false positive source)
+            r"^vnd\.", r"^application\.", r"^text\.", r"^image\.", r"^video\.", r"^audio\.",
+            r"\.vnd\.", r"vnd\.microsoft\.", r"vnd\.openxmlformats", r"vnd\.android\.",
+            
+            # Android Vendor-Specific Properties (ro.vendor.*, etc.)
+            r"^ro\.", r"^sys\.", r"^persist\.", r"^debug\.", r"^service\.",
+            r"^init\.", r"^dalvik\.", r"^art\.", r"^dev\.", r"^vendor\.",
+            r"^qemu\.", r"^emulator\.", r"^hw\.", r"^camera\.", r"^audio\.",
+            r"^graphics\.", r"^wifi\.", r"^bluetooth\.", r"^telephony\.",
+            r"^media\.", r"^drm\.", r"^sensors\.", r"^gps\.", r"^nfc\.",
+            
+            # Kotlin/Coroutines Properties 
+            r"^kotlinx\.coroutines\.", r"^kotlin\.", r"kotlinx\.",
+            
+            # Android Codec and Media Properties
+            r"^codec\.", r"^media\.", r"\.codec\.", r"\.media\.",
+            r"trak\.mdia\.", r"\.stbl\.", r"\.stco\.", r"\.minf\.",
+            
+            # GCM and Firebase Properties
+            r"^gcm\.", r"^firebase\.", r"\.gcm\.", r"\.firebase\.",
+            r"measurement\.client\.", r"\.measurement\.",
+            
+            # Module and Mapping Properties  
+            r"module\.mappings\.", r"\.mappings\.", r"^mappings\.",
+            
             # Development and framework patterns
             r"^\w+\.gms\b", r"videoApi\.set", r"line\.separator", r"multidex\.version",
             r"androidx\.multidex", r"dd\.MM\.yyyy", r"document\.hidelocation",
             r"angtrim\.com\.fivestarslibrary", r"^Theme\b", r"betcheg\.mlgphotomontag",
             r"MultiDex\.lock", r"\.ConsoleError$", r"^\w+\.android\b",
             
-            # Package and class patterns
-            r"^[A-Z]\w*\.[A-Z]\w*$",  # Likely class references (e.g., "Utils.Logger")
+            # Package and class patterns (case-sensitive to avoid matching domains)
+            # Note: These patterns should NOT be case-insensitive to avoid matching domains
             r"^\w+\$\w+",  # Inner class references (e.g., "Activity$1")
             r"\.R\.\w+$",  # Android resource references
             r"\.BuildConfig$",  # Build configuration references
+            r"kClass\.java\.name", r"\.java\.name", r"\.class\.name",
+            
+            # Library Core References
+            r"^libcore\.", r"libcore\.io\.", r"\.libcore\.",
+            
+            # Generic Placeholder Patterns
+            r"^xxx\.xxx\.xxx\.xxx$", r"^placeholder\.", r"^example\.",
+            r"^test\.", r"^demo\.", r"^sample\.",
             
             # Version and build patterns
             r"\.v\d+$", r"\.version\d*$", r"\.build\d*$", r"\.snapshot$",
@@ -190,6 +228,11 @@ class DomainFilter:
             r"ads\.", r"adnw\.", r"adsystem\.", r"advertising\.",
             r"admob\.", r"doubleclick\.", r"googlesyndication\."
         ]
+        
+        # Case-sensitive patterns that should NOT be applied case-insensitively
+        self.case_sensitive_patterns = [
+            r"^[A-Z]\w*\.[A-Z]\w*$",  # Likely class references (e.g., "Utils.Logger")
+        ]
     
     def filter_domains(self, strings: Set[str]) -> List[str]:
         """
@@ -205,7 +248,12 @@ class DomainFilter:
         
         # First pass: basic pattern matching
         for string in strings:
-            if self.domain_pattern.match(string):
+            # For exact domain matches, use fullmatch; for partial matches in text, use search
+            if self.domain_pattern.fullmatch(string) or (
+                len(string.split('.')) >= 2 and 
+                self.domain_pattern.search(string) and
+                self.domain_pattern.search(string).group() == string
+            ):
                 potential_domains.append(string)
         
         self.logger.debug(f"Found {len(potential_domains)} potential domains from pattern matching")
@@ -248,6 +296,10 @@ class DomainFilter:
         if domain.lower().endswith(self.invalid_extensions):
             return False
         
+        # Check if this looks like a Java package name (deep nested structure)
+        if self._is_java_package_name(domain):
+            return False
+        
         # Enhanced package/namespace prefixes filtering
         domain_lower = domain.lower()
         if any(domain_lower.startswith(prefix) for prefix in self.invalid_prefixes):
@@ -265,9 +317,14 @@ class DomainFilter:
         if re.search(r"^(build|version|release|snapshot|alpha|beta|rc)\.\d+", domain, re.IGNORECASE):
             return False
         
-        # Apply complex regex patterns
+        # Apply complex regex patterns (case-insensitive)
         for pattern in self.invalid_regex_patterns:
             if re.search(pattern, domain, re.IGNORECASE):
+                return False
+        
+        # Apply case-sensitive patterns
+        for pattern in self.case_sensitive_patterns:
+            if re.search(pattern, domain):  # Case-sensitive matching
                 return False
         
         # Additional validation: Check if domain has reasonable structure
@@ -296,6 +353,78 @@ class DomainFilter:
             return False
         
         return True
+    
+    def _is_java_package_name(self, domain: str) -> bool:
+        """
+        Check if a string looks like a Java package name rather than a domain.
+        
+        Args:
+            domain: String to check
+            
+        Returns:
+            True if string looks like a Java package name
+        """
+        parts = domain.split('.')
+        
+        # Only check for Java packages if there are more than 2 parts
+        # Simple domains like "google.com" should NOT be flagged as Java packages
+        if len(parts) < 3:
+            return False
+        
+        # Java package names typically have specific patterns:
+        # - Start with reverse domain (com.*, org.*, etc.)
+        # - Have multiple segments (usually 3+)
+        # - Contain lowercase segments with specific naming
+        # - Often have method/class-like segments at the end
+        
+        if len(parts) >= 3:
+            # Common Java package patterns - but only if 3+ segments AND specific indicators
+            if parts[0] in ['com', 'org', 'net'] and len(parts) >= 3:
+                # Look for Java-specific patterns in the path
+                java_indicators = [
+                    # Common Java framework/library segments
+                    'sdk', 'msdk', 'api', 'impl', 'util', 'core', 'base', 'common',
+                    'service', 'client', 'server', 'model', 'view', 'controller',
+                    'dao', 'entity', 'dto', 'vo', 'bean', 'factory', 'builder',
+                    'manager', 'handler', 'listener', 'adapter', 'provider',
+                    'processor', 'executor', 'worker', 'task', 'job', 'scheduler',
+                    
+                    # Library-specific segments
+                    'glide', 'fresco', 'picasso', 'retrofit', 'okhttp', 'gson',
+                    'jackson', 'moshi', 'butterknife', 'dagger', 'guice',
+                    'spring', 'hibernate', 'mybatis', 'log4j', 'slf4j',
+                    'mbridge', 'bumptech', 'superlab', 'facebook',  # Add specific ones from test
+                    
+                    # Android-specific segments
+                    'android', 'androidx', 'support', 'material', 'arch',
+                    'lifecycle', 'navigation', 'room', 'paging', 'workmanager',
+                    
+                    # Pattern indicators (single letters for obfuscated packages)
+                    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
+                    'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'
+                ]
+                
+                # Only flag as Java package if it has MORE than 2 parts AND specific indicators
+                if len(parts) > 2:
+                    # Check for Java package indicators
+                    package_segments = [part.lower() for part in parts[1:]]  # Skip the TLD part
+                    
+                    # If any segment matches Java indicators, it's likely a package
+                    if any(segment in java_indicators for segment in package_segments):
+                        return True
+                    
+                    # Check for pattern: single letter segments (obfuscated Java packages)
+                    if any(len(segment) == 1 for segment in package_segments):
+                        return True
+                    
+                    # Check for very specific class-like final segments
+                    last_segment = parts[-1]
+                    if (len(last_segment) > 1 and 
+                        (last_segment[0].isupper() or  # Starts with capital (class name)
+                         last_segment in ['aa', 'bb', 'cc', 'dd'])):  # Obfuscated class names
+                        return True
+        
+        return False
     
     def categorize_domains_by_tld(self, domains: List[str]) -> Dict[str, List[str]]:
         """

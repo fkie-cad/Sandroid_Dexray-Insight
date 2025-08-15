@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import logging
-from typing import List, Dict, Any
+from typing import Dict, Any
 
 from .models.context_models import RiskContext
 

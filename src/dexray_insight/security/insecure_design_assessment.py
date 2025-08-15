@@ -146,27 +146,33 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
         try:
             # 1. Analyze insecure data flow patterns
             data_flow_findings = self._assess_insecure_data_flows(analysis_results)
-            findings.extend(data_flow_findings)
+            if isinstance(data_flow_findings, list):
+                findings.extend(data_flow_findings)
             
             # 2. Check for missing security controls
             control_findings = self._assess_missing_security_controls(analysis_results)
-            findings.extend(control_findings)
+            if isinstance(control_findings, list):
+                findings.extend(control_findings)
             
             # 3. Evaluate cryptographic design patterns
             crypto_findings = self._assess_cryptographic_design(analysis_results)
-            findings.extend(crypto_findings)
+            if isinstance(crypto_findings, list):
+                findings.extend(crypto_findings)
             
             # 4. Analyze inter-component communication design
             ipc_findings = self._assess_ipc_design(analysis_results)
-            findings.extend(ipc_findings)
+            if isinstance(ipc_findings, list):
+                findings.extend(ipc_findings)
             
             # 5. Check external interface security
             interface_findings = self._assess_external_interfaces(analysis_results)
-            findings.extend(interface_findings)
+            if isinstance(interface_findings, list):
+                findings.extend(interface_findings)
             
             # 6. Evaluate against common threat scenarios
             threat_findings = self._assess_threat_scenario_coverage(analysis_results)
-            findings.extend(threat_findings)
+            if isinstance(threat_findings, list):
+                findings.extend(threat_findings)
             
         except Exception as e:
             self.logger.error(f"Insecure design assessment failed: {str(e)}")
@@ -185,6 +191,8 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
             string_data = string_results
         
         all_strings = string_data.get('all_strings', [])
+        if not isinstance(all_strings, list):
+            all_strings = []
         
         # Check for insecure data flow patterns
         flow_evidence = []
@@ -237,6 +245,8 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
         
         # Check for authentication controls
         permissions = manifest_data.get('permissions', [])
+        if not isinstance(permissions, list):
+            permissions = []
         if not any('FINGERPRINT' in perm or 'BIOMETRIC' in perm for perm in permissions):
             missing_controls.append("No biometric authentication permissions detected")
         
@@ -253,6 +263,8 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
         string_results = analysis_results.get('string_analysis', {})
         string_data = string_results.to_dict() if hasattr(string_results, 'to_dict') else string_results
         all_strings = string_data.get('all_strings', [])
+        if not isinstance(all_strings, list):
+            all_strings = []
         
         has_cert_pinning = any('pin' in str(s).lower() and 'cert' in str(s).lower() for s in all_strings)
         if not has_cert_pinning:
@@ -288,9 +300,13 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
             api_data = api_results
         
         crypto_usage = api_data.get('crypto_usage', [])
+        if not isinstance(crypto_usage, list):
+            crypto_usage = []
         string_results = analysis_results.get('string_analysis', {})
         string_data = string_results.to_dict() if hasattr(string_results, 'to_dict') else string_results
         all_strings = string_data.get('all_strings', [])
+        if not isinstance(all_strings, list):
+            all_strings = []
         
         weak_crypto_evidence = []
         
@@ -343,6 +359,8 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
         string_results = analysis_results.get('string_analysis', {})
         string_data = string_results.to_dict() if hasattr(string_results, 'to_dict') else string_results
         all_strings = string_data.get('all_strings', [])
+        if not isinstance(all_strings, list):
+            all_strings = []
         
         ipc_issues = []
         
@@ -358,14 +376,20 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
         
         # Check for exported components without proper protection
         exported_components = manifest_data.get('exported_components', [])
+        if not isinstance(exported_components, list):
+            exported_components = []
         if exported_components:
             ipc_issues.append(f"Exported components detected: {len(exported_components)} components may lack proper access controls")
         
         # Check intent filters for overly broad patterns
         intent_filters = manifest_data.get('intent_filters', [])
+        if not isinstance(intent_filters, list):
+            intent_filters = []
         for intent_filter in intent_filters:
             if isinstance(intent_filter, dict):
                 filters = intent_filter.get('filters', [])
+                if not isinstance(filters, list):
+                    filters = []
                 if any('*' in str(filter_item) or 'ANY' in str(filter_item).upper() for filter_item in filters):
                     ipc_issues.append(f"Overly broad intent filter in {intent_filter.get('component_name', 'unknown component')}")
         
@@ -394,6 +418,8 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
         string_results = analysis_results.get('string_analysis', {})
         string_data = string_results.to_dict() if hasattr(string_results, 'to_dict') else string_results
         all_strings = string_data.get('all_strings', [])
+        if not isinstance(all_strings, list):
+            all_strings = []
         
         interface_issues = []
         
@@ -441,6 +467,8 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
         string_results = analysis_results.get('string_analysis', {})
         string_data = string_results.to_dict() if hasattr(string_results, 'to_dict') else string_results
         all_strings = string_data.get('all_strings', [])
+        if not isinstance(all_strings, list):
+            all_strings = []
         
         has_obfuscation = any('obfuscat' in str(s).lower() or 'proguard' in str(s).lower() for s in all_strings)
         if not has_obfuscation:

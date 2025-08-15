@@ -3,7 +3,7 @@
 
 import re
 import logging
-from typing import Dict, Any, List, Optional, Set
+from typing import Dict, Any
 
 from .models.context_models import CodeContext, CodeLocation, ProtectionLevel
 
@@ -299,7 +299,7 @@ class CodeContextAnalyzer:
         # 6. Method declarations/calls
         method_match = re.search(r'(\w+)\s*\([^)]*\)', code_line)
         if method_match:
-            method_name = method_match.group(1)
+            method_match.group(1)
             # Full method signature
             method_sig = method_match.group(0)
             if method_sig not in context.method_signatures and len(context.method_signatures) < 20:

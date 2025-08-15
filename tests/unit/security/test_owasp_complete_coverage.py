@@ -215,6 +215,27 @@ class TestOWASPTopTenCompleteCoverage:
         assert any(any(pattern in title for pattern in expected_patterns) 
                   for title in finding_titles)
     
+    def test_a04_insecure_design_assessment_handles_non_list_strings(self):
+        """Test A04:2021 - Insecure Design assessment handles non-list string data"""
+        config = {'enabled': True}
+        assessment = InsecureDesignAssessment(config)
+        
+        # Mock data with non-list all_strings (this was causing the bool iteration error)
+        analysis_results_with_bool = {
+            'string_analysis': {
+                'all_strings': True  # This was causing the 'bool' object is not iterable error
+            },
+            'manifest_analysis': {'permissions': []},
+            'behaviour_analysis': {},
+            'api_invocation': {'crypto_usage': []},
+            'library_detection': {'detected_libraries': []}
+        }
+        
+        # Should not raise an exception
+        findings = assessment.assess(analysis_results_with_bool)
+        # Should complete without error (may have 0 or more findings)
+        assert isinstance(findings, list)
+    
     def test_a05_security_misconfiguration_assessment_initialization(self):
         """Test A05:2021 - Security Misconfiguration assessment initialization"""
         config = {'enabled': True}
@@ -267,6 +288,35 @@ class TestOWASPTopTenCompleteCoverage:
         commons_findings = [f for f in findings if 'Commons Collections' in str(f.evidence)]
         assert len(commons_findings) > 0
         assert any(f.severity == AnalysisSeverity.CRITICAL for f in commons_findings)
+    
+    def test_a06_vulnerable_components_none_values_handling(self):
+        """Test A06:2021 - Vulnerable Components handles None values correctly"""
+        config = {'enabled': True}
+        assessment = VulnerableComponentsAssessment(config)
+        
+        # Mock data with None values for years_behind
+        analysis_results_with_none = {
+            'library_detection': {
+                'detected_libraries': [
+                    {
+                        'name': 'Test Library',
+                        'version': '1.0.0',
+                        'category': 'utility',
+                        'confidence': 0.9,
+                        'years_behind': None,  # This was causing the error
+                        'latest_version': '2.0.0'
+                    }
+                ]
+            },
+            'string_analysis': {'all_strings': []},
+            'manifest_analysis': {},
+            'native_analysis': {'native_libraries': []}
+        }
+        
+        # Should not raise an exception
+        findings = assessment.assess(analysis_results_with_none)
+        # Should complete without error (may have 0 or more findings)
+        assert isinstance(findings, list)
     
     def test_a07_authentication_failures_assessment_initialization(self):
         """Test A07:2021 - Identification and Authentication Failures assessment initialization"""

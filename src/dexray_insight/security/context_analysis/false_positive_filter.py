@@ -4,7 +4,7 @@
 import re
 import math
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from collections import Counter
 
 from .models.contextual_finding import ContextualFinding, ContextMetadata, ContextConfidence
@@ -396,7 +396,7 @@ class FalsePositiveFilter:
         indicators = []
         value = finding.get('value', '')
         finding_type = finding.get('type', '')
-        location = finding.get('location', '')
+        finding.get('location', '')
         
         # 1. Placeholder value detection
         if self.is_placeholder_value(value):

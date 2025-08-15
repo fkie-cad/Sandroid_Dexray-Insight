@@ -345,6 +345,9 @@ class VulnerableComponentsAssessment(BaseSecurityAssessment):
                 category = library.get('category', 'general')
                 
                 # Note: Future enhancement could use category-specific thresholds
+                # Handle None values for years_behind
+                if years_behind is None:
+                    years_behind = 0
                 
                 if years_behind >= 3:
                     severely_outdated.append({

@@ -25,6 +25,65 @@ class AndroidPropertiesFilter:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         
+        # Patterns for detecting Android vendor-specific properties
+        self.ANDROID_PROPERTY_PATTERNS = [
+            # System properties
+            r'^ro\.',                    # Read-only properties (ro.*)
+            r'^sys\.',                   # System properties (sys.*)
+            r'^persist\.',               # Persistent properties (persist.*)
+            r'^debug\.',                 # Debug properties (debug.*)
+            r'^service\.',               # Service properties (service.*)
+            r'^init\.',                  # Init properties (init.*)
+            r'^vendor\.',                # Vendor properties (vendor.*)
+            r'^hw\.',                    # Hardware properties (hw.*)
+            r'^dev\.',                   # Device properties (dev.*)
+            
+            # Dalvik/ART VM properties
+            r'^dalvik\.',                # Dalvik VM properties
+            r'^art\.',                   # ART runtime properties
+            
+            # Build and version properties  
+            r'^ro\.build\.',             # Build information
+            r'^ro\.product\.',           # Product information
+            r'^ro\.bootloader\.',        # Bootloader info
+            r'^ro\.hardware\.',          # Hardware info
+            r'^ro\.revision\.',          # Hardware revision
+            r'^ro\.serialno\.',          # Serial number
+            
+            # Vendor-specific properties (common patterns)
+            r'^ro\.htc\.',               # HTC specific
+            r'^ro\.samsung\.',           # Samsung specific  
+            r'^ro\.lge\.',               # LG specific
+            r'^ro\.sony\.',              # Sony specific
+            r'^ro\.xiaomi\.',            # Xiaomi specific
+            r'^ro\.huawei\.',            # Huawei specific
+            r'^ro\.oppo\.',              # Oppo specific
+            r'^ro\.vivo\.',              # Vivo specific
+            r'^ro\.oneplus\.',           # OnePlus specific
+            r'^ro\.motorola\.',          # Motorola specific
+            r'^ro\.asus\.',              # Asus specific
+            r'^ro\.lenovo\.',            # Lenovo specific
+            r'^ro\.yulong\.',            # Yulong specific
+            
+            # Kotlin/Coroutines properties (these show up often)
+            r'^kotlinx\.coroutines\.',   # Kotlinx coroutines properties
+            r'^kotlin\.collections\.',   # Kotlin collections properties
+            r'^kotlin\.time\.',          # Kotlin time properties
+            
+            # Media and codec properties
+            r'^codec\.',                 # Codec properties
+            r'^media\.',                 # Media properties
+            
+            # Firebase/GCM properties
+            r'^gcm\.',                   # Google Cloud Messaging
+            r'^firebase\.',              # Firebase properties
+            r'^measurement\.client\.',   # Firebase measurement
+            
+            # Module and configuration properties
+            r'^module\.mappings\.',      # Module mapping properties
+            r'^okio\.',                  # OkIO library properties
+        ]
+        
         # Android properties with descriptions - comprehensive list
         self.ANDROID_PROPERTIES = {
             "ro.kernel.qemu.gles": "Indicates whether OpenGL ES is emulated in a QEMU virtual environment.",
@@ -101,19 +160,95 @@ class AndroidPropertiesFilter:
         # Convert strings to set for faster lookup
         strings_set = set(strings)
         
-        # Find matching Android properties
+        # Find exact matching Android properties
         for prop, description in self.ANDROID_PROPERTIES.items():
             if prop in strings_set:
                 found_properties[prop] = description
-                self.logger.debug(f"Found Android property: {prop}")
+                self.logger.debug(f"Found known Android property: {prop}")
+        
+        # Find pattern-based Android properties
+        for string in strings:
+            if string not in found_properties:  # Don't double-process exact matches
+                if self._matches_android_property_pattern(string):
+                    # Generate description for pattern-matched property
+                    description = self._generate_property_description(string)
+                    found_properties[string] = description
+                    self.logger.debug(f"Found pattern-based Android property: {string}")
         
         # Filter out found properties from remaining strings
         for string in strings:
             if string not in found_properties:
                 remaining_strings.append(string)
         
-        self.logger.info(f"Found {len(found_properties)} Android system properties")
+        self.logger.info(f"Found {len(found_properties)} Android system properties ({len([p for p in found_properties if p in self.ANDROID_PROPERTIES])} known, {len(found_properties) - len([p for p in found_properties if p in self.ANDROID_PROPERTIES])} pattern-based)")
         return found_properties, remaining_strings
+    
+    def _matches_android_property_pattern(self, string: str) -> bool:
+        """
+        Check if a string matches Android property patterns.
+        
+        Args:
+            string: String to check
+            
+        Returns:
+            True if string matches Android property patterns
+        """
+        import re
+        for pattern in self.ANDROID_PROPERTY_PATTERNS:
+            if re.match(pattern, string):
+                return True
+        return False
+    
+    def _generate_property_description(self, property_name: str) -> str:
+        """
+        Generate a description for a pattern-matched Android property.
+        
+        Args:
+            property_name: Name of the Android property
+            
+        Returns:
+            Generated description for the property
+        """
+        prop_lower = property_name.lower()
+        
+        # Generate descriptions based on patterns
+        if prop_lower.startswith('ro.'):
+            if 'build' in prop_lower:
+                return f"Build-related read-only property: {property_name}"
+            elif 'product' in prop_lower:
+                return f"Product information read-only property: {property_name}"
+            elif any(vendor in prop_lower for vendor in ['htc', 'samsung', 'lge', 'sony', 'xiaomi', 'huawei', 'oppo', 'vivo', 'oneplus', 'motorola', 'asus', 'lenovo', 'yulong']):
+                return f"Vendor-specific read-only property: {property_name}"
+            else:
+                return f"Read-only system property: {property_name}"
+        elif prop_lower.startswith('kotlinx.coroutines.'):
+            return f"Kotlin coroutines configuration property: {property_name}"
+        elif prop_lower.startswith('kotlin.'):
+            return f"Kotlin language configuration property: {property_name}"
+        elif prop_lower.startswith('gcm.'):
+            return f"Google Cloud Messaging property: {property_name}"
+        elif prop_lower.startswith('firebase.'):
+            return f"Firebase configuration property: {property_name}"
+        elif prop_lower.startswith('measurement.client.'):
+            return f"Firebase measurement client property: {property_name}"
+        elif prop_lower.startswith('module.mappings.'):
+            return f"Module mapping configuration property: {property_name}"
+        elif prop_lower.startswith('okio.'):
+            return f"OkIO library configuration property: {property_name}"
+        elif prop_lower.startswith('sys.'):
+            return f"System configuration property: {property_name}"
+        elif prop_lower.startswith('persist.'):
+            return f"Persistent system property: {property_name}"
+        elif prop_lower.startswith('debug.'):
+            return f"Debug configuration property: {property_name}"
+        elif prop_lower.startswith('service.'):
+            return f"Service configuration property: {property_name}"
+        elif prop_lower.startswith('dalvik.'):
+            return f"Dalvik VM configuration property: {property_name}"
+        elif prop_lower.startswith('art.'):
+            return f"ART runtime configuration property: {property_name}"
+        else:
+            return f"Android system property: {property_name}"
     
     def categorize_properties_by_type(self, properties: Dict[str, str]) -> Dict[str, Dict[str, str]]:
         """
