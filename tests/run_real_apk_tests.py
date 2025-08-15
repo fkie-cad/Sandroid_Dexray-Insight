@@ -26,7 +26,6 @@ import subprocess
 import sys
 import os
 from pathlib import Path
-import json
 import time
 
 # Add src to path for imports
@@ -69,14 +68,14 @@ class RealAPKTestRunner:
     
     def print_environment_status(self, env_info):
         """Print environment status information"""
-        print(f"📊 Environment Status:")
+        print("📊 Environment Status:")
         print(f"  CI Environment: {'Yes' if env_info['is_ci'] else 'No'}")
         print(f"  CI-Safe APK Available: {'✓' if env_info['ci_safe_apk_available'] else '✗'}")
         print(f"  Total APK Samples: {env_info['total_samples']}")
         print(f"  Malware Samples Available: {'✓' if env_info['malware_samples_available'] else '✗'}")
         
         if env_info['sample_apks_available']:
-            print(f"  Available samples:")
+            print("  Available samples:")
             for sample in sorted(env_info['sample_apks_available']):
                 print(f"    - {sample}")
         print()

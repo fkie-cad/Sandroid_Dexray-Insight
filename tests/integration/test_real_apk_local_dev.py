@@ -17,12 +17,11 @@ Tests covered:
 """
 
 import pytest
-import json
 import logging
 from pathlib import Path
-from typing import Dict, Any, List
 
-from tests.fixtures.real_apk_fixtures import (
+# Import fixtures for real APK testing
+from tests.fixtures.real_apk_fixtures import (  # noqa: F401
     available_sample_apks, is_ci_environment, real_apk_test_config,
     apk_test_validator, performance_tracker, mock_external_apis
 )
@@ -103,7 +102,7 @@ class TestRealAPKLocalDevelopment:
         assert len(successful_analyses) > 0, "At least one APK should be analyzed successfully"
         
         # Log summary for debugging
-        print(f"\nAnalysis Summary:")
+        print("\nAnalysis Summary:")
         print(f"Total APKs: {len(results_summary)}")
         print(f"Successful: {len(successful_analyses)}")
         print(f"Failed: {len(results_summary) - len(successful_analyses)}")
@@ -176,7 +175,7 @@ class TestRealAPKLocalDevelopment:
             # At least one malware sample should trigger security findings
             samples_with_findings = [r for r in malware_results if r['security_findings_count'] > 0]
             
-            print(f"\nMalware Detection Results:")
+            print("\nMalware Detection Results:")
             for result in malware_results:
                 print(f"  {result['apk_name']}:")
                 print(f"    Findings: {result['security_findings_count']}")
@@ -248,7 +247,7 @@ class TestRealAPKLocalDevelopment:
                 avg_duration = sum(r['duration_seconds'] for r in successful_results) / len(successful_results)
                 avg_throughput = sum(r['mb_per_second'] for r in successful_results) / len(successful_results)
                 
-                print(f"\nPerformance Analysis Results:")
+                print("\nPerformance Analysis Results:")
                 print(f"  Samples tested: {len(successful_results)}")
                 print(f"  Average duration: {avg_duration:.2f}s")
                 print(f"  Average throughput: {avg_throughput:.2f} MB/s")
@@ -313,7 +312,7 @@ class TestRealAPKLocalDevelopment:
         successful_analyses = [r for r in edge_case_results if r['analysis_success']]
         failed_analyses = [r for r in edge_case_results if not r['analysis_success']]
         
-        print(f"\nEdge Case Analysis:")
+        print("\nEdge Case Analysis:")
         print(f"  Total APKs: {len(edge_case_results)}")
         print(f"  Successful: {len(successful_analyses)}")
         print(f"  Failed: {len(failed_analyses)}")
@@ -407,19 +406,19 @@ class TestRealAPKLocalDevelopment:
             security_summary['average_risk_score'] = sum(risk_scores) / len(risk_scores)
         
         # Print security assessment summary
-        print(f"\nComprehensive Security Assessment Summary:")
+        print("\nComprehensive Security Assessment Summary:")
         print(f"  Total samples analyzed: {security_summary['total_samples']}")
         print(f"  Samples with findings: {security_summary['samples_with_findings']}")
         print(f"  Total findings: {security_summary['total_findings']}")
         print(f"  Average risk score: {security_summary['average_risk_score']:.2f}")
         
         if security_summary['findings_by_category']:
-            print(f"  Findings by category:")
+            print("  Findings by category:")
             for category, count in security_summary['findings_by_category'].items():
                 print(f"    {category}: {count}")
         
         if security_summary['findings_by_severity']:
-            print(f"  Findings by severity:")
+            print("  Findings by severity:")
             for severity, count in security_summary['findings_by_severity'].items():
                 print(f"    {severity}: {count}")
         
@@ -430,10 +429,10 @@ class TestRealAPKLocalDevelopment:
                 # If we have malicious samples, should detect some issues
                 assert security_summary['total_findings'] > 0, \
                     "Security assessment should find findings in malicious samples"
-                print(f"  ✓ Security assessment appropriately detected issues in malicious samples")
+                print("  ✓ Security assessment appropriately detected issues in malicious samples")
             elif security_summary['clean_samples'] > 0 and security_summary['potentially_malicious_samples'] == 0:
                 # If we only have clean samples, minimal findings are expected
-                print(f"  ✓ Security assessment completed on clean samples (minimal findings expected)")
+                print("  ✓ Security assessment completed on clean samples (minimal findings expected)")
                 print(f"    Findings detected: {security_summary['total_findings']} (reasonable for clean samples)")
             else:
                 # Mixed or unknown samples - should work without errors

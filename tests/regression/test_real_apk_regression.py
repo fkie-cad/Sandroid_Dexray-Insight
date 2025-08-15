@@ -24,9 +24,9 @@ import hashlib
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
-from unittest.mock import patch
 
-from tests.fixtures.real_apk_fixtures import (
+# Import fixtures for real APK testing
+from tests.fixtures.real_apk_fixtures import (  # noqa: F401
     ci_safe_apk_path, available_sample_apks, is_ci_environment,
     real_apk_test_config, cached_baseline_results, save_baseline_results,
     mock_external_apis, TEST_RESULTS_CACHE_DIR
@@ -38,6 +38,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from dexray_insight.core.analysis_engine import AnalysisEngine
 from dexray_insight.core.configuration import Configuration
+from dexray_insight.Utils.file_utils import CustomJSONEncoder
 
 @dataclass
 class RegressionTestResult:
@@ -141,7 +142,7 @@ class RegressionAnalyzer:
         normalized = RegressionAnalyzer.normalize_result_for_comparison(result_dict)
         
         # Convert to deterministic JSON string
-        json_str = json.dumps(normalized, sort_keys=True, separators=(',', ':'))
+        json_str = json.dumps(normalized, cls=CustomJSONEncoder, sort_keys=True, separators=(',', ':'))
         
         # Calculate hash
         return hashlib.sha256(json_str.encode('utf-8')).hexdigest()
@@ -183,7 +184,7 @@ class RegressionAnalyzer:
         """Recursively compare values and report differences"""
         differences = []
         
-        if type(current) != type(baseline):
+        if type(current) is not type(baseline):
             differences.append(f"{path}: Type changed from {type(baseline).__name__} to {type(current).__name__}")
             return differences
         
@@ -244,7 +245,7 @@ class TestRealAPKRegression:
         # Perform current analysis
         start_time = time.time()
         current_results = engine.analyze_apk(str(ci_safe_apk_path))
-        current_duration = time.time() - start_time
+        _ = time.time() - start_time  # Duration tracked but not used in this test
         
         assert current_results is not None, "Current analysis should succeed"
         current_dict = current_results.to_dict()
@@ -270,13 +271,13 @@ class TestRealAPKRegression:
         
         if not differences:
             # Hashes differ but no semantic differences found
-            print(f"ℹ Hashes differ but no semantic differences detected")
+            print("ℹ Hashes differ but no semantic differences detected")
             print(f"  Current: {current_hash[:12]}...")
             print(f"  Baseline: {baseline_hash[:12]}...")
             return
         
         # Report differences
-        print(f"\n⚠ Regression detected in APK analysis:")
+        print("\n⚠ Regression detected in APK analysis:")
         print(f"  Current hash: {current_hash[:12]}...")
         print(f"  Baseline hash: {baseline_hash[:12]}...")
         print(f"  Differences found: {len(differences)}")
@@ -422,7 +423,7 @@ class TestRealAPKRegression:
             
             # Check that we're not introducing false positives or missing real issues
             if current_findings or baseline_findings:
-                print(f"Security findings comparison:")
+                print("Security findings comparison:")
                 print(f"  Current: {[f.get('title', 'Unknown') for f in current_findings if isinstance(f, dict)]}")
                 print(f"  Baseline: {[f.get('title', 'Unknown') for f in baseline_findings if isinstance(f, dict)]}")
         else:
@@ -476,7 +477,7 @@ class TestRealAPKRegression:
             if baseline_avg > 0:
                 performance_ratio = avg_duration / baseline_avg
                 
-                print(f"Performance comparison:")
+                print("Performance comparison:")
                 print(f"  Current average: {avg_duration:.2f}s")
                 print(f"  Baseline average: {baseline_avg:.2f}s")
                 print(f"  Performance ratio: {performance_ratio:.2f}x")
@@ -554,7 +555,7 @@ class TestRealAPKRegression:
         # Validate regression results
         successful_tests = [r for r in regression_results if r.passed]
         
-        print(f"\nMultiple APK Regression Summary:")
+        print("\nMultiple APK Regression Summary:")
         print(f"  Total APKs tested: {len(regression_results)}")
         print(f"  Successful analyses: {len(successful_tests)}")
         print(f"  Failed analyses: {len(regression_results) - len(successful_tests)}")

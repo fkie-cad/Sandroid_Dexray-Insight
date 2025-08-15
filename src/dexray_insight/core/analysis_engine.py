@@ -214,6 +214,7 @@ class AnalysisEngine:
         if requested_modules is None:
             requested_modules = self._get_enabled_modules()
         
+        context = None  # Initialize context to None for proper error handling
         try:
             # Set up analysis context (refactored)
             context = self._setup_analysis_context(apk_path, androguard_obj, timestamp)
@@ -269,7 +270,7 @@ class AnalysisEngine:
             self.logger.error(f"Analysis failed: {str(e)}")
             
             # Handle temporal directory cleanup on error (refactored)
-            if hasattr(context, 'temporal_paths') and context.temporal_paths:
+            if context is not None and hasattr(context, 'temporal_paths') and context.temporal_paths:
                 preserve_on_error = self.config.get_temporal_analysis_config().get('preserve_on_error', True)
                 self._handle_analysis_cleanup(context.temporal_paths, preserve_on_error)
             

@@ -99,3 +99,8 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "*" = ["apk_overview/resources/*"]
+
+# Ruff configuration
+[tool.ruff.lint]
+# Ignore F811 (redefined name) in test files for pytest fixtures
+per-file-ignores = {"tests/**/*.py" = ["F811"]}

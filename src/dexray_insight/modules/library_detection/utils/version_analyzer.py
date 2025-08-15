@@ -25,6 +25,16 @@ class VersionInfo:
     is_latest: bool = False
     is_prerelease: bool = False
     vulnerability_count: int = 0
+    
+    def to_dict(self) -> dict:
+        """Convert to dictionary with JSON-serializable values"""
+        return {
+            'version': self.version,
+            'release_date': self.release_date.isoformat() if self.release_date else None,
+            'is_latest': self.is_latest,
+            'is_prerelease': self.is_prerelease,
+            'vulnerability_count': self.vulnerability_count
+        }
 
 
 @dataclass 
@@ -41,6 +51,18 @@ class VersionAnalysisResult:
     def __post_init__(self):
         if self.analysis_date is None:
             self.analysis_date = datetime.now()
+    
+    def to_dict(self) -> dict:
+        """Convert to dictionary with JSON-serializable values"""
+        return {
+            'current_version': self.current_version,
+            'latest_version': self.latest_version,
+            'years_behind': self.years_behind,
+            'major_versions_behind': self.major_versions_behind,
+            'security_risk': self.security_risk,
+            'recommendation': self.recommendation,
+            'analysis_date': self.analysis_date.isoformat() if self.analysis_date else None
+        }
 
 
 class VersionAnalyzer:

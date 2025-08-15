@@ -24,8 +24,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'sr
 from dexray_insight.results.FullAnalysisResults import FullAnalysisResults
 from dexray_insight.results.apkOverviewResults import APKOverview
 from dexray_insight.results.InDepthAnalysisResults import Results
-from dexray_insight.results.ApkidResults import ApkidResults, ApkidFileAnalysis
-from dexray_insight.results.KavanozResults import KavanozResults
+from dexray_insight.results.apkidResults import ApkidResults, ApkidFileAnalysis
+from dexray_insight.results.kavanozResults import KavanozResults
 
 
 def capture_print_output(func, *args, **kwargs):

@@ -13,8 +13,11 @@ import json
 import time
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, List
 from unittest.mock import patch
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
+from dexray_insight.Utils.file_utils import CustomJSONEncoder
 
 # Test configuration constants
 EXAMPLE_SAMPLES_DIR = Path(__file__).parent.parent.parent / "example_samples"
@@ -266,7 +269,7 @@ def save_baseline_results(apk_name: str, results: Dict[str, Any]):
     
     try:
         with open(cache_file, 'w') as f:
-            json.dump(results, f, indent=2, sort_keys=True)
+            json.dump(results, f, cls=CustomJSONEncoder, indent=2, sort_keys=True)
         logging.info(f"Saved baseline results to {cache_file}")
     except IOError as e:
         logging.warning(f"Failed to save baseline results: {e}")

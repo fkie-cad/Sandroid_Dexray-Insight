@@ -776,12 +776,27 @@ class StringCollectionStrategy:
         """
         all_strings_with_location = []
         
-        # Get string analysis results
+        # Get string analysis results - check both direct and in_depth_analysis locations
         string_results = analysis_results.get('string_analysis', {})
         if hasattr(string_results, 'to_dict'):
             string_data = string_results.to_dict()
-        else:
+        elif string_results:
             string_data = string_results
+        else:
+            # Fallback: check in_depth_analysis for string data
+            in_depth = analysis_results.get('in_depth_analysis', {})
+            if hasattr(in_depth, 'to_dict'):
+                in_depth_data = in_depth.to_dict()
+            else:
+                in_depth_data = in_depth
+            
+            # Map in_depth_analysis string fields to expected format
+            string_data = {
+                'emails': in_depth_data.get('strings_emails', []),
+                'ip_addresses': in_depth_data.get('strings_ip', []), 
+                'urls': in_depth_data.get('strings_urls', []),
+                'domains': in_depth_data.get('strings_domain', [])
+            }
         
         if not isinstance(string_data, dict):
             return all_strings_with_location
@@ -798,6 +813,34 @@ class StringCollectionStrategy:
                         'file_path': None,
                         'line_number': None
                     })
+        
+        # CRITICAL: Also get ALL strings from string analysis module for secret detection
+        # This ensures we include XML-extracted strings that may contain API keys
+        if 'all_strings' in string_data:
+            all_strings_list = string_data.get('all_strings', [])
+            if isinstance(all_strings_list, list):
+                for string in all_strings_list:
+                    all_strings_with_location.append({
+                        'value': str(string),
+                        'location': 'All extracted strings (including XML)',
+                        'file_path': None,
+                        'line_number': None
+                    })
+                self.logger.debug(f"Added {len(all_strings_list)} strings from all_strings field")
+        
+        # Fallback: If string_analysis module result is available directly, get all_strings from it
+        string_module_result = analysis_results.get('string_analysis')
+        if string_module_result and hasattr(string_module_result, 'all_strings'):
+            all_strings_from_module = getattr(string_module_result, 'all_strings', [])
+            if isinstance(all_strings_from_module, list):
+                for string in all_strings_from_module:
+                    all_strings_with_location.append({
+                        'value': str(string),
+                        'location': 'String analysis module (all_strings)',
+                        'file_path': None,
+                        'line_number': None
+                    })
+                self.logger.debug(f"Added {len(all_strings_from_module)} strings from string module all_strings")
         
         # From Android properties
         android_props = string_data.get('android_properties', {})
@@ -1052,9 +1095,31 @@ class PatternDetectionStrategy:
             This is currently a placeholder that delegates to existing methods.
             The actual implementation would contain the core pattern matching logic.
         """
-        # Delegate to the parent class's existing detection method
-        # This maintains compatibility while using the Strategy pattern structure
-        return []  # Simplified for now - would delegate to existing pattern matching
+        # Apply detection patterns to the string
+        matches = []
+        
+        for pattern_name, pattern_config in self.detection_patterns.items():
+            try:
+                pattern_regex = pattern_config['pattern']
+                import re
+                match = re.search(pattern_regex, string_value)
+                
+                if match:
+                    matches.append({
+                        'type': pattern_config.get('description', pattern_name),
+                        'severity': pattern_config.get('severity', 'MEDIUM'),
+                        'pattern_name': pattern_name,
+                        'value': match.group(),
+                        'location': string_data.get('location', ''),
+                        'file_path': string_data.get('file_path'),
+                        'line_number': string_data.get('line_number')
+                    })
+                    
+            except Exception as e:
+                self.logger.warning(f"Error applying pattern {pattern_name}: {str(e)}")
+                continue
+        
+        return matches
 
 
 class ResultClassificationStrategy:
@@ -1211,8 +1276,8 @@ class FindingGenerationStrategy:
                 title=f"🔴 CRITICAL: {len(classified_findings['critical'])} Hard-coded Secrets Found",
                 description=f"Found {len(classified_findings['critical'])} critical severity secrets that pose immediate security risks. These include private keys, AWS credentials, and other highly sensitive data that could lead to complete system compromise.",
                 evidence=classified_findings['critical'][:10],
-                recommendation="🚨 IMMEDIATE ACTION REQUIRED: Remove all hard-coded secrets and use secure secret management solutions like environment variables, HashiCorp Vault, or cloud-native secret stores. Rotate any exposed credentials immediately.",
-                remediation_steps=[
+                recommendations=[
+                    "🚨 IMMEDIATE ACTION REQUIRED: Remove all hard-coded secrets and use secure secret management solutions like environment variables, HashiCorp Vault, or cloud-native secret stores. Rotate any exposed credentials immediately.",
                     "1. Remove hard-coded secrets from source code immediately",
                     "2. Rotate any exposed credentials (API keys, passwords, tokens)",
                     "3. Implement environment variables or secure secret management",
@@ -1228,8 +1293,8 @@ class FindingGenerationStrategy:
                 title=f"🟠 HIGH: {len(classified_findings['high'])} Potential Secrets Found",
                 description=f"Found {len(classified_findings['high'])} high severity potential secrets including API keys, tokens, and service credentials that could provide unauthorized access to systems and data.",
                 evidence=classified_findings['high'][:10],
-                recommendation="⚠️ HIGH PRIORITY: Review and remove suspected secrets. Implement proper secret management practices.",
-                remediation_steps=[
+                recommendations=[
+                    "⚠️ HIGH PRIORITY: Review and remove suspected secrets. Implement proper secret management practices.",
                     "1. Review each detected string to confirm if it's a legitimate secret",
                     "2. Remove confirmed secrets and replace with secure alternatives",
                     "3. Consider using build-time secret injection for legitimate secrets",
@@ -1244,8 +1309,8 @@ class FindingGenerationStrategy:
                 title=f"🟡 MEDIUM: {len(classified_findings['medium'])} Suspicious Strings Found",
                 description=f"Found {len(classified_findings['medium'])} medium severity suspicious strings that may contain sensitive information like database URLs, SSH keys, or encoded secrets.",
                 evidence=classified_findings['medium'][:15],
-                recommendation="⚠️ Review suspicious strings for potential sensitive data exposure. Consider if these should be externalized.",
-                remediation_steps=[
+                recommendations=[
+                    "⚠️ Review suspicious strings for potential sensitive data exposure. Consider if these should be externalized.",
                     "1. Review each suspicious string for sensitive content",
                     "2. Consider externalizing configuration data to secure stores",
                     "3. Validate that exposed information doesn't aid attackers",
@@ -1260,8 +1325,8 @@ class FindingGenerationStrategy:
                 title=f"🔵 LOW: {len(classified_findings['low'])} Potential Information Leakage",
                 description=f"Found {len(classified_findings['low'])} low severity strings that may leak information about system configuration, third-party services, or internal infrastructure.",
                 evidence=classified_findings['low'][:20],
-                recommendation="ℹ️ Review for information disclosure. Consider if exposed details provide unnecessary information to potential attackers.",
-                remediation_steps=[
+                recommendations=[
+                    "ℹ️ Review for information disclosure. Consider if exposed details provide unnecessary information to potential attackers.",
                     "1. Review exposed service URLs and tokens for necessity",
                     "2. Consider using generic identifiers where possible",
                     "3. Validate that exposed information follows security by design principles"

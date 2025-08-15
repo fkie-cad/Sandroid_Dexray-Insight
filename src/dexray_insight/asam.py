@@ -19,8 +19,9 @@ from .about import __version__, __author__
 
 # Import modules to register them (imports are needed for registration)
 from . import modules  # This will register all analysis modules  # noqa: F401
-from . import tools    # This will register all external tools  # noqa: F401
-from . import security # This will register all security assessments  # noqa: F401
+from . import tools  # This will register all external tools  # noqa: F401
+from . import security  # This will register all security assessments  # noqa: F401
+
 
 def print_logo():
     print("""        Dexray Insight
@@ -40,6 +41,7 @@ def print_logo():
 ⠀⠀⠀⠀⠀⠀⣿⣿⣿⡇⠀⠀⢸⣿⣿⣿⠀⠀⠀⠀⠀⠀⠀⢀⣄⠈⠛⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⠀⠀⠀⠈⠉⠉⠀⠀⠀⠀⠉⠉⠁⠀⠀⠀⠀⠀⠀⠀⠀⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀""")
     print(f"        version: {__version__}\n")
+
 
 def create_configuration_from_args(args) -> Configuration:
     """
@@ -180,7 +182,13 @@ def start_apk_static_analysis_new(apk_file_path: str, config: Configuration, pri
     try:
         # Create androguard object first
         print("[*] Initializing Androguard analysis...")
-        androguard_obj = androguardObjClass.Androguard_Obj(apk_file_path)
+        androguard_obj = None
+        try:
+            androguard_obj = androguardObjClass.Androguard_Obj(apk_file_path)
+        except Exception as e:
+            print(f"\033[93m[W] Androguard initialization failed: {str(e)}\033[0m")
+            print("\033[93m[W] Analysis will continue with limited functionality\033[0m")
+            logging.warning(f"Androguard initialization failed: {str(e)}")
         
         # Create analysis engine
         engine = AnalysisEngine(config)
@@ -190,7 +198,7 @@ def start_apk_static_analysis_new(apk_file_path: str, config: Configuration, pri
         # Generate timestamp for consistent naming across temporal directory and output files
         timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
         
-        # Run analysis with androguard object
+        # Run analysis with androguard object (may be None if initialization failed)
         results = engine.analyze_apk(apk_file_path, androguard_obj=androguard_obj, timestamp=timestamp)
         
         if print_results_to_terminal:
@@ -246,7 +254,9 @@ def dump_results_as_json_file(results, filename: str, timestamp: str = None) -> 
     
     # Convert results to dict
     if hasattr(results, 'to_dict'):
-        results_dict = results.to_dict()
+        # Include security assessment results in main JSON file if available
+        include_security = hasattr(results, 'security_assessment') and results.security_assessment is not None
+        results_dict = results.to_dict(include_security=include_security)
     else:
         results_dict = {'results': str(results)}
     
@@ -438,15 +448,15 @@ def main():
         set_logger(parsed_args)
         
         if not parsed_args.exec:
-            print("\n[-] Missing argument.")
-            print(f"[-] Invoke it with the target process to hook:\n    {script_name} <executable/apk>")
+            print("\n[-] Missing argument.", file=sys.stderr)
+            print(f"[-] Invoke it with the target process to hook:\n    {script_name} <executable/apk>", file=sys.stderr)
             return 2
 
         target_apk = parsed_args.exec
         
         # Check if APK file exists
         if not Path(target_apk).exists():
-            print(f"[-] APK file not found: {target_apk}")
+            print(f"[-] APK file not found: {target_apk}", file=sys.stderr)
             return 1
 
         # Create configuration
@@ -456,7 +466,7 @@ def main():
                 config = Configuration(config_path=parsed_args.config)
                 print(f"[*] Loaded configuration from: {parsed_args.config}")
             except Exception as e:
-                print(f"[-] Failed to load configuration file: {str(e)}")
+                print(f"[-] Failed to load configuration file: {str(e)}", file=sys.stderr)
                 return 1
         
         if config is None:
@@ -464,7 +474,7 @@ def main():
 
         # Validate configuration
         if not config.validate():
-            print("[-] Configuration validation failed")
+            print("[-] Configuration validation failed", file=sys.stderr)
             return 1
 
         print(f"[*] Analyzing APK: {target_apk}")
@@ -498,14 +508,14 @@ def main():
             
             return 0
         else:
-            print("[-] Analysis failed")
+            print("[-] Analysis failed", file=sys.stderr)
             return 1
             
     except KeyboardInterrupt:
-        print("\n[-] Analysis interrupted by user")
+        print("\n[-] Analysis interrupted by user", file=sys.stderr)
         return 130
     except Exception as e:
-        print(f"[-] Unexpected error: {str(e)}")
+        print(f"[-] Unexpected error: {str(e)}", file=sys.stderr)
         logging.error(f"Unexpected error in main: {str(e)}", exc_info=True)
         return 1
 
