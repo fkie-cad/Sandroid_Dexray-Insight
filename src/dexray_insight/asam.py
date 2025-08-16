@@ -97,6 +97,46 @@ def _process_security_flags(args, config_updates: dict) -> None:
         config_updates.setdefault('security', {})['enable_owasp_assessment'] = True
 
 
+def _process_cve_flags(args, config_updates: dict) -> None:
+    """
+    Process CVE vulnerability scanning related command line flags.
+    
+    Single Responsibility: Handle only CVE scanning flag processing.
+    CVE scanning requires security analysis to be enabled.
+    
+    Args:
+        args: Command line arguments namespace
+        config_updates: Dictionary to update with configuration changes
+    """
+    if hasattr(args, 'cve') and args.cve:
+        # Check if security analysis is enabled
+        sec_enabled = (hasattr(args, 'sec') and args.sec) or \
+                     config_updates.get('security', {}).get('enable_owasp_assessment', False)
+        
+        if sec_enabled:
+            # Enable CVE scanning
+            config_updates.setdefault('security', {})['cve_scanning'] = {
+                'enabled': True,
+                'sources': {
+                    'osv': {'enabled': True},
+                    'nvd': {'enabled': True}, 
+                    'github': {'enabled': True}
+                },
+                'max_workers': 3,
+                'timeout_seconds': 30,
+                'min_confidence': 0.7,
+                'cache_duration_hours': 24,
+                'max_libraries_per_source': 50
+            }
+        else:
+            # Print warning and exit if CVE flag is used without security flag
+            print("Error: --cve flag requires --sec flag to be enabled")
+            print("CVE vulnerability scanning is only available during security assessment")
+            print("Usage: dexray-insight <apk> --sec --cve")
+            import sys
+            sys.exit(1)
+
+
 def _process_logging_flags(args, config_updates: dict) -> None:
     """
     Process logging related command line flags.
@@ -162,7 +202,8 @@ def _build_configuration_updates(args) -> dict:
     
     # Process different categories of flags using single-responsibility functions
     _process_signature_flags(args, config_updates)
-    _process_security_flags(args, config_updates)  
+    _process_security_flags(args, config_updates)
+    _process_cve_flags(args, config_updates)  # CVE processing after security flags
     _process_logging_flags(args, config_updates)
     _process_analysis_flags(args, config_updates)
     
@@ -310,6 +351,7 @@ def parse_arguments():
 Examples:
   %(prog)s <path to APK> 
   %(prog)s <path to APK> -s  # Enable OWASP Top 10 security assessment
+  %(prog)s <path to APK> -s --cve  # Enable security assessment with CVE scanning
   %(prog)s <path to APK> -sig  # Enable signature checking
   %(prog)s <path to APK> --no-tracker  # Disable tracker analysis
   %(prog)s <path to APK> -a  # Enable API invocation analysis
@@ -387,6 +429,18 @@ Examples:
         const=True,
         default=False,
         help="Enable OWASP Top 10 security analysis. This comprehensive assessment will be done after the standard analysis."
+    )
+
+    # CVE vulnerability scanning (requires -s flag)
+    args.add_argument(
+        "--cve",
+        required=False,
+        action="store_true",
+        help=(
+            "Enable CVE vulnerability scanning for detected libraries. "
+            "Queries online CVE databases (OSV, NVD, GitHub Advisory) to identify known vulnerabilities. "
+            "Requires --sec flag to be enabled. Rate-limited and cached for performance."
+        )
     )
 
     # Tracker analysis control

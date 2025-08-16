@@ -15,6 +15,7 @@ from . import integrity_failures_assessment
 from . import logging_monitoring_failures_assessment
 from . import ssrf_assessment
 from . import mobile_specific_assessment
+from . import cve_assessment
 
 __all__ = [
     'injection_assessment',
@@ -27,5 +28,6 @@ __all__ = [
     'integrity_failures_assessment',
     'logging_monitoring_failures_assessment',
     'ssrf_assessment',
-    'mobile_specific_assessment'
+    'mobile_specific_assessment',
+    'cve_assessment'
 ]

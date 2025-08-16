@@ -119,6 +119,45 @@ Analysis Control Options
    
       dexray-insight app.apk -s
 
+``--cve``
+   Enable CVE (Common Vulnerabilities and Exposures) vulnerability scanning for detected libraries.
+   
+   **Requires the ``--sec`` flag to be enabled** - CVE scanning is only available during security assessment.
+   
+   **Features**:
+   
+   * Queries multiple CVE databases (OSV, NVD, GitHub Advisory)
+   * Automatic library version detection and vulnerability matching
+   * Rate-limited API calls with intelligent caching
+   * Severity-based vulnerability classification (CRITICAL/HIGH/MEDIUM/LOW)
+   * Comprehensive remediation guidance
+   
+   **CVE Data Sources**:
+   
+   * **OSV** - Google's Open Source Vulnerabilities database (no API key required)
+   * **NVD** - NIST's National Vulnerability Database (API key optional but recommended)
+   * **GitHub Advisory** - GitHub's security advisory database (token optional but recommended)
+   
+   **Examples**:
+   
+   .. code-block:: bash
+   
+      # Enable security assessment with CVE scanning
+      dexray-insight app.apk --sec --cve
+      
+      # CVE scanning with custom configuration
+      dexray-insight app.apk --sec --cve -c dexray.yaml
+      
+      # Full security analysis with CVE scanning and debugging
+      dexray-insight app.apk --sec --cve -d INFO
+   
+   **Performance Notes**:
+   
+   * CVE scanning may take additional time due to API calls
+   * Results are cached for 24 hours to improve performance
+   * Configure API keys in ``dexray.yaml`` for better rate limits
+   * Limited to libraries with high confidence detection (≥70% by default)
+
 ``-a, --api-invocation``
    Enable API invocation analysis. Analyzes method calls and reflection usage.
    
@@ -259,6 +298,19 @@ Common Analysis Scenarios
    # Check against threat feeds
    dexray-insight app.apk -sig -c dexray.yaml
 
+**CVE Vulnerability Scanning**:
+
+.. code-block:: bash
+
+   # Security assessment with CVE vulnerability scanning
+   dexray-insight app.apk --sec --cve
+   
+   # CVE scanning with detailed logging
+   dexray-insight app.apk --sec --cve -d INFO
+   
+   # CVE scanning with custom configuration for API keys
+   dexray-insight app.apk --sec --cve -c dexray.yaml
+
 **Deep Privacy Analysis**:
 
 .. code-block:: bash
@@ -294,11 +346,12 @@ Combined Options Examples
 
 .. code-block:: bash
 
-   dexray-insight suspicious_app.apk -s -sig --deep -d INFO -c dexray.yaml
+   dexray-insight suspicious_app.apk -s --cve -sig --deep -d INFO -c dexray.yaml
 
 This command performs:
 
 * OWASP Top 10 security assessment (``-s``)
+* CVE vulnerability scanning for detected libraries (``--cve``)
 * Signature checking with threat intelligence (``-sig``) 
 * Deep behavioral analysis (``--deep``)
 * INFO level logging (``-d INFO``)

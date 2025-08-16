@@ -618,6 +618,153 @@ Export findings in Common Vulnerability Scoring System (CVSS) format:
        }
    }
 
+CVE Vulnerability Scanning
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Dexray Insight includes comprehensive CVE (Common Vulnerabilities and Exposures) scanning capabilities that automatically check detected libraries against multiple online vulnerability databases.
+
+**Supported CVE Data Sources**:
+
+* **OSV (Open Source Vulnerabilities)** - Google's vulnerability database
+* **NVD (National Vulnerability Database)** - NIST's comprehensive CVE database  
+* **GitHub Advisory Database** - GitHub's security advisory database
+
+**Enabling CVE Scanning**:
+
+CVE scanning is only available during security assessment and requires both the ``--sec`` and ``--cve`` flags:
+
+.. code-block:: bash
+
+   # Enable security assessment with CVE scanning
+   dexray-insight app.apk --sec --cve
+   
+   # With custom configuration
+   dexray-insight app.apk --sec --cve -c dexray.yaml
+
+**Configuration Options**:
+
+.. code-block:: yaml
+
+   security:
+     cve_scanning:
+       enabled: false  # Disabled by default, use --cve flag to enable
+       
+       # CVE Data Sources
+       sources:
+         osv:  # Open Source Vulnerabilities (Google)
+           enabled: true
+           api_key: null  # OSV doesn't require API key
+         nvd:  # National Vulnerability Database (NIST)
+           enabled: true
+           api_key: "YOUR_NVD_API_KEY"  # Optional, improves rate limits
+         github:  # GitHub Advisory Database
+           enabled: true
+           api_key: "YOUR_GITHUB_TOKEN"  # Optional, improves rate limits
+       
+       # Performance Configuration
+       max_workers: 3  # Parallel CVE scans
+       timeout_seconds: 30  # Timeout per API request
+       min_confidence: 0.7  # Minimum library confidence for scanning
+       max_libraries_per_source: 50  # Limit to avoid excessive API usage
+       
+       # Caching Configuration
+       cache_duration_hours: 24  # Cache results for 24 hours
+       cache_dir: null  # Default: ~/.dexray_insight/cve_cache
+
+**CVE Scanning Process**:
+
+1. **Library Extraction**: Identifies libraries with versions from library detection results
+2. **Confidence Filtering**: Only scans libraries above the confidence threshold
+3. **Parallel Scanning**: Queries multiple CVE databases simultaneously with rate limiting
+4. **Deduplication**: Removes duplicate vulnerabilities based on CVE IDs
+5. **Severity Classification**: Groups findings by CRITICAL, HIGH, MEDIUM, LOW severity
+6. **Caching**: Stores results to avoid repeated API calls
+
+**Example CVE Findings**:
+
+.. code-block:: json
+
+   {
+       "cve_scanning": [
+           {
+               "title": "Critical CVE Vulnerabilities Detected",
+               "severity": "CRITICAL",
+               "description": "Application uses libraries with critical CVE vulnerabilities",
+               "evidence": [
+                   "CVE-2021-0341 (CVSS: 9.8): Certificate validation bypass in OkHttp",
+                   "CVE-2019-12384 (CVSS: 9.1): Remote code execution in Jackson Databind"
+               ],
+               "recommendations": [
+                   "URGENT: Address critical vulnerabilities immediately",
+                   "Update affected libraries to patched versions",
+                   "Consider temporarily disabling affected features if necessary"
+               ]
+           },
+           {
+               "title": "CVE Vulnerability Scan Summary", 
+               "severity": "INFO",
+               "description": "Found 15 vulnerabilities across 8 libraries",
+               "evidence": [
+                   "Total CVE vulnerabilities found: 15",
+                   "Libraries scanned: 8",
+                   "Critical: 2, High: 5, Medium: 6, Low: 2",
+                   "CVE sources used: osv, nvd, github"
+               ]
+           }
+       ]
+   }
+
+**Rate Limiting and Performance**:
+
+CVE scanning includes intelligent rate limiting to respect API limits:
+
+* **OSV**: 60 requests/minute (no API key required)
+* **NVD**: 10 requests/minute (without API key), 100 requests/minute (with API key)
+* **GitHub**: 60 requests/hour (without token), 5000 requests/hour (with token)
+
+**API Keys Configuration**:
+
+To improve rate limits and performance, configure API keys:
+
+.. code-block:: yaml
+
+   security:
+     cve_scanning:
+       sources:
+         nvd:
+           api_key: "your-nvd-api-key"  # Get from https://nvd.nist.gov/developers/request-an-api-key
+         github:
+           api_key: "your-github-token"  # Create at https://github.com/settings/tokens
+
+**Caching and Performance**:
+
+* Results are cached for 24 hours by default
+* Cache location: ``~/.dexray_insight/cve_cache/``
+* Cache statistics available in scan summary
+* Automatic cache cleanup and optimization
+
+**Integration with Library Detection**:
+
+CVE scanning requires library detection to identify libraries with versions:
+
+.. code-block:: yaml
+
+   modules:
+     library_detection:
+       enabled: true
+       # Version analysis helps identify exact library versions for CVE scanning
+       version_analysis:
+         enabled: true
+
+**Troubleshooting CVE Scanning**:
+
+Common issues and solutions:
+
+* **No vulnerabilities found**: Library versions may not be detected accurately
+* **API timeouts**: Increase ``timeout_seconds`` or enable fewer sources
+* **Rate limiting**: Configure API keys for higher rate limits
+* **Network errors**: Check internet connectivity and firewall settings
+
 Threat Intelligence Integration
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

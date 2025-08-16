@@ -245,6 +245,45 @@ temporal_analysis:
 security:
   # enable_owasp_assessment: false  # Commented out to allow CLI -s flag to work
   # Use -s flag to enable security analysis or set to true here to enable by default
+  
+  # CVE Vulnerability Scanning Configuration
+  cve_scanning:
+    enabled: false  # Disabled by default, use --cve flag with --sec to enable
+    
+    # CVE Data Sources Configuration
+    sources:
+      osv:  # Open Source Vulnerabilities (Google)
+        enabled: true
+        api_key: null  # OSV doesn't require API key
+      nvd:  # National Vulnerability Database (NIST)
+        enabled: true
+        api_key: "YOUR_NVD_API_KEY"  # Optional, improves rate limits
+      github:  # GitHub Advisory Database
+        enabled: true
+        api_key: "YOUR_GITHUB_TOKEN"  # Optional, improves rate limits
+    
+    # Scanning Performance Configuration
+    max_workers: 3  # Parallel CVE scans
+    timeout_seconds: 30  # Timeout per CVE API request
+    min_confidence: 0.7  # Minimum library confidence for CVE scanning
+    max_libraries_per_source: 50  # Limit libraries scanned to avoid excessive API usage
+    
+    # Caching Configuration
+    cache_duration_hours: 24  # Cache CVE results for 24 hours
+    cache_dir: null  # If null, uses ~/.dexray_insight/cve_cache
+    
+    # Rate Limiting Configuration (overrides client defaults)
+    rate_limits:
+      osv:
+        requests_per_minute: 60
+        burst_limit: 10
+      nvd:
+        requests_per_minute: 10  # Conservative limit without API key
+        burst_limit: 5
+      github:
+        requests_per_minute: 60  # Conservative limit without token
+        burst_limit: 15
+  
   assessments:
     injection:
       enabled: true
