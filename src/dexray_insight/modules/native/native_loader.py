@@ -105,6 +105,8 @@ class NativeAnalysisLoader(BaseAnalysisModule):
         try:
             # Import and register native modules
             from .string_extraction import NativeStringExtractionModule
+            from .library_version_detection import NativeLibraryVersionModule
+            from .strings_fallback_detection import StringsFallbackDetectionModule
             
             # Get native module configurations
             native_config = self.config.get('modules', {})
@@ -118,6 +120,31 @@ class NativeAnalysisLoader(BaseAnalysisModule):
                 if string_module.is_enabled():
                     self.native_modules.append(string_module)
                     self.logger.debug("Registered NativeStringExtractionModule")
+            
+            # Initialize library version detection module
+            if native_config.get('library_version_detection', {}).get('enabled', True):
+                # Try radare2-based detection first
+                version_module = NativeLibraryVersionModule(
+                    config=native_config.get('library_version_detection', {}),
+                    logger=self.logger
+                )
+                
+                # Check if radare2 is available and r2pipe works
+                r2_available = (r2pipe is not None and self._check_radare2_availability())
+                
+                if r2_available and version_module.is_enabled():
+                    self.native_modules.append(version_module)
+                    self.logger.debug("Registered NativeLibraryVersionModule (radare2-based)")
+                else:
+                    # Fallback to strings-based detection
+                    self.logger.info("radare2 not available, using strings-based fallback for library version detection")
+                    fallback_module = StringsFallbackDetectionModule(
+                        config=native_config.get('library_version_detection', {}),
+                        logger=self.logger
+                    )
+                    if fallback_module.is_enabled():
+                        self.native_modules.append(fallback_module)
+                        self.logger.debug("Registered StringsFallbackDetectionModule")
             
         except ImportError as e:
             self.logger.warning(f"Failed to import native analysis modules: {e}")
@@ -197,6 +224,7 @@ class NativeAnalysisLoader(BaseAnalysisModule):
             all_strings = []
             strings_by_source = {}
             analysis_errors = []
+            detected_native_libraries = []
             
             for binary_results in results.values():
                 for result in binary_results:
@@ -205,6 +233,12 @@ class NativeAnalysisLoader(BaseAnalysisModule):
                         source_key = result.binary_info.relative_path
                         strings_by_source[source_key] = result.strings_found
                     
+                    # Extract library version detection results
+                    if (result.module_name == "native_library_version" and 
+                        result.additional_data and 
+                        'detected_libraries' in result.additional_data):
+                        detected_native_libraries.extend(result.additional_data['detected_libraries'])
+                    
                     if result.error_message:
                         analysis_errors.append(f"{result.binary_info.file_name}: {result.error_message}")
             
@@ -212,6 +246,11 @@ class NativeAnalysisLoader(BaseAnalysisModule):
             if all_strings:
                 self._integrate_native_strings(context, all_strings)
                 self.logger.info(f"Extracted {len(all_strings)} strings from native binaries")
+            
+            # Integrate native library detections with context for library detection module
+            if detected_native_libraries:
+                self._integrate_native_libraries(context, detected_native_libraries)
+                self.logger.info(f"Detected {len(detected_native_libraries)} native libraries with versions")
             
             return NativeAnalysisModuleResult(
                 module_name="native_analysis",
@@ -243,12 +282,29 @@ class NativeAnalysisLoader(BaseAnalysisModule):
             config = Configuration()
             radare2_config = config.get_tool_config('radare2')
             
+            # First try configured path
             radare2_path = radare2_config.get('path')
             if radare2_path:
-                return Path(radare2_path).exists()
-            else:
-                # Check if radare2 is in PATH
-                return shutil.which('radare2') is not None
+                if Path(radare2_path).exists():
+                    return True
+                else:
+                    self.logger.debug(f"Configured radare2 path does not exist: {radare2_path}")
+            
+            # Try common radare2 command names in PATH
+            for command in ['r2', 'radare2']:
+                if shutil.which(command) is not None:
+                    self.logger.debug(f"Found radare2 as '{command}' in PATH")
+                    return True
+            
+            # Try fallback paths from configuration
+            fallback_paths = radare2_config.get('fallback_paths', [])
+            for fallback_path in fallback_paths:
+                if Path(fallback_path).exists():
+                    self.logger.debug(f"Found radare2 at fallback path: {fallback_path}")
+                    return True
+            
+            self.logger.debug("radare2 not found in PATH or fallback paths")
+            return False
                 
         except Exception as e:
             self.logger.debug(f"Error checking radare2 availability: {e}")
@@ -392,6 +448,8 @@ class NativeAnalysisLoader(BaseAnalysisModule):
         Returns:
             r2pipe connection or None if failed
         """
+        import os
+        
         try:
             # Get radare2 configuration
             from ...core.configuration import Configuration
@@ -401,19 +459,52 @@ class NativeAnalysisLoader(BaseAnalysisModule):
             radare2_path = radare2_config.get('path')
             options = radare2_config.get('options', [])
             
-            # Build r2pipe options
-            r2_options = []
-            if radare2_path:
-                r2_options.extend(['-e', f'cfg.radare2={radare2_path}'])
-            r2_options.extend(options)
+            # If no configured path, try to find radare2
+            if not radare2_path:
+                # Try common command names
+                for command in ['r2', 'radare2']:
+                    if shutil.which(command):
+                        radare2_path = command
+                        self.logger.debug(f"Using radare2 command: {command}")
+                        break
+                
+                # If still not found, try fallback paths
+                if not radare2_path:
+                    fallback_paths = radare2_config.get('fallback_paths', [])
+                    for fallback_path in fallback_paths:
+                        if Path(fallback_path).exists():
+                            radare2_path = fallback_path
+                            self.logger.debug(f"Using radare2 from fallback path: {fallback_path}")
+                            break
             
-            # Open connection
-            r2 = r2pipe.open(str(binary_path), flags=r2_options)
+            if not radare2_path:
+                self.logger.warning("No radare2 binary found")
+                return None
             
-            # Basic initialization
-            r2.cmd("aaa")  # Auto-analyze all
+            # Ensure radare2 is accessible to r2pipe by modifying PATH if needed
+            old_path = os.environ.get('PATH', '')
+            path_modified = False
             
-            return r2
+            if not shutil.which('r2') and not shutil.which('radare2'):
+                # Add the directory containing radare2 to PATH
+                radare2_dir = Path(radare2_path).parent
+                os.environ['PATH'] = f"{radare2_dir}:{old_path}"
+                path_modified = True
+                self.logger.debug(f"Added {radare2_dir} to PATH for r2pipe")
+            
+            try:
+                # Open connection with timeout handling
+                r2 = r2pipe.open(str(binary_path), flags=options)
+                
+                # Basic initialization (skip auto-analysis for performance)
+                # r2.cmd("aaa")  # Auto-analyze all - commented out for speed
+                
+                return r2
+                
+            finally:
+                # Restore original PATH if we modified it
+                if path_modified:
+                    os.environ['PATH'] = old_path
             
         except Exception as e:
             self.logger.debug(f"Failed to open r2pipe connection to {binary_path}: {e}")
@@ -443,6 +534,66 @@ class NativeAnalysisLoader(BaseAnalysisModule):
             
         except Exception as e:
             self.logger.error(f"Error integrating native strings: {e}")
+    
+    def _integrate_native_libraries(self, context: AnalysisContext, detected_native_libraries: List[Dict[str, Any]]):
+        """
+        Integrate native library detections with the analysis context for library detection module.
+
+        Args:
+            context: Analysis context
+            detected_native_libraries: List of detected native libraries with version information
+        """
+        try:
+            # Add native library detections to context for library detection module
+            if 'native_libraries' not in context.module_results:
+                context.module_results['native_libraries'] = []
+            
+            # Convert native library detections to format expected by library detection system
+            for native_lib in detected_native_libraries:
+                # Create standardized library detection format
+                library_detection = {
+                    'name': native_lib.get('library_name', ''),
+                    'version': native_lib.get('version', ''),
+                    'confidence': native_lib.get('confidence', 0.0),
+                    'category': 'native',
+                    'detection_method': f"native_{native_lib.get('source_type', 'unknown')}",
+                    'source_evidence': native_lib.get('source_evidence', ''),
+                    'file_path': native_lib.get('file_path', ''),
+                    'additional_info': {
+                        'source_type': native_lib.get('source_type', ''),
+                        'architecture': self._extract_architecture_from_path(native_lib.get('file_path', '')),
+                        'native_detection': True,
+                        **native_lib.get('additional_info', {})
+                    }
+                }
+                
+                context.module_results['native_libraries'].append(library_detection)
+                
+                self.logger.debug(f"Integrated native library: {native_lib.get('library_name')} {native_lib.get('version')} "
+                                f"(confidence: {native_lib.get('confidence', 0.0):.2f})")
+            
+            # Store count for statistics
+            context.module_results['native_libraries_count'] = len(detected_native_libraries)
+            
+            self.logger.info(f"Successfully integrated {len(detected_native_libraries)} native libraries into analysis context")
+            
+        except Exception as e:
+            self.logger.error(f"Error integrating native libraries: {e}")
+    
+    def _extract_architecture_from_path(self, file_path: str) -> str:
+        """Extract architecture from native library file path"""
+        try:
+            # Common Android architectures in lib paths
+            architectures = ['arm64-v8a', 'armeabi-v7a', 'armeabi', 'x86', 'x86_64', 'mips', 'mips64']
+            
+            for arch in architectures:
+                if arch in file_path:
+                    return arch
+            
+            return 'unknown'
+            
+        except Exception:
+            return 'unknown'
     
     def get_dependencies(self) -> List[str]:
         """Get list of module dependencies"""

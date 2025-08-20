@@ -14,11 +14,11 @@ from .base_classes import (
 from .configuration import Configuration
 from .security_engine import SecurityAssessmentEngine
 from .temporal_directory import TemporalDirectoryManager
-from ..results.FullAnalysisResults import FullAnalysisResults
 
 # Import result classes for type hints only
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
+    from ..results.FullAnalysisResults import FullAnalysisResults
     from ..results.apkOverviewResults import APKOverview
     from ..results.InDepthAnalysisResults import Results
 
@@ -195,7 +195,7 @@ class AnalysisEngine:
         self.security_engine = SecurityAssessmentEngine(config) if config.enable_security_assessment else None
         self.logger = logging.getLogger(__name__)
     
-    def analyze_apk(self, apk_path: str, requested_modules: Optional[List[str]] = None, androguard_obj: Optional[Any] = None, timestamp: Optional[str] = None) -> FullAnalysisResults:
+    def analyze_apk(self, apk_path: str, requested_modules: Optional[List[str]] = None, androguard_obj: Optional[Any] = None, timestamp: Optional[str] = None) -> "FullAnalysisResults":
         """
         Perform comprehensive APK analysis
         
@@ -308,6 +308,18 @@ class AnalysisEngine:
         if self.config.get_temporal_analysis_config().get('enabled', True):
             self.logger.info("Creating temporal directory structure...")
             temporal_paths = temporal_manager.create_temporal_directory(apk_path, timestamp)
+            
+            # Set up APK-specific debug logging if temporal directory was created successfully
+            if temporal_paths:
+                from pathlib import Path
+                apk_name = Path(apk_path).stem  # Get APK name without extension
+                
+                # Import and call debug logging setup
+                try:
+                    from ..Utils.log import setup_apk_specific_debug_logging
+                    setup_apk_specific_debug_logging(apk_name, temporal_paths)
+                except Exception as e:
+                    self.logger.debug(f"Failed to update debug logging: {e}")
         
         # Create analysis context
         context = AnalysisContext(
@@ -862,7 +874,7 @@ class AnalysisEngine:
     def _create_full_results(self, module_results: Dict[str, BaseResult], 
                            tool_results: Dict[str, Any],
                            security_results: Optional[Any],
-                           context: AnalysisContext) -> FullAnalysisResults:
+                           context: AnalysisContext) -> "FullAnalysisResults":
         """
         Create comprehensive results object using focused builder methods.
         
@@ -883,7 +895,8 @@ class AnalysisEngine:
         in_depth_analysis = self._build_in_depth_analysis(module_results, context)
         apkid_results, kavanoz_results = self._build_tool_results(tool_results)
         
-        # Assemble final results object
+        # Assemble final results object (lazy import to avoid circular import)
+        from ..results.FullAnalysisResults import FullAnalysisResults
         full_results = FullAnalysisResults()
         full_results.apk_overview = apk_overview
         full_results.in_depth_analysis = in_depth_analysis

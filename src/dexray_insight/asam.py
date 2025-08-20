@@ -114,7 +114,7 @@ def _process_cve_flags(args, config_updates: dict) -> None:
                      config_updates.get('security', {}).get('enable_owasp_assessment', False)
         
         if sec_enabled:
-            # Enable CVE scanning
+            # Enable CVE scanning with native library focus
             config_updates.setdefault('security', {})['cve_scanning'] = {
                 'enabled': True,
                 'sources': {
@@ -126,7 +126,14 @@ def _process_cve_flags(args, config_updates: dict) -> None:
                 'timeout_seconds': 30,
                 'min_confidence': 0.7,
                 'cache_duration_hours': 24,
-                'max_libraries_per_source': 50
+                'max_libraries_per_source': 50,
+                # Native library focus for better CVE relevance
+                'scan_native_only': True,
+                'include_java_libraries': False,
+                'native_library_patterns': [
+                    '*.so', '*ffmpeg*', '*openssl*', '*curl*', '*sqlite*', '*crypto*', 
+                    '*ssl*', '*zlib*', '*png*', '*jpeg*', '*webp*'
+                ]
             }
         else:
             # Print warning and exit if CVE flag is used without security flag
@@ -295,9 +302,8 @@ def dump_results_as_json_file(results, filename: str, timestamp: str = None) -> 
     
     # Convert results to dict
     if hasattr(results, 'to_dict'):
-        # Include security assessment results in main JSON file if available
-        include_security = hasattr(results, 'security_assessment') and results.security_assessment is not None
-        results_dict = results.to_dict(include_security=include_security)
+        # Never include security assessment results in main JSON file - they go to separate security file
+        results_dict = results.to_dict(include_security=False)
     else:
         results_dict = {'results': str(results)}
     
@@ -443,6 +449,18 @@ Examples:
         )
     )
 
+    # Clear CVE cache
+    args.add_argument(
+        "--clear-cve-cache",
+        required=False,
+        action="store_true",
+        help=(
+            "Clear the CVE vulnerability scanning cache before analysis. "
+            "Forces fresh queries to CVE databases instead of using cached results. "
+            "Useful when you want the latest vulnerability information."
+        )
+    )
+
     # Tracker analysis control
     args.add_argument(
         "-t", "--tracker",
@@ -499,7 +517,22 @@ def main():
         script_name = sys.argv[0]
 
         print_logo()
-        set_logger(parsed_args)
+        
+        # Create configuration first so we can pass it to set_logger
+        config = None
+        if hasattr(parsed_args, 'config') and parsed_args.config:
+            try:
+                config = Configuration(config_path=parsed_args.config)
+                print(f"[*] Loaded configuration from: {parsed_args.config}")
+            except Exception as e:
+                print(f"[-] Failed to load configuration file: {str(e)}", file=sys.stderr)
+                return 1
+        
+        if config is None:
+            config = create_configuration_from_args(parsed_args)
+        
+        # Set up logging with configuration
+        set_logger(parsed_args, config)
         
         if not parsed_args.exec:
             print("\n[-] Missing argument.", file=sys.stderr)
@@ -513,23 +546,22 @@ def main():
             print(f"[-] APK file not found: {target_apk}", file=sys.stderr)
             return 1
 
-        # Create configuration
-        config = None
-        if hasattr(parsed_args, 'config') and parsed_args.config:
-            try:
-                config = Configuration(config_path=parsed_args.config)
-                print(f"[*] Loaded configuration from: {parsed_args.config}")
-            except Exception as e:
-                print(f"[-] Failed to load configuration file: {str(e)}", file=sys.stderr)
-                return 1
-        
-        if config is None:
-            config = create_configuration_from_args(parsed_args)
+        # Configuration was already created earlier
 
         # Validate configuration
         if not config.validate():
             print("[-] Configuration validation failed", file=sys.stderr)
             return 1
+
+        # Clear CVE cache if requested
+        if hasattr(parsed_args, 'clear_cve_cache') and parsed_args.clear_cve_cache:
+            try:
+                from .security.cve.utils.cache_manager import CVECacheManager
+                cache_manager = CVECacheManager()
+                cache_manager.clear_cache()
+                print("[*] CVE cache cleared successfully")
+            except Exception as e:
+                print(f"[!] Warning: Failed to clear CVE cache: {e}")
 
         print(f"[*] Analyzing APK: {target_apk}")
         print(f"[*] OWASP Top 10 Security Assessment: {'Enabled' if config.enable_security_assessment else 'Disabled'}")

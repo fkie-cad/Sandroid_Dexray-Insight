@@ -6,9 +6,6 @@ Library Detection Module - Refactored Main Module
 
 Third-party library detection module using multi-stage analysis with specialized engines.
 Refactored to use submodules following Single Responsibility Principle.
-
-Phase 6.5 TDD Refactoring: Main module now delegates to specialized engines
-and imports patterns/signatures from dedicated submodules.
 """
 
 import logging
@@ -62,6 +59,19 @@ class LibraryDetectionResult(BaseResult):
             'stage2_time': self.stage2_time
         })
         return base_dict
+    
+    def export_to_dict(self) -> Dict[str, Any]:
+        """Export all results to dictionary format for CVE scanning compatibility"""
+        return {
+            'detected_libraries': [lib.to_dict() for lib in self.detected_libraries],
+            'total_libraries': self.total_libraries,
+            'heuristic_detections': [lib.to_dict() for lib in self.heuristic_libraries],
+            'similarity_detections': [lib.to_dict() for lib in self.similarity_libraries],
+            'analysis_errors': self.analysis_errors,
+            'execution_time': getattr(self, 'execution_time', 0.0),
+            'stage1_time': self.stage1_time,
+            'stage2_time': self.stage2_time
+        }
 
 
 @register_module('library_detection')
@@ -100,8 +110,8 @@ class LibraryDetectionModule(BaseAnalysisModule):
         self.detection_coordinator = LibraryDetectionCoordinator(self)
     
     def get_dependencies(self) -> List[str]:
-        """Dependencies: string analysis for class names, manifest analysis for permissions/services"""
-        return ['string_analysis', 'manifest_analysis']
+        """Dependencies: string analysis for class names, manifest analysis for permissions/services, native analysis for native library integration"""
+        return ['string_analysis', 'manifest_analysis', 'native_analysis']
     
     def analyze(self, apk_path: str, context: AnalysisContext) -> LibraryDetectionResult:
         """

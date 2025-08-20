@@ -427,10 +427,27 @@ class GitHubAdvisoryClient(BaseCVEClient):
     def health_check(self) -> bool:
         """Check if GitHub API is available"""
         try:
+            self.logger.debug("GitHub: Starting health check...")
+            
+            # If no API key is provided, skip GitHub client (return False but don't error)
+            if not self.api_key:
+                self.logger.debug("GitHub: No API key provided, skipping GitHub Advisory client")
+                return False
+            
             # Test with a simple request
             params = {'per_page': 1}
+            self.logger.debug(f"GitHub: Making health check request to {self.BASE_URL} with params {params}")
             response = self.session.get(self.BASE_URL, params=params, timeout=5)
-            return response.status_code == 200
+            self.logger.debug(f"GitHub: Health check response status: {response.status_code}")
+            
+            if response.status_code == 200:
+                self.logger.debug("GitHub: Health check succeeded")
+                return True
+            else:
+                self.logger.warning(f"GitHub: Health check failed with status {response.status_code}: {response.text[:200]}")
+                return False
         except Exception as e:
-            self.logger.error(f"GitHub Advisory health check failed: {e}")
+            self.logger.error(f"GitHub: Health check failed with exception: {e}")
+            import traceback
+            self.logger.debug(f"GitHub: Health check traceback: {traceback.format_exc()}")
             return False

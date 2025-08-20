@@ -24,12 +24,12 @@ class OSVClient(BaseCVEClient):
     BASE_URL = "https://api.osv.dev"
     
     def _get_default_rate_limit_config(self) -> RateLimitConfig:
-        """OSV has generous rate limits"""
+        """OSV rate limits - very conservative to avoid 429 errors during parallel scanning"""
         return RateLimitConfig(
-            requests_per_minute=60,
-            requests_per_hour=3600,
-            burst_limit=10,
-            burst_window_seconds=60
+            requests_per_minute=20,  # Further reduced from 30
+            requests_per_hour=1200,  # Further reduced from 1800
+            burst_limit=3,           # Further reduced from 5
+            burst_window_seconds=60  # Increased window
         )
     
     def _setup_headers(self):
@@ -331,9 +331,28 @@ class OSVClient(BaseCVEClient):
     def health_check(self) -> bool:
         """Check if OSV API is available"""
         try:
+            self.logger.debug("OSV: Starting health check...")
             url = f"{self.BASE_URL}/v1/query"
-            response = self.session.post(url, json={"package": {"name": "test"}}, timeout=5)
-            return response.status_code in [200, 404]  # 404 is fine for test package
+            # Send a proper query with required ecosystem field
+            payload = {
+                "package": {
+                    "name": "test",
+                    "ecosystem": "PyPI"
+                }
+            }
+            self.logger.debug(f"OSV: Making health check request to {url} with payload {payload}")
+            response = self.session.post(url, json=payload, timeout=5)
+            self.logger.debug(f"OSV: Health check response status: {response.status_code}")
+            
+            # 200 means found vulnerabilities, 404 means no vulnerabilities found - both are healthy
+            if response.status_code in [200, 404]:
+                self.logger.debug("OSV: Health check succeeded")
+                return True
+            else:
+                self.logger.warning(f"OSV: Health check failed with status {response.status_code}: {response.text[:200]}")
+                return False
         except Exception as e:
-            self.logger.error(f"OSV health check failed: {e}")
+            self.logger.error(f"OSV: Health check failed with exception: {e}")
+            import traceback
+            self.logger.debug(f"OSV: Health check traceback: {traceback.format_exc()}")
             return False

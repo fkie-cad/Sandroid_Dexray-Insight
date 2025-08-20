@@ -10,6 +10,7 @@ class LibraryDetectionMethod(Enum):
     SIMILARITY = "similarity"
     HYBRID = "hybrid"
     NATIVE = "native"
+    NATIVE_VERSION = "native_version"  # Native libraries with version information from compilation artifacts
     SMALI = "smali"
     MANIFEST = "manifest"
     PATTERN_MATCHING = "pattern_matching"

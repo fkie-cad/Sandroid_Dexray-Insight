@@ -112,6 +112,31 @@ class LibraryDetectionCoordinator:
             else:
                 self.logger.debug("Apktool results not available, skipping apktool-based detection")
             
+            # Stage 6: Native Library Version Detection Integration with Version Analysis
+            try:
+                self.logger.debug(f"Library Detection: Starting native library integration. Current library count: {len(detected_libraries)}")
+                native_version_libraries = self._integrate_native_library_results(context, analysis_errors)
+                if native_version_libraries:
+                    # Apply version analysis to native libraries if they have version information
+                    self._apply_version_analysis_to_libraries(native_version_libraries, context)
+                    detected_libraries.extend(native_version_libraries)
+                    self.logger.info(f"Library Detection: Integrated {len(native_version_libraries)} native libraries with version information")
+                    self.logger.info(f"Library Detection: Total library count after native integration: {len(detected_libraries)}")
+                    for native_lib in native_version_libraries:
+                        years_info = f", years_behind: {native_lib.years_behind}" if hasattr(native_lib, 'years_behind') and native_lib.years_behind is not None else ""
+                        self.logger.info(f"Library Detection: Integrated native library: {native_lib.name} {native_lib.version} (confidence: {native_lib.confidence}{years_info})")
+                    stage_timings['stage6_time'] = 0.0  # Integration doesn't require timing
+                else:
+                    self.logger.warning("Library Detection: No native library version results found in analysis context")
+                    stage_timings['stage6_time'] = 0.0
+            except Exception as e:
+                error_msg = f"Native library integration failed: {str(e)}"
+                self.logger.error(error_msg)
+                analysis_errors.append(error_msg)
+                stage_timings['stage6_time'] = 0.0
+                import traceback
+                self.logger.debug(f"Library Detection: Native integration traceback: {traceback.format_exc()}")
+            
             # Remove duplicates
             detected_libraries = self.parent._deduplicate_libraries(detected_libraries)
             
@@ -272,3 +297,184 @@ class LibraryDetectionCoordinator:
                 print(f"   Average years behind: {avg_years:.1f}")
         
         print("="*80)
+    
+    def _integrate_native_library_results(self, context: AnalysisContext, errors: List[str]) -> List[DetectedLibrary]:
+        """
+        Integrate native library detection results from the analysis context.
+        
+        This method pulls native library detections that were populated by the 
+        native analysis module and converts them to DetectedLibrary objects.
+        
+        Args:
+            context: Analysis context containing native library results
+            errors: List to append any integration errors
+            
+        Returns:
+            List of DetectedLibrary objects from native analysis
+        """
+        native_libraries = []
+        
+        try:
+            # Check if native library results are available in context
+            self.logger.debug(f"Native Integration: Checking analysis context for native library results...")
+            self.logger.debug(f"Native Integration: Available module results keys: {list(context.module_results.keys())}")
+            
+            native_lib_results = context.module_results.get('native_libraries', [])
+            
+            if not native_lib_results:
+                self.logger.warning(f"Native Integration: No native library results found in analysis context")
+                self.logger.debug(f"Native Integration: Full module_results content: {context.module_results}")
+                return native_libraries
+            
+            self.logger.info(f"Native Integration: Found {len(native_lib_results)} native library results in context")
+            
+            # Convert each native library result to DetectedLibrary object
+            for native_lib in native_lib_results:
+                try:
+                    # Ensure we have the required fields
+                    library_name = native_lib.get('name', '')
+                    library_version = native_lib.get('version', '')
+                    
+                    if not library_name:
+                        self.logger.warning("Skipping native library with no name")
+                        continue
+                    
+                    # Map detection method from native analysis
+                    detection_method = native_lib.get('detection_method', 'native_unknown')
+                    if detection_method.startswith('native_'):
+                        method_suffix = detection_method[7:]  # Remove 'native_' prefix
+                        if method_suffix == 'prefix':
+                            from ....results.LibraryDetectionResults import LibraryDetectionMethod
+                            detection_method_enum = LibraryDetectionMethod.NATIVE_VERSION
+                        else:
+                            from ....results.LibraryDetectionResults import LibraryDetectionMethod
+                            detection_method_enum = LibraryDetectionMethod.NATIVE
+                    else:
+                        from ....results.LibraryDetectionResults import LibraryDetectionMethod
+                        detection_method_enum = LibraryDetectionMethod.NATIVE
+                    
+                    # Map category string to LibraryCategory enum
+                    category_str = native_lib.get('category', 'native')
+                    from ....results.LibraryDetectionResults import LibraryCategory, LibrarySource, LibraryType
+                    if category_str == 'native':
+                        category_enum = LibraryCategory.UTILITY
+                        library_type_enum = LibraryType.NATIVE_LIBRARY
+                    else:
+                        category_enum = LibraryCategory.UNKNOWN
+                        library_type_enum = LibraryType.NATIVE_LIBRARY
+                    
+                    # Get architecture information
+                    architecture = native_lib.get('additional_info', {}).get('architecture', 'unknown')
+                    
+                    # Create DetectedLibrary object
+                    detected_library = DetectedLibrary(
+                        name=library_name,
+                        version=library_version,
+                        detection_method=detection_method_enum,
+                        category=category_enum,
+                        library_type=library_type_enum,
+                        confidence=native_lib.get('confidence', 0.8),
+                        evidence=[
+                            f"Native compilation artifact: {native_lib.get('source_evidence', 'N/A')}",
+                            f"Source type: {native_lib.get('additional_info', {}).get('source_type', 'unknown')}",
+                            f"File: {native_lib.get('file_path', 'N/A')}",
+                            f"Architecture: {architecture}"
+                        ],
+                        architectures=[architecture] if architecture != 'unknown' else [],
+                        file_paths=[native_lib.get('file_path', '')] if native_lib.get('file_path') else [],
+                        source=LibrarySource.NATIVE_LIBS,
+                        location=native_lib.get('file_path', ''),
+                        description=f"Native library detected from compilation artifacts ({native_lib.get('additional_info', {}).get('source_type', 'unknown')})"
+                    )
+                    
+                    native_libraries.append(detected_library)
+                    
+                    self.logger.debug(f"Integrated native library: {library_name} {library_version} "
+                                    f"(confidence: {native_lib.get('confidence', 0.8):.2f})")
+                    
+                except Exception as e:
+                    error_msg = f"Error processing native library result: {str(e)}"
+                    self.logger.warning(error_msg)
+                    errors.append(error_msg)
+                    
+        except Exception as e:
+            error_msg = f"Error integrating native library results: {str(e)}"
+            self.logger.error(error_msg)
+            errors.append(error_msg)
+        
+        return native_libraries
+    
+    def _apply_version_analysis_to_libraries(self, libraries: List[DetectedLibrary], context: AnalysisContext):
+        """
+        Apply version analysis to a list of detected libraries.
+        
+        Args:
+            libraries: List of DetectedLibrary objects to enhance with version analysis
+            context: Analysis context containing configuration
+        """
+        try:
+            # Check if security analysis is enabled
+            security_analysis_enabled = context.config.get('security', {}).get('enable_owasp_assessment', False)
+            
+            # Get library detection configuration
+            lib_config = context.config.get('modules', {}).get('library_detection', {})
+            version_config = lib_config.get('version_analysis', {})
+            
+            # Import version analyzer
+            from ..utils.version_analyzer import get_version_analyzer
+            
+            # Create version analyzer with proper security context
+            version_analyzer = get_version_analyzer(
+                {'version_analysis': version_config}, 
+                security_analysis_enabled=security_analysis_enabled
+            )
+            
+            self.logger.debug(f"Version analyzer configured for native libraries: security_enabled={security_analysis_enabled}, "
+                             f"security_only={version_analyzer.security_analysis_only}, "
+                             f"enabled={version_analyzer.enable_version_checking}")
+            
+            # Apply version analysis to each library that has version information
+            for library in libraries:
+                if library.version:
+                    try:
+                        self.logger.debug(f"Applying version analysis to native library: {library.name} v{library.version}")
+                        
+                        # Use package_name as primary identifier for version analysis (better for mappings)
+                        # Fall back to display name if no package_name available
+                        identifier_name = library.package_name if library.package_name else library.name
+                        
+                        # Perform version analysis
+                        analysis = version_analyzer.analyze_library_version(
+                            identifier_name, library.version, library.package_name
+                        )
+                        
+                        self.logger.debug(f"Native library version analysis result: {library.name} -> "
+                                        f"years_behind={analysis.years_behind}, risk={analysis.security_risk}")
+                        
+                        # Update library with analysis results
+                        library.years_behind = analysis.years_behind
+                        library.major_versions_behind = analysis.major_versions_behind
+                        library.security_risk = analysis.security_risk
+                        library.version_recommendation = analysis.recommendation
+                        if analysis.analysis_date:
+                            library.version_analysis_date = analysis.analysis_date.isoformat()
+                        library.latest_version = analysis.latest_version
+                        
+                        # Update risk level based on version analysis
+                        from ....results.LibraryDetectionResults import RiskLevel
+                        if analysis.security_risk == "CRITICAL":
+                            library.risk_level = RiskLevel.CRITICAL
+                        elif analysis.security_risk == "HIGH":
+                            library.risk_level = RiskLevel.HIGH
+                        elif analysis.security_risk == "MEDIUM" and library.risk_level == RiskLevel.LOW:
+                            library.risk_level = RiskLevel.MEDIUM
+                            
+                    except Exception as e:
+                        self.logger.debug(f"Version analysis failed for native library {library.name}: {e}")
+                else:
+                    self.logger.debug(f"Skipping version analysis for {library.name} - no version information")
+                    
+        except Exception as e:
+            self.logger.error(f"Error applying version analysis to native libraries: {e}")
+            import traceback
+            self.logger.debug(f"Version analysis error traceback: {traceback.format_exc()}")

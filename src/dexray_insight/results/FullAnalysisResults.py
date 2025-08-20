@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from dataclasses import dataclass
-from typing import Dict, Any, Optional, TYPE_CHECKING
+from typing import Dict, Any, Optional, TYPE_CHECKING, List
 import json
 
 if TYPE_CHECKING:
@@ -598,22 +598,34 @@ class FullAnalysisResults:
         if not libraries_with_versions:
             return
             
-        # Check if any libraries have version analysis results
-        libraries_with_analysis = [lib for lib in libraries_with_versions 
-                                 if hasattr(lib, 'years_behind') and lib.years_behind is not None]
+        # Show all libraries with versions, not just those with years_behind analysis
+        # This fixes the library count discrepancy issue
+        libraries_with_analysis = libraries_with_versions
         
         if not libraries_with_analysis:
             return
             
         print("\n📚 LIBRARY VERSION ANALYSIS")
         print("="*80)
-        print(f"Version analysis grouping: {len(libraries_with_analysis)} libraries analyzed")
         
-        # Group libraries by security risk
-        critical_libs = [lib for lib in libraries_with_analysis if hasattr(lib, 'security_risk') and lib.security_risk == "CRITICAL"]
-        high_risk_libs = [lib for lib in libraries_with_analysis if hasattr(lib, 'security_risk') and lib.security_risk == "HIGH"]
-        medium_risk_libs = [lib for lib in libraries_with_analysis if hasattr(lib, 'security_risk') and lib.security_risk == "MEDIUM"]
-        low_risk_libs = [lib for lib in libraries_with_analysis if not hasattr(lib, 'security_risk') or lib.security_risk in ["LOW", None]]
+        # Count libraries with and without years_behind data
+        with_years_analysis = [lib for lib in libraries_with_analysis 
+                              if hasattr(lib, 'years_behind') and lib.years_behind is not None]
+        
+        # Libraries without years analysis but with version info
+        no_analysis_libs = [lib for lib in libraries_with_analysis if not (hasattr(lib, 'years_behind') and lib.years_behind is not None)]
+        
+        print(f"Libraries with versions: {len(libraries_with_analysis)} detected")
+        if len(with_years_analysis) < len(libraries_with_analysis):
+            print(f"Version analysis completed: {len(with_years_analysis)} libraries")
+            no_analysis = len(libraries_with_analysis) - len(with_years_analysis)
+            print(f"Version analysis pending/unavailable: {no_analysis} libraries")
+        
+        # Group libraries by security risk (only for those with years_behind data)
+        critical_libs = [lib for lib in with_years_analysis if hasattr(lib, 'security_risk') and lib.security_risk == "CRITICAL"]
+        high_risk_libs = [lib for lib in with_years_analysis if hasattr(lib, 'security_risk') and lib.security_risk == "HIGH"] 
+        medium_risk_libs = [lib for lib in with_years_analysis if hasattr(lib, 'security_risk') and lib.security_risk == "MEDIUM"]
+        low_risk_libs = [lib for lib in with_years_analysis if not hasattr(lib, 'security_risk') or lib.security_risk in ["LOW", None]]
         
         # Print critical libraries first
         if critical_libs:
@@ -662,22 +674,367 @@ class FullAnalysisResults:
                     formatted = self._format_library_version_output(lib)
                     print(f"   {formatted}")
         
-        # Print summary statistics
+        # Show libraries without version analysis
+        if no_analysis_libs:
+            print(f"\n📋 LIBRARIES WITH VERSIONS (no age analysis): ({len(no_analysis_libs)})")
+            print("-" * 40)
+            for lib in sorted(no_analysis_libs[:10], key=lambda x: getattr(x, 'name', '').lower()):  # Limit to first 10 for readability
+                name = getattr(lib, 'name', 'Unknown')
+                version = getattr(lib, 'version', 'Unknown')
+                method = getattr(lib, 'detection_method', 'unknown')
+                print(f"   {name} ({version}) - detected via {method}")
+            if len(no_analysis_libs) > 10:
+                print(f"   ... and {len(no_analysis_libs) - 10} more libraries")
+                
+        # Print summary statistics  
         if libraries_with_analysis:
             print("\n📊 SUMMARY:")
             print("-" * 40)
-            print(f"   Total libraries analyzed: {len(libraries_with_analysis)}")
-            print(f"   Critical risk: {len(critical_libs)}")
-            print(f"   High risk: {len(high_risk_libs)}")
-            print(f"   Medium risk: {len(medium_risk_libs)}")
-            print(f"   Low risk: {len(low_risk_libs)}")
+            print(f"   Total libraries with versions: {len(libraries_with_analysis)}")
             
-            years_values = [lib.years_behind for lib in libraries_with_analysis if hasattr(lib, 'years_behind') and lib.years_behind is not None]
-            if years_values:
-                avg_years = sum(years_values) / len(years_values)
-                print(f"   Average years behind: {avg_years:.1f}")
+            if with_years_analysis:
+                print(f"   Libraries with age analysis: {len(with_years_analysis)}")
+                print(f"   Critical risk: {len(critical_libs)}")
+                print(f"   High risk: {len(high_risk_libs)}")
+                print(f"   Medium risk: {len(medium_risk_libs)}")
+                print(f"   Low risk: {len(low_risk_libs)}")
+                
+                years_values = [lib.years_behind for lib in with_years_analysis if hasattr(lib, 'years_behind') and lib.years_behind is not None]
+                if years_values:
+                    avg_years = sum(years_values) / len(years_values)
+                    print(f"   Average years behind: {avg_years:.1f}")
+                    
+            if no_analysis_libs:
+                print(f"   Libraries without age analysis: {len(no_analysis_libs)}")
+            
+            # Enhanced CVE summary integration
+            self._print_enhanced_cve_summary(libraries_with_versions)
+            
+            # Add CVE vulnerability summary
+            self._print_cve_summary()
         
         print("="*80)
+    
+    def _safe_get_finding_attribute(self, finding, attr_name, default=""):
+        """
+        Safely get attribute from finding object or dictionary, handling both attributes/methods and dict keys.
+        
+        Args:
+            finding: The security finding object or dictionary
+            attr_name: Name of the attribute/method/key to get
+            default: Default value if attribute/method/key not found or fails
+        
+        Returns:
+            Value of the attribute/method/key, or default value (preserves original type for lists/objects)
+        """
+        try:
+            # If finding is a dictionary, access by key
+            if isinstance(finding, dict):
+                return finding.get(attr_name, default)
+            
+            # If finding is an object, try attribute/method access
+            if hasattr(finding, attr_name):
+                attr_value = getattr(finding, attr_name)
+                # If it's a method, call it
+                if callable(attr_value):
+                    result = attr_value()
+                    return result if result is not None else default
+                # If it's an attribute, return it (preserving original type)
+                else:
+                    return attr_value if attr_value is not None else default
+            return default
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.debug(f"Error accessing finding attribute '{attr_name}': {e}")
+            return default
+    
+    def _extract_top_critical_cves(self, findings: List) -> List[Dict[str, Any]]:
+        """Extract top critical CVEs with library attribution for terminal display"""
+        critical_cves = []
+        
+        for finding in findings:
+            # Check if this is a critical CVE finding
+            category = self._safe_get_finding_attribute(finding, 'category')
+            title = self._safe_get_finding_attribute(finding, 'title')
+            
+            if (category and isinstance(category, str) and 'cve' in category.lower() and
+                title and isinstance(title, str) and 'critical' in title.lower()):
+                
+                # Extract detailed CVE information from additional_data
+                additional_data = self._safe_get_finding_attribute(finding, 'additional_data', {})
+                if isinstance(additional_data, dict) and 'detailed_cves' in additional_data:
+                    for cve_data in additional_data['detailed_cves']:
+                        if isinstance(cve_data, dict) and cve_data.get('severity') == 'CRITICAL':
+                            # Get library information from mapping
+                            cve_id = cve_data.get('cve_id', 'Unknown')
+                            library_mapping = additional_data.get('cve_library_mapping', {})
+                            affected_library = None
+                            
+                            # Find which library this CVE affects
+                            for lib_name, cve_list in library_mapping.items():
+                                if cve_id in cve_list:
+                                    affected_library = lib_name
+                                    break
+                            
+                            critical_cves.append({
+                                'cve_id': cve_id,
+                                'library': affected_library or 'Unknown',
+                                'version': 'unknown',  # Will be populated from library data if available
+                                'cvss_score': cve_data.get('cvss_score', 'N/A'),
+                                'summary': cve_data.get('summary', 'No summary available')
+                            })
+        
+        # Sort by CVSS score (highest first)
+        def sort_key(cve):
+            score = cve['cvss_score']
+            if isinstance(score, (int, float)):
+                return score
+            return 0  # Unknown scores go to end
+        
+        critical_cves.sort(key=sort_key, reverse=True)
+        return critical_cves
+
+    def _print_cve_summary(self):
+        """Print CVE vulnerability scanning summary"""
+        try:
+            # Check if we have CVE/security assessment results
+            if not hasattr(self, 'security_assessment') or not self.security_assessment:
+                print("   CVE scanning: Not performed or no results available")
+                return
+            
+            # Look for CVE-related findings with more robust detection
+            cve_findings = []
+            total_vulnerabilities = 0
+            
+            # Check if security_assessment has findings in the expected structure
+            findings = []
+            if isinstance(self.security_assessment, dict) and 'findings' in self.security_assessment:
+                findings = self.security_assessment['findings']
+            elif hasattr(self.security_assessment, 'findings'):
+                findings = self.security_assessment.findings
+            elif isinstance(self.security_assessment, list):
+                findings = self.security_assessment
+            elif isinstance(self.security_assessment, dict):
+                # Flatten dict to find findings
+                for key, value in self.security_assessment.items():
+                    if isinstance(value, list):
+                        findings.extend(value)
+                    elif hasattr(value, '__iter__') and not isinstance(value, str):
+                        try:
+                            findings.extend(value)
+                        except Exception:
+                            pass
+            
+            # Look for CVE findings with multiple criteria
+            for finding in findings:
+                is_cve_finding = False
+                
+                # Check category for CVE indicators
+                category = self._safe_get_finding_attribute(finding, 'category')
+                if category and isinstance(category, str):
+                    category_lower = category.lower()
+                    if 'cve' in category_lower or 'vulnerability' in category_lower:
+                        is_cve_finding = True
+                        
+                # Check title for CVE indicators
+                title = self._safe_get_finding_attribute(finding, 'title')
+                if title and isinstance(title, str):
+                    title_lower = title.lower()
+                    if 'cve' in title_lower or 'vulnerability' in title_lower:
+                        is_cve_finding = True
+                        
+                if is_cve_finding:
+                    cve_findings.append(finding)
+                    # Try to extract vulnerability count from title, description, and evidence
+                    count_found = False
+                    
+                    # Check title for numbers
+                    finding_title = self._safe_get_finding_attribute(finding, 'title')
+                    if finding_title and isinstance(finding_title, str):
+                        import re
+                        title_numbers = re.findall(r'(\d+)\s*(?:vulnerabilities?|cves?)', finding_title.lower())
+                        if title_numbers:
+                            total_vulnerabilities += int(title_numbers[0])
+                            count_found = True
+                    
+                    # Check description for numbers
+                    if not count_found:
+                        finding_description = self._safe_get_finding_attribute(finding, 'description')
+                        if finding_description and isinstance(finding_description, str):
+                            import re
+                            desc_numbers = re.findall(r'(\d+)\s*(?:vulnerabilities?|cves?)', finding_description.lower())
+                            if desc_numbers:
+                                total_vulnerabilities += int(desc_numbers[0])
+                                count_found = True
+                    
+                    # Check evidence for numbers
+                    if not count_found:
+                        finding_evidence = self._safe_get_finding_attribute(finding, 'evidence', [])
+                        if finding_evidence:
+                            # Handle case where evidence might be returned as string instead of list
+                            evidence_list = finding_evidence if isinstance(finding_evidence, list) else [finding_evidence]
+                            for evidence in evidence_list:
+                                if isinstance(evidence, str):
+                                    import re
+                                    evidence_numbers = re.findall(r'(\d+)\s*(?:vulnerabilities?|cves?)', evidence.lower())
+                                    if evidence_numbers:
+                                        total_vulnerabilities += int(evidence_numbers[0])
+                                        count_found = True
+                                        break
+                                    # Also look for specific CVE count patterns
+                                    total_pattern = re.search(r'total\s+cve\s+vulnerabilities\s+found:\s*(\d+)', evidence.lower())
+                                    if total_pattern:
+                                        total_vulnerabilities = int(total_pattern.group(1))  # Use exact count, don't add
+                                        count_found = True
+                                        break
+            
+            # Print enhanced CVE summary with top critical findings
+            if cve_findings:
+                if total_vulnerabilities > 0:
+                    print(f"   CVE vulnerabilities found: {total_vulnerabilities}")
+                    
+                    # Extract and display top 3 critical CVEs with library attribution
+                    critical_cves = self._extract_top_critical_cves(findings)
+                    if critical_cves:
+                        print("   🚨 Top Critical CVEs:")
+                        for i, cve_info in enumerate(critical_cves[:3], 1):
+                            print(f"      {i}. {cve_info['cve_id']} in {cve_info['library']} (v{cve_info['version']})")
+                            print(f"         CVSS: {cve_info['cvss_score']} - {cve_info['summary'][:80]}...")
+                    
+                    print("   🔍 Review security assessment for complete CVE details and remediation")
+                else:
+                    print(f"   CVE scanning performed: {len(cve_findings)} assessment(s) completed")
+                    print("   ✅ No known CVE vulnerabilities detected")
+            else:
+                print("   CVE scanning: Not performed or no results available")
+                
+        except Exception as e:
+            # Enhanced error handling for debugging
+            import traceback
+            error_details = traceback.format_exc()
+            print(f"   CVE scanning: Error processing results ({str(e)})")
+            # Log detailed error for debugging (but don't print to console)
+            import logging
+            logging.debug(f"CVE summary error: {error_details}")
+    
+    def _print_enhanced_cve_summary(self, libraries_with_versions):
+        """Enhanced CVE summary that integrates with library version analysis"""
+        try:
+            if not hasattr(self, 'security_assessment') or not self.security_assessment:
+                return
+                
+            # Extract detailed CVE information for each library
+            cve_by_library = self._extract_cve_by_library()
+            
+            if not cve_by_library:
+                return
+                
+            print("   CVE Analysis Details:")
+            
+            # Show libraries with CVEs
+            libraries_with_cves = 0
+            total_cves = 0
+            
+            for lib_name, cves in cve_by_library.items():
+                if cves:
+                    libraries_with_cves += 1
+                    total_cves += len(cves)
+                    
+                    # Find matching library in version analysis
+                    matching_lib = None
+                    for lib in libraries_with_versions:
+                        if (hasattr(lib, 'name') and lib.name and 
+                            lib_name.lower() in lib.name.lower() or lib.name.lower() in lib_name.lower()):
+                            matching_lib = lib
+                            break
+                    
+                    if matching_lib:
+                        version = getattr(matching_lib, 'version', 'Unknown')
+                        years_behind = getattr(matching_lib, 'years_behind', None)
+                        years_text = f" ({years_behind} years behind)" if years_behind else ""
+                        
+                        # Group CVEs by severity
+                        critical = sum(1 for cve in cves if 'critical' in cve.get('severity', '').lower())
+                        high = sum(1 for cve in cves if 'high' in cve.get('severity', '').lower())
+                        medium = sum(1 for cve in cves if 'medium' in cve.get('severity', '').lower())
+                        low = sum(1 for cve in cves if 'low' in cve.get('severity', '').lower())
+                        
+                        severity_text = []
+                        if critical: 
+                            severity_text.append(f"{critical} Critical")
+                        if high: 
+                            severity_text.append(f"{high} High")
+                        if medium: 
+                            severity_text.append(f"{medium} Medium")
+                        if low: 
+                            severity_text.append(f"{low} Low")
+                        
+                        print(f"     • {lib_name} ({version}){years_text}: {len(cves)} CVEs ({', '.join(severity_text)})")
+            
+            if libraries_with_cves > 0:
+                print(f"   Summary: {libraries_with_cves} libraries with {total_cves} total CVEs")
+            
+        except Exception as e:
+            # Silently handle errors in enhanced CVE summary
+            import logging
+            logging.debug(f"Enhanced CVE summary error: {e}")
+    
+    def _extract_cve_by_library(self):
+        """Extract CVE information organized by library"""
+        cve_by_library = {}
+        
+        try:
+            # Get findings from security assessment
+            findings = []
+            if hasattr(self.security_assessment, '__iter__'):
+                findings = self.security_assessment
+            elif hasattr(self.security_assessment, 'findings'):
+                findings = self.security_assessment.findings
+            elif isinstance(self.security_assessment, dict) and 'findings' in self.security_assessment:
+                findings = self.security_assessment['findings']
+                
+            for finding in findings:
+                # Check if finding has CVE category
+                category = self._safe_get_finding_attribute(finding, 'category')
+                if not category or not isinstance(category, str):
+                    continue
+                    
+                category_lower = category.lower()
+                if 'cve' not in category_lower and 'vulnerability' not in category_lower:
+                    continue
+                    
+                # Extract CVE information from evidence
+                finding_evidence = self._safe_get_finding_attribute(finding, 'evidence', [])
+                if finding_evidence:
+                    # Handle case where evidence might be returned as string instead of list
+                    evidence_list = finding_evidence if isinstance(finding_evidence, list) else [finding_evidence]
+                    for evidence in evidence_list:
+                        if isinstance(evidence, str):
+                            # Parse CVE entries from evidence
+                            import re
+                            # Look for patterns like "CVE-XXXX-XXXX (severity: XXX): description"
+                            cve_matches = re.findall(r'(CVE-\d{4}-\d+)\s*(?:\((?:CVSS:\s*[\d.]+\s*,?\s*)?severity:\s*(\w+)\))?\s*:\s*([^\\n]*)', evidence)
+                            
+                            for cve_id, severity, description in cve_matches:
+                                # Try to extract library name from context
+                                # Look for patterns like "Found X CVE: " or mentions of library names
+                                lib_context = re.search(r'Found\s+(\w+)\s+CVE:', evidence)
+                                if lib_context:
+                                    lib_name = lib_context.group(1)
+                                    if lib_name not in cve_by_library:
+                                        cve_by_library[lib_name] = []
+                                    cve_by_library[lib_name].append({
+                                        'cve_id': cve_id,
+                                        'severity': severity or 'Unknown',
+                                        'description': description
+                                    })
+                                    
+        except Exception as e:
+            import logging
+            logging.debug(f"Error extracting CVE by library: {e}")
+            
+        return cve_by_library
     
     def _format_library_version_output(self, library):
         """

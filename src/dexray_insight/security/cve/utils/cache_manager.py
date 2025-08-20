@@ -58,10 +58,17 @@ class CVECacheManager:
         }
     
     def _save_metadata(self):
-        """Save cache metadata"""
+        """Save cache metadata thread-safely"""
         try:
+            # Create a copy to avoid "dictionary changed size during iteration" errors
+            metadata_copy = {
+                "created": self.metadata.get("created", datetime.now().isoformat()),
+                "entries": dict(self.metadata.get("entries", {})),
+                "stats": dict(self.metadata.get("stats", {}))
+            }
+            
             with open(self.metadata_file, 'w') as f:
-                json.dump(self.metadata, f, indent=2)
+                json.dump(metadata_copy, f, indent=2)
         except Exception as e:
             self.logger.warning(f"Could not save cache metadata: {e}")
     
@@ -99,16 +106,20 @@ class CVECacheManager:
         """
         cache_key = self._generate_cache_key(library_name, version, source)
         
-        self.metadata["stats"]["total_requests"] += 1
+        # Thread-safe metadata updates
+        if "stats" not in self.metadata:
+            self.metadata["stats"] = {"hits": 0, "misses": 0, "total_requests": 0}
+        
+        self.metadata["stats"]["total_requests"] = self.metadata["stats"].get("total_requests", 0) + 1
         
         if not self._is_cache_valid(cache_key):
-            self.metadata["stats"]["misses"] += 1
+            self.metadata["stats"]["misses"] = self.metadata["stats"].get("misses", 0) + 1
             self._save_metadata()
             return None
         
         cache_file = self._get_cache_file_path(cache_key)
         if not cache_file.exists():
-            self.metadata["stats"]["misses"] += 1
+            self.metadata["stats"]["misses"] = self.metadata["stats"].get("misses", 0) + 1
             self._save_metadata()
             return None
         
@@ -116,7 +127,7 @@ class CVECacheManager:
             with open(cache_file, 'r') as f:
                 data = json.load(f)
             
-            self.metadata["stats"]["hits"] += 1
+            self.metadata["stats"]["hits"] = self.metadata["stats"].get("hits", 0) + 1
             self._save_metadata()
             
             self.logger.debug(f"Cache hit for {library_name}:{version}:{source}")
@@ -124,7 +135,7 @@ class CVECacheManager:
             
         except Exception as e:
             self.logger.warning(f"Could not load cache file {cache_file}: {e}")
-            self.metadata["stats"]["misses"] += 1
+            self.metadata["stats"]["misses"] = self.metadata["stats"].get("misses", 0) + 1
             self._save_metadata()
             return None
     
@@ -154,7 +165,10 @@ class CVECacheManager:
             with open(cache_file, 'w') as f:
                 json.dump(cache_data, f, indent=2)
             
-            # Update metadata
+            # Thread-safe metadata update
+            if "entries" not in self.metadata:
+                self.metadata["entries"] = {}
+            
             self.metadata["entries"][cache_key] = {
                 "timestamp": cache_data["timestamp"],
                 "library_name": library_name,

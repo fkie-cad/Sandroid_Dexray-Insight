@@ -47,9 +47,13 @@ class BaseCVEClient(ABC):
         
         self.cache_manager = cache_manager
         
-        # HTTP session for connection pooling
+        # HTTP session for connection pooling with session isolation
         self.session = requests.Session()
         self.session.timeout = timeout
+        
+        # Add session ID for debugging concurrent issues
+        import uuid
+        self.session_id = str(uuid.uuid4())[:8]
         
         # Set up default headers
         self._setup_headers()

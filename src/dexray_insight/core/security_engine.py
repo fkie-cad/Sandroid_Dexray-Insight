@@ -147,7 +147,11 @@ class SecurityAssessmentEngine:
             
             # Create assessment instance
             try:
-                assessment = assessment_class(assessment_config)
+                # For CVE assessment, pass the full security config instead of just assessment config
+                if assessment_name == 'cve_scanning':
+                    assessment = assessment_class(self.security_config)
+                else:
+                    assessment = assessment_class(assessment_config)
                 assessments[assessment_name] = assessment
                 self.logger.info(f"Loaded assessment: {assessment_name} ({assessment.get_owasp_category()})")
             except Exception as e:

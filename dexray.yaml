@@ -174,7 +174,7 @@ modules:
     # Architecture filtering (performance optimization)
     architectures:
       - "arm64-v8a"      # Primary 64-bit ARM (most common)
-      # - "armeabi-v7a"  # 32-bit ARM (enable if needed)
+      - "armeabi-v7a"    # 32-bit ARM (sometimes available)
       # - "x86_64"       # 64-bit x86 (uncommon on mobile)
       # - "x86"          # 32-bit x86 (uncommon on mobile)
     
@@ -191,6 +191,13 @@ modules:
         max_string_length: 1024     # Maximum string length (prevent memory issues)
         encoding: "utf-8"           # Primary encoding to attempt
         fallback_encodings: ["latin1", "ascii"]  # Fallback encodings
+      
+      library_version_detection:
+        enabled: true
+        min_confidence: 0.6         # Minimum confidence for library detections
+        max_libraries_per_binary: 10  # Limit detections per binary file
+        strings_timeout: 30         # Timeout for strings command fallback (seconds)
+        # Note: Module automatically falls back to strings command if radare2 is not available
 
 # External Tools Configuration
 tools:
@@ -225,9 +232,18 @@ tools:
   # Native Binary Analysis Tools
   radare2:
     enabled: true
-    path: null  # Set to radare2 binary path, e.g., "/usr/local/bin/radare2" (uses system PATH if null)
+    path: null  # Set to radare2 binary path. Common paths: "/opt/homebrew/bin/r2", "/usr/local/bin/radare2", "/usr/bin/r2" (uses system PATH if null)
     timeout: 120  # 2 minutes per binary analysis
     options: ["-2"]  # Radare2 options: -2 for no stderr output
+    # Common installation paths to try automatically:
+    # macOS Homebrew: /opt/homebrew/bin/r2
+    # Linux package managers: /usr/bin/r2, /usr/local/bin/radare2
+    # Manual install: /usr/local/bin/r2
+    fallback_paths:
+      - "/opt/homebrew/bin/r2"      # macOS Homebrew (Apple Silicon)
+      - "/usr/local/bin/radare2"    # macOS Homebrew (Intel)
+      - "/usr/bin/r2"               # Linux package manager
+      - "/usr/local/bin/r2"         # Manual installation
 
 # Temporal Directory Configuration
 temporal_analysis:
@@ -248,41 +264,66 @@ security:
   
   # CVE Vulnerability Scanning Configuration
   cve_scanning:
-    enabled: false  # Disabled by default, use --cve flag with --sec to enable
+    enabled: true  # Enable CVE scanner
     
     # CVE Data Sources Configuration
     sources:
       osv:  # Open Source Vulnerabilities (Google)
-        enabled: true
+        enabled: false
         api_key: null  # OSV doesn't require API key
       nvd:  # National Vulnerability Database (NIST)
-        enabled: true
+        enabled: true  # Disabled for testing since API key not configured
         api_key: "YOUR_NVD_API_KEY"  # Optional, improves rate limits
       github:  # GitHub Advisory Database
-        enabled: true
+        enabled: false
         api_key: "YOUR_GITHUB_TOKEN"  # Optional, improves rate limits
     
     # Scanning Performance Configuration
-    max_workers: 3  # Parallel CVE scans
-    timeout_seconds: 30  # Timeout per CVE API request
+    max_workers: 1  # Sequential execution to avoid session conflicts and API issues
+    timeout_seconds: 30  # Timeout per individual CVE API request
+    overall_timeout_minutes: 10  # Total timeout for entire CVE scanning process
     min_confidence: 0.7  # Minimum library confidence for CVE scanning
-    max_libraries_per_source: 50  # Limit libraries scanned to avoid excessive API usage
+    max_libraries_per_source: 30  # Maximum libraries scanned per source to avoid excessive API usage
+    retry_attempts: 2  # Number of retry attempts for failed requests
+    retry_delay_seconds: 5  # Base delay between retries (exponential backoff)
+    
+    # Library Type Filtering Configuration
+    scan_native_only: true  # Only scan native libraries (.so files) - these have more CVEs than Java/Android libs
+    include_java_libraries: false  # Also scan Java/Android libraries (may have fewer relevant CVEs)
+    native_library_patterns:  # Patterns to identify native libraries
+      - "*.so"  # Native shared objects
+      - "*ffmpeg*"  # FFmpeg variants
+      - "*openssl*"  # OpenSSL variants  
+      - "*curl*"  # curl variants
+      - "*sqlite*"  # SQLite variants
+      - "*crypto*"  # Crypto libraries
+      - "*ssl*"  # SSL libraries
+      - "*zlib*"  # Compression libraries
+      - "*png*"  # Image libraries
+      - "*jpeg*"  # Image libraries
+      - "*webp*"  # Image libraries
     
     # Caching Configuration
     cache_duration_hours: 24  # Cache CVE results for 24 hours
     cache_dir: null  # If null, uses ~/.dexray_insight/cve_cache
     
-    # Rate Limiting Configuration (overrides client defaults)
+    # Rate Limiting Configuration (conservative defaults to avoid 429 errors)
     rate_limits:
       osv:
-        requests_per_minute: 60
-        burst_limit: 10
+        requests_per_minute: 20  # Very conservative to avoid rate limiting during parallel scans
+        requests_per_hour: 1200
+        burst_limit: 3
+        burst_window_seconds: 60
       nvd:
-        requests_per_minute: 10  # Conservative limit without API key
-        burst_limit: 5
+        requests_per_minute: 20  # Improved limit for better performance
+        requests_per_hour: 1200
+        burst_limit: 10
+        burst_window_seconds: 30
       github:
-        requests_per_minute: 60  # Conservative limit without token
-        burst_limit: 15
+        requests_per_minute: 30  # Conservative limit to avoid authentication issues
+        requests_per_hour: 1800
+        burst_limit: 5
+        burst_window_seconds: 60
   
   assessments:
     injection:

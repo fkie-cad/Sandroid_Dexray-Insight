@@ -175,7 +175,9 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
                 findings.extend(threat_findings)
             
         except Exception as e:
+            import traceback
             self.logger.error(f"Insecure design assessment failed: {str(e)}")
+            self.logger.debug(f"Full traceback: {traceback.format_exc()}")
         
         return findings
     
@@ -201,13 +203,16 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
             if pattern_category in ['insecure_data_flows', 'missing_input_validation']:
                 patterns = pattern_info['patterns']
                 
-                for string in all_strings:
-                    if isinstance(string, str):
-                        for pattern in patterns:
-                            import re
-                            if re.search(pattern, string, re.IGNORECASE):
-                                flow_evidence.append(f"Insecure data flow: {string[:100]}...")
-                                break
+                if isinstance(all_strings, (list, tuple)):
+                    for string in all_strings:
+                        if isinstance(string, str):
+                            for pattern in patterns:
+                                import re
+                                if re.search(pattern, string, re.IGNORECASE):
+                                    flow_evidence.append(f"Insecure data flow: {string[:100]}...")
+                                    break
+                elif all_strings and not isinstance(all_strings, (str, bytes, bool)):
+                    self.logger.debug(f"Skipping non-iterable all_strings in data flows: {type(all_strings)}")
         
         if flow_evidence:
             findings.append(SecurityFinding(
@@ -245,13 +250,20 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
         
         # Check for authentication controls
         permissions = manifest_data.get('permissions', [])
-        if not isinstance(permissions, list):
+        if not isinstance(permissions, (list, tuple)):
             permissions = []
-        if not any('FINGERPRINT' in perm or 'BIOMETRIC' in perm for perm in permissions):
+        try:
+            perm_list = list(permissions) if hasattr(permissions, '__iter__') and not isinstance(permissions, (str, bytes, bool)) else []
+            if not any('FINGERPRINT' in str(perm) or 'BIOMETRIC' in str(perm) for perm in perm_list):
+                missing_controls.append("No biometric authentication permissions detected")
+        except (TypeError, AttributeError):
+            # Skip if permissions is not iterable or is a boolean/other non-iterable type
+            self.logger.debug(f"Skipping non-iterable permissions: {type(permissions)}")
             missing_controls.append("No biometric authentication permissions detected")
         
         # Check for secure storage controls
-        if not any('KEYSTORE' in str(behavior_results).upper() or 'ENCRYPTED' in str(behavior_results).upper()):
+        behavior_str = str(behavior_results).upper()
+        if not ('KEYSTORE' in behavior_str or 'ENCRYPTED' in behavior_str):
             missing_controls.append("No secure key storage implementation detected")
         
         # Check for network security controls
@@ -266,7 +278,11 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
         if not isinstance(all_strings, list):
             all_strings = []
         
-        has_cert_pinning = any('pin' in str(s).lower() and 'cert' in str(s).lower() for s in all_strings)
+        if isinstance(all_strings, (list, tuple)):
+            has_cert_pinning = any('pin' in str(s).lower() and 'cert' in str(s).lower() for s in all_strings)
+        else:
+            has_cert_pinning = False
+            self.logger.debug(f"Skipping non-iterable all_strings in cert pinning: {type(all_strings)}")
         if not has_cert_pinning:
             missing_controls.append("No certificate pinning implementation detected")
         
@@ -311,21 +327,27 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
         weak_crypto_evidence = []
         
         # Check for weak algorithms in API usage
-        for crypto_call in crypto_usage:
-            if isinstance(crypto_call, dict):
-                algorithm = crypto_call.get('algorithm', '').upper()
-                if algorithm in ['MD5', 'SHA1', 'DES', 'RC4']:
-                    weak_crypto_evidence.append(f"Weak algorithm detected: {algorithm} at {crypto_call.get('location', 'unknown')}")
+        if isinstance(crypto_usage, (list, tuple)):
+            for crypto_call in crypto_usage:
+                if isinstance(crypto_call, dict):
+                    algorithm = crypto_call.get('algorithm', '').upper()
+                    if algorithm in ['MD5', 'SHA1', 'DES', 'RC4']:
+                        weak_crypto_evidence.append(f"Weak algorithm detected: {algorithm} at {crypto_call.get('location', 'unknown')}")
+        elif crypto_usage and not isinstance(crypto_usage, (str, bytes, bool)):
+            self.logger.debug(f"Skipping non-iterable crypto_usage: {type(crypto_usage)}")
         
         # Check for weak crypto patterns in strings
         weak_patterns = self.design_patterns['weak_crypto_design']['patterns']
-        for string in all_strings:
-            if isinstance(string, str):
-                for pattern in weak_patterns:
-                    import re
-                    if re.search(pattern, string, re.IGNORECASE):
-                        weak_crypto_evidence.append(f"Weak crypto pattern: {string[:80]}...")
-                        break
+        if isinstance(all_strings, (list, tuple)):
+            for string in all_strings:
+                if isinstance(string, str):
+                    for pattern in weak_patterns:
+                        import re
+                        if re.search(pattern, string, re.IGNORECASE):
+                            weak_crypto_evidence.append(f"Weak crypto pattern: {string[:80]}...")
+                            break
+        elif all_strings and not isinstance(all_strings, (str, bytes, bool)):
+            self.logger.debug(f"Skipping non-iterable all_strings in crypto: {type(all_strings)}")
         
         if weak_crypto_evidence:
             findings.append(SecurityFinding(
@@ -366,13 +388,16 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
         
         # Check for insecure IPC patterns in code
         ipc_patterns = self.design_patterns['insecure_ipc_design']['patterns']
-        for string in all_strings:
-            if isinstance(string, str):
-                for pattern in ipc_patterns:
-                    import re
-                    if re.search(pattern, string, re.IGNORECASE):
-                        ipc_issues.append(f"Insecure IPC pattern: {string[:80]}...")
-                        break
+        if isinstance(all_strings, (list, tuple)):
+            for string in all_strings:
+                if isinstance(string, str):
+                    for pattern in ipc_patterns:
+                        import re
+                        if re.search(pattern, string, re.IGNORECASE):
+                            ipc_issues.append(f"Insecure IPC pattern: {string[:80]}...")
+                            break
+        elif all_strings and not isinstance(all_strings, (str, bytes, bool)):
+            self.logger.debug(f"Skipping non-iterable all_strings in IPC: {type(all_strings)}")
         
         # Check for exported components without proper protection
         exported_components = manifest_data.get('exported_components', [])
@@ -383,15 +408,22 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
         
         # Check intent filters for overly broad patterns
         intent_filters = manifest_data.get('intent_filters', [])
-        if not isinstance(intent_filters, list):
+        if not isinstance(intent_filters, (list, tuple)):
             intent_filters = []
         for intent_filter in intent_filters:
             if isinstance(intent_filter, dict):
                 filters = intent_filter.get('filters', [])
-                if not isinstance(filters, list):
+                if not isinstance(filters, (list, tuple)):
                     filters = []
-                if any('*' in str(filter_item) or 'ANY' in str(filter_item).upper() for filter_item in filters):
-                    ipc_issues.append(f"Overly broad intent filter in {intent_filter.get('component_name', 'unknown component')}")
+                # Ensure we're iterating over proper iterables
+                try:
+                    filter_items = list(filters) if hasattr(filters, '__iter__') and not isinstance(filters, (str, bytes)) else []
+                    if any('*' in str(filter_item) or 'ANY' in str(filter_item).upper() for filter_item in filter_items):
+                        ipc_issues.append(f"Overly broad intent filter in {intent_filter.get('component_name', 'unknown component')}")
+                except TypeError:
+                    # Skip if filters is not iterable or is a boolean/other non-iterable type
+                    self.logger.debug(f"Skipping non-iterable filters in intent_filter: {type(filters)}")
+                    continue
         
         if ipc_issues:
             findings.append(SecurityFinding(
@@ -425,13 +457,16 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
         
         # Check for unsafe WebView configurations
         webview_patterns = self.design_patterns['unsafe_external_interfaces']['patterns']
-        for string in all_strings:
-            if isinstance(string, str):
-                for pattern in webview_patterns:
-                    import re
-                    if re.search(pattern, string, re.IGNORECASE):
-                        interface_issues.append(f"Unsafe WebView configuration: {string[:80]}...")
-                        break
+        if isinstance(all_strings, (list, tuple)):
+            for string in all_strings:
+                if isinstance(string, str):
+                    for pattern in webview_patterns:
+                        import re
+                        if re.search(pattern, string, re.IGNORECASE):
+                            interface_issues.append(f"Unsafe WebView configuration: {string[:80]}...")
+                            break
+        elif all_strings and not isinstance(all_strings, (str, bytes, bool)):
+            self.logger.debug(f"Skipping non-iterable all_strings in external interfaces: {type(all_strings)}")
         
         if interface_issues:
             findings.append(SecurityFinding(
@@ -460,7 +495,8 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
         
         # Check for device compromise protections
         behavior_results = analysis_results.get('behaviour_analysis', {})
-        if not any('root' in str(behavior_results).lower() or 'jailbreak' in str(behavior_results).lower()):
+        behavior_str = str(behavior_results).lower()
+        if not ('root' in behavior_str or 'jailbreak' in behavior_str):
             threat_gaps.append("No root/jailbreak detection mechanisms detected")
         
         # Check for reverse engineering protections
@@ -470,7 +506,11 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
         if not isinstance(all_strings, list):
             all_strings = []
         
-        has_obfuscation = any('obfuscat' in str(s).lower() or 'proguard' in str(s).lower() for s in all_strings)
+        if isinstance(all_strings, (list, tuple)):
+            has_obfuscation = any('obfuscat' in str(s).lower() or 'proguard' in str(s).lower() for s in all_strings)
+        else:
+            has_obfuscation = False
+            self.logger.debug(f"Skipping non-iterable all_strings in threat scenario: {type(all_strings)}")
         if not has_obfuscation:
             threat_gaps.append("No code obfuscation or anti-reverse engineering protections detected")
         
