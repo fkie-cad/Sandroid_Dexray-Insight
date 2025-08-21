@@ -24,7 +24,7 @@ from src.dexray_insight.security.cve.utils.cache_manager import CVECacheManager
 from src.dexray_insight.security.cve.models.vulnerability import (
     CVEVulnerability, AffectedLibrary, VersionRange, CVESeverity
 )
-from src.dexray_insight.security.cve.models.library_mapping import LibraryMapping, LibraryMappingManager
+from src.dexray_insight.security.cve.models.library_mapping import LibraryMapping, LibraryNameMapper
 
 
 class TestAPIRateLimiter:
@@ -480,7 +480,7 @@ class TestLibraryMapping:
     
     def test_library_mapping_manager_initialization(self):
         """Test library mapping manager initialization"""
-        manager = LibraryMappingManager()
+        manager = LibraryNameMapper()
         
         assert hasattr(manager, 'mappings')
         assert hasattr(manager, 'ecosystem_patterns')
@@ -489,7 +489,7 @@ class TestLibraryMapping:
     
     def test_normalize_name(self):
         """Test library name normalization"""
-        manager = LibraryMappingManager()
+        manager = LibraryNameMapper()
         
         assert manager._normalize_name("Test Library") == "testlibrary"
         assert manager._normalize_name("com.example.library-v2") == "comexamplelibrary-v2"
@@ -497,7 +497,7 @@ class TestLibraryMapping:
     
     def test_get_cve_names(self):
         """Test CVE name retrieval for libraries"""
-        manager = LibraryMappingManager()
+        manager = LibraryNameMapper()
         
         # Test with known library (from initialization)
         cve_names = manager.get_cve_names("okhttp")
@@ -510,7 +510,7 @@ class TestLibraryMapping:
     
     def test_get_ecosystem(self):
         """Test ecosystem detection for libraries"""
-        manager = LibraryMappingManager()
+        manager = LibraryNameMapper()
         
         # Test with known library pattern
         ecosystem = manager.get_ecosystem("okhttp")
@@ -522,7 +522,7 @@ class TestLibraryMapping:
     
     def test_add_custom_mapping(self):
         """Test adding custom library mappings"""
-        manager = LibraryMappingManager()
+        manager = LibraryNameMapper()
         
         custom_mapping = LibraryMapping(
             detected_name="Custom Library",

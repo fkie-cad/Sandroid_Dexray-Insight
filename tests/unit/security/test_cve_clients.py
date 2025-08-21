@@ -468,7 +468,7 @@ class TestGitHubAdvisoryClient:
 class TestBaseCVEClient:
     """Test suite for base CVE client functionality"""
     
-    class TestCVEClient(BaseCVEClient):
+    class MockCVEClient(BaseCVEClient):
         """Concrete implementation for testing"""
         
         def _get_default_rate_limit_config(self):
@@ -486,7 +486,7 @@ class TestBaseCVEClient:
     @pytest.fixture
     def test_client(self):
         """Create test CVE client"""
-        return self.TestCVEClient(timeout=5)
+        return self.MockCVEClient(timeout=5)
     
     def test_base_client_initialization(self, test_client):
         """Test base client initialization"""
