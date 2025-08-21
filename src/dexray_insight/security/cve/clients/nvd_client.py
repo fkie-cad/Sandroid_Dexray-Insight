@@ -247,7 +247,7 @@ class NVDClient(BaseCVEClient):
                 
                 # Special fallback for FFmpeg - try direct keyword search if CPE search fails
                 if not cpes and 'ffmpeg' in library_name.lower():
-                    self.logger.warning(f"CPE search failed for FFmpeg, trying direct keyword search")
+                    self.logger.warning("CPE search failed for FFmpeg, trying direct keyword search")
                     fallback_vulns = self._search_by_keyword(f"ffmpeg {version_to_try or ''}")
                     if fallback_vulns:
                         self.logger.info(f"✅ FFmpeg keyword search found {len(fallback_vulns)} vulnerabilities using {attempt_type} version '{version_to_try}'")
@@ -283,16 +283,16 @@ class NVDClient(BaseCVEClient):
             # Special sanity check for FFmpeg - version 4.1.3 from 2018 should have vulnerabilities
             if 'ffmpeg' in library_name.lower() and not unique_vulns:
                 self.logger.error(f"⚠️  ANOMALY: No vulnerabilities found for FFmpeg {version or ''}")
-                self.logger.error(f"This is unusual since FFmpeg 4.1.3 (2018) has known CVEs")
-                self.logger.error(f"Possible causes:")
-                self.logger.error(f"  1. NVD API connectivity issues")
-                self.logger.error(f"  2. FFmpeg CPE entries not found in database")
-                self.logger.error(f"  3. Version matching problems")
-                self.logger.error(f"  4. Rate limiting preventing results")
+                self.logger.error("This is unusual since FFmpeg 4.1.3 (2018) has known CVEs")
+                self.logger.error("Possible causes:")
+                self.logger.error("  1. NVD API connectivity issues")
+                self.logger.error("  2. FFmpeg CPE entries not found in database")
+                self.logger.error("  3. Version matching problems")
+                self.logger.error("  4. Rate limiting preventing results")
                 
                 # Try one more fallback - search for just "ffmpeg" without version
                 if version:
-                    self.logger.info(f"Attempting fallback search for FFmpeg without version...")
+                    self.logger.info("Attempting fallback search for FFmpeg without version...")
                     fallback_vulns = self._search_by_keyword("ffmpeg")
                     if fallback_vulns:
                         # Filter by version manually if needed
@@ -449,9 +449,9 @@ class NVDClient(BaseCVEClient):
                     
                     # Try to understand why 404 when manual works
                     if e.response.status_code == 404:
-                        self.logger.error(f"🤔 This is suspicious - manual test should work:")
+                        self.logger.error("🤔 This is suspicious - manual test should work:")
                         self.logger.error(f"   curl -H 'User-Agent: Mozilla/5.0...' '{e.response.url}'")
-                        self.logger.error(f"💡 Possible causes: User-Agent blocking, rate limiting, API changes")
+                        self.logger.error("💡 Possible causes: User-Agent blocking, rate limiting, API changes")
                 
                 import traceback
                 self.logger.debug(f"FFmpeg keyword search traceback: {traceback.format_exc()}")

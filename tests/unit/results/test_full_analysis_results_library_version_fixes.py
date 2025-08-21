@@ -150,7 +150,7 @@ class TestLibraryVersionAnalysisFixes:
     
     def test_version_analysis_variables_defined(self):
         """Test that all variables are properly defined in version analysis"""
-        with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
+        with patch('sys.stdout', new_callable=StringIO) as _mock_stdout:
             # This should not raise NameError
             try:
                 self.results._print_version_analysis_summary()
@@ -163,7 +163,7 @@ class TestLibraryVersionAnalysisFixes:
     
     def test_library_count_includes_all_versions(self):
         """Test that library count includes all libraries with versions, not just those with years_behind"""
-        with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
+        with patch('sys.stdout', new_callable=StringIO) as _mock_stdout:
             self.results._print_version_analysis_summary()
             output = mock_stdout.getvalue()
             
@@ -178,7 +178,7 @@ class TestLibraryVersionAnalysisFixes:
     
     def test_libraries_without_analysis_displayed(self):
         """Test that libraries without version analysis are properly displayed"""
-        with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
+        with patch('sys.stdout', new_callable=StringIO) as _mock_stdout:
             self.results._print_version_analysis_summary()
             output = mock_stdout.getvalue()
             
@@ -192,7 +192,7 @@ class TestLibraryVersionAnalysisFixes:
     
     def test_risk_grouping_only_for_analyzed_libraries(self):
         """Test that risk grouping only applies to libraries with years_behind data"""
-        with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
+        with patch('sys.stdout', new_callable=StringIO) as _mock_stdout:
             self.results._print_version_analysis_summary()
             output = mock_stdout.getvalue()
             
@@ -208,7 +208,7 @@ class TestLibraryVersionAnalysisFixes:
     
     def test_cve_summary_integration(self):
         """Test that CVE summary is properly integrated with library analysis"""
-        with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
+        with patch('sys.stdout', new_callable=StringIO) as _mock_stdout:
             self.results._print_version_analysis_summary()
             output = mock_stdout.getvalue()
             
@@ -237,7 +237,7 @@ class TestLibraryVersionAnalysisFixes:
     def test_cve_finding_detection_robustness(self):
         """Test that CVE findings are detected with various formats"""
         # Test the enhanced CVE detection logic
-        with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
+        with patch('sys.stdout', new_callable=StringIO) as _mock_stdout:
             self.results._print_cve_summary()
             output = mock_stdout.getvalue()
             
@@ -250,7 +250,7 @@ class TestLibraryVersionAnalysisFixes:
         # Test with empty library detection
         self.results.library_detection.detected_libraries = []
         
-        with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
+        with patch('sys.stdout', new_callable=StringIO) as _mock_stdout:
             try:
                 self.results._print_version_analysis_summary()
                 success = True
@@ -265,7 +265,7 @@ class TestLibraryVersionAnalysisFixes:
         # Test with no security assessment
         self.results.security_assessment = None
         
-        with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
+        with patch('sys.stdout', new_callable=StringIO) as _mock_stdout:
             try:
                 self.results._print_cve_summary()
                 success = True
@@ -289,7 +289,7 @@ class TestLibraryVersionAnalysisFixes:
     
     def test_summary_statistics_accuracy(self):
         """Test that summary statistics are calculated correctly"""
-        with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
+        with patch('sys.stdout', new_callable=StringIO) as _mock_stdout:
             self.results._print_version_analysis_summary()
             output = mock_stdout.getvalue()
             
@@ -440,11 +440,11 @@ class TestFindingAttributeAccessFixes:
         from io import StringIO
         from unittest.mock import patch
         
-        with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
+        with patch('sys.stdout', new_callable=StringIO) as _mock_stdout:
             try:
                 results._print_cve_summary()
                 success = True
-                output = mock_stdout.getvalue()
+                output = _mock_stdout.getvalue()
             except Exception as e:
                 success = False
                 error_msg = str(e)
@@ -532,11 +532,11 @@ class TestFindingAttributeAccessFixes:
         from io import StringIO
         from unittest.mock import patch
         
-        with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
+        with patch('sys.stdout', new_callable=StringIO) as _mock_stdout:
             try:
                 results._print_cve_summary()
                 success = True
-                output = mock_stdout.getvalue()
+                output = _mock_stdout.getvalue()
             except Exception as e:
                 success = False
                 error_msg = str(e)
@@ -636,7 +636,7 @@ class TestEnhancedCVEOutputFormat:
         from io import StringIO
         from unittest.mock import patch
         
-        with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
+        with patch('sys.stdout', new_callable=StringIO) as _mock_stdout:
             results._print_cve_summary()
             output = mock_stdout.getvalue()
         
@@ -717,7 +717,7 @@ class TestEnhancedCVEOutputFormat:
         from io import StringIO
         from unittest.mock import patch
         
-        with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
+        with patch('sys.stdout', new_callable=StringIO) as _mock_stdout:
             results._print_cve_summary()
             output = mock_stdout.getvalue()
         

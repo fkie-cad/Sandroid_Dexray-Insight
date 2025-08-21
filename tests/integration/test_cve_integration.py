@@ -70,8 +70,8 @@ class TestCVECLIIntegration:
     
     def test_cve_flag_requires_security_flag(self):
         """Test that CVE flag requires security flag to be enabled"""
-        # Test CLI command that should fail
-        cmd = [sys.executable, '-m', 'src.dexray_insight.asam', 'dummy.apk', '--cve']
+        # Test CLI command that should fail (unused but part of test setup)
+        _cmd = [sys.executable, '-m', 'src.dexray_insight.asam', 'dummy.apk', '--cve']
         
         # Mock the argument parsing to simulate the validation
         from src.dexray_insight.asam import _process_cve_flags
@@ -244,7 +244,7 @@ class TestCVEAnalysisEngineIntegration:
     
     def test_cve_assessment_registration(self, cve_enabled_config):
         """Test that CVE assessment is properly registered"""
-        engine = AnalysisEngine(cve_enabled_config)
+        _engine = AnalysisEngine(cve_enabled_config)  # Unused but part of registration test
         
         # CVE assessment should be registered
         from src.dexray_insight.core.base_classes import SecurityAssessmentRegistry
@@ -600,7 +600,7 @@ class TestCVEEndToEndIntegration:
                 )]
                 mock_scan1.return_value = mock_vulns
                 
-                findings1 = assessment1.assess(synthetic_analysis_results)
+                _findings1 = assessment1.assess(synthetic_analysis_results)  # Unused but part of cache test
                 
                 # Should have cached the results
                 cache_stats1 = assessment1.cache_manager.get_cache_stats()

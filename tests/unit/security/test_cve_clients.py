@@ -14,9 +14,6 @@ Tests the CVE database client functionality including:
 
 import pytest
 import unittest.mock as mock
-import json
-from datetime import datetime
-from typing import Dict, Any
 
 from src.dexray_insight.security.cve.clients.osv_client import OSVClient
 from src.dexray_insight.security.cve.clients.nvd_client import NVDClient
@@ -547,7 +544,7 @@ class TestBaseCVEClient:
     
     def test_client_cleanup(self, test_client):
         """Test client cleanup on deletion"""
-        session = test_client.session
+        _session = test_client.session
         del test_client
         
         # Session should be closed (hard to test directly, but no exceptions should occur)

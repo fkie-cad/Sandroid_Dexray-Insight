@@ -14,8 +14,6 @@ Tests the CVE vulnerability scanning functionality including:
 
 import pytest
 import unittest.mock as mock
-from pathlib import Path
-from typing import Dict, Any, List
 
 from src.dexray_insight.security.cve_assessment import CVEAssessment
 from src.dexray_insight.security.cve.models.vulnerability import CVEVulnerability, CVESeverity, AffectedLibrary

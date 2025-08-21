@@ -17,7 +17,6 @@ import json
 import time
 from pathlib import Path
 from datetime import datetime, timedelta
-from typing import Dict, Any, List
 
 from src.dexray_insight.security.cve.utils.rate_limiter import APIRateLimiter, RateLimitConfig
 from src.dexray_insight.security.cve.utils.cache_manager import CVECacheManager
@@ -513,7 +512,7 @@ class TestLibraryMapping:
         manager = LibraryNameMapper()
         
         # Test with known library pattern
-        ecosystem = manager.get_ecosystem("okhttp")
+        _ecosystem = manager.get_ecosystem("okhttp")
         # May return None if no mappings are loaded, which is acceptable
         
         # Test with unknown library

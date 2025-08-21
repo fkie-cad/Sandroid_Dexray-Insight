@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 import pytest
-from unittest.mock import Mock, patch
 
 from src.dexray_insight.security.context_analysis.false_positive_filter import FalsePositiveFilter
 from src.dexray_insight.security.context_analysis.models.contextual_finding import (

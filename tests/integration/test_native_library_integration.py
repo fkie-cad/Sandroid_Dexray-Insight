@@ -12,7 +12,6 @@ import pytest
 from unittest.mock import Mock, patch, MagicMock
 from pathlib import Path
 import tempfile
-import json
 
 from dexray_insight.core.base_classes import AnalysisContext
 from dexray_insight.modules.native.native_loader import NativeAnalysisLoader

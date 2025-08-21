@@ -14,7 +14,6 @@ XML resources were not being detected by the security assessment.
 import pytest
 from unittest.mock import Mock, MagicMock, patch
 import xml.etree.ElementTree as ET
-from typing import Set, Dict, Any
 
 from dexray_insight.modules.string_analysis.extractors.string_extractor import StringExtractor
 from dexray_insight.core.base_classes import AnalysisContext

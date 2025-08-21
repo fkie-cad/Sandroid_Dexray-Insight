@@ -113,10 +113,10 @@ class TestRealAPKEndToEnd:
         
         # Find the main results file (not the security-specific file)
         main_file = None
-        security_file = None
+        _security_file = None  # Unused but part of output validation
         for file_path in output_files:
             if "_security_" in file_path.name:
-                security_file = file_path
+                _security_file = file_path
             else:
                 main_file = file_path
         

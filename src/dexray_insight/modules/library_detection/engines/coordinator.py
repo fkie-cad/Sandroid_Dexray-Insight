@@ -316,13 +316,13 @@ class LibraryDetectionCoordinator:
         
         try:
             # Check if native library results are available in context
-            self.logger.debug(f"Native Integration: Checking analysis context for native library results...")
+            self.logger.debug("Native Integration: Checking analysis context for native library results...")
             self.logger.debug(f"Native Integration: Available module results keys: {list(context.module_results.keys())}")
             
             native_lib_results = context.module_results.get('native_libraries', [])
             
             if not native_lib_results:
-                self.logger.warning(f"Native Integration: No native library results found in analysis context")
+                self.logger.warning("Native Integration: No native library results found in analysis context")
                 self.logger.debug(f"Native Integration: Full module_results content: {context.module_results}")
                 return native_libraries
             

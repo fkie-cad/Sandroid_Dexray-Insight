@@ -11,7 +11,6 @@ compilation artifacts and --prefix patterns to identify library versions.
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 from pathlib import Path
-import time
 
 from dexray_insight.modules.native.library_version_detection import (
     NativeLibraryVersionModule, NativeLibraryDetection

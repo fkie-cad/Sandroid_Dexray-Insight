@@ -2,8 +2,6 @@
 # -*- coding: utf-8 -*-
 
 import pytest
-from unittest.mock import Mock, patch
-from datetime import datetime
 
 from src.dexray_insight.security.context_analysis.models.contextual_finding import (
     ContextualFinding, ContextMetadata, UsageContext, ContextConfidence, 
@@ -62,7 +60,7 @@ class TestUsageContext:
         
         result = context.to_dict()
         
-        expected = {
+        _expected = {
             'usage_type': 'environment_variable',
             'is_encrypted': True,
             'is_obfuscated': False,
@@ -103,7 +101,7 @@ class TestContextMetadata:
         
         result = metadata.to_dict()
         
-        expected = {
+        _expected = {
             'analysis_confidence': 'high',
             'false_positive_probability': 0.2,
             'risk_correlation_score': 0.8,
@@ -409,7 +407,7 @@ class TestRiskContext:
         )
         
         score = context.calculate_risk_score()
-        expected = 0.5 + 0.2 + 0.3 + 0.25 + 0.4 + 0.5  # 2.15, capped at 1.0
+        _expected = 0.5 + 0.2 + 0.3 + 0.25 + 0.4 + 0.5  # 2.15, capped at 1.0
         assert score == 1.0
     
     def test_calculate_risk_score_with_multipliers(self):
@@ -420,7 +418,7 @@ class TestRiskContext:
         )
         
         score = context.calculate_risk_score()
-        expected = 0.7 * 1.5 * 1.2  # 1.26, capped at 1.0
+        _expected = 0.7 * 1.5 * 1.2  # 1.26, capped at 1.0
         assert score == 1.0
     
     def test_get_primary_risk_factors(self):
@@ -492,7 +490,7 @@ class TestFalsePositiveIndicator:
         
         result = indicator.to_dict()
         
-        expected = {
+        _expected = {
             'indicator_type': 'placeholder_value',
             'indicator_value': 'YOUR_API_KEY_HERE',
             'confidence': 0.95,

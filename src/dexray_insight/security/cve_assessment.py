@@ -230,7 +230,7 @@ class CVEAssessment(BaseSecurityAssessment):
             self.logger.info("⏭️  GitHub Advisory client skipped (disabled in configuration)")
         
         # Summary of initialized clients
-        self.logger.info(f"=== CVE Client Initialization Complete ===")
+        self.logger.info("=== CVE Client Initialization Complete ===")
         self.logger.info(f"Total clients initialized: {len(self.clients)}")
         self.logger.info(f"Active client sources: {list(self.clients.keys())}")
         

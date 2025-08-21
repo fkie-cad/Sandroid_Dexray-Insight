@@ -12,7 +12,6 @@ import subprocess
 import shutil
 import time
 from typing import Dict, Any, Optional, List
-from dataclasses import dataclass
 
 from .base_native_module import BaseNativeModule, NativeBinaryInfo, NativeAnalysisResult
 from .library_version_detection import NativeLibraryDetection
