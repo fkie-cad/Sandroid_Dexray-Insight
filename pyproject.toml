@@ -7,7 +7,7 @@ name = "dexray-insight"
 dynamic = ["version"]
 description = "This project is part of the dynamic Sandbox Sandroid. Its purpose is to do static analysis to grasp a basic understanding of an Android application. It also allows security analysis of an APK."
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.11"
 license = {text = "GPL-3.0"}
 authors = [
     {name = "Daniel Baier", email = "daniel.baier@fkie.fraunhofer.de"},
@@ -20,11 +20,9 @@ classifiers = [
     "Operating System :: OS Independent",
     "Natural Language :: English",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Security",
     "Topic :: Software Development :: Debuggers",
     "Development Status :: 4 - Beta",
