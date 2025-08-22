@@ -12,7 +12,7 @@ XML resources were not being detected by the security assessment.
 """
 
 import pytest
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import Mock, patch
 import xml.etree.ElementTree as ET
 
 from dexray_insight.modules.string_analysis.extractors.string_extractor import StringExtractor

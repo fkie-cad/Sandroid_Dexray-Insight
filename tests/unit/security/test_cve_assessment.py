@@ -16,8 +16,8 @@ import pytest
 import unittest.mock as mock
 
 from src.dexray_insight.security.cve_assessment import CVEAssessment
-from src.dexray_insight.security.cve.models.vulnerability import CVEVulnerability, CVESeverity, AffectedLibrary
-from src.dexray_insight.core.base_classes import SecurityFinding, AnalysisSeverity
+from src.dexray_insight.security.cve.models.vulnerability import CVEVulnerability, CVESeverity
+from src.dexray_insight.core.base_classes import AnalysisSeverity
 
 
 class TestCVEAssessment:

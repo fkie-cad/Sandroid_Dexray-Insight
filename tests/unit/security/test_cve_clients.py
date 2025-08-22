@@ -19,7 +19,7 @@ from src.dexray_insight.security.cve.clients.osv_client import OSVClient
 from src.dexray_insight.security.cve.clients.nvd_client import NVDClient
 from src.dexray_insight.security.cve.clients.github_client import GitHubAdvisoryClient
 from src.dexray_insight.security.cve.clients.base_client import BaseCVEClient
-from src.dexray_insight.security.cve.models.vulnerability import CVEVulnerability, CVESeverity
+from src.dexray_insight.security.cve.models.vulnerability import CVESeverity
 from src.dexray_insight.security.cve.utils.rate_limiter import RateLimitConfig
 
 

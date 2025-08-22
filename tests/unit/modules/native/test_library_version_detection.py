@@ -9,13 +9,13 @@ compilation artifacts and --prefix patterns to identify library versions.
 """
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from pathlib import Path
 
 from dexray_insight.modules.native.library_version_detection import (
     NativeLibraryVersionModule, NativeLibraryDetection
 )
-from dexray_insight.modules.native.base_native_module import NativeBinaryInfo, NativeAnalysisResult
+from dexray_insight.modules.native.base_native_module import NativeBinaryInfo
 
 
 class TestNativeLibraryVersionModule:

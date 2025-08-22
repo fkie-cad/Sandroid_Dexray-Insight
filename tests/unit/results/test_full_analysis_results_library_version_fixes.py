@@ -9,7 +9,6 @@ This test file specifically verifies the fixes for:
 4. Enhanced library version display
 """
 
-import pytest
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -808,7 +807,7 @@ class TestCVEIntegrationFixes:
     
     def test_cve_evidence_parsing(self):
         """Test that CVE evidence is properly parsed from various formats"""
-        results = FullAnalysisResults()
+        _results = FullAnalysisResults()
         
         # Test evidence with different formats
         test_evidence = [
@@ -840,7 +839,7 @@ class TestCVEIntegrationFixes:
     
     def test_cve_severity_grouping(self):
         """Test that CVE severities are properly grouped and displayed"""
-        results = FullAnalysisResults()
+        _results = FullAnalysisResults()
         
         # Test data for severity grouping
         test_cves = [

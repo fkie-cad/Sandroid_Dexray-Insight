@@ -4,11 +4,8 @@
 import pytest
 
 from src.dexray_insight.security.context_analysis.false_positive_filter import FalsePositiveFilter
-from src.dexray_insight.security.context_analysis.models.contextual_finding import (
-    ContextualFinding, UsageContext, SecretUsageType
-)
 from src.dexray_insight.security.context_analysis.models.context_models import (
-    CodeContext, FalsePositiveIndicator, CodeLocation, ProtectionLevel
+    CodeContext, FalsePositiveIndicator, CodeLocation
 )
 
 

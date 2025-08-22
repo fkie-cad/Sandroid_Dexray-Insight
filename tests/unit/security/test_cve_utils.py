@@ -16,7 +16,7 @@ import tempfile
 import json
 import time
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from src.dexray_insight.security.cve.utils.rate_limiter import APIRateLimiter, RateLimitConfig
 from src.dexray_insight.security.cve.utils.cache_manager import CVECacheManager

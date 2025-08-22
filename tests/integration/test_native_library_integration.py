@@ -9,7 +9,7 @@ system integration and CVE scanning compatibility.
 """
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from pathlib import Path
 import tempfile
 
@@ -17,7 +17,7 @@ from dexray_insight.core.base_classes import AnalysisContext
 from dexray_insight.modules.native.native_loader import NativeAnalysisLoader
 from dexray_insight.modules.library_detection.engines.coordinator import LibraryDetectionCoordinator
 from dexray_insight.modules.library_detection.library_detection_module import LibraryDetectionModule
-from dexray_insight.results.LibraryDetectionResults import DetectedLibrary, LibraryDetectionMethod, LibraryCategory
+from dexray_insight.results.LibraryDetectionResults import LibraryDetectionMethod, LibraryCategory
 from dexray_insight.security.cve_assessment import CVEAssessment
 
 

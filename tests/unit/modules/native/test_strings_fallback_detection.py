@@ -10,7 +10,7 @@ Tests the fallback strings-based detection when radare2 is not available.
 import pytest
 import subprocess
 import shutil
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from pathlib import Path
 import tempfile
 

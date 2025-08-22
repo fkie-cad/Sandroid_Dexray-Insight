@@ -21,6 +21,13 @@ temp_analysis/
 env/
 venv/
 
+# Coverage reports
+.coverage
+coverage.xml
+
+# misc
+*.md
+*.log
 
 # generated files
 bin/
