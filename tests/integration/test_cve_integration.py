@@ -182,7 +182,7 @@ class TestCVEAnalysisEngineIntegration:
     def cve_enabled_config(self):
         """Configuration with CVE scanning enabled"""
         config = Configuration()
-        config._config['security'] = {
+        config.config['security'] = {
             'enable_owasp_assessment': True,
             'cve_scanning': {
                 'enabled': True,
@@ -198,7 +198,7 @@ class TestCVEAnalysisEngineIntegration:
                 'max_libraries_per_source': 2
             }
         }
-        config._config['modules'] = {
+        config.config['modules'] = {
             'library_detection': {
                 'enabled': True,
                 'priority': 25
@@ -210,7 +210,7 @@ class TestCVEAnalysisEngineIntegration:
     def cve_disabled_config(self):
         """Configuration with CVE scanning disabled"""
         config = Configuration()
-        config._config['security'] = {
+        config.config['security'] = {
             'enable_owasp_assessment': True,
             'cve_scanning': {
                 'enabled': False
@@ -247,13 +247,13 @@ class TestCVEAnalysisEngineIntegration:
         _engine = AnalysisEngine(cve_enabled_config)  # Unused but part of registration test
         
         # CVE assessment should be registered
-        from src.dexray_insight.core.base_classes import SecurityAssessmentRegistry
-        registered_assessments = SecurityAssessmentRegistry.get_all_assessments()
+        from src.dexray_insight.core.base_classes import registry
+        registered_assessments = registry.list_assessments()
         
         assert 'cve_scanning' in registered_assessments
         
         # Should be able to create CVE assessment instance
-        cve_assessment_class = registered_assessments['cve_scanning']
+        cve_assessment_class = registry.get_assessment('cve_scanning')
         cve_assessment = cve_assessment_class(cve_enabled_config.to_dict())
         
         assert isinstance(cve_assessment, CVEAssessment)

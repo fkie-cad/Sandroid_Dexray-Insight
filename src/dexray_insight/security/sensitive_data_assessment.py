@@ -3,6 +3,7 @@
 
 import re
 import logging
+import signal
 from typing import List, Dict, Any
 
 from ..core.base_classes import BaseSecurityAssessment, SecurityFinding, AnalysisSeverity, register_assessment
@@ -1076,6 +1077,65 @@ class PatternDetectionStrategy:
         self.logger.info(f"🔍 Found {len(detected_secrets)} potential secrets")
         return detected_secrets
     
+    def _safe_regex_search(self, pattern: str, text: str, pattern_name: str = "unknown") -> Any:
+        """
+        Perform a regex search with timeout protection to prevent catastrophic backtracking.
+        
+        Args:
+            pattern: The regex pattern to search for
+            text: The text to search in
+            pattern_name: Name of the pattern for logging
+            
+        Returns:
+            Match object if found, None otherwise
+        """
+        try:
+            # Additional safety checks before regex
+            if len(text) > 10000:  # Skip very long texts
+                self.logger.debug(f"Skipping long text ({len(text)} chars) for pattern {pattern_name}")
+                return None
+                
+            if len(pattern) > 500:  # Skip very complex patterns
+                self.logger.debug(f"Skipping complex pattern for {pattern_name}")
+                return None
+                
+            # Use timeout with threading for better cross-platform support
+            import threading
+            import time
+            
+            result = []
+            exception = []
+            
+            def search_worker():
+                try:
+                    match = re.search(pattern, text, re.IGNORECASE)
+                    result.append(match)
+                except Exception as e:
+                    exception.append(e)
+            
+            # Start search in separate thread
+            thread = threading.Thread(target=search_worker)
+            thread.daemon = True
+            thread.start()
+            
+            # Wait up to 1 second for completion
+            thread.join(timeout=1.0)
+            
+            if thread.is_alive():
+                # Timeout occurred
+                self.logger.warning(f"Regex timeout for pattern {pattern_name}, skipping")
+                return None
+            
+            if exception:
+                self.logger.debug(f"Regex error for pattern {pattern_name}: {str(exception[0])}")
+                return None
+                
+            return result[0] if result else None
+            
+        except Exception as e:
+            self.logger.debug(f"Regex wrapper error for pattern {pattern_name}: {str(e)}")
+            return None
+    
     def _apply_patterns_to_string(self, string_value: str, string_data: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
         Apply detection patterns to a single string.
@@ -1098,11 +1158,15 @@ class PatternDetectionStrategy:
         # Apply detection patterns to the string
         matches = []
         
+        # Skip very long strings to prevent catastrophic backtracking
+        if len(string_value) > 50000:  # 50KB limit
+            self.logger.debug(f"Skipping very long string ({len(string_value)} chars) to prevent timeout")
+            return matches
+        
         for pattern_name, pattern_config in self.detection_patterns.items():
             try:
                 pattern_regex = pattern_config['pattern']
-                import re
-                match = re.search(pattern_regex, string_value)
+                match = self._safe_regex_search(pattern_regex, string_value, pattern_name)
                 
                 if match:
                     matches.append({
