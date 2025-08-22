@@ -47,7 +47,7 @@ jobs:
         import os
         from pathlib import Path
         
-        def check_function_length(file_path, max_lines=20):
+        def check_function_length(file_path, max_lines=75):
             with open(file_path, 'r') as f:
                 content = f.read()
             

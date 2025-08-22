@@ -346,9 +346,9 @@ class ArgParser(argparse.ArgumentParser):
         print(self.format_help().replace("usage:", "Usage:"))
         self.exit(0)
 
-def parse_arguments():
-    """Parse command line arguments"""
-    parser = ArgParser(
+def _create_argument_parser():
+    """Create and configure the main argument parser."""
+    return ArgParser(
         add_help=False,
         description="Dexray Insight is part of the dynamic Sandbox Sandroid. Its purpose is to do static analysis in order to get a basic understanding of an Android application.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -364,25 +364,23 @@ Examples:
   %(prog)s <path to APK> --deep  # Enable deep behavioral analysis
 """)
 
-    args = parser.add_argument_group("Arguments")
-    
-    # Target APK for analysis
-    args.add_argument(
+def _add_basic_arguments(args_group):
+    """Add basic arguments like target APK and version."""
+    args_group.add_argument(
         "exec",
         metavar="<executable/apk>",
         help="Path to the target APK file for static analysis."
     )
-
-    # Version information
-    args.add_argument(
+    args_group.add_argument(
         '--version',
         action='version',
         version='Dexray Insight v{version}'.format(version=__version__),
         help="Display the current version of Dexray Insight."
     )
 
-    # Logging level
-    args.add_argument(
+def _add_logging_arguments(args_group):
+    """Add logging and output control arguments."""
+    args_group.add_argument(
         "-d", "--debug",
         nargs='?',
         const="INFO",
@@ -392,16 +390,12 @@ Examples:
             "If not specified, defaults to ERROR."
         )
     )
-
-    # Filter log messages by file
-    args.add_argument(
+    args_group.add_argument(
         "-f", "--filter",
         nargs="+",
         help="Filter log messages by file. Specify one or more files to include in the logs."
     )
-
-    # Verbose output
-    args.add_argument(
+    args_group.add_argument(
         "-v", "--verbose",
         required=False,
         action="store_const",
@@ -410,15 +404,14 @@ Examples:
         help="Enable verbose output. Shows complete JSON results instead of the analyst-friendly summary."
     )
 
-    # Signature check
-    args.add_argument(
+def _add_analysis_arguments(args_group):
+    """Add analysis control arguments."""
+    args_group.add_argument(
         "-sig", "--signaturecheck",
         action="store_true",
         help="Perform signature analysis during static analysis."
     )
-
-    # APK Diffing
-    args.add_argument(
+    args_group.add_argument(
         "--diffing_apk",
         metavar="<path_to_diff_apk>",
         help=(
@@ -427,8 +420,9 @@ Examples:
         )
     )
 
-    # Security analysis (OWASP Top 10)
-    args.add_argument(
+def _add_security_arguments(args_group):
+    """Add security analysis arguments."""
+    args_group.add_argument(
         "-s", "--sec",
         required=False,
         action="store_const",
@@ -436,9 +430,7 @@ Examples:
         default=False,
         help="Enable OWASP Top 10 security analysis. This comprehensive assessment will be done after the standard analysis."
     )
-
-    # CVE vulnerability scanning (requires -s flag)
-    args.add_argument(
+    args_group.add_argument(
         "--cve",
         required=False,
         action="store_true",
@@ -448,9 +440,7 @@ Examples:
             "Requires --sec flag to be enabled. Rate-limited and cached for performance."
         )
     )
-
-    # Clear CVE cache
-    args.add_argument(
+    args_group.add_argument(
         "--clear-cve-cache",
         required=False,
         action="store_true",
@@ -461,38 +451,33 @@ Examples:
         )
     )
 
-    # Tracker analysis control
-    args.add_argument(
+def _add_module_control_arguments(args_group):
+    """Add module control arguments for trackers, API analysis, etc."""
+    args_group.add_argument(
         "-t", "--tracker",
         required=False,
         action="store_true",
         help="Enable tracker analysis. This is enabled by default but can be disabled in config."
     )
-
-    args.add_argument(
+    args_group.add_argument(
         "--no-tracker",
         required=False,
         action="store_true",
         help="Disable tracker analysis even if enabled in configuration."
     )
-
-    # API invocation analysis control
-    args.add_argument(
+    args_group.add_argument(
         "-a", "--api-invocation",
         required=False,
         action="store_true",
         help="Enable API invocation analysis. This is disabled by default."
     )
-    
-    # Deep analysis control
-    args.add_argument(
+    args_group.add_argument(
         "--deep",
         required=False,
         action="store_true",
         help="Enable deep behavioral analysis. Detects privacy-sensitive behaviors and advanced techniques. This is disabled by default."
     )
-
-    args.add_argument("--exclude_net_libs",
+    args_group.add_argument("--exclude_net_libs",
                       required=False,
                       default=None,
                       metavar="<path_to_file_with_lib_name>",
@@ -500,15 +485,28 @@ Examples:
                            "Provide a path either to a comma separated or '\\n'-separated file."
                            "E.g. if the string 'System.Security' is in that file, every assembly starting with 'System.Security' will be ignored")
 
-    # Configuration file option
-    args.add_argument(
+def _add_config_arguments(args_group):
+    """Add configuration file arguments."""
+    args_group.add_argument(
         "-c", "--config",
         metavar="<config_file>",
         help="Path to configuration file (JSON or YAML) for advanced settings."
     )
 
-    parsed = parser.parse_args()
-    return parsed
+def parse_arguments():
+    """Parse command line arguments with organized argument groups."""
+    parser = _create_argument_parser()
+
+    args = parser.add_argument_group("Arguments")
+    
+    _add_basic_arguments(args)
+    _add_logging_arguments(args)
+    _add_analysis_arguments(args)
+    _add_security_arguments(args)
+    _add_module_control_arguments(args)
+    _add_config_arguments(args)
+    
+    return parser.parse_args()
 
 def main():
     """Main entry point"""
