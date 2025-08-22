@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import pytest
+from unittest.mock import Mock
 
 from src.dexray_insight.security.context_analysis.code_context_analyzer import CodeContextAnalyzer
 from src.dexray_insight.security.context_analysis.models.context_models import (

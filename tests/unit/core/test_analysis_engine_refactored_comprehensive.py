@@ -28,7 +28,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'sr
 
 from dexray_insight.core.analysis_engine import AnalysisEngine
 from dexray_insight.core.configuration import Configuration  
-from dexray_insight.core.base_classes import BaseResult, AnalysisContext
+from dexray_insight.core.base_classes import BaseResult, AnalysisContext, AnalysisStatus
 
 
 @pytest.mark.unit
@@ -46,7 +46,7 @@ class TestAnalysisEngineBuildApkOverview:
     def mock_successful_apk_overview_result(self):
         """Create mock successful APK overview result."""
         result = Mock(spec=BaseResult)
-        result.status.value = 'success'
+        result.status = AnalysisStatus.SUCCESS
         result.general_info = {'package_name': 'com.test.app', 'version': '1.0'}
         result.components = {'activities': 3, 'services': 1}
         result.permissions = ['android.permission.INTERNET']
@@ -61,14 +61,14 @@ class TestAnalysisEngineBuildApkOverview:
     def mock_failed_apk_overview_result(self):
         """Create mock failed APK overview result."""
         result = Mock(spec=BaseResult)
-        result.status.value = 'failure'
+        result.status = AnalysisStatus.FAILURE
         return result
     
     @pytest.fixture
     def mock_manifest_result(self):
         """Create mock manifest analysis result for fallback."""
         result = Mock(spec=BaseResult)
-        result.status.value = 'success'
+        result.status = AnalysisStatus.SUCCESS
         result.package_name = 'com.fallback.app'
         result.main_activity = 'MainActivity'
         return result
@@ -79,7 +79,7 @@ class TestAnalysisEngineBuildApkOverview:
         module_results = {'apk_overview': mock_successful_apk_overview_result}
         
         # Act
-        with patch('dexray_insight.core.analysis_engine.APKOverview') as mock_overview_class:
+        with patch('dexray_insight.results.apkOverviewResults.APKOverview') as mock_overview_class:
             mock_overview = Mock()
             mock_overview_class.return_value = mock_overview
             
@@ -107,7 +107,7 @@ class TestAnalysisEngineBuildApkOverview:
         }
         
         # Act
-        with patch('dexray_insight.core.analysis_engine.APKOverview') as mock_overview_class:
+        with patch('dexray_insight.results.apkOverviewResults.APKOverview') as mock_overview_class:
             mock_overview = Mock()
             mock_overview_class.return_value = mock_overview
             
@@ -126,7 +126,7 @@ class TestAnalysisEngineBuildApkOverview:
         module_results = {}
         
         # Act
-        with patch('dexray_insight.core.analysis_engine.APKOverview') as mock_overview_class:
+        with patch('dexray_insight.results.apkOverviewResults.APKOverview') as mock_overview_class:
             mock_overview = Mock()
             mock_overview_class.return_value = mock_overview
             
@@ -140,7 +140,7 @@ class TestAnalysisEngineBuildApkOverview:
         """Test APK overview building handles results with only some fields."""
         # Arrange
         partial_result = Mock(spec=BaseResult)
-        partial_result.status.value = 'success'
+        partial_result.status = AnalysisStatus.SUCCESS
         partial_result.general_info = {'package_name': 'com.test.app'}
         partial_result.permissions = ['INTERNET']
         # Missing other fields like components, certificates, etc.
@@ -148,7 +148,7 @@ class TestAnalysisEngineBuildApkOverview:
         module_results = {'apk_overview': partial_result}
         
         # Act
-        with patch('dexray_insight.core.analysis_engine.APKOverview') as mock_overview_class:
+        with patch('dexray_insight.results.apkOverviewResults.APKOverview') as mock_overview_class:
             mock_overview = Mock()
             mock_overview_class.return_value = mock_overview
             
@@ -186,7 +186,7 @@ class TestAnalysisEngineBuildInDepthAnalysis:
         module_results = {'test': Mock()}
         
         # Act
-        with patch('dexray_insight.core.analysis_engine.Results') as mock_results_class, \
+        with patch('dexray_insight.results.InDepthAnalysisResults.Results') as mock_results_class, \
              patch.object(engine, '_map_manifest_results') as mock_map_manifest, \
              patch.object(engine, '_map_permission_results') as mock_map_permission, \
              patch.object(engine, '_map_signature_results') as mock_map_signature, \
@@ -233,7 +233,7 @@ class TestAnalysisEngineMapStringResults:
     def mock_successful_string_result(self):
         """Create mock successful string analysis result."""
         result = Mock(spec=BaseResult)
-        result.status.value = 'success'
+        result.status = AnalysisStatus.SUCCESS
         result.emails = ['test@example.com']
         result.ip_addresses = ['192.168.1.1']
         result.urls = ['https://example.com']
@@ -244,7 +244,7 @@ class TestAnalysisEngineMapStringResults:
     def mock_failed_string_result(self):
         """Create mock failed string analysis result."""
         result = Mock(spec=BaseResult)
-        result.status.value = 'failure'
+        result.status = AnalysisStatus.FAILURE
         return result
     
     @pytest.fixture
@@ -311,7 +311,7 @@ class TestAnalysisEngineMapStringResults:
         ]
         
         # Act
-        with patch('dexray_insight.core.analysis_engine.string_analysis_execute') as mock_execute:
+        with patch('dexray_insight.string_analysis.string_analysis_module.string_analysis_execute') as mock_execute:
             mock_execute.return_value = mock_old_results
             
             engine._apply_string_analysis_fallback(mock_in_depth_analysis, mock_context)
@@ -329,7 +329,7 @@ class TestAnalysisEngineMapStringResults:
     def test_apply_string_analysis_fallback_handles_exception(self, engine, mock_in_depth_analysis, mock_context):
         """Test string analysis fallback handles exceptions gracefully."""
         # Act
-        with patch('dexray_insight.core.analysis_engine.string_analysis_execute') as mock_execute:
+        with patch('dexray_insight.string_analysis.string_analysis_module.string_analysis_execute') as mock_execute:
             mock_execute.side_effect = ImportError("Module not found")
             
             engine._apply_string_analysis_fallback(mock_in_depth_analysis, mock_context)
@@ -364,8 +364,8 @@ class TestAnalysisEngineBuildToolResults:
         }
         
         # Act
-        with patch('dexray_insight.core.analysis_engine.ApkidResults') as mock_apkid_class, \
-             patch('dexray_insight.core.analysis_engine.KavanozResults') as mock_kavanoz_class:
+        with patch('dexray_insight.results.apkidResults.ApkidResults') as mock_apkid_class, \
+             patch('dexray_insight.results.kavanozResults.KavanozResults') as mock_kavanoz_class:
             
             mock_apkid = Mock()
             mock_kavanoz = Mock()
@@ -391,8 +391,8 @@ class TestAnalysisEngineBuildToolResults:
         }
         
         # Act
-        with patch('dexray_insight.core.analysis_engine.ApkidResults') as mock_apkid_class, \
-             patch('dexray_insight.core.analysis_engine.KavanozResults') as mock_kavanoz_class:
+        with patch('dexray_insight.results.apkidResults.ApkidResults') as mock_apkid_class, \
+             patch('dexray_insight.results.kavanozResults.KavanozResults') as mock_kavanoz_class:
             
             mock_apkid = Mock()
             mock_kavanoz = Mock()
@@ -414,8 +414,8 @@ class TestAnalysisEngineBuildToolResults:
         tool_results = {}  # No tool results
         
         # Act
-        with patch('dexray_insight.core.analysis_engine.ApkidResults') as mock_apkid_class, \
-             patch('dexray_insight.core.analysis_engine.KavanozResults') as mock_kavanoz_class:
+        with patch('dexray_insight.results.apkidResults.ApkidResults') as mock_apkid_class, \
+             patch('dexray_insight.results.kavanozResults.KavanozResults') as mock_kavanoz_class:
             
             mock_apkid = Mock()
             mock_kavanoz = Mock() 
@@ -480,7 +480,7 @@ class TestAnalysisEngineCreateFullResultsIntegration:
         with patch.object(engine, '_build_apk_overview') as mock_build_overview, \
              patch.object(engine, '_build_in_depth_analysis') as mock_build_in_depth, \
              patch.object(engine, '_build_tool_results') as mock_build_tools, \
-             patch('dexray_insight.core.analysis_engine.FullAnalysisResults') as mock_full_results_class:
+             patch('dexray_insight.results.FullAnalysisResults.FullAnalysisResults') as mock_full_results_class:
             
             # Set up mocks
             mock_overview = Mock()
@@ -525,7 +525,7 @@ class TestAnalysisEngineCreateFullResultsIntegration:
         with patch.object(engine, '_build_apk_overview'), \
              patch.object(engine, '_build_in_depth_analysis'), \
              patch.object(engine, '_build_tool_results'), \
-             patch('dexray_insight.core.analysis_engine.FullAnalysisResults') as mock_full_results_class:
+             patch('dexray_insight.results.FullAnalysisResults.FullAnalysisResults') as mock_full_results_class:
             
             mock_full_results = Mock()
             mock_full_results_class.return_value = mock_full_results

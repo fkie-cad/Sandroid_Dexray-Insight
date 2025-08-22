@@ -164,7 +164,7 @@ class TestLibraryVersionAnalysisFixes:
         """Test that library count includes all libraries with versions, not just those with years_behind"""
         with patch('sys.stdout', new_callable=StringIO) as _mock_stdout:
             self.results._print_version_analysis_summary()
-            output = mock_stdout.getvalue()
+            output = _mock_stdout.getvalue()
             
             # Should show total of 6 libraries (all with versions)
             assert "Libraries with versions: 6 detected" in output
@@ -179,7 +179,7 @@ class TestLibraryVersionAnalysisFixes:
         """Test that libraries without version analysis are properly displayed"""
         with patch('sys.stdout', new_callable=StringIO) as _mock_stdout:
             self.results._print_version_analysis_summary()
-            output = mock_stdout.getvalue()
+            output = _mock_stdout.getvalue()
             
             # Should have a section for libraries without age analysis
             assert "LIBRARIES WITH VERSIONS (no age analysis)" in output
@@ -193,7 +193,7 @@ class TestLibraryVersionAnalysisFixes:
         """Test that risk grouping only applies to libraries with years_behind data"""
         with patch('sys.stdout', new_callable=StringIO) as _mock_stdout:
             self.results._print_version_analysis_summary()
-            output = mock_stdout.getvalue()
+            output = _mock_stdout.getvalue()
             
             # Should show risk categories for analyzed libraries
             assert "CRITICAL RISK LIBRARIES (1)" in output or "⚠️  CRITICAL RISK LIBRARIES (1)" in output
@@ -209,7 +209,7 @@ class TestLibraryVersionAnalysisFixes:
         """Test that CVE summary is properly integrated with library analysis"""
         with patch('sys.stdout', new_callable=StringIO) as _mock_stdout:
             self.results._print_version_analysis_summary()
-            output = mock_stdout.getvalue()
+            output = _mock_stdout.getvalue()
             
             # Should include CVE summary information (count may vary based on evidence processing)
             assert "CVE vulnerabilities found:" in output or "CVE scanning performed:" in output
@@ -238,7 +238,7 @@ class TestLibraryVersionAnalysisFixes:
         # Test the enhanced CVE detection logic
         with patch('sys.stdout', new_callable=StringIO) as _mock_stdout:
             self.results._print_cve_summary()
-            output = mock_stdout.getvalue()
+            output = _mock_stdout.getvalue()
             
             # Should detect CVE findings from the test security assessment
             # Note: Count may be higher due to multiple evidence sources being detected
@@ -290,7 +290,7 @@ class TestLibraryVersionAnalysisFixes:
         """Test that summary statistics are calculated correctly"""
         with patch('sys.stdout', new_callable=StringIO) as _mock_stdout:
             self.results._print_version_analysis_summary()
-            output = mock_stdout.getvalue()
+            output = _mock_stdout.getvalue()
             
             # Verify counts in summary
             assert "Total libraries with versions: 6" in output
@@ -637,7 +637,7 @@ class TestEnhancedCVEOutputFormat:
         
         with patch('sys.stdout', new_callable=StringIO) as _mock_stdout:
             results._print_cve_summary()
-            output = mock_stdout.getvalue()
+            output = _mock_stdout.getvalue()
         
         # Should show total CVE count
         assert "CVE vulnerabilities found: 22" in output
@@ -718,7 +718,7 @@ class TestEnhancedCVEOutputFormat:
         
         with patch('sys.stdout', new_callable=StringIO) as _mock_stdout:
             results._print_cve_summary()
-            output = mock_stdout.getvalue()
+            output = _mock_stdout.getvalue()
         
         # Should show CVE count but no critical section
         assert "CVE vulnerabilities found: 5" in output

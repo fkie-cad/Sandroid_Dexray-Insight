@@ -71,7 +71,7 @@ class TestUsageContext:
             'class_context': None
         }
         
-        assert result == expected
+        assert result == _expected
 
 
 class TestContextMetadata:
@@ -111,7 +111,7 @@ class TestContextMetadata:
             'analysis_timestamp': None
         }
         
-        assert result == expected
+        assert result == _expected
 
 
 class TestContextualFinding:
@@ -498,7 +498,7 @@ class TestFalsePositiveIndicator:
             'source': 'pattern_matching'
         }
         
-        assert result == expected
+        assert result == _expected
 
 
 if __name__ == '__main__':
