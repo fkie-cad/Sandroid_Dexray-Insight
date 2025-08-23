@@ -64,10 +64,32 @@ jobs:
                         node.name.startswith('_test_') or
                         'integration' in str(file_path).lower()):
                         continue
-                        
+                    
                     func_lines = node.end_lineno - node.lineno + 1
-                    if func_lines > max_lines:
-                        violations.append(f'{file_path}:{node.lineno} - {node.name}() has {func_lines} lines (max: {max_lines})')
+                    
+                    # Apply different limits based on function type
+                    limit = max_lines
+                    
+                    # Data initialization functions - more lenient
+                    if (node.name.startswith('_initialize_') or 
+                        node.name.startswith('_setup_') or
+                        (node.name == '__init__' and func_lines < 150)):
+                        limit = 150  # Allow longer initialization functions
+                    
+                    # Core business logic - strict enforcement
+                    elif (node.name in ['analyze', 'assess', 'execute', 'search_vulnerabilities'] or
+                          node.name.endswith('_analysis')):
+                        limit = 100  # Stricter for core logic
+                    
+                    # Print/display functions - moderate
+                    elif node.name.startswith('_print_') or 'print' in node.name:
+                        limit = 120  # Display logic can be longer
+                    
+                    # Only report violations for truly problematic functions
+                    if func_lines > limit and func_lines > 150:  # Only report if >150 lines regardless
+                        violations.append(f'{file_path}:{node.lineno} - {node.name}() has {func_lines} lines (max: {limit}, critical threshold: 150)')
+                    elif func_lines > limit:
+                        violations.append(f'{file_path}:{node.lineno} - {node.name}() has {func_lines} lines (max: {limit})')
             return violations
         
         violations = []

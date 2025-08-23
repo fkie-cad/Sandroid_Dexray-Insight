@@ -49,8 +49,220 @@ def read_netsec_config(checksum, app_dir, config, src_type):
     return None
 
 
+def _analyze_base_config(parsed, finds, summary):
+    """Analyze base configuration settings."""
+    b_cfg = parsed.getElementsByTagName('base-config')
+    if not b_cfg:
+        return
+        
+    base_config = b_cfg[0]
+    
+    # Check cleartext traffic permission
+    cleartext_permitted = base_config.getAttribute('cleartextTrafficPermitted')
+    if cleartext_permitted == 'true':
+        finds.append({
+            'scope': ['*'],
+            'description': (
+                'Base config is insecurely configured'
+                ' to permit clear text traffic to all domains.'),
+            'severity': HIGH,
+        })
+        summary[HIGH] += 1
+    elif cleartext_permitted == 'false':
+        finds.append({
+            'scope': ['*'],
+            'description': (
+                'Base config is configured to disallow '
+                'clear text traffic to all domains.'),
+            'severity': SECURE,
+        })
+        summary[SECURE] += 1
+    
+    # Analyze trust anchors
+    _analyze_trust_anchors(base_config, finds, summary, ['*'])
+
+def _analyze_trust_anchors(config_element, finds, summary, scope):
+    """Analyze trust anchors configuration."""
+    trst_anch = config_element.getElementsByTagName('trust-anchors')
+    if not trst_anch:
+        return
+        
+    certs = trst_anch[0].getElementsByTagName('certificates')
+    for cert in certs:
+        loc = cert.getAttribute('src')
+        override = cert.getAttribute('overridePins')
+        
+        if '@raw/' in loc:
+            finds.append({
+                'scope': scope,
+                'description': (
+                    f'{"Debug override" if scope == ["*"] and "debug" in str(finds) else "Base config" if scope == ["*"] else "Domain config"} is configured to trust'
+                    f' bundled certs {loc}.'),
+                'severity': INFO if 'debug' not in str(finds) else HIGH,
+            })
+            summary[INFO if 'debug' not in str(finds) else HIGH] += 1
+        elif loc == 'system':
+            finds.append({
+                'scope': scope,
+                'description': (
+                    f'{"Base config" if scope == ["*"] else "Domain config"} is configured to trust'
+                    ' system certificates.'),
+                'severity': WARNING,
+            })
+            summary[WARNING] += 1
+        elif loc == 'user':
+            finds.append({
+                'scope': scope,
+                'description': (
+                    f'{"Base config" if scope == ["*"] else "Domain config"} is configured to trust'
+                    ' user installed certificates.'),
+                'severity': HIGH,
+            })
+            summary[HIGH] += 1
+        
+        if override == 'true':
+            finds.append({
+                'scope': scope,
+                'description': (
+                    f'{"Base config" if scope == ["*"] else "Domain config"} is configured to '
+                    'bypass certificate pinning.'),
+                'severity': HIGH,
+            })
+            summary[HIGH] += 1
+
+def _analyze_domain_configs(parsed, finds, summary):
+    """Analyze domain configuration settings."""
+    dom_cfg = parsed.getElementsByTagName('domain-config')
+    
+    for cfg in dom_cfg:
+        domain_list = []
+        domains = cfg.getElementsByTagName('domain')
+        for dom in domains:
+            domain_list.append(dom.firstChild.nodeValue)
+        
+        # Check cleartext traffic permission for domains
+        cleartext_permitted = cfg.getAttribute('cleartextTrafficPermitted')
+        if cleartext_permitted == 'true':
+            finds.append({
+                'scope': domain_list,
+                'description': (
+                    'Domain config is insecurely configured'
+                    ' to permit clear text traffic to these '
+                    'domains in scope.'),
+                'severity': HIGH,
+            })
+            summary[HIGH] += 1
+        elif cleartext_permitted == 'false':
+            finds.append({
+                'scope': domain_list,
+                'description': (
+                    'Domain config is securely configured'
+                    ' to disallow clear text traffic to these '
+                    'domains in scope.'),
+                'severity': SECURE,
+            })
+            summary[SECURE] += 1
+        
+        # Analyze trust anchors for this domain
+        _analyze_trust_anchors(cfg, finds, summary, domain_list)
+        
+        # Analyze certificate pinning
+        _analyze_certificate_pinning(cfg, finds, summary, domain_list)
+
+def _analyze_certificate_pinning(cfg, finds, summary, domain_list):
+    """Analyze certificate pinning configuration."""
+    pinsets = cfg.getElementsByTagName('pin-set')
+    if not pinsets:
+        return
+        
+    exp = pinsets[0].getAttribute('expiration')
+    pins = pinsets[0].getElementsByTagName('pin')
+    all_pins = []
+    
+    for pin in pins:
+        digest = pin.getAttribute('digest')
+        pin_val = pin.firstChild.nodeValue
+        if digest:
+            tmp = f'Pin: {pin_val} Digest: {digest}'
+        else:
+            tmp = f'Pin: {pin_val}'
+        all_pins.append(tmp)
+    
+    pins_list = ','.join(all_pins)
+    
+    if exp:
+        finds.append({
+            'scope': domain_list,
+            'description': (
+                'Certificate pinning expires '
+                f'on {exp}. After this date '
+                'pinning will be disabled. '
+                f'[{pins_list}]'),
+            'severity': INFO,
+        })
+        summary[INFO] += 1
+    else:
+        finds.append({
+            'scope': domain_list,
+            'description': (
+                'Certificate pinning does '
+                'not have an expiry. Ensure '
+                'that pins are updated before '
+                'certificate expire. '
+                f'[{pins_list}]'),
+            'severity': SECURE,
+        })
+        summary[SECURE] += 1
+
+def _analyze_debug_overrides(parsed, finds, summary, is_debuggable):
+    """Analyze debug override configurations."""
+    de_over = parsed.getElementsByTagName('debug-overrides')
+    if not de_over or not is_debuggable:
+        return
+        
+    debug_config = de_over[0]
+    
+    if debug_config.getAttribute('cleartextTrafficPermitted') == 'true':
+        finds.append({
+            'scope': ['*'],
+            'description': (
+                'Debug override is configured to permit clear '
+                'text traffic to all domains and the app '
+                'is debuggable.'),
+            'severity': HIGH,
+        })
+        summary[HIGH] += 1
+    
+    # Analyze debug trust anchors
+    otrst_anch = debug_config.getElementsByTagName('trust-anchors')
+    if otrst_anch:
+        certs = otrst_anch[0].getElementsByTagName('certificates')
+        for cert in certs:
+            loc = cert.getAttribute('src')
+            override = cert.getAttribute('overridePins')
+            
+            if '@raw/' in loc:
+                finds.append({
+                    'scope': ['*'],
+                    'description': (
+                        'Debug override is configured to trust '
+                        f'bundled debug certs {loc}.'),
+                    'severity': HIGH,
+                })
+                summary[HIGH] += 1
+            
+            if override == 'true':
+                finds.append({
+                    'scope': ['*'],
+                    'description': (
+                        'Debug override is configured to '
+                        'bypass certificate pinning.'),
+                    'severity': HIGH,
+                })
+                summary[HIGH] += 1
+
 def network_security_analysis(checksum, app_dir, config, is_debuggable, src_type):
-    """Perform Network Security Analysis."""
+    """Perform Network Security Analysis with refactored helper functions."""
     try:
         netsec = {
             'network_findings': [],
@@ -58,230 +270,29 @@ def network_security_analysis(checksum, app_dir, config, is_debuggable, src_type
         }
         if not config:
             return netsec
-        netsec_conf = read_netsec_config(
-            checksum,
-            app_dir,
-            config,
-            src_type)
+        
+        netsec_conf = read_netsec_config(checksum, app_dir, config, src_type)
         if not netsec_conf:
             return netsec
+            
         msg = 'Parsing Network Security config'
         logger.info(msg)
         parsed = minidom.parseString(netsec_conf)
         finds = []
         summary = {HIGH: 0, WARNING: 0, INFO: 0, SECURE: 0}
-        # Base Config
-        b_cfg = parsed.getElementsByTagName('base-config')
-        # 0 or 1 of <base-config>
-        if b_cfg:
-            if b_cfg[0].getAttribute('cleartextTrafficPermitted') == 'true':
-                finds.append({
-                    'scope': ['*'],
-                    'description': (
-                        'Base config is insecurely configured'
-                        ' to permit clear text traffic to all domains.'),
-                    'severity': HIGH,
-                })
-                summary[HIGH] += 1
-            if b_cfg[0].getAttribute('cleartextTrafficPermitted') == 'false':
-                finds.append({
-                    'scope': ['*'],
-                    'description': (
-                        'Base config is configured to disallow '
-                        'clear text traffic to all domains.'),
-                    'severity': SECURE,
-                })
-                summary[SECURE] += 1
-            trst_anch = b_cfg[0].getElementsByTagName('trust-anchors')
-            if trst_anch:
-                certs = trst_anch[0].getElementsByTagName('certificates')
-                for cert in certs:
-                    loc = cert.getAttribute('src')
-                    override = cert.getAttribute('overridePins')
-                    if '@raw/' in loc:
-                        finds.append({
-                            'scope': ['*'],
-                            'description': (
-                                'Base config is configured to trust'
-                                f'bundled certs {loc}.'),
-                            'severity': INFO,
-                        })
-                        summary[INFO] += 1
-                    elif loc == 'system':
-                        finds.append({
-                            'scope': ['*'],
-                            'description': (
-                                'Base config is configured to trust'
-                                ' system certificates.'),
-                            'severity': WARNING,
-                        })
-                        summary[WARNING] += 1
-                    elif loc == 'user':
-                        finds.append({
-                            'scope': ['*'],
-                            'description': (
-                                'Base config is configured to trust'
-                                ' user installed certificates.'),
-                            'severity': HIGH,
-                        })
-                        summary[HIGH] += 1
-                    if override == 'true':
-                        finds.append({
-                            'scope': ['*'],
-                            'description': (
-                                'Base config is configured to '
-                                'bypass certificate pinning.'),
-                            'severity': HIGH,
-                        })
-                        summary[HIGH] += 1
-        # Domain Config
-        dom_cfg = parsed.getElementsByTagName('domain-config')
-        # Any number of <domain-config>
-        for cfg in dom_cfg:
-            domain_list = []
-            domains = cfg.getElementsByTagName('domain')
-            for dom in domains:
-                domain_list.append(dom.firstChild.nodeValue)
-            if cfg.getAttribute('cleartextTrafficPermitted') == 'true':
-                finds.append({
-                    'scope': domain_list,
-                    'description': (
-                        'Domain config is insecurely configured'
-                        ' to permit clear text traffic to these '
-                        'domains in scope.'),
-                    'severity': HIGH,
-                })
-                summary[HIGH] += 1
-            elif cfg.getAttribute('cleartextTrafficPermitted') == 'false':
-                finds.append({
-                    'scope': domain_list,
-                    'description': (
-                        'Domain config is securely configured'
-                        ' to disallow clear text traffic to these '
-                        'domains in scope.'),
-                    'severity': SECURE,
-                })
-                summary[SECURE] += 1
-            dtrust = cfg.getElementsByTagName('trust-anchors')
-            if dtrust:
-                certs = dtrust[0].getElementsByTagName('certificates')
-                for cert in certs:
-                    loc = cert.getAttribute('src')
-                    override = cert.getAttribute('overridePins')
-                    if '@raw/' in loc:
-                        finds.append({
-                            'scope': domain_list,
-                            'description': (
-                                'Domain config is configured to trust '
-                                f'bundled certs {loc}.'),
-                            'severity': INFO,
-                        })
-                        summary[INFO] += 1
-                    elif loc == 'system':
-                        finds.append({
-                            'scope': domain_list,
-                            'description': (
-                                'Domain config is configured to trust'
-                                ' system certificates.'),
-                            'severity': WARNING,
-                        })
-                        summary[WARNING] += 1
-                    elif loc == 'user':
-                        finds.append({
-                            'scope': domain_list,
-                            'description': (
-                                'Domain config is configured to trust'
-                                ' user installed certificates.'),
-                            'severity': HIGH,
-                        })
-                        summary[HIGH] += 1
-                    if override == 'true':
-                        finds.append({
-                            'scope': domain_list,
-                            'description': (
-                                'Domain config is configured to '
-                                'bypass certificate pinning.'),
-                            'severity': HIGH,
-                        })
-                        summary[HIGH] += 1
-            pinsets = cfg.getElementsByTagName('pin-set')
-            if pinsets:
-                exp = pinsets[0].getAttribute('expiration')
-                pins = pinsets[0].getElementsByTagName('pin')
-                all_pins = []
-                for pin in pins:
-                    digest = pin.getAttribute('digest')
-                    pin_val = pin.firstChild.nodeValue
-                    if digest:
-                        tmp = f'Pin: {pin_val} Digest: {digest}'
-                    else:
-                        tmp = f'Pin: {pin_val}'
-                    all_pins.append(tmp)
-                pins_list = ','.join(all_pins)
-                if exp:
-                    finds.append({
-                        'scope': domain_list,
-                        'description': (
-                            'Certificate pinning expires '
-                            f'on {exp}. After this date '
-                            'pinning will be disabled. '
-                            f'[{pins_list}]'),
-                        'severity': INFO,
-                    })
-                    summary[INFO] += 1
-                else:
-                    finds.append({
-                        'scope': domain_list,
-                        'description': (
-                            'Certificate pinning does '
-                            'not have an expiry. Ensure '
-                            'that pins are updated before '
-                            'certificate expire. '
-                            f'[{pins_list}]'),
-                        'severity': SECURE,
-                    })
-                    summary[SECURE] += 1
-        # Debug Overrides
-        de_over = parsed.getElementsByTagName('debug-overrides')
-        # 0 or 1 of <debug-overrides>
-        if de_over and is_debuggable:
-            if de_over[0].getAttribute('cleartextTrafficPermitted') == 'true':
-                finds.append({
-                    'scope': ['*'],
-                    'description': (
-                        'Debug override is configured to permit clear '
-                        'text traffic to all domains and the app '
-                        'is debuggable.'),
-                    'severity': HIGH,
-                })
-                summary[HIGH] += 1
-            otrst_anch = de_over[0].getElementsByTagName('trust-anchors')
-            if otrst_anch:
-                certs = otrst_anch[0].getElementsByTagName('certificates')
-                for cert in certs:
-                    loc = cert.getAttribute('src')
-                    override = cert.getAttribute('overridePins')
-                    if '@raw/' in loc:
-                        finds.append({
-                            'scope': ['*'],
-                            'description': (
-                                'Debug override is configured to trust '
-                                f'bundled debug certs {loc}.'),
-                            'severity': HIGH,
-                        })
-                        summary[HIGH] += 1
-                    if override == 'true':
-                        finds.append({
-                            'scope': ['*'],
-                            'description': (
-                                'Debug override is configured to '
-                                'bypass certificate pinning.'),
-                            'severity': HIGH,
-                        })
-                        summary[HIGH] += 1
+        
+        # Analyze base configuration
+        _analyze_base_config(parsed, finds, summary)
+        
+        # Analyze domain configurations
+        _analyze_domain_configs(parsed, finds, summary)
+        
+        # Analyze debug overrides
+        _analyze_debug_overrides(parsed, finds, summary, is_debuggable)
+        
         netsec['network_findings'] = finds
         netsec['network_summary'] = summary
-    except Exception as exp:
+    except Exception:
         msg = 'Performing Network Security Analysis'
         logger.exception(msg)
     return netsec

@@ -1132,7 +1132,9 @@ class PatternDetectionStrategy:
         max_strings = 100 if is_ci else len(strings_with_location)
         strings_to_process = strings_with_location[:max_strings]
         
-        self.logger.info(f"🔍 Scanning {len(strings_to_process)} strings for secrets (CI mode: {is_ci})...")
+        self.logger.info(f"🔍 Scanning {len(strings_to_process)} strings for secrets...")
+        if is_ci:
+            self.logger.debug(f"CI mode enabled: Limited to {max_strings} strings for performance")
         
         for string_data in strings_to_process:
             string_value = string_data.get('value', '')
