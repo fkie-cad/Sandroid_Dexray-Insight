@@ -342,8 +342,46 @@ class CVEAssessment(BaseSecurityAssessment):
         return findings
     
     def _extract_scannable_libraries(self, analysis_results: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Extract ONLY native libraries (.so files) with versions that can be scanned for CVEs"""
+        """Extract libraries with versions that can be scanned for CVEs (native and/or regular libraries based on config)"""
         scannable_libraries = []
+        
+        # Check configuration to determine what types of libraries to scan
+        scan_native_only = self.scan_config.get('scan_native_only', True)
+        include_java_libraries = self.scan_config.get('include_java_libraries', False)
+        
+        self.logger.debug(f"CVE Scanner: scan_native_only={scan_native_only}, include_java_libraries={include_java_libraries}")
+        
+        # Extract regular Java/Android libraries from library_detection if configured to do so
+        if not scan_native_only or include_java_libraries:
+            library_results = analysis_results.get('library_detection', {})
+            if hasattr(library_results, 'export_to_dict'):
+                library_data = library_results.export_to_dict()
+            elif hasattr(library_results, 'to_dict'):
+                library_data = library_results.to_dict()
+            else:
+                library_data = library_results
+            
+            detected_regular_libs = library_data.get('detected_libraries', []) if isinstance(library_data, dict) else []
+            self.logger.info(f"CVE Scanner: Found {len(detected_regular_libs)} regular libraries from library_detection")
+            
+            # Add regular libraries to scannable list
+            for library in detected_regular_libs:
+                if isinstance(library, dict):
+                    library_name = library.get('library_name', library.get('name', ''))
+                    library_version = library.get('version', '')
+                    confidence = library.get('confidence', 1.0)
+                    
+                    if library_name and library_version:
+                        scannable_libraries.append({
+                            'name': library_name,
+                            'version': library_version,
+                            'confidence': confidence,
+                            'detection_method': 'library_detection',
+                            'source': 'library_detection',
+                            'file_path': '',
+                            'category': 'java_library'
+                        })
+                        self.logger.debug(f"CVE Scanner: Added regular library: {library_name} v{library_version} (confidence: {confidence:.2f})")
         
         # CRITICAL FIX: Get native libraries from analysis context where they're actually stored
         # Native libraries are integrated into the context during native analysis

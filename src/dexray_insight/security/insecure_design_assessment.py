@@ -208,9 +208,13 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
                         if isinstance(string, str):
                             for pattern in patterns:
                                 import re
-                                if re.search(pattern, string, re.IGNORECASE):
-                                    flow_evidence.append(f"Insecure data flow: {string[:100]}...")
-                                    break
+                                try:
+                                    if re.search(pattern, string, re.IGNORECASE):
+                                        flow_evidence.append(f"Insecure data flow: {string[:100]}...")
+                                        break
+                                except Exception as e:
+                                    self.logger.debug(f"Regex pattern error for pattern '{pattern}': {e}")
+                                    continue
                 elif all_strings and not isinstance(all_strings, (str, bytes, bool)):
                     self.logger.debug(f"Skipping non-iterable all_strings in data flows: {type(all_strings)}")
         
@@ -343,9 +347,13 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
                 if isinstance(string, str):
                     for pattern in weak_patterns:
                         import re
-                        if re.search(pattern, string, re.IGNORECASE):
-                            weak_crypto_evidence.append(f"Weak crypto pattern: {string[:80]}...")
-                            break
+                        try:
+                            if re.search(pattern, string, re.IGNORECASE):
+                                weak_crypto_evidence.append(f"Weak crypto pattern: {string[:80]}...")
+                                break
+                        except Exception as e:
+                            self.logger.debug(f"Regex pattern error for pattern '{pattern}': {e}")
+                            continue
         elif all_strings and not isinstance(all_strings, (str, bytes, bool)):
             self.logger.debug(f"Skipping non-iterable all_strings in crypto: {type(all_strings)}")
         
@@ -393,9 +401,13 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
                 if isinstance(string, str):
                     for pattern in ipc_patterns:
                         import re
-                        if re.search(pattern, string, re.IGNORECASE):
-                            ipc_issues.append(f"Insecure IPC pattern: {string[:80]}...")
-                            break
+                        try:
+                            if re.search(pattern, string, re.IGNORECASE):
+                                ipc_issues.append(f"Insecure IPC pattern: {string[:80]}...")
+                                break
+                        except Exception as e:
+                            self.logger.debug(f"Regex pattern error for pattern '{pattern}': {e}")
+                            continue
         elif all_strings and not isinstance(all_strings, (str, bytes, bool)):
             self.logger.debug(f"Skipping non-iterable all_strings in IPC: {type(all_strings)}")
         
@@ -462,9 +474,13 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
                 if isinstance(string, str):
                     for pattern in webview_patterns:
                         import re
-                        if re.search(pattern, string, re.IGNORECASE):
-                            interface_issues.append(f"Unsafe WebView configuration: {string[:80]}...")
-                            break
+                        try:
+                            if re.search(pattern, string, re.IGNORECASE):
+                                interface_issues.append(f"Unsafe WebView configuration: {string[:80]}...")
+                                break
+                        except Exception as e:
+                            self.logger.debug(f"Regex pattern error for pattern '{pattern}': {e}")
+                            continue
         elif all_strings and not isinstance(all_strings, (str, bytes, bool)):
             self.logger.debug(f"Skipping non-iterable all_strings in external interfaces: {type(all_strings)}")
         

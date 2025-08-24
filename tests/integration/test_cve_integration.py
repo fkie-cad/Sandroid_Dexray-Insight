@@ -225,6 +225,7 @@ class TestCVEAnalysisEngineIntegration:
             'library_detection': {
                 'detected_libraries': [
                     {
+                        'library_name': 'com.squareup.okhttp3:okhttp',
                         'name': 'com.squareup.okhttp3:okhttp',
                         'version': '3.8.0',
                         'confidence': 0.95,
@@ -232,6 +233,7 @@ class TestCVEAnalysisEngineIntegration:
                         'detection_method': 'heuristic'
                     },
                     {
+                        'library_name': 'com.google.firebase:firebase-core',
                         'name': 'com.google.firebase:firebase-core',
                         'version': '16.0.0',
                         'confidence': 0.85,
@@ -270,18 +272,21 @@ class TestCVEAnalysisEngineIntegration:
     @mock.patch('src.dexray_insight.security.cve.clients.osv_client.OSVClient.search_vulnerabilities_with_cache')
     def test_cve_assessment_enabled_integration(self, mock_search, cve_enabled_config, mock_library_results):
         """Test CVE assessment when enabled with mocked vulnerabilities"""
-        # Mock vulnerability responses
-        mock_vulnerabilities = [
-            CVEVulnerability(
-                cve_id='CVE-2021-0001',
-                summary='Test vulnerability in OkHttp',
-                description='Test description',
-                severity=CVESeverity.HIGH,
-                cvss_score=7.5,
-                source='osv'
-            )
-        ]
-        mock_search.return_value = mock_vulnerabilities
+        # Mock vulnerability responses - only return vulnerabilities for OkHttp
+        def mock_search_vulnerabilities(library_name, version):
+            if 'okhttp' in library_name.lower():
+                return [CVEVulnerability(
+                    cve_id='CVE-2021-0001',
+                    summary='Test vulnerability in OkHttp',
+                    description='Test description',
+                    severity=CVESeverity.HIGH,
+                    cvss_score=7.5,
+                    source='osv'
+                )]
+            else:
+                return []  # No vulnerabilities for other libraries
+        
+        mock_search.side_effect = mock_search_vulnerabilities
         
         cve_assessment = CVEAssessment(cve_enabled_config.to_dict())
         
@@ -293,7 +298,10 @@ class TestCVEAnalysisEngineIntegration:
         # Check that findings contain expected information
         high_findings = [f for f in findings if 'High-Risk' in f.title]
         assert len(high_findings) >= 1
-        assert 'CVE-2021-0001' in high_findings[0].evidence[0]
+        
+        # CVE should appear in any of the evidence entries
+        evidence_text = ' '.join(high_findings[0].evidence)
+        assert 'CVE-2021-0001' in evidence_text
     
     @mock.patch('src.dexray_insight.security.cve.clients.osv_client.OSVClient.health_check')
     def test_cve_assessment_network_failure(self, mock_health_check, cve_enabled_config, mock_library_results):

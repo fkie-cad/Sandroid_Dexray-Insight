@@ -66,9 +66,13 @@ class AuthenticationFailuresAssessment(BaseSecurityAssessment):
             if isinstance(string, str):
                 for pattern in weak_patterns:
                     import re
-                    if re.search(pattern, string, re.IGNORECASE):
-                        auth_issues.append(f"Weak credential pattern: {string[:80]}...")
-                        break
+                    try:
+                        if re.search(pattern, string, re.IGNORECASE):
+                            auth_issues.append(f"Weak credential pattern: {string[:80]}...")
+                            break
+                    except Exception as e:
+                        self.logger.debug(f"Regex pattern error for pattern '{pattern}': {e}")
+                        continue
         
         # Check manifest for missing biometric permissions
         manifest_results = analysis_results.get('manifest_analysis', {})

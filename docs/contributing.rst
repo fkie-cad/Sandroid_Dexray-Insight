@@ -101,6 +101,197 @@ Development Workflow
       
       # Create pull request on GitHub
 
+Code Quality Automation (Pre-commit Hooks)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Dexray Insight uses **pre-commit hooks** to ensure code quality and consistency. These hooks automatically run various checks and formatters before each commit, catching issues early in the development process.
+
+**Installation and Setup**:
+
+.. code-block:: bash
+
+   # Install pre-commit (if not already installed)
+   pip install pre-commit
+
+   # Install the pre-commit hooks from .pre-commit-config.yaml
+   pre-commit install
+
+   # Optionally, run hooks on all files to check current state
+   pre-commit run --all-files
+
+**What the Hooks Do**:
+
+The pre-commit configuration includes comprehensive quality gates:
+
+**Code Formatting**:
+   - **Black**: Python code formatting (120 character line length)
+   - **isort**: Import sorting with Black-compatible profile
+   - **Prettier**: YAML, JSON, and Markdown formatting
+
+**Code Quality**:
+   - **Ruff**: Fast Python linting (replaces flake8) with auto-fixes
+   - **Ruff Format**: Additional formatting checks
+   - **Trailing whitespace removal**: Cleanup of file endings
+
+**Security Scanning**:
+   - **Bandit**: Security vulnerability scanning for Python code
+   - **detect-secrets**: Credential and secret detection with baseline filtering
+   - **Safety**: Known vulnerability scanning for Python dependencies
+
+**Type and Documentation Checking**:
+   - **MyPy**: Static type checking with ignore-missing-imports
+   - **Pydocstyle**: Docstring style checking (Google convention)
+   - **RST Check**: ReStructuredText documentation validation
+
+**File Validation**:
+   - **YAML, JSON, TOML, XML validation**: Syntax checking for configuration files
+   - **Merge conflict detection**: Prevents committing merge conflict markers
+   - **Large file detection**: Prevents committing files >1MB
+   - **Debug statement detection**: Catches leftover debugging code
+
+**License and Standards**:
+   - **License header insertion**: Automatic license header management
+   - **Jupyter notebook cleaning**: Cleaning of notebook outputs and metadata
+
+**Pre-commit Workflow**:
+
+.. code-block:: bash
+
+   # Normal development workflow
+   git add .
+   git commit -m "Your commit message"
+   # -> Pre-commit hooks run automatically
+   # -> If hooks fail, commit is blocked until issues are fixed
+
+   # Skip hooks in emergency (NOT recommended)
+   git commit --no-verify -m "Emergency fix"
+
+   # Run specific hook manually
+   pre-commit run ruff
+   pre-commit run black
+   pre-commit run bandit
+
+   # Update hook versions
+   pre-commit autoupdate
+
+**Configuration Files**:
+
+The pre-commit system uses several configuration files:
+
+- **.pre-commit-config.yaml**: Main hook configuration with tool versions and settings
+- **.secrets.baseline**: Baseline for detect-secrets to avoid false positives
+- **.license-header.txt**: Template for automatic license header insertion
+- **pyproject.toml**: Tool-specific configurations for Ruff, Black, pytest, coverage, etc.
+
+**Exclusions and Special Cases**:
+
+Certain directories and files are excluded from hooks:
+
+.. code-block:: yaml
+
+   exclude: ^(tests/fixtures/|example_samples/|.*\.log$)
+
+- **tests/fixtures/**: Test data files that shouldn't be modified
+- **example_samples/**: Sample APK files and related data
+- **Log files**: Runtime generated files
+
+**Troubleshooting Pre-commit Issues**:
+
+**Common Issues and Solutions**:
+
+.. code-block:: bash
+
+   # Hook fails due to formatting issues
+   # -> Let the formatters fix the issues automatically
+   pre-commit run --all-files
+   git add .
+   git commit -m "Apply pre-commit fixes"
+
+   # MyPy type checking failures
+   # -> Add type hints or use # type: ignore comments for third-party libraries
+   def my_function(data: Dict[str, Any]) -> List[str]:  # type: ignore
+       pass
+
+   # Bandit security false positives
+   # -> Use # nosec comments for known safe code
+   subprocess.run(['safe', 'command'], shell=True)  # nosec B602
+
+   # Large file detection
+   # -> Use git-lfs for large files or exclude them
+   git lfs track "*.apk"
+   
+   # Secret detection false positives
+   # -> Update .secrets.baseline after review
+   detect-secrets scan --update .secrets.baseline
+
+**Integration with IDEs**:
+
+**VS Code Configuration** (.vscode/settings.json):
+
+.. code-block:: json
+
+   {
+     "python.formatting.provider": "black",
+     "python.formatting.blackArgs": ["--line-length", "120"],
+     "python.linting.enabled": true,
+     "python.linting.ruffEnabled": true,
+     "python.linting.banditEnabled": true,
+     "editor.formatOnSave": true,
+     "editor.codeActionsOnSave": {
+       "source.organizeImports": true
+     }
+   }
+
+**PyCharm Configuration**:
+   - Install Black and Ruff plugins
+   - Configure Black as external tool with --line-length 120
+   - Enable auto-formatting on save
+
+**CI/CD Integration**:
+
+The pre-commit hooks are also integrated into the CI/CD pipeline:
+
+.. code-block:: bash
+
+   # In CI, run the same checks
+   pre-commit run --all-files
+   
+   # Some hooks are skipped in CI for performance (configured in .pre-commit-config.yaml):
+   # skip: [bandit, python-safety-dependencies-check]
+
+**Benefits of Pre-commit Hooks**:
+
+1. **Consistency**: All contributors follow the same code style automatically
+2. **Early Error Detection**: Catch issues before they reach the repository
+3. **Security**: Automatic scanning for credentials and vulnerabilities
+4. **Documentation Quality**: Ensure documentation follows standards
+5. **Reduced Review Time**: Less time spent on style and format issues in PR reviews
+6. **Automated Maintenance**: License headers and formatting kept up-to-date
+
+**Advanced Configuration**:
+
+For project-specific needs, modify **.pre-commit-config.yaml**:
+
+.. code-block:: yaml
+
+   # Add custom hook
+   - repo: local
+     hooks:
+       - id: custom-security-check
+         name: Custom Security Check
+         entry: ./scripts/custom-security-check.sh
+         language: system
+         files: \.py$
+
+   # Modify existing hook behavior
+   - repo: https://github.com/psf/black
+     rev: 23.12.1
+     hooks:
+       - id: black
+         args: [--line-length=100]  # Different line length
+
+**Remember**: Pre-commit hooks are your first line of defense for code quality. They save time by catching issues early and ensure that all contributions meet the project's quality standards automatically.
+
 Types of Contributions
 ----------------------
 

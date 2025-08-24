@@ -668,9 +668,13 @@ class MobileSpecificAssessment(BaseSecurityAssessment):
             if isinstance(string, str):
                 for category, patterns in self.extraneous_functionality_patterns.items():
                     for pattern in patterns:
-                        if re.search(pattern, string, re.IGNORECASE):
-                            extraneous_issues.append(f"Extraneous functionality ({category}): {string[:60]}...")
-                            break
+                        try:
+                            if re.search(pattern, string, re.IGNORECASE):
+                                extraneous_issues.append(f"Extraneous functionality ({category}): {string[:60]}...")
+                                break
+                        except Exception as e:
+                            self.logger.debug(f"Regex pattern error for pattern '{pattern}': {e}")
+                            continue
         
         if extraneous_issues:
             findings.append(SecurityFinding(
