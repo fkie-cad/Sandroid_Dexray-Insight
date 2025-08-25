@@ -25,10 +25,10 @@ Development Environment Setup
       # Create virtual environment
       python -m venv dexray-dev
       source dexray-dev/bin/activate  # On Windows: dexray-dev\Scripts\activate
-      
+
       # Install in development mode
       pip install -e .
-      
+
       # Install development dependencies
       pip install -r requirements-dev.txt
       pip install -r tests/requirements.txt
@@ -40,10 +40,10 @@ Development Environment Setup
 
       # Test basic functionality
       dexray-insight --version
-      
+
       # Run existing tests
       make test
-      
+
       # Build documentation
       cd docs && make html
 
@@ -71,14 +71,14 @@ Development Workflow
 
       # Run full test suite
       make test
-      
+
       # Run specific test categories
       pytest -m unit
       pytest -m integration
-      
+
       # Run linting
       make lint
-      
+
       # Test with sample APKs
       dexray-insight sample.apk -s -d DEBUG
 
@@ -88,7 +88,7 @@ Development Workflow
 
       git add .
       git commit -m "Add feature: brief description
-      
+
       - Detailed explanation of changes
       - Any breaking changes
       - Fixes #issue_number (if applicable)"
@@ -98,7 +98,7 @@ Development Workflow
    .. code-block:: bash
 
       git push origin feature/your-feature-name
-      
+
       # Create pull request on GitHub
 
 Code Quality Automation (Pre-commit Hooks)
@@ -219,7 +219,7 @@ Certain directories and files are excluded from hooks:
    # Large file detection
    # -> Use git-lfs for large files or exclude them
    git lfs track "*.apk"
-   
+
    # Secret detection false positives
    # -> Update .secrets.baseline after review
    detect-secrets scan --update .secrets.baseline
@@ -255,7 +255,7 @@ The pre-commit hooks are also integrated into the CI/CD pipeline:
 
    # In CI, run the same checks
    pre-commit run --all-files
-   
+
    # Some hooks are skipped in CI for performance (configured in .pre-commit-config.yaml):
    # skip: [bandit, python-safety-dependencies-check]
 
@@ -314,7 +314,7 @@ Create new analysis modules to extend Dexray Insight's capabilities:
    class MyModuleResult(BaseResult):
        findings: List[Dict[str, Any]] = None
        analysis_summary: str = ""
-       
+
        def __post_init__(self):
            if self.findings is None:
                self.findings = []
@@ -324,14 +324,14 @@ Create new analysis modules to extend Dexray Insight's capabilities:
        def __init__(self, config: Dict[str, Any]):
            super().__init__(config)
            self.custom_setting = config.get('custom_setting', 'default_value')
-       
+
        def analyze(self, apk_path: str, context: AnalysisContext) -> MyModuleResult:
            start_time = time.time()
-           
+
            try:
                # Your analysis logic here
                findings = self._perform_analysis(apk_path, context)
-               
+
                return MyModuleResult(
                    module_name='my_custom_module',
                    status=AnalysisStatus.SUCCESS,
@@ -339,7 +339,7 @@ Create new analysis modules to extend Dexray Insight's capabilities:
                    findings=findings,
                    analysis_summary=f"Found {len(findings)} items"
                )
-               
+
            except Exception as e:
                return MyModuleResult(
                    module_name='my_custom_module',
@@ -347,10 +347,10 @@ Create new analysis modules to extend Dexray Insight's capabilities:
                    execution_time=time.time() - start_time,
                    error_message=str(e)
                )
-       
+
        def get_dependencies(self) -> List[str]:
            return ['apk_overview']  # Dependencies on other modules
-       
+
        def _perform_analysis(self, apk_path: str, context: AnalysisContext):
            # Implementation details
            pass
@@ -370,24 +370,24 @@ Add support for new external analysis tools:
            super().__init__(config)
            self.tool_path = config.get('path', 'my-tool')
            self.timeout = config.get('timeout', 300)
-       
+
        def is_available(self) -> bool:
            try:
-               subprocess.run([self.tool_path, '--version'], 
+               subprocess.run([self.tool_path, '--version'],
                             capture_output=True, timeout=10)
                return True
            except (subprocess.TimeoutExpired, FileNotFoundError):
                return False
-       
+
        def analyze_apk(self, apk_path: str, output_dir: str) -> Dict[str, Any]:
            cmd = [self.tool_path, '--input', apk_path, '--output', output_dir]
-           
-           result = subprocess.run(cmd, capture_output=True, 
+
+           result = subprocess.run(cmd, capture_output=True,
                                  timeout=self.timeout, text=True)
-           
+
            if result.returncode != 0:
                raise RuntimeError(f"Tool failed: {result.stderr}")
-           
+
            # Parse tool output
            return self._parse_output(result.stdout)
 
@@ -450,10 +450,10 @@ Documentation improvements are always welcome:
 
    # Work on documentation
    cd docs
-   
+
    # Install documentation dependencies
    pip install -r requirements.txt
-   
+
    # Build and view documentation locally
    make serve
    # Open http://localhost:8000
@@ -491,21 +491,21 @@ Follow Python PEP 8 with these specific guidelines:
    # Use descriptive variable names
    analysis_results = perform_analysis()  # Good
    res = perform_analysis()               # Avoid
-   
+
    # Use type hints
    def analyze_apk(apk_path: str, config: Dict[str, Any]) -> AnalysisResult:
        pass
-   
+
    # Document functions with docstrings
    def extract_permissions(manifest_xml: str) -> List[str]:
        """Extract permissions from AndroidManifest.xml.
-       
+
        Args:
            manifest_xml: Raw XML content of AndroidManifest.xml
-           
+
        Returns:
            List of permission strings found in manifest
-           
+
        Raises:
            ValueError: If manifest XML is invalid
        """
@@ -517,17 +517,17 @@ Follow Python PEP 8 with these specific guidelines:
 
    class AnalysisModule:
        """Analysis module for specific functionality.
-       
+
        This class provides analysis capabilities for [specific area].
        It follows the BaseAnalysisModule interface and integrates with
        the analysis framework.
        """
-       
+
        def __init__(self, config: Dict[str, Any]):
            """Initialize module with configuration."""
            super().__init__(config)
            self.logger = logging.getLogger(__name__)
-           
+
        def analyze(self, apk_path: str, context: AnalysisContext) -> BaseResult:
            """Perform analysis on APK file."""
            # Implementation here
@@ -542,7 +542,7 @@ Follow Python PEP 8 with these specific guidelines:
        result = risky_operation()
    except FileNotFoundError:
        logger.error(f"APK file not found: {apk_path}")
-       return AnalysisResult(status=AnalysisStatus.FAILURE, 
+       return AnalysisResult(status=AnalysisStatus.FAILURE,
                            error_message="APK file not found")
    except ValueError as e:
        logger.error(f"Invalid APK format: {e}")
@@ -558,11 +558,11 @@ Follow Python PEP 8 with these specific guidelines:
    class MyModule:
        def __init__(self):
            self.logger = logging.getLogger(__name__)
-       
+
        def analyze(self):
            self.logger.info("Starting analysis")
            self.logger.debug(f"Processing file: {filename}")
-           
+
            try:
                # Analysis code
                self.logger.debug("Analysis completed successfully")
@@ -578,34 +578,34 @@ Testing Standards
 
    import pytest
    from unittest.mock import Mock, patch
-   
+
    class TestMyModule:
        """Tests for MyModule functionality."""
-       
+
        @pytest.fixture
        def module_instance(self, minimal_config):
            """Create module instance for testing."""
            return MyModule(minimal_config)
-       
+
        @pytest.mark.unit
        def test_should_extract_data_when_valid_input_provided(self, module_instance):
            """Test that data is extracted correctly with valid input."""
            # Arrange
            test_input = "valid test input"
            expected_output = ["expected", "results"]
-           
+
            # Act
            actual_output = module_instance.extract_data(test_input)
-           
+
            # Assert
            assert actual_output == expected_output
-       
+
        @pytest.mark.unit
        def test_should_handle_invalid_input_gracefully(self, module_instance):
            """Test that invalid input is handled gracefully."""
            # Arrange
            invalid_input = None
-           
+
            # Act & Assert
            with pytest.raises(ValueError, match="Input cannot be None"):
                module_instance.extract_data(invalid_input)
@@ -643,21 +643,21 @@ Use Google-style docstrings for all public functions and classes:
 
    def analyze_strings(content: str, patterns: List[str]) -> Dict[str, List[str]]:
        """Analyze strings using specified patterns.
-       
+
        This function searches through the provided content using regex patterns
        and returns categorized matches.
-       
+
        Args:
            content: Text content to analyze
            patterns: List of regex patterns to match against
-           
+
        Returns:
            Dictionary mapping pattern names to lists of matches
-           
+
        Raises:
            ValueError: If patterns list is empty
            re.error: If regex patterns are invalid
-           
+
        Example:
            >>> patterns = ['http[s]?://[^\\s]+', '\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}\\b']
            >>> results = analyze_strings("Visit https://example.com or email test@example.com", patterns)
@@ -694,24 +694,24 @@ Pull Request Guidelines
 
    ## Description
    Brief description of changes made.
-   
+
    ## Type of Change
    - [ ] Bug fix (non-breaking change fixing an issue)
    - [ ] New feature (non-breaking change adding functionality)
    - [ ] Breaking change (fix or feature causing existing functionality to change)
    - [ ] Documentation update
-   
+
    ## Testing
    - [ ] Unit tests added/updated
    - [ ] Integration tests added/updated
    - [ ] Manual testing performed
    - [ ] All tests pass
-   
+
    ## Documentation
    - [ ] Documentation updated
    - [ ] API documentation updated
    - [ ] Configuration documentation updated
-   
+
    ## Checklist
    - [ ] Code follows project style guidelines
    - [ ] Self-review completed

@@ -145,7 +145,7 @@ select = [
 ]
 ignore = [
     "S101",  # Use of assert detected (pytest uses assert)
-    "S603",  # subprocess call without shell=True  
+    "S603",  # subprocess call without shell=True
     "S607",  # Starting a process with a partial executable path
     "E501",  # Line too long (handled by black)
     "T201",  # print statements (allowed in CLI tool)
@@ -163,7 +163,7 @@ force-single-line = true
 quote-style = "double"
 indent-style = "space"
 
-# Black configuration  
+# Black configuration
 [tool.black]
 line-length = 120
 target-version = ['py311']
@@ -205,7 +205,7 @@ python_classes = "Test*"
 python_functions = "test_*"
 markers = [
     "unit: Unit tests",
-    "integration: Integration tests", 
+    "integration: Integration tests",
     "e2e: End-to-end tests",
     "slow: Slow tests",
     "network: Tests requiring network access",
@@ -264,7 +264,7 @@ exclude_lines = [
     "@(abc\\.)?abstractmethod",
 ]
 
-# Bandit security linter configuration  
+# Bandit security linter configuration
 [tool.bandit]
 exclude_dirs = ["tests", "docs"]
 skips = ["B101", "B601"]  # Skip assert_used and shell=True (needed for legitimate use cases)
