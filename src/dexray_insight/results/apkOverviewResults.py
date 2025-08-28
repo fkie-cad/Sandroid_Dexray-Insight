@@ -1,8 +1,29 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from dataclasses import dataclass, field
-from typing import List, Dict, Any
+# #!/usr/bin/env python3
+# # -*- coding: utf-8 -*-
+#
+# # Copyright (C) {{ year }} Dexray Insight Contributors
+# #
+# # This file is part of Dexray Insight - Android APK Security Analysis Tool
+# #
+# # Licensed under the Apache License, Version 2.0 (the "License");
+# # you may not use this file except in compliance with the License.
+# # You may obtain a copy of the License at
+# #
+# #     http://www.apache.org/licenses/LICENSE-2.0
+# #
+# # Unless required by applicable law or agreed to in writing, software
+# # distributed under the License is distributed on an "AS IS" BASIS,
+# # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# # See the License for the specific language governing permissions and
+# # limitations under the License.
+
 import json
+from dataclasses import dataclass
+from dataclasses import field
+from typing import Any
+
 from ..Utils.file_utils import CustomJSONEncoder
 
 
@@ -22,15 +43,16 @@ class APKOverview:
         cross_platform_framework (bool): name of the cross-platform framework
         permissions_details (dict): Detailed permissions analysis (optional).
     """
-    general_info: Dict[str, Any] = field(default_factory=dict)
-    components: Dict[str, Any] = field(default_factory=dict)
-    permissions: Dict[str, Any] = field(default_factory=dict)
-    certificates: Dict[str, Any] = field(default_factory=dict)
-    native_libs: List[str] = field(default_factory=list)
-    directory_listing: List[str] = field(default_factory=list)
+
+    general_info: dict[str, Any] = field(default_factory=dict)
+    components: dict[str, Any] = field(default_factory=dict)
+    permissions: dict[str, Any] = field(default_factory=dict)
+    certificates: dict[str, Any] = field(default_factory=dict)
+    native_libs: list[str] = field(default_factory=list)
+    directory_listing: list[str] = field(default_factory=list)
     is_cross_platform: bool = field(default_factory=bool)
     cross_platform_framework: str = field(default_factory=str)
-    permissions_details: Dict[str, Any] = field(default_factory=dict)
+    permissions_details: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
         """
@@ -41,7 +63,7 @@ class APKOverview:
             delattr(self, "permissions_details")
 
     # Utility Methods
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Converts the APKOverview object to a dictionary.
 
@@ -56,7 +78,7 @@ class APKOverview:
             "native_libs": self.native_libs,
             "directory_listing": self.directory_listing,
             "is_cross_platform": self.is_cross_platform,
-            "cross_platform_framework": self.cross_platform_framework
+            "cross_platform_framework": self.cross_platform_framework,
         }
         # Include `permissions_details` only if it exists
         if hasattr(self, "permissions_details"):
@@ -78,7 +100,7 @@ class APKOverview:
         """
         print(self.to_json())
 
-    def update_from_dict(self, updates: Dict[str, Any]):
+    def update_from_dict(self, updates: dict[str, Any]):
         """
         Updates fields of the APKOverview object using a dictionary.
 
@@ -102,7 +124,6 @@ class APKOverview:
         if "cross_platform_framework" in updates:
             self.cross_platform_framework.extend(updates["cross_platform_framework"])
 
-    
     def pretty_print(self):
         """
         Prints a formatted overview of the APK details.
@@ -156,9 +177,9 @@ class APKOverview:
                 print(f"...and {len(self.native_libs) - max_native_files_to_print} more files. See generated json.")
         else:
             print("APK has no native libraries")
-        
+
         print("\n=== Directory Listing ===")
-        if self.directory_listing:        
+        if self.directory_listing:
             max_files_to_print = 10
             files_to_print = self.directory_listing[:max_files_to_print]
 
@@ -179,8 +200,6 @@ class APKOverview:
             for key, value in self.permissions_details.items():
                 print(f"{key.replace('_', ' ').title()}: {value}")
 
-
-    
     # Property for MD5 (example of encapsulation)
     @property
     def md5(self) -> str:

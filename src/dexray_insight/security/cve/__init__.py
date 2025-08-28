@@ -1,6 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+# #!/usr/bin/env python3
+# # -*- coding: utf-8 -*-
+#
+# # Copyright (C) {{ year }} Dexray Insight Contributors
+# #
+# # This file is part of Dexray Insight - Android APK Security Analysis Tool
+# #
+# # Licensed under the Apache License, Version 2.0 (the "License");
+# # you may not use this file except in compliance with the License.
+# # You may obtain a copy of the License at
+# #
+# #     http://www.apache.org/licenses/LICENSE-2.0
+# #
+# # Unless required by applicable law or agreed to in writing, software
+# # distributed under the License is distributed on an "AS IS" BASIS,
+# # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# # See the License for the specific language governing permissions and
+# # limitations under the License.
+
 """
 CVE Vulnerability Scanning Framework for Dexray Insight
 
@@ -15,22 +34,26 @@ Features:
 - Integration with security assessment framework
 """
 
-from .models.vulnerability import CVEVulnerability, AffectedLibrary, VersionRange, CVESeverity
-from .clients.osv_client import OSVClient
-from .clients.nvd_client import NVDClient
 from .clients.github_client import GitHubAdvisoryClient
+from .clients.nvd_client import NVDClient
+from .clients.osv_client import OSVClient
+from .models.vulnerability import AffectedLibrary
+from .models.vulnerability import CVESeverity
+from .models.vulnerability import CVEVulnerability
+from .models.vulnerability import VersionRange
 from .utils.cache_manager import CVECacheManager
-from .utils.rate_limiter import APIRateLimiter, RateLimitConfig
+from .utils.rate_limiter import APIRateLimiter
+from .utils.rate_limiter import RateLimitConfig
 
 __all__ = [
-    'CVEVulnerability',
-    'AffectedLibrary', 
-    'VersionRange',
-    'CVESeverity',
-    'OSVClient',
-    'NVDClient',
-    'GitHubAdvisoryClient',
-    'CVECacheManager',
-    'APIRateLimiter',
-    'RateLimitConfig'
+    "CVEVulnerability",
+    "AffectedLibrary",
+    "VersionRange",
+    "CVESeverity",
+    "OSVClient",
+    "NVDClient",
+    "GitHubAdvisoryClient",
+    "CVECacheManager",
+    "APIRateLimiter",
+    "RateLimitConfig",
 ]

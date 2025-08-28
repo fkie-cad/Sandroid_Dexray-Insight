@@ -4,9 +4,9 @@
 # # -*- coding: utf-8 -*-
 #
 # # Copyright (C) {{ year }} Dexray Insight Contributors
-# # 
+# #
 # # This file is part of Dexray Insight - Android APK Security Analysis Tool
-# # 
+# #
 # # Licensed under the Apache License, Version 2.0 (the "License");
 # # you may not use this file except in compliance with the License.
 # # You may obtain a copy of the License at
@@ -33,7 +33,6 @@ from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import as_completed
 from pathlib import Path
 from typing import Any
-from typing import Optional
 
 from ..core.base_classes import AnalysisSeverity
 from ..core.base_classes import BaseSecurityAssessment
@@ -49,8 +48,7 @@ from .cve.utils.cache_manager import CVECacheManager
 
 @register_assessment("cve_scanning")
 class CVEAssessment(BaseSecurityAssessment):
-    """
-    CVE vulnerability scanning assessment using online databases.
+    """CVE vulnerability scanning assessment using online databases.
 
     This assessment scans detected libraries with identified versions against
     multiple CVE databases to identify known security vulnerabilities.
@@ -69,17 +67,17 @@ class CVEAssessment(BaseSecurityAssessment):
     """
 
     def __init__(self, config: dict[str, Any]):
+        """Initialize CVE assessment with configuration.
+
+        Args:
+            config: CVE scanning configuration dictionary.
+        """
         super().__init__(config)
         self.logger = logging.getLogger(__name__)
         self.owasp_category = "CVE Vulnerability Scanning"
 
         # Get security configuration - handle both assessment config and full security config
-        if "cve_scanning" in config:
-            # This is the full security config passed from security engine
-            security_config = config
-        else:
-            # This is the assessment-specific config, look for parent security config
-            security_config = config.get("security", {})
+        security_config = config if "cve_scanning" in config else config.get("security", {})
 
         # CVE scanning configuration
         cve_config = security_config.get("cve_scanning", {})
@@ -144,10 +142,7 @@ class CVEAssessment(BaseSecurityAssessment):
 
         # Initialize cache manager
         cache_dir_config = cve_config.get("cache_dir")
-        if cache_dir_config:
-            cache_dir = Path(cache_dir_config)
-        else:
-            cache_dir = Path.home() / ".dexray_insight" / "cve_cache"
+        cache_dir = Path(cache_dir_config) if cache_dir_config else Path.home() / ".dexray_insight" / "cve_cache"
 
         self.cache_manager = CVECacheManager(
             cache_dir=cache_dir, cache_duration_hours=self.scan_config["cache_duration_hours"]
@@ -163,10 +158,12 @@ class CVEAssessment(BaseSecurityAssessment):
         # Vulnerability aggregation
         self.found_vulnerabilities = []
 
-    def _normalize_api_key(self, value: Optional[str], placeholders: set[str] = set()) -> Optional[str]:
-        """Retiurn None if value is empty or a placeholder; sonst getrimmten String."""
+    def _normalize_api_key(self, value: str | None, placeholders: set[str] | None = None) -> str | None:
+        """Return None if value is empty or a placeholder; otherwise return trimmed string."""
         if value is None:
             return None
+        if placeholders is None:
+            placeholders = set()
         s = str(value).strip().strip('"').strip("'")
         if not s:
             return None
@@ -270,15 +267,16 @@ class CVEAssessment(BaseSecurityAssessment):
         if not self.clients:
             self.logger.warning("⚠️  No CVE clients were successfully initialized")
 
-    def assess(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
+    def assess(self, analysis_results: dict[str, Any], context: Any | None = None) -> list[SecurityFinding]:
         """
-        Perform CVE vulnerability assessment on detected libraries.
+        Perform CVE vulnerability assessment on detected libraries with file location tracking.
 
         Args:
             analysis_results: Combined results from all analysis modules
+            context: Analysis context for file location creation (optional for backward compatibility)
 
         Returns:
-            List of security findings related to CVE vulnerabilities
+            List of security findings related to CVE vulnerabilities with precise file locations
         """
         findings = []
 
@@ -342,8 +340,8 @@ class CVEAssessment(BaseSecurityAssessment):
                 )
 
                 if filtered_vulnerabilities:
-                    # Create security findings from filtered vulnerabilities
-                    findings = self._create_security_findings(filtered_vulnerabilities, scannable_libraries)
+                    # Create security findings from filtered vulnerabilities with file locations
+                    findings = self._create_security_findings(filtered_vulnerabilities, scannable_libraries, context)
                 else:
                     self.logger.info("No relevant CVE vulnerabilities found after filtering")
             else:
@@ -905,7 +903,7 @@ class CVEAssessment(BaseSecurityAssessment):
         return unique_vulns
 
     def _create_security_findings(
-        self, vulnerabilities: list[CVEVulnerability], libraries: list[dict[str, Any]]
+        self, vulnerabilities: list[CVEVulnerability], libraries: list[dict[str, Any]], context: Any | None = None
     ) -> list[SecurityFinding]:
         """Create security findings from CVE vulnerabilities with enhanced library mapping"""
         findings = []
@@ -922,7 +920,7 @@ class CVEAssessment(BaseSecurityAssessment):
         medium_vulns = [v for v in vulnerabilities if v.severity == CVESeverity.MEDIUM]
         low_vulns = [v for v in vulnerabilities if v.severity == CVESeverity.LOW]
 
-        # Create findings for each severity level with library attribution
+        # Create findings for each severity level with library attribution and file locations
         if critical_vulns:
             findings.append(
                 self._create_enhanced_severity_finding(
@@ -932,6 +930,7 @@ class CVEAssessment(BaseSecurityAssessment):
                     "Application uses libraries with critical CVE vulnerabilities that allow remote code execution or complete system compromise.",
                     library_lookup,
                     cve_library_mapping,
+                    context,
                 )
             )
 
@@ -944,6 +943,7 @@ class CVEAssessment(BaseSecurityAssessment):
                     "Application contains libraries with high-risk CVE vulnerabilities that could lead to significant security breaches.",
                     library_lookup,
                     cve_library_mapping,
+                    context,
                 )
             )
 
@@ -956,6 +956,7 @@ class CVEAssessment(BaseSecurityAssessment):
                     "Application uses libraries with medium-risk CVE vulnerabilities that should be addressed.",
                     library_lookup,
                     cve_library_mapping,
+                    context,
                 )
             )
 
@@ -968,6 +969,7 @@ class CVEAssessment(BaseSecurityAssessment):
                     "Application contains libraries with low-risk CVE vulnerabilities for awareness.",
                     library_lookup,
                     cve_library_mapping,
+                    context,
                 )
             )
 
@@ -1054,7 +1056,7 @@ class CVEAssessment(BaseSecurityAssessment):
                 return temporal_info["base_directory"]
 
             # Fallback: try to find in any module that might have temporal info
-            for module_name, module_results in analysis_results.items():
+            for _module_name, module_results in analysis_results.items():
                 if hasattr(module_results, "temporal_directory"):
                     return str(module_results.temporal_directory)
 
@@ -1247,6 +1249,7 @@ class CVEAssessment(BaseSecurityAssessment):
         description: str,
         library_lookup: dict[str, dict[str, Any]],
         cve_mapping: dict[str, Any],
+        context: Any | None = None,
     ) -> SecurityFinding:
         """Create enhanced security finding with CVE-to-library attribution"""
         evidence = []
@@ -1342,6 +1345,24 @@ class CVEAssessment(BaseSecurityAssessment):
             },
         }
 
+        # Create file location for the primary affected native library if available
+        file_location = None
+        if context and library_cves:
+            try:
+                # Find the first library with .so files to create a file location
+                for library_name, _library_vulns in library_cves.items():
+                    library_info = library_lookup.get(library_name, {})
+                    all_so_files = library_info.get("all_so_files", [])
+                    if all_so_files:
+                        # Use the first .so file as primary location (e.g., "lib/arm64-v8a/libffmpeg.so")
+                        primary_so_file = all_so_files[0]
+                        # For CVE findings, we don't have a specific offset, so we use offset 0 (base address)
+                        file_location = context.create_native_file_location(primary_so_file, offset=0)
+                        self.logger.debug(f"Created file location for CVE finding: {file_location.uri}")
+                        break
+            except Exception as e:
+                self.logger.warning(f"Could not create file location for CVE finding: {e}")
+
         return SecurityFinding(
             category=self.owasp_category,
             severity=severity,
@@ -1351,6 +1372,7 @@ class CVEAssessment(BaseSecurityAssessment):
             recommendations=recommendations,
             cve_references=cve_references,
             additional_data=additional_data,
+            file_location=file_location,
         )
 
     def _create_severity_finding(

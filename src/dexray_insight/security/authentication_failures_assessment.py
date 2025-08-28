@@ -4,9 +4,9 @@
 # # -*- coding: utf-8 -*-
 #
 # # Copyright (C) {{ year }} Dexray Insight Contributors
-# # 
+# #
 # # This file is part of Dexray Insight - Android APK Security Analysis Tool
-# # 
+# #
 # # Licensed under the Apache License, Version 2.0 (the "License");
 # # you may not use this file except in compliance with the License.
 # # You may obtain a copy of the License at
@@ -22,6 +22,7 @@
 import logging
 from typing import Any
 
+from ..core.base_classes import AnalysisContext
 from ..core.base_classes import AnalysisSeverity
 from ..core.base_classes import BaseSecurityAssessment
 from ..core.base_classes import SecurityFinding
@@ -52,7 +53,7 @@ class AuthenticationFailuresAssessment(BaseSecurityAssessment):
             "session invalidation",
         ]
 
-    def assess(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
+    def assess(self, analysis_results: dict[str, Any], context: AnalysisContext | None = None) -> list[SecurityFinding]:
         findings = []
 
         try:

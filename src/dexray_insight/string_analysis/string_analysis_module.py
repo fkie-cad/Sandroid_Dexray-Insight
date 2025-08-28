@@ -1,8 +1,21 @@
-import re
-from typing import List, Dict, Tuple
-
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+# #!/usr/bin/env python3
+# # -*- coding: utf-8 -*-
+#
+# # Copyright (C) {{ year }} Dexray Insight Contributors
+# #
+# # This file is part of Dexray Insight - Android APK Security Analysis Tool
+# #
+# # Licensed under the Apache License, Version 2.0 (the "License");
+# # you may not use this file except in compliance with the License.
+# # You may obtain a copy of the License at
+# #
+# #     http://www.apache.org/licenses/LICENSE-2.0
+# #
+# # Unless required by applicable law or agreed to in writing, software
+# # distributed under the License is distributed on an "AS IS" BASIS,
+# # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# # See the License for the specific language governing permissions and
+# # limitations under the License.
 
 """
 To-Do:
@@ -16,20 +29,23 @@ more at: https://github.com/mofneko/EmulatorDetector/blob/master/library/src/mai
 
 """
 
-def filter_android_properties(strings: List[str]) -> Tuple[Dict[str, str], List[str]]:
+import re
+
+
+def filter_android_properties(strings: list[str]) -> tuple[dict[str, str], list[str]]:
     """
     Filters a list of strings for known Android system properties and provides their descriptions.
-    
+
     Args:
         strings (list): A list of strings to filter for known Android properties.
-        
+
     Returns:
         tuple: A tuple containing:
             - filtered_properties (dict): A dictionary where keys are Android property strings
               (e.g., "ro.kernel.qemu") and values are their descriptions.
             - remaining_strings (list): A list of strings from the input list with the filtered
               property strings removed.
-              
+
     Example:
         strings = [
             "ro.kernel.qemu.gles",
@@ -37,16 +53,16 @@ def filter_android_properties(strings: List[str]) -> Tuple[Dict[str, str], List[
             "ro.hardware",
             "random.string.test"
         ]
-        
+
         filtered_properties, remaining_strings = filter_android_properties(strings)
-        
+
         # filtered_properties will be:
         # {
         #     "ro.kernel.qemu.gles": "Indicates whether OpenGL ES is emulated in a QEMU virtual environment.",
         #     "ro.kernel.qemu": "Indicates whether the device is running in a QEMU virtual environment.",
         #     "ro.hardware": "Specifies the hardware name of the device."
         # }
-        
+
         # remaining_strings will be:
         # ["random.string.test"]
     """
@@ -80,7 +96,7 @@ def filter_android_properties(strings: List[str]) -> Tuple[Dict[str, str], List[
         "qemu.sf.fake_camera": "Indicates whether a fake camera is enabled in QEMU.",
         "ueventd.vbox86.rc": "Configuration file for VirtualBox on Android emulators.",
         "ueventd.andy.rc": "Configuration file for Andy emulator on Android.",
-        "db.log.slow_query_threshold":"Set query treshold",
+        "db.log.slow_query_threshold": "Set query treshold",
         "truststore.bin": "Binary trust store file used for certificates.",
         "play.google.com": "Google Play Store URL.",
         "qemu.sf.lcd_density": "Specifies the LCD density for QEMU emulated devices.",
@@ -91,65 +107,64 @@ def filter_android_properties(strings: List[str]) -> Tuple[Dict[str, str], List[
         "init.svc.qemud": "Indicates the status of the QEMU daemon service.",
         "ro.build.tags": "Specifies tags associated with the build type (e.g., release, test-keys).",
         "fstab.andy": "File system table for Andy emulator.",
-        "libcore.icu.LocaleData.initLocaleData": "Invocation of the locale object using reflection", #maybe something different
+        "libcore.icu.LocaleData.initLocaleData": "Invocation of the locale object using reflection",  # maybe something different
         "init.svc.qemu-props": "Indicates the status of the QEMU properties service.",
-        "init.svc.console":" Status of the console service in Android's init system.",
-        "rild.libpath":"LIB_PATH_PROPERTY",
-        "eu.chainfire.supersu": "Specifies the presence of Chainfire's SuperSU tool."
+        "init.svc.console": " Status of the console service in Android's init system.",
+        "rild.libpath": "LIB_PATH_PROPERTY",
+        "eu.chainfire.supersu": "Specifies the presence of Chainfire's SuperSU tool.",
     }
-    
+
     # Filter the input strings for matches in the property dictionary
-    filtered_properties = {
-        prop: desc for prop, desc in android_properties.items() if prop in strings
-    }
-    
+    filtered_properties = {prop: desc for prop, desc in android_properties.items() if prop in strings}
+
     # Create a list of strings that do not match any Android properties
     remaining_strings = [string for string in strings if string not in filtered_properties]
-    
+
     return filtered_properties, remaining_strings
 
 
 def list_apk_strings(dex_obj, verbose=False, pre_found_strings=None):
     if pre_found_strings is None:
         pre_found_strings = []
-    
+
     # Set to store unique strings
     strings_set = set()
 
     if len(pre_found_strings) != 0:
         strings_set.update(pre_found_strings)
 
-    #file to write strings to
+    # file to write strings to
     if verbose:
         print("string analysis module running")
-    # currently we are not writing the strings to a file. 
+    # currently we are not writing the strings to a file.
     # In future releases we want to create an analysis directory where we can find these strings and other stuff
-    #f = open("Strings.txt", "a")
+    # f = open("Strings.txt", "a")
 
     total_raw_strings = 0
     # Iterate through all the decompiled dalvik (DEX) files
     for i, dex in enumerate(dex_obj):
         dex_strings = dex.get_strings()
         total_raw_strings += len(dex_strings)
-        
+
         # Access and iterate through all strings in the DEX file, store them in file in addition
         for string in dex_strings:
             strings_set.add(str(string))
-            #f.write(str(string)) #maybe write all strings to text file
-    
+            # f.write(str(string)) #maybe write all strings to text file
+
     # Debug logging for fallback method
     import logging
+
     logger = logging.getLogger(__name__)
     logger.debug("📊 FALLBACK STRING EXTRACTION:")
     logger.debug(f"   📁 Total raw strings in {len(dex_obj)} DEX files: {total_raw_strings}")
     logger.debug(f"   🔄 Unique strings after deduplication: {len(strings_set)}")
 
     # close file handle
-    #print(len(strings_set))
-    #f.close()
+    # print(len(strings_set))
+    # f.close()
 
-    #print(strings_set)
-    #filteredStrings = filter_strings(strings_set)
+    # print(strings_set)
+    # filteredStrings = filter_strings(strings_set)
 
     filteredStrings = []
     filteredStrings.append(list(filterEmails(strings_set)))
@@ -157,7 +172,7 @@ def list_apk_strings(dex_obj, verbose=False, pre_found_strings=None):
     filteredStrings.append(list(filterURLs(strings_set)))
 
     filtered_domains_with_props = filter_domains(strings_set)
-    filtered_props,filtered_domains = filter_android_properties(filtered_domains_with_props)
+    filtered_props, filtered_domains = filter_android_properties(filtered_domains_with_props)
 
     filteredStrings.append(list(filtered_domains))
     filteredStrings.append(list(filtered_props))
@@ -173,17 +188,18 @@ def string_analysis_execute(apk_path, androguard_obj, pre_found_strings=None):
 
     return results
 
+
 def is_valid_domain(domain: str) -> bool:
     """
     Validates whether a string is a valid domain based on specific rules.
-    
+
     Args:
         domain (str): The string to validate.
-        
+
     Returns:
         bool: True if the string is considered a valid domain, False otherwise.
     """
-    
+
     # Check for spaces
     if " " in domain:
         return False
@@ -193,17 +209,32 @@ def is_valid_domain(domain: str) -> bool:
         return False
 
     # Disqualify class paths or Android properties
-    #if re.search(r"^(android|com|net|java|ro|ueventd|mraid|play|truststore|facebook)\.", domain):
+    # if re.search(r"^(android|com|net|java|ro|ueventd|mraid|play|truststore|facebook)\.", domain):
     if re.search(r"^(android|com|net|java|ueventd|mraid|play|truststore|facebook)\.", domain):
         return False
 
     # Disqualify strings ending with known invalid extensions
-    invalid_endings = (".java", ".class", ".rc", ".sig", ".zip", ".dat", ".html", ".dex", ".bin", ".png", ".prop", ".db", ".txt", ".xml")
+    invalid_endings = (
+        ".java",
+        ".class",
+        ".rc",
+        ".sig",
+        ".zip",
+        ".dat",
+        ".html",
+        ".dex",
+        ".bin",
+        ".png",
+        ".prop",
+        ".db",
+        ".txt",
+        ".xml",
+    )
     if domain.endswith(invalid_endings):
         return False
-    
+
     # Disqualify strings starting with  known invalid strings
-    invalid_starts = ("MP.","http.","dex.","RCD.","androidx.","interface.","Xamarin.Android")
+    invalid_starts = ("MP.", "http.", "dex.", "RCD.", "androidx.", "interface.", "Xamarin.Android")
     if domain.startswith(invalid_starts):
         return False
 
@@ -213,57 +244,56 @@ def is_valid_domain(domain: str) -> bool:
 
     # This list of patterns needs to be updated
     invalid_patterns = [
-        r"\.java$",      # Ends with .java
-        r"\.class$",     # Ends with .class
-        r"\.dll$",     # Ends with .class
-        r"^\w+\.gms",    # Contains gms without a valid domain format
-        r"videoApi\.set", # Contains the invoking of the API videoAPI
-        r"line\.separator", 
+        r"\.java$",  # Ends with .java
+        r"\.class$",  # Ends with .class
+        r"\.dll$",  # Ends with .class
+        r"^\w+\.gms",  # Contains gms without a valid domain format
+        r"videoApi\.set",  # Contains the invoking of the API videoAPI
+        r"line\.separator",
         r"multidex.version",
         r"androidx.multidex",
         r"dd.MM.yyyy",
         r"document.hidelocation",
-        r"angtrim.com.fivestarslibrary", # not really a domain it is actually a library
+        r"angtrim.com.fivestarslibrary",  # not really a domain it is actually a library
         r"^Theme",
         r"betcheg.mlgphotomontag",
-        r"MultiDex.lock", # looking for MultiDex.lock lock
-        r".ConsoleError$", # Ends with ConsoleError
-        r"^\w+\.android" # Contains android without a valid domain format
+        r"MultiDex.lock",  # looking for MultiDex.lock lock
+        r".ConsoleError$",  # Ends with ConsoleError
+        r"^\w+\.android",  # Contains android without a valid domain format
     ]
-   
-    
+
     # Check for invalid patterns
     for pattern in invalid_patterns:
         if re.search(pattern, domain):
             return False
-    
+
     # Check if it matches the valid domain pattern
     return True
 
 
 def filter_strings(strings):
-    #TODO maybe extra regex for ipv6
-    emailPattern = r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+'
-    urlPattern = r'((?:http|https):\/\/(?:www\.)?[a-zA-Z0-9\.-]+\.[a-zA-Z]{2,}(?:\/[^\s]*)?)'
-    ipv4Pattern = r'\b(?:(?:2[0-4][0-9]|25[0-5]|1[0-9]{2}|[1-9]?[0-9])\.){3}(?:2[0-4][0-9]|25[0-5]|1[0-9]{2}|[1-9]?[0-9])\b'
-    domainPattern = r'\b(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\b'
-
+    # TODO maybe extra regex for ipv6
+    emailPattern = r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+"
+    urlPattern = r"((?:http|https):\/\/(?:www\.)?[a-zA-Z0-9\.-]+\.[a-zA-Z]{2,}(?:\/[^\s]*)?)"
+    ipv4Pattern = (
+        r"\b(?:(?:2[0-4][0-9]|25[0-5]|1[0-9]{2}|[1-9]?[0-9])\.){3}(?:2[0-4][0-9]|25[0-5]|1[0-9]{2}|[1-9]?[0-9])\b"
+    )
+    domainPattern = r"\b(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\b"
 
     filteredStringsMails = {string for string in strings if re.match(emailPattern, string)}
     filteredStringsIP = {string for string in strings if re.match(ipv4Pattern, string)}
     filteredStringsDomains = {string for string in strings if re.match(domainPattern, string)}
     # Apply further filtering
-    filteredStringsDomains = {
-        string for string in filteredStringsDomains if is_valid_domain(string)
-    }
+    filteredStringsDomains = {string for string in filteredStringsDomains if is_valid_domain(string)}
     filteredStringsURL = {string for string in strings if re.match(urlPattern, string)}
 
     filteredStrings = [filteredStringsMails, filteredStringsIP, filteredStringsDomains, filteredStringsURL]
 
     return filteredStrings
 
+
 def filterEmails(strings):
-    emailPattern = r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+'
+    emailPattern = r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+"
 
     filteredStringsMails = []
 
@@ -271,18 +301,20 @@ def filterEmails(strings):
 
     return filteredStringsMails
 
-def filterURLs(strings):
 
-    urlPattern = r'((?:http|https):\/\/(?:www\.)?[a-zA-Z0-9\.-]+\.[a-zA-Z]{2,}(?:\/[^\s]*)?)'
+def filterURLs(strings):
+    urlPattern = r"((?:http|https):\/\/(?:www\.)?[a-zA-Z0-9\.-]+\.[a-zA-Z]{2,}(?:\/[^\s]*)?)"
 
     filteredStringsURL = {string for string in strings if re.match(urlPattern, string)}
 
     # TODO match regex and and matches to results
     return filteredStringsURL
 
-def filterIPs(strings):
 
-    ipv4Pattern = r'\b(?:(?:2[0-4][0-9]|25[0-5]|1[0-9]{2}|[1-9]?[0-9])\.){3}(?:2[0-4][0-9]|25[0-5]|1[0-9]{2}|[1-9]?[0-9])\b'
+def filterIPs(strings):
+    ipv4Pattern = (
+        r"\b(?:(?:2[0-4][0-9]|25[0-5]|1[0-9]{2}|[1-9]?[0-9])\.){3}(?:2[0-4][0-9]|25[0-5]|1[0-9]{2}|[1-9]?[0-9])\b"
+    )
 
     filteredStringsIP = []
 
@@ -292,18 +324,16 @@ def filterIPs(strings):
     # print(filteredStrings)
     return filteredStringsIP
 
-def filter_domains(strings: List[str]) -> List[str]:
 
-    domainPattern = r'\b(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\b'
+def filter_domains(strings: list[str]) -> list[str]:
+    domainPattern = r"\b(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\b"
 
     filteredStringsDomains = []
 
     filteredStringsDomains = {string for string in strings if re.match(domainPattern, string)}
 
     # next  we filter them further
-    filteredStringsDomains = {
-        string for string in filteredStringsDomains if is_valid_domain(string)
-    }
+    filteredStringsDomains = {string for string in filteredStringsDomains if is_valid_domain(string)}
 
     # TODO match regex and and matches to results
     # print(filteredStrings)

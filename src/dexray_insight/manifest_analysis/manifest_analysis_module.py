@@ -1,5 +1,24 @@
-#!/usr/bin/env python3 
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
+# #!/usr/bin/env python3
+# # -*- coding: utf-8 -*-
+#
+# # Copyright (C) {{ year }} Dexray Insight Contributors
+# #
+# # This file is part of Dexray Insight - Android APK Security Analysis Tool
+# #
+# # Licensed under the Apache License, Version 2.0 (the "License");
+# # you may not use this file except in compliance with the License.
+# # You may obtain a copy of the License at
+# #
+# #     http://www.apache.org/licenses/LICENSE-2.0
+# #
+# # Unless required by applicable law or agreed to in writing, software
+# # distributed under the License is distributed on an "AS IS" BASIS,
+# # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# # See the License for the specific language governing permissions and
+# # limitations under the License.
 
 import logging
 
@@ -48,7 +67,6 @@ def get_services(apk):
     return services
 
 
-
 def get_content_provider(apk):
     # List all providers from manifest
     providers = apk.get_providers()
@@ -68,14 +86,16 @@ def get_receivers(apk):
 
     return receivers
 
+
 def get_manifest_as_plaintext(apk):
     # You can also access the raw XML of the manifest file
     android_manifest_xml = apk.get_android_manifest_xml()
     logging.info(android_manifest_xml)
     return android_manifest_xml
 
+
 def get_intentfilters(apk):
-    #get all intent filters
+    # get all intent filters
     intent_filters = []
     services = apk.get_services()
     receivers = apk.get_services()
@@ -87,13 +107,13 @@ def get_intentfilters(apk):
             intent_filters.append(intent_filter)
 
     for receiver in receivers:
-
         intent_filter = apk.get_intent_filters("receiver", receiver)
 
         if intent_filter:
             intent_filters.append(intent_filter)
 
     return intent_filters
+
 
 def manifest_analysis_execute(apk_path, androguard_obj):
     apk = androguard_obj.get_androguard_apk()
@@ -106,7 +126,7 @@ def manifest_analysis_execute(apk_path, androguard_obj):
         "Services": get_services(apk),
         "Receivers": get_receivers(apk),
         "Content Provider": get_content_provider(apk),
-        "Intent Filters":get_intentfilters(apk)
+        "Intent Filters": get_intentfilters(apk),
     }
-    #print(apk_info)
+    # print(apk_info)
     return apk_info

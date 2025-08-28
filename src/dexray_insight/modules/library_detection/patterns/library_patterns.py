@@ -1,6 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+# #!/usr/bin/env python3
+# # -*- coding: utf-8 -*-
+#
+# # Copyright (C) {{ year }} Dexray Insight Contributors
+# #
+# # This file is part of Dexray Insight - Android APK Security Analysis Tool
+# #
+# # Licensed under the Apache License, Version 2.0 (the "License");
+# # you may not use this file except in compliance with the License.
+# # You may obtain a copy of the License at
+# #
+# #     http://www.apache.org/licenses/LICENSE-2.0
+# #
+# # Unless required by applicable law or agreed to in writing, software
+# # distributed under the License is distributed on an "AS IS" BASIS,
+# # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# # See the License for the specific language governing permissions and
+# # limitations under the License.
+
 """
 Library Pattern Definitions for Heuristic Detection
 
@@ -17,180 +36,169 @@ from dexray_insight.results.LibraryDetectionResults import LibraryCategory
 # Known library patterns for heuristic detection
 LIBRARY_PATTERNS = {
     # Analytics Libraries
-    'Google Analytics': {
-        'packages': ['com.google.analytics', 'com.google.android.gms.analytics'],
-        'category': LibraryCategory.ANALYTICS,
-        'classes': ['GoogleAnalytics', 'Tracker', 'Analytics'],
-        'permissions': ['android.permission.ACCESS_NETWORK_STATE', 'android.permission.INTERNET']
+    "Google Analytics": {
+        "packages": ["com.google.analytics", "com.google.android.gms.analytics"],
+        "category": LibraryCategory.ANALYTICS,
+        "classes": ["GoogleAnalytics", "Tracker", "Analytics"],
+        "permissions": ["android.permission.ACCESS_NETWORK_STATE", "android.permission.INTERNET"],
     },
-    'Firebase Analytics': {
-        'packages': ['com.google.firebase.analytics', 'com.google.firebase'],
-        'category': LibraryCategory.ANALYTICS,
-        'classes': ['FirebaseAnalytics', 'FirebaseApp'],
-        'manifest_keys': ['com.google.firebase.analytics.connector.internal.APPLICATION_ID']
+    "Firebase Analytics": {
+        "packages": ["com.google.firebase.analytics", "com.google.firebase"],
+        "category": LibraryCategory.ANALYTICS,
+        "classes": ["FirebaseAnalytics", "FirebaseApp"],
+        "manifest_keys": ["com.google.firebase.analytics.connector.internal.APPLICATION_ID"],
     },
-    'Flurry Analytics': {
-        'packages': ['com.flurry.android'],
-        'category': LibraryCategory.ANALYTICS,
-        'classes': ['FlurryAgent', 'FlurryAnalytics']
+    "Flurry Analytics": {
+        "packages": ["com.flurry.android"],
+        "category": LibraryCategory.ANALYTICS,
+        "classes": ["FlurryAgent", "FlurryAnalytics"],
     },
-    'Mixpanel': {
-        'packages': ['com.mixpanel.android'],
-        'category': LibraryCategory.ANALYTICS,
-        'classes': ['MixpanelAPI', 'Mixpanel']
+    "Mixpanel": {
+        "packages": ["com.mixpanel.android"],
+        "category": LibraryCategory.ANALYTICS,
+        "classes": ["MixpanelAPI", "Mixpanel"],
     },
-    
     # Advertising Libraries
-    'AdMob': {
-        'packages': ['com.google.android.gms.ads', 'com.google.ads'],
-        'category': LibraryCategory.ADVERTISING,
-        'classes': ['AdView', 'InterstitialAd', 'AdRequest'],
-        'permissions': ['android.permission.INTERNET', 'android.permission.ACCESS_NETWORK_STATE']
+    "AdMob": {
+        "packages": ["com.google.android.gms.ads", "com.google.ads"],
+        "category": LibraryCategory.ADVERTISING,
+        "classes": ["AdView", "InterstitialAd", "AdRequest"],
+        "permissions": ["android.permission.INTERNET", "android.permission.ACCESS_NETWORK_STATE"],
     },
-    'Facebook Audience Network': {
-        'packages': ['com.facebook.ads'],
-        'category': LibraryCategory.ADVERTISING,
-        'classes': ['AdView', 'InterstitialAd', 'NativeAd']
+    "Facebook Audience Network": {
+        "packages": ["com.facebook.ads"],
+        "category": LibraryCategory.ADVERTISING,
+        "classes": ["AdView", "InterstitialAd", "NativeAd"],
     },
-    'Unity Ads': {
-        'packages': ['com.unity3d.ads'],
-        'category': LibraryCategory.ADVERTISING,
-        'classes': ['UnityAds', 'UnityBannerSize']
+    "Unity Ads": {
+        "packages": ["com.unity3d.ads"],
+        "category": LibraryCategory.ADVERTISING,
+        "classes": ["UnityAds", "UnityBannerSize"],
     },
-    
     # Crash Reporting
-    'Crashlytics': {
-        'packages': ['com.crashlytics.android', 'io.fabric.sdk.android.services.crashlytics'],
-        'category': LibraryCategory.CRASH_REPORTING,
-        'classes': ['Crashlytics', 'CrashlyticsCore']
+    "Crashlytics": {
+        "packages": ["com.crashlytics.android", "io.fabric.sdk.android.services.crashlytics"],
+        "category": LibraryCategory.CRASH_REPORTING,
+        "classes": ["Crashlytics", "CrashlyticsCore"],
     },
-    'Bugsnag': {
-        'packages': ['com.bugsnag.android'],
-        'category': LibraryCategory.CRASH_REPORTING,
-        'classes': ['Bugsnag', 'Client']
+    "Bugsnag": {
+        "packages": ["com.bugsnag.android"],
+        "category": LibraryCategory.CRASH_REPORTING,
+        "classes": ["Bugsnag", "Client"],
     },
-    'Sentry': {
-        'packages': ['io.sentry'],
-        'category': LibraryCategory.CRASH_REPORTING,
-        'classes': ['Sentry', 'SentryClient']
+    "Sentry": {
+        "packages": ["io.sentry"],
+        "category": LibraryCategory.CRASH_REPORTING,
+        "classes": ["Sentry", "SentryClient"],
     },
-    
     # Social Media
-    'Facebook SDK': {
-        'packages': ['com.facebook', 'com.facebook.android'],
-        'category': LibraryCategory.SOCIAL_MEDIA,
-        'classes': ['FacebookSdk', 'LoginManager', 'GraphRequest'],
-        'permissions': ['android.permission.INTERNET']
+    "Facebook SDK": {
+        "packages": ["com.facebook", "com.facebook.android"],
+        "category": LibraryCategory.SOCIAL_MEDIA,
+        "classes": ["FacebookSdk", "LoginManager", "GraphRequest"],
+        "permissions": ["android.permission.INTERNET"],
     },
-    'Twitter SDK': {
-        'packages': ['com.twitter.sdk.android'],
-        'category': LibraryCategory.SOCIAL_MEDIA,
-        'classes': ['Twitter', 'TwitterCore']
+    "Twitter SDK": {
+        "packages": ["com.twitter.sdk.android"],
+        "category": LibraryCategory.SOCIAL_MEDIA,
+        "classes": ["Twitter", "TwitterCore"],
     },
-    
     # Networking
-    'OkHttp': {
-        'packages': ['okhttp3', 'com.squareup.okhttp3'],
-        'category': LibraryCategory.NETWORKING,
-        'classes': ['OkHttpClient', 'Request', 'Response']
+    "OkHttp": {
+        "packages": ["okhttp3", "com.squareup.okhttp3"],
+        "category": LibraryCategory.NETWORKING,
+        "classes": ["OkHttpClient", "Request", "Response"],
     },
-    'Retrofit': {
-        'packages': ['retrofit2', 'com.squareup.retrofit2'],
-        'category': LibraryCategory.NETWORKING,
-        'classes': ['Retrofit', 'Call', 'Response']
+    "Retrofit": {
+        "packages": ["retrofit2", "com.squareup.retrofit2"],
+        "category": LibraryCategory.NETWORKING,
+        "classes": ["Retrofit", "Call", "Response"],
     },
-    'Volley': {
-        'packages': ['com.android.volley'],
-        'category': LibraryCategory.NETWORKING,
-        'classes': ['RequestQueue', 'Request', 'Response']
+    "Volley": {
+        "packages": ["com.android.volley"],
+        "category": LibraryCategory.NETWORKING,
+        "classes": ["RequestQueue", "Request", "Response"],
     },
-    
     # UI Frameworks
-    'Butterknife': {
-        'packages': ['butterknife'],
-        'category': LibraryCategory.UI_FRAMEWORK,
-        'classes': ['ButterKnife', 'Bind', 'OnClick']
+    "Butterknife": {
+        "packages": ["butterknife"],
+        "category": LibraryCategory.UI_FRAMEWORK,
+        "classes": ["ButterKnife", "Bind", "OnClick"],
     },
-    'Material Design': {
-        'packages': ['com.google.android.material'],
-        'category': LibraryCategory.UI_FRAMEWORK,
-        'classes': ['MaterialButton', 'MaterialCardView']
+    "Material Design": {
+        "packages": ["com.google.android.material"],
+        "category": LibraryCategory.UI_FRAMEWORK,
+        "classes": ["MaterialButton", "MaterialCardView"],
     },
-    
     # Image Loading
-    'Glide': {
-        'packages': ['com.bumptech.glide'],
-        'category': LibraryCategory.MEDIA,
-        'classes': ['Glide', 'RequestManager']
+    "Glide": {
+        "packages": ["com.bumptech.glide"],
+        "category": LibraryCategory.MEDIA,
+        "classes": ["Glide", "RequestManager"],
     },
-    'Picasso': {
-        'packages': ['com.squareup.picasso'],
-        'category': LibraryCategory.MEDIA,
-        'classes': ['Picasso', 'RequestCreator']
+    "Picasso": {
+        "packages": ["com.squareup.picasso"],
+        "category": LibraryCategory.MEDIA,
+        "classes": ["Picasso", "RequestCreator"],
     },
-    'Fresco': {
-        'packages': ['com.facebook.fresco'],
-        'category': LibraryCategory.MEDIA,
-        'classes': ['Fresco', 'SimpleDraweeView']
+    "Fresco": {
+        "packages": ["com.facebook.fresco"],
+        "category": LibraryCategory.MEDIA,
+        "classes": ["Fresco", "SimpleDraweeView"],
     },
-    
     # Payment
-    'Stripe': {
-        'packages': ['com.stripe.android'],
-        'category': LibraryCategory.PAYMENT,
-        'classes': ['Stripe', 'PaymentConfiguration']
+    "Stripe": {
+        "packages": ["com.stripe.android"],
+        "category": LibraryCategory.PAYMENT,
+        "classes": ["Stripe", "PaymentConfiguration"],
     },
-    'PayPal': {
-        'packages': ['com.paypal.android'],
-        'category': LibraryCategory.PAYMENT,
-        'classes': ['PayPalConfiguration', 'PayPalPayment']
+    "PayPal": {
+        "packages": ["com.paypal.android"],
+        "category": LibraryCategory.PAYMENT,
+        "classes": ["PayPalConfiguration", "PayPalPayment"],
     },
-    
     # Database
-    'Room': {
-        'packages': ['androidx.room', 'android.arch.persistence.room'],
-        'category': LibraryCategory.DATABASE,
-        'classes': ['Room', 'RoomDatabase', 'Entity']
+    "Room": {
+        "packages": ["androidx.room", "android.arch.persistence.room"],
+        "category": LibraryCategory.DATABASE,
+        "classes": ["Room", "RoomDatabase", "Entity"],
     },
-    'Realm': {
-        'packages': ['io.realm'],
-        'category': LibraryCategory.DATABASE,
-        'classes': ['Realm', 'RealmObject', 'RealmConfiguration']
+    "Realm": {
+        "packages": ["io.realm"],
+        "category": LibraryCategory.DATABASE,
+        "classes": ["Realm", "RealmObject", "RealmConfiguration"],
     },
-    
     # Security
-    'SQLCipher': {
-        'packages': ['net.sqlcipher'],
-        'category': LibraryCategory.SECURITY,
-        'classes': ['SQLiteDatabase', 'SQLiteOpenHelper']
+    "SQLCipher": {
+        "packages": ["net.sqlcipher"],
+        "category": LibraryCategory.SECURITY,
+        "classes": ["SQLiteDatabase", "SQLiteOpenHelper"],
     },
-    
     # Testing
-    'Mockito': {
-        'packages': ['org.mockito'],
-        'category': LibraryCategory.TESTING,
-        'classes': ['Mockito', 'Mock', 'Spy']
+    "Mockito": {
+        "packages": ["org.mockito"],
+        "category": LibraryCategory.TESTING,
+        "classes": ["Mockito", "Mock", "Spy"],
     },
-    'Espresso': {
-        'packages': ['androidx.test.espresso'],
-        'category': LibraryCategory.TESTING,
-        'classes': ['Espresso', 'ViewInteraction']
+    "Espresso": {
+        "packages": ["androidx.test.espresso"],
+        "category": LibraryCategory.TESTING,
+        "classes": ["Espresso", "ViewInteraction"],
     },
-    
     # Utilities
-    'Gson': {
-        'packages': ['com.google.gson'],
-        'category': LibraryCategory.UTILITY,
-        'classes': ['Gson', 'GsonBuilder', 'JsonParser']
+    "Gson": {
+        "packages": ["com.google.gson"],
+        "category": LibraryCategory.UTILITY,
+        "classes": ["Gson", "GsonBuilder", "JsonParser"],
     },
-    'Jackson': {
-        'packages': ['com.fasterxml.jackson'],
-        'category': LibraryCategory.UTILITY,
-        'classes': ['ObjectMapper', 'JsonNode']
+    "Jackson": {
+        "packages": ["com.fasterxml.jackson"],
+        "category": LibraryCategory.UTILITY,
+        "classes": ["ObjectMapper", "JsonNode"],
     },
-    'Apache Commons': {
-        'packages': ['org.apache.commons'],
-        'category': LibraryCategory.UTILITY,
-        'classes': ['StringUtils', 'CollectionUtils', 'FileUtils']
-    }
+    "Apache Commons": {
+        "packages": ["org.apache.commons"],
+        "category": LibraryCategory.UTILITY,
+        "classes": ["StringUtils", "CollectionUtils", "FileUtils"],
+    },
 }
