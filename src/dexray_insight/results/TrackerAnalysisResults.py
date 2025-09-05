@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""Results container for tracker analysis findings and statistics."""
 
 # #!/usr/bin/env python3
 # # -*- coding: utf-8 -*-
@@ -25,7 +26,7 @@ from typing import Any
 
 @dataclass
 class TrackerAnalysisResults:
-    """Results container for tracker analysis with formatting methods"""
+    """Results container for tracker analysis with formatting methods."""
 
     detected_trackers: list[dict[str, Any]]
     total_trackers: int
@@ -35,7 +36,7 @@ class TrackerAnalysisResults:
     execution_time: float
 
     def __init__(self, tracker_result):
-        """Initialize from TrackerAnalysisResult object"""
+        """Initialize from TrackerAnalysisResult object."""
         self.detected_trackers = [tracker.to_dict() for tracker in tracker_result.detected_trackers]
         self.total_trackers = tracker_result.total_trackers
         self.exodus_trackers = tracker_result.exodus_trackers
@@ -44,7 +45,7 @@ class TrackerAnalysisResults:
         self.execution_time = tracker_result.execution_time
 
     def get_summary(self) -> str:
-        """Get a human-readable summary of tracker analysis results"""
+        """Get a human-readable summary of tracker analysis results."""
         if self.total_trackers == 0:
             return "🟢 No trackers detected in this APK"
 
@@ -77,7 +78,7 @@ class TrackerAnalysisResults:
         return "\n".join(summary_lines)
 
     def get_console_summary(self) -> str:
-        """Get a console-friendly summary without markdown"""
+        """Get a console-friendly summary without markdown."""
         if self.total_trackers == 0:
             return "✓ No trackers detected in this APK"
 
@@ -105,7 +106,7 @@ class TrackerAnalysisResults:
         return "\n".join(summary_lines)
 
     def get_detailed_results(self) -> dict[str, Any]:
-        """Get detailed results for JSON export"""
+        """Get detailed results for JSON export."""
         return {
             "tracker_analysis": {
                 "total_trackers_detected": self.total_trackers,
@@ -120,24 +121,24 @@ class TrackerAnalysisResults:
         }
 
     def get_tracker_by_name(self, name: str) -> dict[str, Any] | None:
-        """Get specific tracker details by name"""
+        """Get specific tracker details by name."""
         for tracker in self.detected_trackers:
             if tracker["name"].lower() == name.lower():
                 return tracker
         return None
 
     def get_trackers_by_category(self, category: str) -> list[dict[str, Any]]:
-        """Get all trackers in a specific category"""
+        """Get all trackers in a specific category."""
         return [
             tracker for tracker in self.detected_trackers if tracker.get("category", "").lower() == category.lower()
         ]
 
     def get_high_confidence_trackers(self, threshold: float = 0.9) -> list[dict[str, Any]]:
-        """Get trackers with confidence above threshold"""
+        """Get trackers with confidence above threshold."""
         return [tracker for tracker in self.detected_trackers if tracker.get("confidence", 0) >= threshold]
 
     def export_to_dict(self) -> dict[str, Any]:
-        """Export all results to dictionary format"""
+        """Export all results to dictionary format."""
         return {
             "detected_trackers": self.detected_trackers,
             "total_trackers": self.total_trackers,

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""Triage API integration for malware analysis and detection."""
 
 # #!/usr/bin/env python3
 # # -*- coding: utf-8 -*-
@@ -30,6 +31,7 @@ from ..core.configuration import Configuration
 
 
 def triage_hashcheck(hash_value, config=None):
+    """Check hash against Triage malware analysis sandbox."""
     if config is None:
         config = Configuration()
 

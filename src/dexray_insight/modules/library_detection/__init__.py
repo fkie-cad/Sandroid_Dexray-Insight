@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Library Detection Module Package
+Library Detection Module Package.
 
 Third-party library detection module using multi-stage analysis with specialized engines.
 Refactored into submodules following Single Responsibility Principle.

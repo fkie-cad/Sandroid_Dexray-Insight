@@ -20,6 +20,8 @@
 # # See the License for the specific language governing permissions and
 # # limitations under the License.
 
+"""Security analysis module for runtime-specific security assessment."""
+
 import logging
 
 from ..results.SecurityAnalysisResults import SecurityAnalysisResults
@@ -29,7 +31,16 @@ from .runtimes import dotnetMonoSec
 
 
 class security_analysis:
+    """Runtime-specific security analysis coordinator."""
+
     def __init__(self, runtimes: set, file_path, dll_target_dir):
+        """Initialize security analysis with target runtimes and paths.
+
+        Args:
+            runtimes: Set of runtime types to analyze
+            file_path: Path to APK file
+            dll_target_dir: Target directory for DLL extraction
+        """
         runtimes.add("dex")  # DEX security analysis should always be performed
         self.runtimes = runtimes
         self.dll_target_dir = dll_target_dir
@@ -40,6 +51,11 @@ class security_analysis:
         )  # TODO: .replace(...) not very stable
 
     def analyze(self):
+        """Execute security analysis for all configured runtimes.
+
+        Returns:
+            SecurityAnalysisResults: Aggregated security analysis results
+        """
         try:
             if self.runtimes:
                 for r in self.runtimes:
@@ -49,6 +65,14 @@ class security_analysis:
             logging.error(f"Exception during security analysis {e}")
 
     def run_runtime_specific_analysis(self, runtime):
+        """Run security analysis for a specific runtime environment.
+
+        Args:
+            runtime: Runtime type to analyze ('dex', 'dotnetMono')
+
+        Returns:
+            Runtime-specific analysis results
+        """
         try:
             if runtime == "dotnetMono":
                 self.results.dotnet_results, bug_cnt = dotnetMonoSec.execute_dotnet_mono_security_analysis(

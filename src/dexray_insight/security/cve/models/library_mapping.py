@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Library Name Mapping for CVE Scanning
+Library Name Mapping for CVE Scanning.
 
 This module handles mapping between library names as detected by dexray-insight
 and the names used in CVE databases. Different CVE sources may use different
@@ -35,7 +35,7 @@ from typing import Optional
 
 @dataclass
 class LibraryMapping:
-    """Maps detected library names to CVE database names"""
+    """Maps detected library names to CVE database names."""
 
     detected_name: str
     cve_names: dict[str, str]  # CVE source -> name in that source
@@ -43,20 +43,22 @@ class LibraryMapping:
     aliases: list[str] = None  # Alternative names
 
     def __post_init__(self):
+        """Initialize aliases list if None."""
         if self.aliases is None:
             self.aliases = []
 
 
 class LibraryNameMapper:
-    """Handles mapping between detected library names and CVE database names"""
+    """Handles mapping between detected library names and CVE database names."""
 
     def __init__(self):
+        """Initialize library name mapper with common Android library mappings."""
         # Initialize with common Android library mappings
         self.mappings = self._initialize_default_mappings()
         self.ecosystem_patterns = self._initialize_ecosystem_patterns()
 
     def _initialize_default_mappings(self) -> dict[str, LibraryMapping]:
-        """Initialize with known mappings for common Android libraries"""
+        """Initialize with known mappings for common Android libraries."""
         mappings = {}
 
         # Common Android libraries
@@ -149,7 +151,7 @@ class LibraryNameMapper:
         return mappings
 
     def _initialize_ecosystem_patterns(self) -> dict[str, list[str]]:
-        """Initialize patterns to detect library ecosystems"""
+        """Initialize patterns to detect library ecosystems."""
         return {
             "Maven": [r"^com\.", r"^org\.", r"^net\.", r"^io\.", r"^androidx\.", r"^android\."],
             "npm": [r"^@", r"[a-z\-]+$"],  # Scoped packages  # Simple lowercase with hyphens
@@ -157,7 +159,7 @@ class LibraryNameMapper:
         }
 
     def get_cve_names(self, detected_name: str, version: Optional[str] = None) -> dict[str, str]:
-        """Get CVE database names for a detected library name"""
+        """Get CVE database names for a detected library name."""
         normalized = self._normalize_name(detected_name)
 
         if normalized in self.mappings:
@@ -167,7 +169,7 @@ class LibraryNameMapper:
         return self._generate_cve_names(detected_name)
 
     def get_ecosystem(self, detected_name: str) -> Optional[str]:
-        """Determine the ecosystem for a library"""
+        """Determine the ecosystem for a library."""
         normalized = self._normalize_name(detected_name)
 
         if normalized in self.mappings:
@@ -182,7 +184,7 @@ class LibraryNameMapper:
         return "Maven"  # Default to Maven for Android libraries
 
     def _generate_cve_names(self, detected_name: str) -> dict[str, str]:
-        """Generate reasonable CVE names when no mapping exists"""
+        """Generate reasonable CVE names when no mapping exists."""
         # Simple approach: use the detected name for all sources
         # In practice, you might want more sophisticated name transformation
         normalized = self._normalize_name(detected_name)
@@ -190,11 +192,11 @@ class LibraryNameMapper:
         return {"osv": detected_name, "nvd": normalized, "github": detected_name}
 
     def _normalize_name(self, name: str) -> str:
-        """Normalize library name for consistent lookup"""
+        """Normalize library name for consistent lookup."""
         return name.lower().replace("-", "_").replace(".", "_").replace(" ", "_")
 
     def add_mapping(self, mapping: LibraryMapping):
-        """Add a new library mapping"""
+        """Add a new library mapping."""
         key = self._normalize_name(mapping.detected_name)
         self.mappings[key] = mapping
 
@@ -204,7 +206,7 @@ class LibraryNameMapper:
             self.mappings[alias_key] = mapping
 
     def get_all_known_libraries(self) -> set[str]:
-        """Get all known library names"""
+        """Get all known library names."""
         known = set()
         for mapping in self.mappings.values():
             known.add(mapping.detected_name)

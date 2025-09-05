@@ -1,5 +1,28 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# #!/usr/bin/env python3
+# # -*- coding: utf-8 -*-
+#
+# # Copyright (C) {{ year }} Dexray Insight Contributors
+# #
+# # This file is part of Dexray Insight - Android APK Security Analysis Tool
+# #
+# # Licensed under the Apache License, Version 2.0 (the "License");
+# # you may not use this file except in compliance with the License.
+# # You may obtain a copy of the License at
+# #
+# #     http://www.apache.org/licenses/LICENSE-2.0
+# #
+# # Unless required by applicable law or agreed to in writing, software
+# # distributed under the License is distributed on an "AS IS" BASIS,
+# # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# # See the License for the specific language governing permissions and
+# # limitations under the License.
+
+"""Temporal directory management for external tools.
+
+Provides file system management for external tools like apktool and jadx.
+"""
 
 # #!/usr/bin/env python3
 # # -*- coding: utf-8 -*-
@@ -35,7 +58,7 @@ from .configuration import Configuration
 
 @dataclass
 class TemporalDirectoryPaths:
-    """Container for temporal directory paths"""
+    """Container for temporal directory paths."""
 
     base_dir: Path
     unzipped_dir: Path
@@ -44,7 +67,7 @@ class TemporalDirectoryPaths:
     logs_dir: Path
 
     def cleanup(self):
-        """Remove the entire temporal directory tree"""
+        """Remove the entire temporal directory tree."""
         if self.base_dir.exists():
             shutil.rmtree(self.base_dir)
 
@@ -61,6 +84,7 @@ class TemporalDirectoryManager:
     """
 
     def __init__(self, config: Configuration, logger: Optional[logging.Logger] = None):
+        """Initialize temporal directory manager with configuration."""
         self.config = config
         self.logger = logger or logging.getLogger(__name__)
         self.temporal_config = config.get_temporal_analysis_config()
@@ -70,7 +94,7 @@ class TemporalDirectoryManager:
         self._validate_configuration()
 
     def _validate_configuration(self):
-        """Validate temporal analysis and tool configurations"""
+        """Validate temporal analysis and tool configurations."""
         # Check temporal analysis configuration
         if not isinstance(self.temporal_config, dict):
             self.logger.warning("Temporal analysis configuration not found, using defaults")
@@ -97,7 +121,7 @@ class TemporalDirectoryManager:
         self._validate_tool_configuration("apktool")
 
     def _validate_tool_configuration(self, tool_name: str):
-        """Validate configuration for a specific external tool"""
+        """Validate configuration for a specific external tool."""
         tool_config = self.config.get_tool_config(tool_name)
 
         if not tool_config:
@@ -135,7 +159,7 @@ class TemporalDirectoryManager:
 
     def create_temporal_directory(self, apk_path: str, timestamp: Optional[str] = None) -> TemporalDirectoryPaths:
         """
-        Create temporal directory structure for APK analysis
+        Create temporal directory structure for APK analysis.
 
         Args:
             apk_path: Path to the APK file being analyzed
@@ -192,7 +216,7 @@ class TemporalDirectoryManager:
 
     def unzip_apk(self, apk_path: str, target_dir: Path) -> bool:
         """
-        Unzip APK contents to target directory
+        Unzip APK contents to target directory.
 
         Args:
             apk_path: Path to the APK file
@@ -215,7 +239,7 @@ class TemporalDirectoryManager:
 
     def run_jadx(self, apk_path: str, output_dir: Path) -> bool:
         """
-        Run JADX decompilation on APK
+        Run JADX decompilation on APK.
 
         Args:
             apk_path: Path to the APK file
@@ -308,7 +332,7 @@ class TemporalDirectoryManager:
 
     def run_apktool(self, apk_path: str, output_dir: Path) -> bool:
         """
-        Run apktool on APK
+        Run apktool on APK.
 
         Args:
             apk_path: Path to the APK file
@@ -404,7 +428,7 @@ class TemporalDirectoryManager:
 
     def check_tool_availability(self, tool_name: str) -> bool:
         """
-        Check if external tool is available and properly configured
+        Check if external tool is available and properly configured.
 
         Args:
             tool_name: Name of the tool ('jadx' or 'apktool')
@@ -425,7 +449,7 @@ class TemporalDirectoryManager:
 
     def process_apk_with_tools(self, apk_path: str, paths: TemporalDirectoryPaths) -> dict[str, bool]:
         """
-        Process APK with all configured external tools
+        Process APK with all configured external tools.
 
         Args:
             apk_path: Path to the APK file
@@ -460,7 +484,7 @@ class TemporalDirectoryManager:
 
     def cleanup_temporal_directory(self, paths: Optional[TemporalDirectoryPaths] = None, force: bool = False) -> bool:
         """
-        Cleanup temporal directory after analysis
+        Cleanup temporal directory after analysis.
 
         Args:
             paths: TemporalDirectoryPaths to cleanup, uses current if None
@@ -495,15 +519,15 @@ class TemporalDirectoryManager:
             return False
 
     def get_current_paths(self) -> Optional[TemporalDirectoryPaths]:
-        """Get current temporal directory paths"""
+        """Get current temporal directory paths."""
         return self.current_paths
 
     def __enter__(self):
-        """Context manager entry"""
+        """Context manager entry."""
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit - cleanup on exit"""
+        """Context manager exit - cleanup on exit."""
         preserve_on_error = self.temporal_config.get("preserve_on_error", True)
 
         # If there was an exception and preserve_on_error is True, don't cleanup

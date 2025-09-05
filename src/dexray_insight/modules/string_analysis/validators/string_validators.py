@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-String Validators for String Analysis
+String Validators for String Analysis.
 
 Common validation utilities for string pattern validation and format checking.
 Provides shared validation logic used across different filter components.
@@ -44,6 +44,7 @@ class StringValidators:
     """
 
     def __init__(self):
+        """Initialize StringValidators with logger."""
         self.logger = logging.getLogger(__name__)
 
     @staticmethod

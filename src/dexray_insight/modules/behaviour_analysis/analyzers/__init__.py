@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Privacy Analyzers Package
+Privacy Analyzers Package.
 
 Contains specialized analyzers for detecting privacy-sensitive behaviors
 in Android applications.

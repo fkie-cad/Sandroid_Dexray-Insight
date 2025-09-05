@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-CVE Cache Manager
+CVE Cache Manager.
 
 This module provides caching functionality for CVE scan results to avoid
 repeated API calls and improve performance.
@@ -38,9 +38,10 @@ from typing import Optional
 
 
 class CVECacheManager:
-    """Manages caching of CVE scan results"""
+    """Manages caching of CVE scan results."""
 
     def __init__(self, cache_dir: Optional[Path] = None, cache_duration_hours: int = 24):
+        """Initialize CVE cache manager with directory and duration settings."""
         self.logger = logging.getLogger(__name__)
 
         # Default cache directory
@@ -60,7 +61,7 @@ class CVECacheManager:
         self.metadata = self._load_metadata()
 
     def _load_metadata(self) -> dict[str, Any]:
-        """Load cache metadata"""
+        """Load cache metadata."""
         if self.metadata_file.exists():
             try:
                 with open(self.metadata_file) as f:
@@ -75,7 +76,7 @@ class CVECacheManager:
         }
 
     def _save_metadata(self):
-        """Save cache metadata thread-safely"""
+        """Save cache metadata thread-safely."""
         try:
             # Create a copy to avoid "dictionary changed size during iteration" errors
             metadata_copy = {
@@ -90,16 +91,16 @@ class CVECacheManager:
             self.logger.warning(f"Could not save cache metadata: {e}")
 
     def _generate_cache_key(self, library_name: str, version: str, source: str) -> str:
-        """Generate cache key for library/version/source combination"""
+        """Generate cache key for library/version/source combination."""
         key_data = f"{library_name}:{version}:{source}".lower()
         return hashlib.md5(key_data.encode()).hexdigest()
 
     def _get_cache_file_path(self, cache_key: str) -> Path:
-        """Get cache file path for a given key"""
+        """Get cache file path for a given key."""
         return self.cache_dir / f"{cache_key}.json"
 
     def _is_cache_valid(self, cache_key: str) -> bool:
-        """Check if cache entry is still valid"""
+        """Check if cache entry is still valid."""
         if cache_key not in self.metadata["entries"]:
             return False
 
@@ -246,7 +247,7 @@ class CVECacheManager:
         self.logger.info(f"Cleared {cleared_count} cache entries")
 
     def get_cache_stats(self) -> dict[str, Any]:
-        """Get cache statistics"""
+        """Get cache statistics."""
         stats = self.metadata["stats"].copy()
         stats["total_entries"] = len(self.metadata["entries"])
         stats["cache_size_mb"] = self._get_cache_size_mb()
@@ -259,7 +260,7 @@ class CVECacheManager:
         return stats
 
     def _get_cache_size_mb(self) -> float:
-        """Get total cache size in megabytes"""
+        """Get total cache size in megabytes."""
         total_size = 0
         for cache_file in self.cache_dir.glob("*.json"):
             try:
@@ -270,6 +271,6 @@ class CVECacheManager:
         return total_size / (1024 * 1024)  # Convert to MB
 
     def optimize_cache(self):
-        """Optimize cache by removing expired entries"""
+        """Optimize cache by removing expired entries."""
         self.clear_cache(older_than_hours=self.cache_duration_hours)
         self.logger.info("Cache optimization completed")

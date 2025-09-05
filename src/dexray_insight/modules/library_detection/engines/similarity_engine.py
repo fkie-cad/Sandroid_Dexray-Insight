@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Similarity Detection Engine for Library Detection
+Similarity Detection Engine for Library Detection.
 
 Specialized engine for similarity-based library detection using LibScan-style analysis.
 Handles timing, error management, and result processing for similarity detection.
@@ -44,6 +44,7 @@ class SimilarityDetectionEngine:
     """
 
     def __init__(self, parent_module):
+        """Initialize SimilarityDetectionEngine with parent module."""
         self.parent = parent_module
         self.logger = parent_module.logger
 

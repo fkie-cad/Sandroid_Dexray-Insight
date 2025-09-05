@@ -20,6 +20,8 @@
 # # See the License for the specific language governing permissions and
 # # limitations under the License.
 
+"""In-depth analysis results module for comprehensive APK analysis data aggregation."""
+
 import json
 from dataclasses import asdict
 from dataclasses import dataclass
@@ -67,33 +69,23 @@ class Results:
     additional_data: dict[str, Any] = field(default_factory=dict)
 
     def to_json(self) -> str:
-        """
-        Serialize the object into a JSON string.
-        """
+        """Serialize the object into a JSON string."""
         return json.dumps(asdict(self), cls=CustomJSONEncoder, indent=4)
 
     def to_dict(self) -> dict[str, Any]:
-        """
-        Convert the object to a dictionary (JSON-compatible).
-        """
+        """Convert the object to a dictionary (JSON-compatible)."""
         return asdict(self)
 
     def print_results(self):
-        """
-        Print the results in a formatted JSON style.
-        """
+        """Print the results in a formatted JSON style."""
         print(self.to_json())
 
     def update_additional_data(self, key: str, value: Any):
-        """
-        Add or update additional data not directly tied to class attributes.
-        """
+        """Add or update additional data not directly tied to class attributes."""
         self.additional_data[key] = value
 
     def extend_from_dict(self, updates: dict[str, Any]):
-        """
-        Update attributes or additional_data dynamically from a dictionary.
-        """
+        """Update attributes or additional_data dynamically from a dictionary."""
         for key, value in updates.items():
             if hasattr(self, key):
                 setattr(self, key, value)
@@ -101,9 +93,7 @@ class Results:
                 self.additional_data[key] = value
 
     def pretty_print(self):
-        """
-        Pretty print the in-depth analysis results, showing only non-empty fields.
-        """
+        """Pretty print the in-depth analysis results, showing only non-empty fields."""
         print(f"\nResults for: {self.apk_name}\n")
         for field_name, field_value in self.to_dict().items():
             if field_value:  # Only print non-empty fields
@@ -120,9 +110,7 @@ class Results:
                 print()  # Add space between sections
 
     def pretty_print2(self):
-        """
-        Pretty print the in-depth analysis results, showing only non-empty fields.
-        """
+        """Pretty print the in-depth analysis results, showing only non-empty fields."""
         print(f"\nResults for: {self.apk_name}\n")
 
         # Iterate through all fields and print non-empty ones

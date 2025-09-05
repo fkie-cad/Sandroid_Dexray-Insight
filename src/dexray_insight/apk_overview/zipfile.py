@@ -29,8 +29,8 @@ from typing import Dict
 
 
 def extract_file_based_on_header_info(apk_file, local_header_info, central_directory_info):
-    """
-    Extracts a single file from the apk_file based on the information provided from the offset and the header_info.
+    """Extract a single file from the apk_file based on the information provided from the offset and the header_info.
+
     It takes into account that the compression method provided might not be STORED or DEFLATED! The returned
     'indicator', shows what compression method was used. Besides the standard STORED/DEFLATE it may return
     'DEFLATED_TAMPERED', which means that the compression method found was not DEFLATED(8) but it should have been,
@@ -87,9 +87,7 @@ def extract_file_based_on_header_info(apk_file, local_header_info, central_direc
 
 
 class EndOfCentralDirectoryRecord:
-    """
-    A class to provide details about the end of central directory record.
-    """
+    """A class to provide details about the end of central directory record."""
 
     def __init__(
         self,
@@ -103,6 +101,19 @@ class EndOfCentralDirectoryRecord:
         comment_length,
         comment,
     ):
+        """Initialize EndOfCentralDirectoryRecord with ZIP file metadata.
+
+        Args:
+            signature: End of central directory signature
+            number_of_this_disk: Number of this disk
+            disk_where_central_directory_starts: Disk where central directory starts
+            number_of_central_directory_records_on_this_disk: Number of central directory records on this disk
+            total_number_of_central_directory_records: Total number of central directory records
+            size_of_central_directory: Size of central directory in bytes
+            offset_of_start_of_central_directory: Offset of start of central directory
+            comment_length: ZIP comment length
+            comment: ZIP comment
+        """
         self.signature = signature
         self.number_of_this_disk = number_of_this_disk
         self.disk_where_central_directory_starts = disk_where_central_directory_starts
@@ -115,9 +126,9 @@ class EndOfCentralDirectoryRecord:
 
     @classmethod
     def parse(cls, apk_file):
-        """
-        Method to locate the "end of central directory record signature" as the first step of the correct process of
-        reading a ZIP archive. Should be noted that certain APKs do not follow the zip specification and declare multiple
+        """Locate the "end of central directory record signature" as the first step of reading a ZIP archive.
+
+        Should be noted that certain APKs do not follow the zip specification and declare multiple
         "end of central directory records". For this reason the search for the corresponding signature of the eocd starts
         from the end of the apk.
 
@@ -202,9 +213,7 @@ class EndOfCentralDirectoryRecord:
 
 
 class CentralDirectoryEntry:
-    """
-    A class representing each entry in the central directory.
-    """
+    """A class representing each entry in the central directory."""
 
     def __init__(
         self,
@@ -229,6 +238,30 @@ class CentralDirectoryEntry:
         file_comment,
         offset_in_central_directory,
     ):
+        """Initialize CentralDirectoryEntry with central directory file header information.
+
+        Args:
+            version_made_by: Version made by
+            version_needed_to_extract: Version needed to extract
+            general_purpose_bit_flag: General purpose bit flag
+            compression_method: Compression method
+            file_last_modification_time: File last modification time
+            file_last_modification_date: File last modification date
+            crc32_of_uncompressed_data: CRC-32 checksum of uncompressed data
+            compressed_size: Compressed size
+            uncompressed_size: Uncompressed size
+            file_name_length: File name length
+            extra_field_length: Extra field length
+            file_comment_length: File comment length
+            disk_number_where_file_starts: Disk number where file starts
+            internal_file_attributes: Internal file attributes
+            external_file_attributes: External file attributes
+            relative_offset_of_local_file_header: Relative offset of local file header
+            filename: File name
+            extra_field: Extra field
+            file_comment: File comment
+            offset_in_central_directory: Offset in central directory
+        """
         self.version_made_by = version_made_by
         self.version_needed_to_extract = version_needed_to_extract
         self.general_purpose_bit_flag = general_purpose_bit_flag
@@ -296,16 +329,23 @@ class CentralDirectoryEntry:
 class CentralDirectory:
     """
     The CentralDirectory containing all the CentralDirectoryEntry entries discovered.
+
     The entries are listed as a dictionary where the filename is the key.
     """
 
     def __init__(self, entries):
+        """Initialize CentralDirectory with entry dictionary.
+
+        Args:
+            entries: Dictionary mapping filenames to CentralDirectoryEntry instances
+        """
         self.entries = entries
 
     @classmethod
     def parse(cls, apk_file, eocd: EndOfCentralDirectoryRecord = None):
         """
-        Method that is used to parse the central directory header according to the specification
+        Parse the central directory header according to the ZIP specification.
+
         https://pkware.cachefly.net/webdocs/APPNOTE/APPNOTE-6.3.9.TXT
         based on the offset provided by the end of central directory record: eocd.offset_of_start_of_central_directory.
 
@@ -406,9 +446,7 @@ class CentralDirectory:
 
 
 class LocalHeaderRecord:
-    """
-    The local header for each entry discovered.
-    """
+    """The local header for each entry discovered."""
 
     def __init__(
         self,
@@ -425,6 +463,22 @@ class LocalHeaderRecord:
         filename,
         extra_field,
     ):
+        """Initialize LocalHeaderRecord with local file header information.
+
+        Args:
+            version_needed_to_extract: Version needed to extract
+            general_purpose_bit_flag: General purpose bit flag
+            compression_method: Compression method
+            file_last_modification_time: File last modification time
+            file_last_modification_date: File last modification date
+            crc32_of_uncompressed_data: CRC-32 checksum of uncompressed data
+            compressed_size: Compressed size
+            uncompressed_size: Uncompressed size
+            file_name_length: File name length
+            extra_field_length: Extra field length
+            filename: File name
+            extra_field: Extra field
+        """
         self.version_needed_to_extract = version_needed_to_extract
         self.general_purpose_bit_flag = general_purpose_bit_flag
         self.compression_method = compression_method
@@ -441,7 +495,7 @@ class LocalHeaderRecord:
     @classmethod
     def parse(cls, apk_file, entry_of_interest: CentralDirectoryEntry):
         """
-        Method that attempts to read the local file header according to the specification https://pkware.cachefly.net/webdocs/APPNOTE/APPNOTE-6.3.9.TXT.
+        Attempt to read the local file header according to the specification https://pkware.cachefly.net/webdocs/APPNOTE/APPNOTE-6.3.9.TXT.
 
         :param apk_file: The already read/loaded data of the APK file e.g. with open('test.apk', 'rb') as apk_file
         :type apk_file: bytesIO
@@ -522,9 +576,7 @@ class LocalHeaderRecord:
 
 
 class ZipEntry:
-    """
-    Is the actual APK represented as a composition of the previous classes, which are: the EndOfCentralDirectoryRecord, the CentralDirectory and a dictionary of values of LocalHeaderRecord.
-    """
+    """Is the actual APK represented as a composition of the previous classes, which are: the EndOfCentralDirectoryRecord, the CentralDirectory and a dictionary of values of LocalHeaderRecord."""
 
     def __init__(
         self,
@@ -533,6 +585,14 @@ class ZipEntry:
         central_directory: CentralDirectory,
         local_headers: Dict[str, LocalHeaderRecord],
     ):
+        """Initialize ZipEntry with ZIP file components.
+
+        Args:
+            zip_bytes: Raw ZIP file bytes
+            eocd: End of central directory record
+            central_directory: Central directory with file entries
+            local_headers: Dictionary mapping filenames to local header records
+        """
         self.zip = zip_bytes
         self.eocd = eocd
         self.central_directory = central_directory
@@ -541,7 +601,7 @@ class ZipEntry:
     @classmethod
     def parse(cls, inc_apk, raw: bool = True):
         """
-        Method to start processing an APK. The raw (bytes) APK may be passed or the path to it.
+        Start processing an APK. The raw (bytes) APK may be passed or the path to it.
 
         :param inc_apk: the incoming apk, either path or bytes
         :type inc_apk: str or bytesIO
@@ -602,7 +662,7 @@ class ZipEntry:
 
     def get_central_directory_entry_dict(self, filename):
         """
-        Method to retrieve the central directory entry for a specific filename.
+        Retrieve the central directory entry for a specific filename.
 
         :param filename: the filename of the file to search for in the central directory
         :type filename: str
@@ -616,7 +676,7 @@ class ZipEntry:
 
     def get_local_header_dict(self, filename):
         """
-        Method to retrieve the local header of a specific filename.
+        Retrieve the local header of a specific filename.
 
         :param filename: the filename of the entry to search for among the local headers
         :type filename: str
@@ -630,7 +690,7 @@ class ZipEntry:
 
     def read(self, name, save: bool = False):
         """
-        Method to utilize the extract module and extract a single entry from the APK based on the filename.
+        Utilize the extract module and extract a single entry from the APK based on the filename.
 
         :param name: the name of the file to be read/extracted
         :type name: str

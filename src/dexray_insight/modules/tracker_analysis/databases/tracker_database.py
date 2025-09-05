@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Tracker Database for Pattern-Based Detection
+Tracker Database for Pattern-Based Detection.
 
 Static database of known tracking SDK patterns extracted from the original
 monolithic tracker_analysis.py module. Contains comprehensive pattern definitions

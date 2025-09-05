@@ -19,6 +19,8 @@
 # # See the License for the specific language governing permissions and
 # # limitations under the License.
 
+"""Kavanoz tool results module for APK unpacking and extraction results."""
+
 import json
 from dataclasses import asdict
 from dataclasses import dataclass
@@ -46,15 +48,11 @@ class KavanozResults:
     unpacked_file_path: str = field(default="", metadata={"description": "Path to the unpacked file."})
 
     def to_dict(self) -> dict[str, Any]:
-        """
-        Convert the object to a dictionary (JSON-compatible).
-        """
+        """Convert the object to a dictionary (JSON-compatible)."""
         return asdict(self)
 
     def to_json(self) -> str:
-        """
-        Serialize the object into a JSON string.
-        """
+        """Serialize the object into a JSON string."""
         return json.dumps(self.to_dict(), cls=CustomJSONEncoder, indent=4)
 
     def pretty_print(self, is_verbose=False):

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+""".NET/Mono analysis module for detecting .NET assemblies and extracting strings."""
 
 # #!/usr/bin/env python3
 # # -*- coding: utf-8 -*-
@@ -42,7 +43,7 @@ from ..Utils.file_utils import is_macos
 
 @dataclass
 class DotnetAnalysisResult(BaseResult):
-    """Result class for .NET analysis"""
+    """Result class for .NET analysis."""
 
     found_assemblies: list[str] = None
     found_strings: list[str] = None
@@ -53,6 +54,7 @@ class DotnetAnalysisResult(BaseResult):
     extraction_method: str = ""  # "direct_dll" or "blob_unpacking"
 
     def __post_init__(self):
+        """Initialize default values for optional fields."""
         if self.found_assemblies is None:
             self.found_assemblies = []
         if self.found_strings is None:
@@ -63,6 +65,7 @@ class DotnetAnalysisResult(BaseResult):
             self.blob_files_processed = []
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert result to dictionary."""
         base_dict = super().to_dict()
         base_dict.update(
             {
@@ -81,7 +84,7 @@ class DotnetAnalysisResult(BaseResult):
 @register_module("dotnet_analysis")
 class DotnetAnalysisModule(BaseAnalysisModule):
     """
-    .NET/Mono analysis module for analyzing Xamarin and other .NET-based Android applications
+    .NET/Mono analysis module for analyzing Xamarin and other .NET-based Android applications.
 
     This module:
     1. Detects .NET DLL files in the APK
@@ -92,6 +95,7 @@ class DotnetAnalysisModule(BaseAnalysisModule):
     """
 
     def __init__(self, config: dict[str, Any]):
+        """Initialize DotnetAnalysisModule with configuration."""
         super().__init__(config)
         self.logger = logging.getLogger(__name__)
         self.dlls_to_analyze = []
@@ -100,12 +104,12 @@ class DotnetAnalysisModule(BaseAnalysisModule):
         self.force_architecture = config.get("force_architecture", "arm64")
 
     def get_dependencies(self) -> list[str]:
-        """No dependencies for .NET analysis"""
+        """No dependencies for .NET analysis."""
         return []
 
     def analyze(self, apk_path: str, context: AnalysisContext) -> DotnetAnalysisResult:
         """
-        Perform .NET analysis on the APK
+        Perform .NET analysis on the APK.
 
         Args:
             apk_path: Path to the APK file
@@ -278,7 +282,7 @@ class DotnetAnalysisModule(BaseAnalysisModule):
             )
 
     def _check_prerequisites(self) -> bool:
-        """Check if required tools for .NET analysis are available"""
+        """Check if required tools for .NET analysis are available."""
         if is_macos():
             # On macOS, check for dotnet and ILSpy
             if not shutil.which("dotnet"):
@@ -295,7 +299,7 @@ class DotnetAnalysisModule(BaseAnalysisModule):
             return True
 
     def _collect_dlls(self, dll_path: str, dll_pattern: str):
-        """Collect DLL files for analysis"""
+        """Collect DLL files for analysis."""
         try:
             if os.path.isdir(dll_path):
                 files = os.listdir(dll_path)
@@ -312,7 +316,7 @@ class DotnetAnalysisModule(BaseAnalysisModule):
             self.logger.error(f"Exception when collecting DLLs: {e}")
 
     def _filter_manifest(self) -> list[str]:
-        """Filter manifest to get relevant assemblies, excluding system libraries"""
+        """Filter manifest to get relevant assemblies, excluding system libraries."""
         try:
             invalid_assemblies = []
 
@@ -366,7 +370,7 @@ class DotnetAnalysisModule(BaseAnalysisModule):
             return []
 
     def _unpack_blob(self) -> bool:
-        """Unpack .blob files using the blob unpacker"""
+        """Unpack .blob files using the blob unpacker."""
         try:
             self.logger.debug(f"Unpacking blobs with architecture: {self.force_architecture}")
             blobUnpack.do_unpack(".blobs/", self.force_architecture, force=True)
@@ -376,7 +380,7 @@ class DotnetAnalysisModule(BaseAnalysisModule):
             return False
 
     def _decompile_dlls(self, unzip_apk_path: str):
-        """Decompile DLL files using appropriate tools"""
+        """Decompile DLL files using appropriate tools."""
         try:
             decompiled_dir = os.path.join(self.decompile_target, "decompiled_dlls")
             os.makedirs(decompiled_dir, exist_ok=True)
@@ -425,7 +429,7 @@ class DotnetAnalysisModule(BaseAnalysisModule):
             self.logger.error(f"Exception when decompiling DLLs: {e}")
 
     def _analyze_dlls(self, app_name: str) -> dict[str, Any]:
-        """Analyze decompiled DLL files and extract strings"""
+        """Analyze decompiled DLL files and extract strings."""
         try:
             results = {"found_strings": []}
 
@@ -468,7 +472,7 @@ class DotnetAnalysisModule(BaseAnalysisModule):
             return {"found_strings": []}
 
     def _extract_strings_from_decompiled(self, dll_dir: str) -> list[str]:
-        """Extract all quoted strings from .cs files in a decompiled DLL directory"""
+        """Extract all quoted strings from .cs files in a decompiled DLL directory."""
         found_strings = set()
         decompiled_dir = Path(dll_dir)
 
@@ -501,7 +505,7 @@ class DotnetAnalysisModule(BaseAnalysisModule):
         return sorted(found_strings)
 
     def _extract_strings_from_constants_file(self, constants_file: str) -> list[str]:
-        """Extract strings from monodis constants output file"""
+        """Extract strings from monodis constants output file."""
         found_strings = set()
 
         try:
@@ -519,7 +523,7 @@ class DotnetAnalysisModule(BaseAnalysisModule):
         return sorted(found_strings)
 
     def validate_config(self) -> bool:
-        """Validate module configuration"""
+        """Validate module configuration."""
         if self.force_architecture not in ["arm64", "arm64_v8a", "x86", "x86_64"]:
             self.logger.warning(f"Invalid architecture specified: {self.force_architecture}")
             return False

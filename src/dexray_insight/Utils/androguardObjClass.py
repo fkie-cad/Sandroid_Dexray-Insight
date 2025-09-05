@@ -20,6 +20,31 @@
 # # See the License for the specific language governing permissions and
 # # limitations under the License.
 
+"""Androguard object wrapper classes for APK analysis.
+
+This module provides wrapper classes for Androguard objects to standardize
+APK, DEX, and analysis object access across the Dexray Insight framework.
+"""
+
+# #!/usr/bin/env python3
+# # -*- coding: utf-8 -*-
+#
+# # Copyright (C) {{ year }} Dexray Insight Contributors
+# #
+# # This file is part of Dexray Insight - Android APK Security Analysis Tool
+# #
+# # Licensed under the Apache License, Version 2.0 (the "License");
+# # you may not use this file except in compliance with the License.
+# # You may obtain a copy of the License at
+# #
+# #     http://www.apache.org/licenses/LICENSE-2.0
+# #
+# # Unless required by applicable law or agreed to in writing, software
+# # distributed under the License is distributed on an "AS IS" BASIS,
+# # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# # See the License for the specific language governing permissions and
+# # limitations under the License.
+
 import logging
 
 from androguard.misc import AnalyzeAPK
@@ -27,7 +52,10 @@ from loguru import logger
 
 
 class Androguard_Obj:
+    """Wrapper class for Androguard APK analysis objects."""
+
     def __init__(self, apk_path):
+        """Initialize Androguard analysis objects from APK path."""
         logging.getLogger("androguard").disabled = True
 
         # just suppresing the messages from androguard
@@ -70,12 +98,14 @@ class Androguard_Obj:
 
     # Getter for androguard_apk
     def get_androguard_apk(self):
+        """Get the Androguard APK object."""
         return self.androguard_apk
 
     # Getter for androguard_dex
     def get_androguard_dex(self):
+        """Get the Androguard DEX objects list."""
         return self.androguard_dex
 
-    # Getter for androguard_analysisObj
     def get_androguard_analysisObj(self):
+        """Get the Androguard analysis object."""
         return self.androguard_analysisObj

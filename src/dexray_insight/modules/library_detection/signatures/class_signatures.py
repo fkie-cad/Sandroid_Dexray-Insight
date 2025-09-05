@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Class Signature Extraction for Library Detection
+Class Signature Extraction for Library Detection.
 
 Contains functionality to extract class signatures from DEX objects
 for similarity-based library detection. Used in LibScan-style analysis.
@@ -42,11 +42,12 @@ class ClassSignatureExtractor:
     """
 
     def __init__(self):
+        """Initialize ClassSignatureExtractor with logger."""
         self.logger = logging.getLogger(__name__)
 
     def extract_class_signatures(self, dex_objects: list[Any]) -> dict[str, Any]:
         """
-        Extract class signatures for similarity analysis
+        Extract class signatures for similarity analysis.
 
         Args:
             dex_objects: List of DEX objects from androguard
@@ -95,7 +96,7 @@ class ClassSignatureExtractor:
 
     def build_class_dependency_graph(self, dex_objects: list[Any]) -> dict[str, dict[str, Any]]:
         """
-        Build a dependency graph of classes for structural analysis
+        Build a dependency graph of classes for structural analysis.
 
         Args:
             dex_objects: List of DEX objects from androguard
@@ -157,7 +158,7 @@ class ClassSignatureExtractor:
 
     def extract_method_opcode_patterns(self, dex_objects: list[Any]) -> dict[str, list[str]]:
         """
-        Extract method-level opcode patterns for similarity matching
+        Extract method-level opcode patterns for similarity matching.
 
         Args:
             dex_objects: List of DEX objects from androguard
@@ -195,7 +196,7 @@ class ClassSignatureExtractor:
 
     def extract_call_chain_patterns(self, dex_objects: list[Any]) -> dict[str, list[str]]:
         """
-        Extract call chain patterns for advanced similarity analysis
+        Extract call chain patterns for advanced similarity analysis.
 
         Args:
             dex_objects: List of DEX objects from androguard

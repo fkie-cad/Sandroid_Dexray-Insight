@@ -58,6 +58,8 @@ PKG_REGEX = re.compile(r"package\s+([a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9
 
 
 class Color:
+    """ANSI color codes for terminal output."""
+
     GREEN = "\033[92m"
     GREY = "\033[0;37m"
     RED = "\033[91m"
@@ -67,21 +69,25 @@ class Color:
 
 # for now it is just a dummy - maybe used in future sandroid releases
 def find_java_binary():
+    """Find Java binary path (placeholder function)."""
     return None
 
 
 def filename_from_path(path):
+    """Extract filename from path string."""
     head, tail = ntpath.split(path)
     return tail or ntpath.basename(head)
 
 
 def get_md5(data):
+    """Calculate MD5 hash of data."""
     if isinstance(data, str):
         data = data.encode("utf-8")
     return hashlib.md5(data).hexdigest()
 
 
 def find_between(s, first, last):
+    """Find substring between first and last delimiters."""
     try:
         start = s.index(first) + len(first)
         end = s.index(last, start)
@@ -91,6 +97,7 @@ def find_between(s, first, last):
 
 
 def is_number(s):
+    """Check if string represents a valid number."""
     if not s:
         return False
     if s == "NaN":
@@ -109,6 +116,7 @@ def is_number(s):
 
 
 def python_list(value):
+    """Convert value to Python list."""
     if not value:
         value = []
     if isinstance(value, list):
@@ -117,6 +125,7 @@ def python_list(value):
 
 
 def python_dict(value):
+    """Convert value to Python dictionary."""
     if not value:
         value = {}
     if isinstance(value, dict):
@@ -125,10 +134,12 @@ def python_dict(value):
 
 
 def is_base64(b_str):
+    """Check if string is valid base64."""
     return BASE64_REGEX.match(b_str)
 
 
 def sha256(file_path):
+    """Calculate SHA256 hash of file."""
     blocksize = 65536
     hasher = hashlib.sha256()
     with open(file_path, mode="rb") as afile:
@@ -140,6 +151,7 @@ def sha256(file_path):
 
 
 def sha256_object(file_obj):
+    """Calculate SHA256 hash of file object."""
     blocksize = 65536
     hasher = hashlib.sha256()
     buf = file_obj.read(blocksize)
@@ -158,6 +170,7 @@ def gen_sha256_hash(msg):
 
 
 def is_file_exists(file_path):
+    """Check if file exists at path."""
     if os.path.isfile(file_path):
         return True
     # This fix situation where a user just typed "adb" or another executable
@@ -166,6 +179,7 @@ def is_file_exists(file_path):
 
 
 def is_dir_exists(dir_path):
+    """Check if directory exists at path."""
     return os.path.isdir(dir_path)
 
 
@@ -190,6 +204,7 @@ def is_md5(user_input):
 
 
 def clean_filename(filename, replace=" "):
+    """Clean filename for safe filesystem use."""
     if platform.system() == "Windows":
         whitelist = f"-_.() {string.ascii_letters}{string.digits}"
         # replace spaces
@@ -252,8 +267,7 @@ def is_instance_id(user_input):
 
 
 def common_check(instance_id):
-    """Common checks for instance APIs."""
-
+    """Perform common checks for instance APIs."""
     if not is_instance_id(instance_id):
         return {"status": "failed", "message": "Invalid instance identifier"}
     else:
@@ -269,6 +283,7 @@ def is_path_traversal(user_input):
 
 
 def is_zip_magic(file_obj):
+    """Check if file has ZIP magic bytes."""
     magic = file_obj.read(4)
     file_obj.seek(0, 0)
     # ZIP magic PK.. no support for spanned and empty arch
@@ -276,6 +291,7 @@ def is_zip_magic(file_obj):
 
 
 def is_elf_so_magic(file_obj):
+    """Check if file has ELF/SO magic bytes."""
     magic = file_obj.read(4)
     file_obj.seek(0, 0)
     # ELF/SO Magic
@@ -283,6 +299,7 @@ def is_elf_so_magic(file_obj):
 
 
 def is_dylib_magic(file_obj):
+    """Check if file has dylib magic bytes."""
     magic = file_obj.read(4)
     file_obj.seek(0, 0)
     # DYLIB Magic
@@ -298,6 +315,7 @@ def is_dylib_magic(file_obj):
 
 
 def is_a_magic(file_obj):
+    """Check if file has archive magic bytes."""
     magic = file_obj.read(4)
     file_obj.seek(0, 0)
     magics = (
@@ -309,11 +327,13 @@ def is_a_magic(file_obj):
 
 
 def disable_print():
+    """Disable stdout printing."""
     sys.stdout = open(os.devnull, "w")
 
 
 # Restore
 def enable_print():
+    """Re-enable stdout printing."""
     sys.stdout = sys.__stdout__
 
 
@@ -339,7 +359,7 @@ def key(data, key_name):
 
 def replace(value, arg):
     """
-    Replacing filter.
+    Replace text using filter.
 
     Use `{{ "aaa"|replace:"a|b" }}`
     """
@@ -416,6 +436,7 @@ def android_component(data):
 
 
 def get_android_dm_exception_msg():
+    """Get Android device manager exception message."""
     return (
         "Is your Android VM/emulator running? MobSF cannot"
         " find the android device identifier."

@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Mode Manager
+Mode Manager.
 
 Manages analysis modes (fast vs deep) and coordinates the appropriate
 analysis strategy based on configuration and available objects.
@@ -35,15 +35,16 @@ from dexray_insight.core.base_classes import AnalysisContext
 
 
 class ModeManager:
-    """Manages behavior analysis modes and object availability"""
+    """Manages behavior analysis modes and object availability."""
 
     def __init__(self, config: dict[str, Any], logger: Optional[logging.Logger] = None):
+        """Initialize ModeManager with configuration and optional logger."""
         self.config = config
         self.logger = logger or logging.getLogger(__name__)
 
     def determine_analysis_mode(self, context: AnalysisContext) -> tuple[bool, str]:
         """
-        Determine whether to run in fast or deep mode
+        Determine whether to run in fast or deep mode.
 
         Returns:
             Tuple of (is_deep_mode, mode_description)
@@ -65,7 +66,7 @@ class ModeManager:
             return False, "FAST"
 
     def is_module_enabled(self, context: AnalysisContext) -> bool:
-        """Check if the behavior analysis module is enabled"""
+        """Check if the behavior analysis module is enabled."""
         try:
             return context.config.get("behaviour_analysis", {}).get("enabled", True)
         except Exception as e:
@@ -74,7 +75,7 @@ class ModeManager:
 
     def prepare_analysis_objects(self, context: AnalysisContext, is_deep_mode: bool) -> dict[str, Any]:
         """
-        Prepare analysis objects based on mode
+        Prepare analysis objects based on mode.
 
         Returns:
             Dictionary containing the prepared objects for analysis
@@ -108,7 +109,7 @@ class ModeManager:
             raise
 
     def store_analysis_objects_in_result(self, result, analysis_objects: dict[str, Any]) -> None:
-        """Store androguard objects in the result for security analysis access"""
+        """Store androguard objects in the result for security analysis access."""
         try:
             if analysis_objects["mode"] == "deep":
                 result.androguard_objects = {
@@ -128,7 +129,7 @@ class ModeManager:
             self.logger.error(f"Error storing analysis objects in result: {e}")
 
     def generate_analysis_summary(self, result, is_deep_mode: bool) -> dict[str, Any]:
-        """Generate analysis summary based on results and mode"""
+        """Generate analysis summary based on results and mode."""
         try:
             detected_count = len(result.get_detected_features())
             total_count = len(result.findings)

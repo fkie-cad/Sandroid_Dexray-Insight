@@ -19,12 +19,16 @@
 # # See the License for the specific language governing permissions and
 # # limitations under the License.
 
+"""Library detection results module for tracking detected libraries and analysis metadata."""
+
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
 
 class LibraryDetectionMethod(Enum):
+    """Enumeration of library detection methods."""
+
     HEURISTIC = "heuristic"
     SIMILARITY = "similarity"
     HYBRID = "hybrid"
@@ -38,6 +42,8 @@ class LibraryDetectionMethod(Enum):
 
 
 class LibraryCategory(Enum):
+    """Enumeration of library categories for classification."""
+
     ANALYTICS = "analytics"
     ADVERTISING = "advertising"
     TRACKING = "tracking"
@@ -63,6 +69,8 @@ class LibraryCategory(Enum):
 
 
 class LibraryType(Enum):
+    """Enumeration of library types for classification."""
+
     ANDROIDX = "androidx"
     MATERIAL_DESIGN = "material_design"
     KOTLIN_INFRASTRUCTURE = "kotlin_infrastructure"
@@ -75,6 +83,8 @@ class LibraryType(Enum):
 
 
 class RiskLevel(Enum):
+    """Enumeration of security risk levels for libraries."""
+
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
@@ -83,6 +93,8 @@ class RiskLevel(Enum):
 
 
 class LibrarySource(Enum):
+    """Enumeration of library detection sources."""
+
     SMALI_CLASSES = "smali_classes"
     NATIVE_LIBS = "native_libs"
     MANIFEST = "manifest"
@@ -94,7 +106,7 @@ class LibrarySource(Enum):
 
 @dataclass
 class DetectedLibrary:
-    """Represents a detected third-party library with comprehensive analysis"""
+    """Represents a detected third-party library with comprehensive analysis."""
 
     name: str
     package_name: str | None = None
@@ -134,6 +146,7 @@ class DetectedLibrary:
     smali_path: str | None = None  # Smali path where library was found
 
     def __post_init__(self):
+        """Initialize default values for optional fields."""
         if self.evidence is None:
             self.evidence = []
         if self.classes_detected is None:
@@ -150,7 +163,7 @@ class DetectedLibrary:
             self.anti_features = []
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary representation"""
+        """Convert to dictionary representation."""
         return {
             "name": self.name,
             "package_name": self.package_name,
@@ -188,7 +201,7 @@ class DetectedLibrary:
         }
 
     def get_age_description(self) -> str:
-        """Get human-readable age description"""
+        """Get human-readable age description."""
         if self.age_years_behind is None:
             return "Unknown"
         elif self.age_years_behind < 1:
@@ -199,8 +212,7 @@ class DetectedLibrary:
             return f"~{self.age_years_behind:.0f} years behind"
 
     def format_version_output(self) -> str:
-        """
-        Format library with version information for console output.
+        """Format library with version information for console output.
 
         Format: library name (version): smali path : years behind
         Example: Gson (2.8.5): /com/google/gson/ : 2.1 years behind
@@ -239,7 +251,7 @@ class DetectedLibrary:
         return base_output
 
     def get_risk_description(self) -> str:
-        """Get human-readable risk description"""
+        """Get human-readable risk description."""
         if self.risk_level == RiskLevel.CRITICAL:
             return "Critical Risk"
         elif self.risk_level == RiskLevel.HIGH:
@@ -254,7 +266,7 @@ class DetectedLibrary:
 
 @dataclass
 class LibraryDetectionResults:
-    """Results container for library detection analysis with formatting methods"""
+    """Results container for library detection analysis with formatting methods."""
 
     detected_libraries: list[DetectedLibrary]
     total_libraries: int
@@ -266,7 +278,7 @@ class LibraryDetectionResults:
     stage2_time: float
 
     def __init__(self, library_result):
-        """Initialize from LibraryDetectionResult object"""
+        """Initialize from LibraryDetectionResult object."""
         self.detected_libraries = library_result.detected_libraries or []
         self.total_libraries = library_result.total_libraries or 0
         self.heuristic_detections = [
@@ -281,7 +293,7 @@ class LibraryDetectionResults:
         self.stage2_time = getattr(library_result, "stage2_time", 0.0)
 
     def get_summary(self) -> str:
-        """Get a human-readable summary of library detection results"""
+        """Get a human-readable summary of library detection results."""
         if self.total_libraries == 0:
             return "🟢 No third-party libraries detected in this APK"
 
@@ -327,7 +339,7 @@ class LibraryDetectionResults:
         return "\n".join(summary_lines)
 
     def get_console_summary(self) -> str:
-        """Get a console-friendly summary without markdown"""
+        """Get a console-friendly summary without markdown."""
         if self.total_libraries == 0:
             return "✓ No third-party libraries detected in this APK"
 
@@ -359,7 +371,7 @@ class LibraryDetectionResults:
         return "\n".join(summary_lines)
 
     def get_detailed_results(self) -> dict[str, Any]:
-        """Get detailed results for JSON export"""
+        """Get detailed results for JSON export."""
         return {
             "library_detection": {
                 "total_libraries_detected": self.total_libraries,
@@ -377,26 +389,26 @@ class LibraryDetectionResults:
         }
 
     def get_library_by_name(self, name: str) -> DetectedLibrary | None:
-        """Get specific library details by name"""
+        """Get specific library details by name."""
         for library in self.detected_libraries:
             if library.name.lower() == name.lower():
                 return library
         return None
 
     def get_libraries_by_category(self, category: LibraryCategory) -> list[DetectedLibrary]:
-        """Get all libraries in a specific category"""
+        """Get all libraries in a specific category."""
         return [library for library in self.detected_libraries if library.category == category]
 
     def get_high_confidence_libraries(self, threshold: float = 0.9) -> list[DetectedLibrary]:
-        """Get libraries with confidence above threshold"""
+        """Get libraries with confidence above threshold."""
         return [library for library in self.detected_libraries if library.confidence >= threshold]
 
     def get_libraries_by_method(self, method: LibraryDetectionMethod) -> list[DetectedLibrary]:
-        """Get libraries detected by specific method"""
+        """Get libraries detected by specific method."""
         return [library for library in self.detected_libraries if library.detection_method == method]
 
     def export_to_dict(self) -> dict[str, Any]:
-        """Export all results to dictionary format"""
+        """Export all results to dictionary format."""
         return {
             "detected_libraries": [lib.to_dict() for lib in self.detected_libraries],
             "total_libraries": self.total_libraries,
@@ -409,7 +421,7 @@ class LibraryDetectionResults:
         }
 
     def _get_confidence_icon(self, confidence: float) -> str:
-        """Get confidence icon for markdown display"""
+        """Get confidence icon for markdown display."""
         if confidence >= 0.95:
             return "🔴"  # Very High
         elif confidence >= 0.85:
@@ -420,7 +432,7 @@ class LibraryDetectionResults:
             return "🟢"  # Low
 
     def _get_confidence_symbol(self, confidence: float) -> str:
-        """Get confidence symbol for console display"""
+        """Get confidence symbol for console display."""
         if confidence >= 0.95:
             return "●"  # Very High
         elif confidence >= 0.85:
@@ -431,7 +443,7 @@ class LibraryDetectionResults:
             return "○"  # Low
 
     def _get_category_breakdown(self) -> dict[str, int]:
-        """Get breakdown of libraries by category"""
+        """Get breakdown of libraries by category."""
         breakdown: dict[str, int] = {}
         for library in self.detected_libraries:
             category = library.category.value

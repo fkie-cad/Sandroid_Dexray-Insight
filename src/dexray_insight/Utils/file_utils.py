@@ -1,5 +1,31 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
+# #!/usr/bin/env python3
+# # -*- coding: utf-8 -*-
+#
+# # Copyright (C) {{ year }} Dexray Insight Contributors
+# #
+# # This file is part of Dexray Insight - Android APK Security Analysis Tool
+# #
+# # Licensed under the Apache License, Version 2.0 (the "License");
+# # you may not use this file except in compliance with the License.
+# # You may obtain a copy of the License at
+# #
+# #     http://www.apache.org/licenses/LICENSE-2.0
+# #
+# # Unless required by applicable law or agreed to in writing, software
+# # distributed under the License is distributed on an "AS IS" BASIS,
+# # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# # See the License for the specific language governing permissions and
+# # limitations under the License.
+
+"""File utilities for APK analysis and processing.
+
+This module provides utility functions for file operations, path manipulation,
+hashing, and JSON serialization used throughout the Dexray Insight framework.
+"""
+
 # #!/usr/bin/env python3
 # # -*- coding: utf-8 -*-
 #
@@ -66,7 +92,7 @@ def backup_and_replace_with_template(original_file_path: str, template_cs_file: 
 
 def get_parent_directory(path: str) -> str:
     """
-    Returns the parent directory of the given path.
+    Return the parent directory of the given path.
 
     Example:
     Input: "/project/targetapk_2025-03-08_20-28-38_asam_results/targetapk_unzipped"
@@ -76,11 +102,12 @@ def get_parent_directory(path: str) -> str:
 
 
 def is_macos() -> bool:
+    """Return True if running on macOS."""
     return platform.system() == "Darwin"
 
 
 def create_new_directory(dir_name: str) -> str:
-    """Creates a asam analysis directory (errors if exists)"""
+    """Create an asam analysis directory (errors if exists)."""
     if os.path.exists(dir_name):
         raise FileExistsError(f"Directory already exists: {dir_name}")
     os.makedirs(dir_name)
@@ -88,9 +115,7 @@ def create_new_directory(dir_name: str) -> str:
 
 
 def unzip_apk_with_skip(app_name: str, apk_path: str) -> tuple[str, list[str]]:
-    """
-    Unzips an APK while ignoring CRC errors, returns (destination_path, skipped_files)
-    """
+    """Unzip an APK while ignoring CRC errors, returns (destination_path, skipped_files)."""
     dest_dir = os.path.abspath(app_name)
     os.makedirs(dest_dir, exist_ok=True)
     skipped_files = []
@@ -160,7 +185,7 @@ def unzip_apk(app_name: str, apk_path: str) -> str:
 
 def split_path_file_extension(file_path):
     """
-    Splits a file path into directory path, filename without extension, and the extension.
+    Split a file path into directory path, filename without extension, and the extension.
 
     Args:
         file_path (str): The file path to split.
@@ -186,24 +211,31 @@ def calculate_file_hash(file_path, hash_func):
 
 
 def calculate_md5_file_hash(filename):
+    """Calculate MD5 hash of file."""
     return calculate_file_hash(filename, hashlib.md5)
 
 
 def calculate_sha1_file_hash(filename):
+    """Calculate SHA1 hash of file."""
     return calculate_file_hash(filename, hashlib.sha1)
 
 
 def calculate_sha256_file_hash(filename):
+    """Calculate SHA256 hash of file."""
     return calculate_file_hash(filename, hashlib.sha256)
 
 
 def calculate_sha512_file_hash(filename):
+    """Calculate SHA512 hash of file."""
     return calculate_file_hash(filename, hashlib.sha512)
 
 
 # Custom encoder to handle non-serializable objects like datetime
 class CustomJSONEncoder(json.JSONEncoder):
+    """Custom JSON encoder for datetime and dataclass objects."""
+
     def default(self, obj):
+        """Override default serialization for special objects."""
         if isinstance(obj, datetime):
             return obj.isoformat()  # Convert datetime to ISO 8601 format string
         # Handle Enum objects
@@ -221,6 +253,7 @@ class CustomJSONEncoder(json.JSONEncoder):
 
 
 def dump_json(filename, data):
+    """Dump data to JSON file with custom encoder."""
     # Assuming `data` is your Python dictionary
     with open(filename, "w") as json_file:
         json.dump(data, json_file, cls=CustomJSONEncoder, indent=4)

@@ -20,7 +20,7 @@
 # # limitations under the License.
 
 """
-CVE (Common Vulnerabilities and Exposures) Assessment
+CVE (Common Vulnerabilities and Exposures) Assessment.
 
 This module provides comprehensive CVE vulnerability scanning for detected libraries
 by querying multiple online CVE databases including OSV, NVD, and GitHub Advisory.
@@ -175,6 +175,7 @@ class CVEAssessment(BaseSecurityAssessment):
         return s
 
     def build_sources_config(self, sources_config: dict[str, Any]) -> dict[str, dict[str, Any]]:
+        """Build and validate CVE sources configuration."""
         defaults = {
             "osv": {"enabled": False, "api_key": None},
             "nvd": {"enabled": False, "api_key": None},
@@ -206,8 +207,7 @@ class CVEAssessment(BaseSecurityAssessment):
         return out
 
     def _initialize_clients(self):
-        """Initialize CVE database clients based on configuration"""
-
+        """Initialize CVE database clients based on configuration."""
         self.logger.info("=== CVE Client Initialization ===")
         self.logger.info(f"Sources configuration: {self.sources_config}")
 
@@ -389,7 +389,7 @@ class CVEAssessment(BaseSecurityAssessment):
         return findings
 
     def _extract_scannable_libraries(self, analysis_results: dict[str, Any]) -> list[dict[str, Any]]:
-        """Extract libraries with versions that can be scanned for CVEs (native and/or regular libraries based on config)"""
+        """Extract libraries with versions that can be scanned for CVEs (native and/or regular libraries based on config)."""
         scannable_libraries = []
 
         # Check configuration to determine what types of libraries to scan
@@ -680,7 +680,7 @@ class CVEAssessment(BaseSecurityAssessment):
         return scannable_libraries
 
     def _scan_libraries_for_cves(self, libraries: list[dict[str, Any]]) -> list[CVEVulnerability]:
-        """Scan libraries for CVE vulnerabilities using multiple sources with improved timeout handling"""
+        """Scan libraries for CVE vulnerabilities using multiple sources with improved timeout handling."""
         all_vulnerabilities = []
 
         # Perform health checks ONLY on enabled clients
@@ -806,7 +806,7 @@ class CVEAssessment(BaseSecurityAssessment):
     def _scan_single_library_with_retry(
         self, client, source: str, library_name: str, version: str
     ) -> list[CVEVulnerability]:
-        """Scan a single library using a specific CVE client with retry logic"""
+        """Scan a single library using a specific CVE client with retry logic."""
         import time
 
         last_exception = None
@@ -873,11 +873,11 @@ class CVEAssessment(BaseSecurityAssessment):
         return []
 
     def _scan_single_library(self, client, source: str, library_name: str, version: str) -> list[CVEVulnerability]:
-        """Scan a single library using a specific CVE client (legacy method for compatibility)"""
+        """Scan a single library using a specific CVE client (legacy method for compatibility)."""
         return self._scan_single_library_with_retry(client, source, library_name, version)
 
     def _deduplicate_vulnerabilities(self, vulnerabilities: list[CVEVulnerability]) -> list[CVEVulnerability]:
-        """Remove duplicate vulnerabilities based on CVE ID"""
+        """Remove duplicate vulnerabilities based on CVE ID."""
         seen_cves = {}
         unique_vulns = []
 
@@ -905,7 +905,7 @@ class CVEAssessment(BaseSecurityAssessment):
     def _create_security_findings(
         self, vulnerabilities: list[CVEVulnerability], libraries: list[dict[str, Any]], context: Any | None = None
     ) -> list[SecurityFinding]:
-        """Create security findings from CVE vulnerabilities with enhanced library mapping"""
+        """Create security findings from CVE vulnerabilities with enhanced library mapping."""
         findings = []
 
         # Create library lookup for vulnerability attribution
@@ -1041,7 +1041,7 @@ class CVEAssessment(BaseSecurityAssessment):
         return findings
 
     def _get_temporal_directory(self, analysis_results: dict[str, Any]) -> str:
-        """Get temporal directory path from analysis results"""
+        """Get temporal directory path from analysis results."""
         try:
             # Try to get temporal directory from analysis context
             context = analysis_results.get("_analysis_context", {})
@@ -1068,7 +1068,7 @@ class CVEAssessment(BaseSecurityAssessment):
     def _filter_relevant_cves(
         self, vulnerabilities: list[CVEVulnerability], scannable_libraries: list[dict[str, Any]]
     ) -> list[CVEVulnerability]:
-        """Filter out CVEs that are clearly not relevant to mobile/Android applications"""
+        """Filter out CVEs that are clearly not relevant to mobile/Android applications."""
         relevant_cves = []
         library_names = {lib["name"].lower() for lib in scannable_libraries}
 
@@ -1180,13 +1180,13 @@ class CVEAssessment(BaseSecurityAssessment):
         return relevant_cves
 
     def _normalize_library_name(self, name: str) -> str:
-        """Normalize library name for comparison"""
+        """Normalize library name for comparison."""
         return name.lower().replace("-", "_").replace(".", "_")
 
     def _create_cve_library_mapping(
         self, vulnerabilities: list[CVEVulnerability], library_lookup: dict[str, dict[str, Any]]
     ) -> dict[str, Any]:
-        """Create detailed CVE-to-library mapping for JSON export"""
+        """Create detailed CVE-to-library mapping for JSON export."""
         cve_mapping = {}
         library_cve_counts = {}
 
@@ -1251,7 +1251,7 @@ class CVEAssessment(BaseSecurityAssessment):
         cve_mapping: dict[str, Any],
         context: Any | None = None,
     ) -> SecurityFinding:
-        """Create enhanced security finding with CVE-to-library attribution"""
+        """Create enhanced security finding with CVE-to-library attribution."""
         evidence = []
         cve_references = []
 
@@ -1378,8 +1378,7 @@ class CVEAssessment(BaseSecurityAssessment):
     def _create_severity_finding(
         self, vulnerabilities: list[CVEVulnerability], severity: AnalysisSeverity, title: str, description: str
     ) -> SecurityFinding:
-        """Create a security finding for vulnerabilities of a specific severity"""
-
+        """Create a security finding for vulnerabilities of a specific severity."""
         evidence = []
         cve_references = []
 
@@ -1543,7 +1542,7 @@ class CVEAssessment(BaseSecurityAssessment):
         return True
 
     def get_scan_statistics(self) -> dict[str, Any]:
-        """Get CVE scanning statistics"""
+        """Get CVE scanning statistics."""
         stats = {
             "clients_initialized": len(self.clients),
             "cache_stats": self.cache_manager.get_cache_stats() if self.cache_manager else {},

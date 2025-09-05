@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Version Parser for CVE Scanning
+Version Parser for CVE Scanning.
 
 This module provides utilities for parsing, normalizing, and comparing
 software version strings in the context of CVE vulnerability checking.
@@ -33,9 +33,10 @@ from typing import Optional
 
 
 class VersionParser:
-    """Utility class for parsing and comparing version strings"""
+    """Utility class for parsing and comparing version strings."""
 
     def __init__(self):
+        """Initialize version parser with common version patterns."""
         self.logger = logging.getLogger(__name__)
 
         # Common version patterns
@@ -82,7 +83,7 @@ class VersionParser:
         return None
 
     def _clean_version_string(self, version: str) -> str:
-        """Clean and normalize version string"""
+        """Clean and normalize version string."""
         # Remove common prefixes
         cleaned = re.sub(r"^[vV]", "", version.strip())
 
@@ -124,7 +125,7 @@ class VersionParser:
             return self._custom_version_compare(version1, version2)
 
     def _custom_version_compare(self, version1: str, version2: str) -> int:
-        """Custom version comparison when packaging library is not available"""
+        """Compare versions when packaging library is not available."""
         parts1 = self.parse_version(version1)
         parts2 = self.parse_version(version2)
 
@@ -167,7 +168,7 @@ class VersionParser:
         return 0
 
     def _prerelease_value(self, prerelease: str) -> int:
-        """Convert pre-release string to numeric value for comparison"""
+        """Convert pre-release string to numeric value for comparison."""
         prerelease_lower = prerelease.lower()
 
         if "alpha" in prerelease_lower:

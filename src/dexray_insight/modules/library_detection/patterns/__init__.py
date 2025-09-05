@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Library Detection Patterns Package
+Library Detection Patterns Package.
 
 Contains pattern definitions for heuristic library detection.
 Separated from main module for better maintainability and extensibility.

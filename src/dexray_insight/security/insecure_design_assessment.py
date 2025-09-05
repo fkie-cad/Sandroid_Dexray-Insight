@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 # #!/usr/bin/env python3
 # # -*- coding: utf-8 -*-
@@ -18,6 +19,12 @@
 # # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # # See the License for the specific language governing permissions and
 # # limitations under the License.
+
+"""Insecure Design Assessment.
+
+This module implements OWASP A04:2021 - Insecure Design vulnerability assessment.
+It identifies design-level security flaws and missing security controls in Android applications.
+"""
 
 import logging
 from typing import Any
@@ -46,6 +53,7 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
     """
 
     def __init__(self, config: dict[str, Any]):
+        """Initialize insecure design assessment."""
         super().__init__(config)
         self.logger = logging.getLogger(__name__)
         self.owasp_category = "A04:2021-Insecure Design"
@@ -200,7 +208,7 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_insecure_data_flows(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """Assess for insecure data flow patterns"""
+        """Assess for insecure data flow patterns."""
         findings = []
 
         # Get string analysis results
@@ -258,7 +266,7 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_missing_security_controls(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """Assess for missing essential security controls"""
+        """Assess for missing essential security controls."""
         findings = []
 
         # Get manifest analysis to check for security controls
@@ -336,7 +344,7 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_cryptographic_design(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """Assess cryptographic design patterns"""
+        """Assess cryptographic design patterns."""
         findings = []
 
         # Get API invocation results for crypto usage
@@ -408,7 +416,7 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_ipc_design(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """Assess inter-process communication design"""
+        """Assess inter-process communication design."""
         findings = []
 
         # Get manifest data for component analysis
@@ -499,7 +507,7 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_external_interfaces(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """Assess external interface security design"""
+        """Assess external interface security design."""
         findings = []
 
         string_results = analysis_results.get("string_analysis", {})
@@ -549,7 +557,7 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_threat_scenario_coverage(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """Assess coverage of common mobile threat scenarios"""
+        """Assess coverage of common mobile threat scenarios."""
         findings = []
 
         # This is a high-level assessment of whether the app design addresses common threats

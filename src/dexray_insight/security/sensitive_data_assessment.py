@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""OWASP A03:2021 - Sensitive Data Exposure security assessment with 54+ secret patterns."""
 
 # #!/usr/bin/env python3
 # # -*- coding: utf-8 -*-
@@ -31,11 +32,10 @@ from ..core.base_classes import register_assessment
 
 @register_assessment("sensitive_data")
 class SensitiveDataAssessment(BaseSecurityAssessment):
-    """OWASP A02:2021 - Cryptographic Failures / Sensitive Data Exposure assessment"""
+    """OWASP A02:2021 - Cryptographic Failures / Sensitive Data Exposure assessment."""
 
     def __init__(self, config: dict[str, Any]):
-        """
-        Initialize SensitiveDataAssessment with comprehensive configuration.
+        """Initialize SensitiveDataAssessment with comprehensive configuration.
 
         Refactored to use single-responsibility functions following SOLID principles.
         Maintains exact same behavior as original while improving maintainability.
@@ -66,8 +66,7 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
         self.detection_patterns = getattr(self, "key_detection_patterns", {})
 
     def _initialize_basic_configuration(self, config: dict[str, Any]):
-        """
-        Initialize basic class configuration and logging.
+        """Initialize basic class configuration and logging.
 
         Single Responsibility: Set up core class attributes, logging, and OWASP category only.
         """
@@ -78,8 +77,7 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
         self.crypto_keys_check = config.get("crypto_keys_check", True)
 
     def _setup_pattern_enablement(self, config: dict[str, Any]):
-        """
-        Configure which detection patterns are enabled.
+        """Configure which detection patterns are enabled.
 
         Single Responsibility: Handle pattern enablement configuration only.
         """
@@ -101,8 +99,7 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
         }
 
     def _initialize_threshold_configuration(self, config: dict[str, Any]):
-        """
-        Set up entropy thresholds, length filters, and context detection.
+        """Set up entropy thresholds, length filters, and context detection.
 
         Single Responsibility: Configure detection thresholds and context settings only.
         """
@@ -127,8 +124,7 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
         self.context_strict_mode = context_config.get("strict_mode", False)
 
     def _compile_pii_patterns(self):
-        """
-        Compile PII detection regex patterns.
+        """Compile PII detection regex patterns.
 
         Single Responsibility: Create PII regex patterns only.
         """
@@ -141,8 +137,7 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
         }
 
     def _setup_critical_security_patterns(self):
-        """
-        Set up CRITICAL severity security detection patterns.
+        """Set up CRITICAL severity security detection patterns.
 
         Single Responsibility: Define critical security patterns only.
         """
@@ -212,8 +207,7 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
         }
 
     def _setup_high_medium_severity_patterns(self):
-        """
-        Set up HIGH and MEDIUM severity security detection patterns.
+        """Set up HIGH and MEDIUM severity security detection patterns.
 
         Single Responsibility: Define high and medium severity patterns only.
         """
@@ -398,8 +392,7 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
         self.key_detection_patterns.update(medium_patterns)
 
     def _setup_low_severity_context_patterns(self):
-        """
-        Set up LOW severity patterns and context keywords.
+        """Set up LOW severity patterns and context keywords.
 
         Single Responsibility: Define low severity patterns and context detection only.
         """
@@ -463,8 +456,7 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
         }
 
     def _setup_legacy_compatibility(self):
-        """
-        Maintain backward compatibility with legacy patterns and permissions.
+        """Maintain backward compatibility with legacy patterns and permissions.
 
         Single Responsibility: Set up legacy compatibility patterns and sensitive permissions only.
         """
@@ -508,8 +500,7 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
         ]
 
     def assess(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """
-        Assess for sensitive data exposure vulnerabilities
+        """Assess for sensitive data exposure vulnerabilities.
 
         Args:
             analysis_results: Combined results from all analysis modules
@@ -543,7 +534,7 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_weak_cryptography(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """Assess for weak cryptographic algorithms"""
+        """Assess for weak cryptographic algorithms."""
         findings: list[SecurityFinding] = []
 
         # Check API calls for weak crypto usage
@@ -608,7 +599,7 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_sensitive_permissions(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """Assess permissions that may lead to sensitive data access"""
+        """Assess permissions that may lead to sensitive data access."""
         findings: list[SecurityFinding] = []
 
         # Get permission analysis results
@@ -651,7 +642,7 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_pii_exposure(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """Assess for PII exposure in strings"""
+        """Assess for PII exposure in strings."""
         findings: list[SecurityFinding] = []
 
         # Get string analysis results
@@ -718,8 +709,7 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_crypto_keys_exposure(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """
-        Assess for exposed cryptographic keys and secrets using comprehensive detection.
+        """Assess for exposed cryptographic keys and secrets using comprehensive detection.
 
         Refactored to use Strategy Pattern with focused responsibilities:
         - StringCollectionStrategy: Gather strings from various sources
@@ -766,11 +756,11 @@ class StringCollectionStrategy:
     """
 
     def __init__(self, logger):
+        """Initialize the string collector with logger."""
         self.logger = logger
 
     def collect_strings(self, analysis_results: dict[str, Any]) -> list[dict[str, Any]]:
-        """
-        Collect strings with location information from analysis results.
+        """Collect strings with location information from analysis results.
 
         This method systematically extracts strings from various analysis sources
         and enriches them with location metadata for later pattern detection.
@@ -908,13 +898,13 @@ class DeepAnalysisStrategy:
     """
 
     def __init__(self, logger):
+        """Initialize the deep string extractor with logger."""
         self.logger = logger
 
     def extract_deep_strings(
         self, analysis_results: dict[str, Any], existing_strings: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
-        """
-        Extract strings from deep analysis sources like XML and Smali files.
+        """Extract strings from deep analysis sources like XML and Smali files.
 
         This method attempts to extract additional strings from deep analysis artifacts
         if they are available. It operates in different modes based on analysis depth:
@@ -1044,12 +1034,12 @@ class PatternDetectionStrategy:
     """
 
     def __init__(self, detection_patterns: dict[str, Any], logger):
+        """Initialize with detection patterns and logger."""
         self.detection_patterns = detection_patterns
         self.logger = logger
 
     def _safe_regex_search(self, pattern: str, text: str, pattern_name: str = "unknown") -> re.Match[str] | None:
-        """
-        Perform a regex search with protection against catastrophic backtracking.
+        """Perform a regex search with protection against catastrophic backtracking.
 
         Args:
             pattern: The regex pattern to search for
@@ -1118,8 +1108,7 @@ class PatternDetectionStrategy:
             return None
 
     def detect_secrets(self, strings_with_location: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """
-        Detect secrets in strings using pattern matching.
+        """Detect secrets in strings using pattern matching.
 
         Ultra-conservative approach for CI/integration environments to prevent timeouts.
 
@@ -1245,8 +1234,7 @@ class ResultClassificationStrategy:
     """
 
     def classify_by_severity(self, detected_secrets: list[dict[str, Any]]) -> dict[str, Any]:
-        """
-        Classify detected secrets by severity level.
+        """Classify detected secrets by severity level.
 
         This method processes detected secrets and organizes them into severity
         categories. It creates two types of output: terminal display format for
@@ -1323,11 +1311,11 @@ class FindingGenerationStrategy:
     """
 
     def __init__(self, owasp_category: str):
+        """Initialize with OWASP category."""
         self.owasp_category = owasp_category
 
     def generate_security_findings(self, classified_results: dict[str, Any]) -> list[SecurityFinding]:
-        """
-        Generate SecurityFinding objects from classified detection results.
+        """Generate SecurityFinding objects from classified detection results.
 
         This method creates SecurityFinding objects for each severity level that
         contains detected secrets. It uses secret-finder style messaging with
@@ -1435,7 +1423,7 @@ class FindingGenerationStrategy:
         return findings
 
     def _detect_hardcoded_keys_with_location(self, strings_with_location: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """Detect hardcoded keys using comprehensive pattern matching with location information"""
+        """Detect hardcoded keys using comprehensive pattern matching with location information."""
         detections = []
 
         for string_info in strings_with_location:
@@ -1486,7 +1474,7 @@ class FindingGenerationStrategy:
         return detections
 
     def _is_pattern_enabled(self, key_type: str) -> bool:
-        """Check if a pattern type is enabled in configuration"""
+        """Check if a pattern type is enabled in configuration."""
         # Map pattern names to configuration keys - updated with all new patterns
         pattern_mapping = {
             # Critical patterns
@@ -1555,8 +1543,7 @@ class FindingGenerationStrategy:
         return self.enabled_patterns.get(config_key, True)
 
     def _validate_key_detection(self, string: str, pattern_config: dict[str, Any], key_type: str) -> bool:
-        """Validate key detection with additional checks"""
-
+        """Validate key detection with additional checks."""
         # Check minimum entropy using configured thresholds
         min_entropy = pattern_config.get("min_entropy")
         if min_entropy is None:
@@ -1594,7 +1581,7 @@ class FindingGenerationStrategy:
 
     def _extract_from_xml_files(self, apk_obj, all_strings_with_location: list[dict[str, Any]]) -> dict[str, int]:
         """
-        Extract strings from XML files within the APK, particularly targeting strings.xml files
+        Extract strings from XML files within the APK, particularly targeting strings.xml files.
 
         Args:
             apk_obj: Androguard APK object
@@ -1734,7 +1721,7 @@ class FindingGenerationStrategy:
 
     def _extract_from_smali_files(self, apk_obj, all_strings_with_location: list[dict[str, Any]]) -> dict[str, int]:
         """
-        Extract const-string patterns from Smali code analysis
+        Extract const-string patterns from Smali code analysis.
 
         This method attempts to access decompiled Smali code or simulate Smali analysis
         by examining DEX bytecode for const-string instructions.
@@ -1837,7 +1824,7 @@ class FindingGenerationStrategy:
         return {"files_analyzed": files_analyzed, "strings_extracted": strings_extracted}
 
     def _calculate_entropy(self, string: str) -> float:
-        """Calculate Shannon entropy of a string"""
+        """Calculate Shannon entropy of a string."""
         if not string:
             return 0
 
@@ -1858,7 +1845,7 @@ class FindingGenerationStrategy:
         return entropy
 
     def _has_required_context(self, string: str, required_keywords: list[str]) -> bool:
-        """Check if string has required context keywords nearby"""
+        """Check if string has required context keywords nearby."""
         string_lower = string.lower()
 
         # Simple context check - look for keywords in the string itself
@@ -1869,7 +1856,7 @@ class FindingGenerationStrategy:
         return False
 
     def _is_false_positive(self, string: str) -> bool:
-        """Check for common false positives - enhanced to reduce noise from expanded patterns"""
+        """Check for common false positives - enhanced to reduce noise from expanded patterns."""
         string_lower = string.lower()
 
         # Common false positive patterns

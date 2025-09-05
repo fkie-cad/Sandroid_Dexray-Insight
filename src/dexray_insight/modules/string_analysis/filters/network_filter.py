@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Network Filter for String Analysis
+Network Filter for String Analysis.
 
 Specialized filter for extracting and validating network-related strings
 including IP addresses (IPv4/IPv6) and URLs from string collections.
@@ -43,6 +43,7 @@ class NetworkFilter:
     """
 
     def __init__(self):
+        """Initialize NetworkFilter with configuration."""
         self.logger = logging.getLogger(__name__)
 
         # IPv4 pattern with comprehensive validation

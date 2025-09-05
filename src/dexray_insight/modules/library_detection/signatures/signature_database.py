@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Known Library Signatures Database
+Known Library Signatures Database.
 
 Contains known library signatures for similarity-based detection.
 In a full implementation, this would be loaded from a comprehensive
@@ -35,7 +35,7 @@ from typing import Any
 
 def get_known_library_signatures() -> dict[str, dict[str, Any]]:
     """
-    Get known library signatures for similarity matching
+    Get known library signatures for similarity matching.
 
     In a full implementation, this would load from a comprehensive database
     of library signatures. For now, we provide some basic signatures.

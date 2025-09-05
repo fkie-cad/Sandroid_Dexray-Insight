@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Android Properties Filter for String Analysis
+Android Properties Filter for String Analysis.
 
 Specialized filter for extracting Android system properties from string collections.
 Identifies known Android build and system properties with descriptions.
@@ -41,6 +41,7 @@ class AndroidPropertiesFilter:
     """
 
     def __init__(self):
+        """Initialize AndroidPropertiesFilter with configuration."""
         self.logger = logging.getLogger(__name__)
 
         # Patterns for detecting Android vendor-specific properties

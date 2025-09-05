@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""VirusTotal API integration for malware signature detection."""
 
 # #!/usr/bin/env python3
 # # -*- coding: utf-8 -*-
@@ -29,6 +30,7 @@ from ..core.configuration import Configuration
 
 
 def vt_check_file_reputation(hash_value, config=None):
+    """Check file reputation against VirusTotal database."""
     if config is None:
         config = Configuration()
 

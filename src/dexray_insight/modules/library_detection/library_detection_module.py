@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Library Detection Module - Refactored Main Module
+Library Detection Module - Refactored Main Module.
 
 Third-party library detection module using multi-stage analysis with specialized engines.
 Refactored to use submodules following Single Responsibility Principle.
@@ -53,7 +53,7 @@ from .signatures import SignatureMatcher
 
 @dataclass
 class LibraryDetectionResult(BaseResult):
-    """Result class for library detection analysis"""
+    """Result class for library detection analysis."""
 
     detected_libraries: list[DetectedLibrary] = None
     total_libraries: int = 0
@@ -64,6 +64,7 @@ class LibraryDetectionResult(BaseResult):
     stage2_time: float = 0.0
 
     def __post_init__(self):
+        """Initialize default values for optional fields."""
         if self.detected_libraries is None:
             self.detected_libraries = []
         if self.heuristic_libraries is None:
@@ -75,6 +76,7 @@ class LibraryDetectionResult(BaseResult):
         self.total_libraries = len(self.detected_libraries)
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert result to dictionary."""
         base_dict = super().to_dict()
         base_dict.update(
             {
@@ -90,7 +92,7 @@ class LibraryDetectionResult(BaseResult):
         return base_dict
 
     def export_to_dict(self) -> dict[str, Any]:
-        """Export all results to dictionary format for CVE scanning compatibility"""
+        """Export all results to dictionary format for CVE scanning compatibility."""
         return {
             "detected_libraries": [lib.to_dict() for lib in self.detected_libraries],
             "total_libraries": self.total_libraries,
@@ -113,6 +115,7 @@ class LibraryDetectionModule(BaseAnalysisModule):
     """
 
     def __init__(self, config: dict[str, Any]):
+        """Initialize LibraryDetectionModule with configuration."""
         super().__init__(config)
         self.logger = logging.getLogger(__name__)
 
@@ -139,7 +142,7 @@ class LibraryDetectionModule(BaseAnalysisModule):
         self.detection_coordinator = LibraryDetectionCoordinator(self)
 
     def get_dependencies(self) -> list[str]:
-        """Dependencies: string analysis for class names, manifest analysis for permissions/services, native analysis for native library integration"""
+        """Dependencies: string analysis for class names, manifest analysis for permissions/services, native analysis for native library integration."""
         return ["string_analysis", "manifest_analysis", "native_analysis"]
 
     def analyze(self, apk_path: str, context: AnalysisContext) -> LibraryDetectionResult:
@@ -165,7 +168,7 @@ class LibraryDetectionModule(BaseAnalysisModule):
 
     def _perform_heuristic_detection(self, context: AnalysisContext, errors: list[str]) -> list[DetectedLibrary]:
         """
-        Stage 1: Heuristic-based library detection using known patterns
+        Stage 1: Heuristic-based library detection using known patterns.
 
         Args:
             context: Analysis context with existing results
@@ -214,9 +217,7 @@ class LibraryDetectionModule(BaseAnalysisModule):
     def _perform_similarity_detection(
         self, context: AnalysisContext, errors: list[str], existing_libraries: list[DetectedLibrary]
     ) -> list[DetectedLibrary]:
-        """
-        Stage 2: Similarity-based detection using LibScan-inspired approach
-        """
+        """Stage 2: Similarity-based detection using LibScan-inspired approach."""
         detected_libraries = []
 
         try:
@@ -253,7 +254,7 @@ class LibraryDetectionModule(BaseAnalysisModule):
         return detected_libraries
 
     def _extract_package_names(self, strings: list[str]) -> set[str]:
-        """Extract package names from string data"""
+        """Extract package names from string data."""
         package_names = set()
 
         # Pattern for Java package names (at least 2 segments with dots)
@@ -268,7 +269,7 @@ class LibraryDetectionModule(BaseAnalysisModule):
         return package_names
 
     def _extract_class_names(self, strings: list[str]) -> set[str]:
-        """Extract class names from string data"""
+        """Extract class names from string data."""
         class_names = set()
 
         # Pattern for class names (CamelCase, possibly with package prefix)
@@ -292,7 +293,7 @@ class LibraryDetectionModule(BaseAnalysisModule):
         class_names: set[str],
         manifest_results: Any,
     ) -> Optional[DetectedLibrary]:
-        """Check if a library pattern matches the detected packages and classes"""
+        """Check if a library pattern matches the detected packages and classes."""
         # This method contains the original pattern matching logic
         # Keeping it here for backward compatibility with existing detection logic
 
@@ -344,7 +345,7 @@ class LibraryDetectionModule(BaseAnalysisModule):
         return None
 
     def _detect_native_libraries(self, context: AnalysisContext) -> list[DetectedLibrary]:
-        """Detect native (.so) libraries from lib/ directories"""
+        """Detect native (.so) libraries from lib/ directories."""
         native_libraries = []
 
         try:
@@ -402,7 +403,7 @@ class LibraryDetectionModule(BaseAnalysisModule):
         return native_libraries
 
     def _detect_androidx_libraries(self, context: AnalysisContext) -> list[DetectedLibrary]:
-        """Detect AndroidX libraries from package analysis"""
+        """Detect AndroidX libraries from package analysis."""
         androidx_libraries = []
 
         try:
@@ -458,7 +459,7 @@ class LibraryDetectionModule(BaseAnalysisModule):
         return androidx_libraries
 
     def _deduplicate_libraries(self, libraries: list[DetectedLibrary]) -> list[DetectedLibrary]:
-        """Remove duplicate libraries based on name and package"""
+        """Remove duplicate libraries based on name and package."""
         seen = {}
         deduplicated = []
 
@@ -480,7 +481,7 @@ class LibraryDetectionModule(BaseAnalysisModule):
         return deduplicated
 
     def _validate_config(self) -> bool:
-        """Validate module configuration"""
+        """Validate module configuration."""
         if not isinstance(self.confidence_threshold, (int, float)) or not (0 <= self.confidence_threshold <= 1):
             self.logger.error("confidence_threshold must be a number between 0 and 1")
             return False

@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Pattern Search Engine
+Pattern Search Engine.
 
 Provides centralized pattern matching capabilities for behavior analysis.
 Handles searching through DEX strings, smali code, and other APK components.
@@ -35,15 +35,16 @@ from ..models.behavior_evidence import BehaviorEvidence
 
 
 class PatternSearchEngine:
-    """Centralized pattern search engine for behavior analysis"""
+    """Centralized pattern search engine for behavior analysis."""
 
     def __init__(self, logger: Optional[logging.Logger] = None):
+        """Initialize PatternSearchEngine with optional logger."""
         self.logger = logger or logging.getLogger(__name__)
 
     def search_patterns_in_apk(
         self, apk_obj, dex_obj, dx_obj, patterns: list[str], feature_name: str
     ) -> list[BehaviorEvidence]:
-        """Helper method to search patterns in APK strings and code"""
+        """Search patterns in APK strings and code."""
         evidence = []
 
         try:
@@ -100,7 +101,7 @@ class PatternSearchEngine:
             return []
 
     def search_in_strings(self, dex_obj, patterns: list[str], feature_name: str) -> list[BehaviorEvidence]:
-        """Search patterns only in DEX strings"""
+        """Search patterns only in DEX strings."""
         evidence = []
 
         if not dex_obj:
@@ -132,7 +133,7 @@ class PatternSearchEngine:
         return evidence
 
     def search_in_code(self, dex_obj, patterns: list[str], feature_name: str) -> list[BehaviorEvidence]:
-        """Search patterns only in smali code"""
+        """Search patterns only in smali code."""
         evidence = []
 
         if not dex_obj:
@@ -168,7 +169,7 @@ class PatternSearchEngine:
         return evidence
 
     def check_permissions(self, apk_obj, permission_list: list[str]) -> list[BehaviorEvidence]:
-        """Check for specific permissions in the APK"""
+        """Check for specific permissions in the APK."""
         evidence = []
 
         try:

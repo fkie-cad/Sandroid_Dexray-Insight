@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Telephony Analyzer
+Telephony Analyzer.
 
 Detects when applications attempt to access telephony-related information
 such as IMEI, phone numbers, and SIM card details.
@@ -34,7 +34,7 @@ from ..models.behavior_evidence import BehaviorEvidence
 
 
 class TelephonyAnalyzer:
-    """Analyzer for telephony-related privacy behaviors"""
+    """Analyzer for telephony-related privacy behaviors."""
 
     IMEI_PATTERNS = [
         r"getDeviceId\(\)",
@@ -54,10 +54,11 @@ class TelephonyAnalyzer:
     ]
 
     def __init__(self, logger: Optional[logging.Logger] = None):
+        """Initialize TelephonyAnalyzer with optional logger."""
         self.logger = logger or logging.getLogger(__name__)
 
     def analyze_imei_access(self, apk_obj, dex_obj, dx_obj, result) -> list[BehaviorEvidence]:
-        """Check if app tries to access IMEI"""
+        """Check if app tries to access IMEI."""
         evidence = []
 
         try:
@@ -93,7 +94,7 @@ class TelephonyAnalyzer:
             return []
 
     def analyze_phone_number_access(self, apk_obj, dex_obj, dx_obj, result) -> list[BehaviorEvidence]:
-        """Check if app tries to get phone number"""
+        """Check if app tries to get phone number."""
         evidence = []
 
         try:

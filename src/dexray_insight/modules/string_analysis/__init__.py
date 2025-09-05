@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-String Analysis Module Package
+String Analysis Module Package.
 
 String extraction and analysis module using specialized filters and extractors.
 Refactored into submodules following Single Responsibility Principle.

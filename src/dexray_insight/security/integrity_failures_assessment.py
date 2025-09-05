@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""OWASP A08:2021 - Software and Data Integrity Failures security assessment."""
 
 # #!/usr/bin/env python3
 # # -*- coding: utf-8 -*-
@@ -31,9 +32,10 @@ from ..core.base_classes import register_assessment
 
 @register_assessment("integrity_failures")
 class IntegrityFailuresAssessment(BaseSecurityAssessment):
-    """OWASP A08:2021 - Software and Data Integrity Failures assessment"""
+    """OWASP A08:2021 - Software and Data Integrity Failures assessment."""
 
     def __init__(self, config: dict[str, Any]):
+        """Initialize integrity failures assessment."""
         super().__init__(config)
         self.logger = logging.getLogger(__name__)
         self.owasp_category = "A08:2021-Software and Data Integrity Failures"
@@ -49,6 +51,7 @@ class IntegrityFailuresAssessment(BaseSecurityAssessment):
         self.integrity_checks = ["certificate pinning", "signature verification", "checksum validation"]
 
     def assess(self, analysis_results: dict[str, Any], context: AnalysisContext | None = None) -> list[SecurityFinding]:
+        """Perform integrity failures assessment."""
         findings = []
 
         try:

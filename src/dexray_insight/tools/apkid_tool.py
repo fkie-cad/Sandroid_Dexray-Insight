@@ -1,5 +1,28 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# #!/usr/bin/env python3
+# # -*- coding: utf-8 -*-
+#
+# # Copyright (C) {{ year }} Dexray Insight Contributors
+# #
+# # This file is part of Dexray Insight - Android APK Security Analysis Tool
+# #
+# # Licensed under the Apache License, Version 2.0 (the "License");
+# # you may not use this file except in compliance with the License.
+# # You may obtain a copy of the License at
+# #
+# #     http://www.apache.org/licenses/LICENSE-2.0
+# #
+# # Unless required by applicable law or agreed to in writing, software
+# # distributed under the License is distributed on an "AS IS" BASIS,
+# # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# # See the License for the specific language governing permissions and
+# # limitations under the License.
+
+"""APKID tool integration for packer detection.
+
+Provides packer and compiler detection capabilities through external APKID tool.
+"""
 
 # #!/usr/bin/env python3
 # # -*- coding: utf-8 -*-
@@ -35,9 +58,10 @@ from ..results.apkidResults import ApkidResults
 
 @register_tool("apkid")
 class APKIDTool(BaseExternalTool):
-    """APKID external tool for detecting packers, obfuscation, and anti-analysis techniques"""
+    """APKID external tool for detecting packers, obfuscation, and anti-analysis techniques."""
 
     def __init__(self, config: dict[str, Any]):
+        """Initialize APKID tool with configuration."""
         super().__init__(config)
         self.logger = logging.getLogger(__name__)
         self.timeout = config.get("timeout", 300)
@@ -47,7 +71,7 @@ class APKIDTool(BaseExternalTool):
 
     def execute(self, apk_path: str, output_dir: Optional[str] = None) -> dict[str, Any]:
         """
-        Execute APKID on the APK file
+        Execute APKID on the APK file.
 
         Args:
             apk_path: Path to the APK file
@@ -109,7 +133,7 @@ class APKIDTool(BaseExternalTool):
 
     def _parse_results(self, raw_json: str) -> ApkidResults:
         """
-        Parse APKID JSON output into an ApkidResults object
+        Parse APKID JSON output into an ApkidResults object.
 
         Args:
             raw_json: Raw JSON output from APKID
@@ -137,7 +161,7 @@ class APKIDTool(BaseExternalTool):
 
     def is_available(self) -> bool:
         """
-        Check if APKID is available on the system
+        Check if APKID is available on the system.
 
         Returns:
             True if APKID is available and can be executed
@@ -149,7 +173,7 @@ class APKIDTool(BaseExternalTool):
 
     def get_version(self) -> Optional[str]:
         """
-        Get APKID version
+        Get APKID version.
 
         Returns:
             Version string if available, None otherwise
@@ -171,7 +195,7 @@ class APKIDTool(BaseExternalTool):
             return None
 
     def validate_config(self) -> bool:
-        """Validate tool configuration"""
+        """Validate tool configuration."""
         if self.timeout <= 0:
             self.logger.error("Timeout must be greater than 0")
             return False

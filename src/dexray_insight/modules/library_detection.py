@@ -20,8 +20,7 @@
 # # See the License for the specific language governing permissions and
 # # limitations under the License.
 
-"""
-Library Detection Module - Backward Compatibility Layer
+"""Library Detection Module - Backward Compatibility Layer.
 
 This file maintains backward compatibility for existing imports while
 delegating to the new submodule structure.

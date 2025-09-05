@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-CVE Utilities
+CVE Utilities.
 
 This module contains utility functions for CVE scanning including
 version parsing, caching, and rate limiting.

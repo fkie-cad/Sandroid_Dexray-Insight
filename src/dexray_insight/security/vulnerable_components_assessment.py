@@ -20,6 +20,12 @@
 # # See the License for the specific language governing permissions and
 # # limitations under the License.
 
+"""Vulnerable Components Assessment.
+
+This module implements OWASP A06:2021 - Vulnerable and Outdated Components assessment.
+It identifies vulnerable, outdated, or unsupported components and dependencies.
+"""
+
 import logging
 from typing import Any
 from typing import Optional
@@ -32,8 +38,7 @@ from ..core.base_classes import register_assessment
 
 @register_assessment("vulnerable_components")
 class VulnerableComponentsAssessment(BaseSecurityAssessment):
-    """
-    OWASP A06:2021 - Vulnerable and Outdated Components vulnerability assessment.
+    """OWASP A06:2021 - Vulnerable and Outdated Components vulnerability assessment.
 
     This assessment identifies vulnerable, outdated, or unsupported components
     including third-party libraries, frameworks, and dependencies that may
@@ -48,6 +53,7 @@ class VulnerableComponentsAssessment(BaseSecurityAssessment):
     """
 
     def __init__(self, config: dict[str, Any]):
+        """Initialize vulnerable components assessment."""
         super().__init__(config)
         self.logger = logging.getLogger(__name__)
         self.owasp_category = "A06:2021-Vulnerable and Outdated Components"
@@ -155,8 +161,7 @@ class VulnerableComponentsAssessment(BaseSecurityAssessment):
         }
 
     def assess(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """
-        Assess for vulnerable and outdated component vulnerabilities.
+        """Assess for vulnerable and outdated component vulnerabilities.
 
         Args:
             analysis_results: Combined results from all analysis modules
@@ -197,7 +202,7 @@ class VulnerableComponentsAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_library_vulnerabilities(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """Assess detected libraries for known vulnerabilities"""
+        """Assess detected libraries for known vulnerabilities."""
         findings = []
 
         # Get library detection results
@@ -308,7 +313,7 @@ class VulnerableComponentsAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_native_library_vulnerabilities(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """Assess native libraries for vulnerabilities"""
+        """Assess native libraries for vulnerabilities."""
         findings = []
 
         # Get native analysis results
@@ -366,7 +371,7 @@ class VulnerableComponentsAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_outdated_components(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """Assess components for outdated versions"""
+        """Assess components for outdated versions."""
         findings = []
 
         library_results = analysis_results.get("library_detection", {})
@@ -455,7 +460,7 @@ class VulnerableComponentsAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_deprecated_apis(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """Assess usage of deprecated APIs"""
+        """Assess usage of deprecated APIs."""
         findings = []
 
         # Get string analysis for API usage patterns
@@ -521,7 +526,7 @@ class VulnerableComponentsAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_framework_vulnerabilities(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """Assess Android framework version vulnerabilities"""
+        """Assess Android framework version vulnerabilities."""
         findings = []
 
         manifest_results = analysis_results.get("manifest_analysis", {})
@@ -590,7 +595,7 @@ class VulnerableComponentsAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_eol_components(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """Assess for end-of-life and unsupported components"""
+        """Assess for end-of-life and unsupported components."""
         findings = []
 
         library_results = analysis_results.get("library_detection", {})
@@ -638,8 +643,7 @@ class VulnerableComponentsAssessment(BaseSecurityAssessment):
         return findings
 
     def _check_vulnerability_database(self, library_name: str, library_version: str) -> Optional[dict[str, Any]]:
-        """Check if a library version has known vulnerabilities"""
-
+        """Check if a library version has known vulnerabilities."""
         # Check critical CVE database
         for db_name, vuln_info in self.vulnerability_databases["critical_cves"].items():
             if db_name.lower() in library_name.lower():

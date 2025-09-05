@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""Package metadata and version information for Dexray Insight."""
 # #!/usr/bin/env python3
 # # -*- coding: utf-8 -*-
 #

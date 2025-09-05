@@ -29,6 +29,7 @@ import logging
 
 
 def calculate_md5(file_path):
+    """Calculate MD5 hash of file."""
     hash_md5 = hashlib.md5()
     with open(file_path, "rb") as f:
         for chunk in iter(lambda: f.read(4096), b""):
@@ -37,6 +38,7 @@ def calculate_md5(file_path):
 
 
 def get_sha256_hash_of_apk(file_path):
+    """Calculate SHA256 hash of APK file."""
     sha256_hash = hashlib.sha256()
     try:
         with open(file_path, "rb") as f:  # Open the file in binary mode

@@ -19,6 +19,8 @@
 # # See the License for the specific language governing permissions and
 # # limitations under the License.
 
+"""APK diffing module providing Python wrapper for diffuse tool comparison."""
+
 import os
 import subprocess
 import tempfile
@@ -28,6 +30,15 @@ import tempfile
 
 
 def apk_diffing_execute(apk_path, androguard_obj):
+    """Execute APK diffing using the diffuse tool via subprocess.
+
+    Args:
+        apk_path: Path to first APK file for comparison
+        androguard_obj: Second APK object for comparison
+
+    Returns:
+        Path to temporary file containing diff results
+    """
     # run diffuse as sub process and write results to temp file
     with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as temp_file:
         command = ["diffuse", apk_path, androguard_obj]

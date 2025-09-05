@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-String Analysis Extractors Package
+String Analysis Extractors Package.
 
 Contains string extraction engines for different APK components.
 Separated from main module for better maintainability and to support

@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Reflection Analyzer
+Reflection Analyzer.
 
 Detects when applications use Java reflection, which can be used
 to bypass security restrictions or obfuscate functionality.
@@ -34,7 +34,7 @@ from ..models.behavior_evidence import BehaviorEvidence
 
 
 class ReflectionAnalyzer:
-    """Analyzer for Java reflection usage"""
+    """Analyzer for Java reflection usage."""
 
     REFLECTION_PATTERNS = [
         r"Class\.forName\(",
@@ -48,10 +48,11 @@ class ReflectionAnalyzer:
     ]
 
     def __init__(self, logger: Optional[logging.Logger] = None):
+        """Initialize ReflectionAnalyzer with optional logger."""
         self.logger = logger or logging.getLogger(__name__)
 
     def analyze_reflection_usage(self, apk_obj, dex_obj, dx_obj, result) -> list[BehaviorEvidence]:
-        """Check if app uses reflection"""
+        """Check if app uses reflection."""
         try:
             from ..engines.pattern_search_engine import PatternSearchEngine
 

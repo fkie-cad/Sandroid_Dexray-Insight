@@ -20,6 +20,8 @@
 # # See the License for the specific language governing permissions and
 # # limitations under the License.
 
+"""Security analysis results module for tracking vulnerability findings and assessments."""
+
 import json
 from dataclasses import dataclass
 from dataclasses import field
@@ -32,7 +34,7 @@ from ..Utils.file_utils import CustomJSONEncoder
 @dataclass
 class SecurityAnalysisResults:
     """
-    Represents the results of the security scan
+    Represents the results of the security scan.
 
     Fields:
     dotnet_results: Results of the .NET security scanner
@@ -44,6 +46,7 @@ class SecurityAnalysisResults:
     additional_data: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert security results to dictionary format."""
         return {
             "dotnet_results": self.dotnet_results,
             "dex_results": self.dex_results,
@@ -51,4 +54,5 @@ class SecurityAnalysisResults:
         }
 
     def to_json(self) -> str:
+        """Convert security results to JSON format."""
         return json.dumps(self.to_dict(), cls=CustomJSONEncoder, indent=4)

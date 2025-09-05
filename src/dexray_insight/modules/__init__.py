@@ -20,7 +20,7 @@
 # # See the License for the specific language governing permissions and
 # # limitations under the License.
 
-"""Analysis modules for Dexray Insight using the new OOP framework"""
+"""Analysis modules for Dexray Insight using the new OOP framework."""
 
 # Import all refactored modules to register them
 from . import api_invocation_analysis

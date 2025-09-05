@@ -20,8 +20,7 @@
 # # See the License for the specific language governing permissions and
 # # limitations under the License.
 
-"""
-GitHub Advisory Database Client
+"""GitHub Advisory Database Client.
 
 This module provides a client for the GitHub Advisory Database API.
 GitHub Advisory Database contains security advisories for open source projects.
@@ -42,12 +41,12 @@ from .base_client import BaseCVEClient
 
 
 class GitHubAdvisoryClient(BaseCVEClient):
-    """Client for GitHub Advisory Database"""
+    """Client for GitHub Advisory Database."""
 
     BASE_URL = "https://api.github.com/advisories"
 
     def _get_default_rate_limit_config(self) -> RateLimitConfig:
-        """GitHub has rate limits - 60/hour without auth, 5000/hour with token"""
+        """Get rate limits - 60/hour without auth, 5000/hour with token."""
         if self.api_key:
             # With token: 5000 requests per hour
             return RateLimitConfig(
@@ -58,7 +57,7 @@ class GitHubAdvisoryClient(BaseCVEClient):
             return RateLimitConfig(requests_per_minute=1, requests_per_hour=60, burst_limit=5, burst_window_seconds=300)
 
     def _setup_headers(self):
-        """Set up headers for GitHub API"""
+        """Set up headers for GitHub API."""
         headers = {
             "User-Agent": "dexray-insight-cve-scanner/1.0",
             "Accept": "application/vnd.github+json",
@@ -71,12 +70,11 @@ class GitHubAdvisoryClient(BaseCVEClient):
         self.session.headers.update(headers)
 
     def get_source_name(self) -> str:
-        """Get the name of this CVE source"""
+        """Get the name of this CVE source."""
         return "github"
 
     def search_vulnerabilities(self, library_name: str, version: Optional[str] = None) -> list[CVEVulnerability]:
-        """
-        Search for vulnerabilities in GitHub Advisory Database.
+        """Search for vulnerabilities in GitHub Advisory Database.
 
         Args:
             library_name: Name of the library
@@ -119,7 +117,7 @@ class GitHubAdvisoryClient(BaseCVEClient):
             return []
 
     def _detect_ecosystem(self, library_name: str) -> Optional[str]:
-        """Detect ecosystem from library name"""
+        """Detect ecosystem from library name."""
         # GitHub uses specific ecosystem names
         if ":" in library_name:
             prefix = library_name.split(":")[0].lower()
@@ -137,7 +135,7 @@ class GitHubAdvisoryClient(BaseCVEClient):
         return None
 
     def _generate_search_variants(self, library_name: str) -> list[str]:
-        """Generate search variants for library name"""
+        """Generate search variants for library name."""
         variants = []
 
         # Original name
@@ -176,7 +174,7 @@ class GitHubAdvisoryClient(BaseCVEClient):
         return list(set(variants))  # Remove duplicates
 
     def _search_by_package(self, package_name: str, ecosystem: Optional[str] = None) -> list[CVEVulnerability]:
-        """Search GitHub Advisory Database by package name"""
+        """Search GitHub Advisory Database by package name."""
         vulnerabilities = []
 
         try:
@@ -224,7 +222,7 @@ class GitHubAdvisoryClient(BaseCVEClient):
             return []
 
     def _is_relevant_advisory(self, advisory: dict[str, Any], package_name: str) -> bool:
-        """Check if advisory is relevant to the package"""
+        """Check if advisory is relevant to the package."""
         package_lower = package_name.lower()
 
         # Check if package name appears in summary or description
@@ -243,7 +241,7 @@ class GitHubAdvisoryClient(BaseCVEClient):
         return False
 
     def _parse_github_advisory(self, advisory: dict[str, Any]) -> Optional[CVEVulnerability]:
-        """Parse GitHub advisory data into CVEVulnerability object"""
+        """Parse GitHub advisory data into CVEVulnerability object."""
         try:
             # Extract basic information
             ghsa_id = advisory.get("ghsa_id", "")
@@ -323,7 +321,7 @@ class GitHubAdvisoryClient(BaseCVEClient):
             return None
 
     def _parse_affected_package(self, vuln_data: dict[str, Any]) -> Optional[AffectedLibrary]:
-        """Parse affected package information from GitHub advisory"""
+        """Parse affected package information from GitHub advisory."""
         try:
             package_info = vuln_data.get("package", {})
             library_name = package_info.get("name", "")
@@ -359,7 +357,7 @@ class GitHubAdvisoryClient(BaseCVEClient):
         return None
 
     def _parse_version_range_string(self, range_str: str) -> Optional[VersionRange]:
-        """Parse version range string like '< 1.0.0', '>= 1.2.0, < 2.0.0'"""
+        """Parse version range string like '< 1.0.0', '>= 1.2.0, < 2.0.0'."""
         try:
             version_range = VersionRange()
 
@@ -388,7 +386,7 @@ class GitHubAdvisoryClient(BaseCVEClient):
             return None
 
     def _filter_by_version(self, vulnerabilities: list[CVEVulnerability], version: str) -> list[CVEVulnerability]:
-        """Filter vulnerabilities by version"""
+        """Filter vulnerabilities by version."""
         filtered = []
 
         for vuln in vulnerabilities:
@@ -413,7 +411,7 @@ class GitHubAdvisoryClient(BaseCVEClient):
         return filtered
 
     def _version_in_range(self, version: str, version_range: VersionRange) -> bool:
-        """Check if version falls within the vulnerability range (simplified)"""
+        """Check if version falls within the vulnerability range (simplified)."""
         try:
             # Simplified version comparison - in practice you'd use semantic versioning
             if version_range.introduced and version < version_range.introduced:
@@ -432,7 +430,7 @@ class GitHubAdvisoryClient(BaseCVEClient):
             return True
 
     def health_check(self) -> bool:
-        """Check if GitHub API is available"""
+        """Check if GitHub API is available."""
         try:
             self.logger.debug("GitHub: Starting health check...")
 

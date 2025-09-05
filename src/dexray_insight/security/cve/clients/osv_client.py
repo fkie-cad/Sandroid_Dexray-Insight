@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-OSV (Open Source Vulnerabilities) Client
+OSV (Open Source Vulnerabilities) Client.
 
 This module provides a client for the OSV vulnerability database API.
 OSV is Google's vulnerability database for open source projects.
@@ -42,12 +42,12 @@ from .base_client import BaseCVEClient
 
 
 class OSVClient(BaseCVEClient):
-    """Client for OSV (Open Source Vulnerabilities) database"""
+    """Client for OSV (Open Source Vulnerabilities) database."""
 
     BASE_URL = "https://api.osv.dev"
 
     def _get_default_rate_limit_config(self) -> RateLimitConfig:
-        """OSV rate limits - very conservative to avoid 429 errors during parallel scanning"""
+        """OSV rate limits - very conservative to avoid 429 errors during parallel scanning."""
         return RateLimitConfig(
             requests_per_minute=20,  # Further reduced from 30
             requests_per_hour=1200,  # Further reduced from 1800
@@ -56,7 +56,7 @@ class OSVClient(BaseCVEClient):
         )
 
     def _setup_headers(self):
-        """Set up headers for OSV API"""
+        """Set up headers for OSV API."""
         self.session.headers.update(
             {
                 "User-Agent": "dexray-insight-cve-scanner/1.0",
@@ -66,7 +66,7 @@ class OSVClient(BaseCVEClient):
         )
 
     def get_source_name(self) -> str:
-        """Get the name of this CVE source"""
+        """Get the name of this CVE source."""
         return "osv"
 
     def search_vulnerabilities(self, library_name: str, version: Optional[str] = None) -> list[CVEVulnerability]:
@@ -112,7 +112,7 @@ class OSVClient(BaseCVEClient):
             return []
 
     def _generate_query_variants(self, library_name: str) -> list[str]:
-        """Generate different name variants to query OSV"""
+        """Generate different name variants to query OSV."""
         variants = [library_name]
 
         # If name doesn't contain ecosystem prefix, try common patterns
@@ -139,7 +139,7 @@ class OSVClient(BaseCVEClient):
         return list(set(variants))  # Remove duplicates
 
     def _query_by_version(self, package_name: str, version: str) -> list[CVEVulnerability]:
-        """Query OSV for vulnerabilities affecting a specific version"""
+        """Query OSV for vulnerabilities affecting a specific version."""
         url = f"{self.BASE_URL}/v1/query"
 
         query_data = {"version": version, "package": {"name": package_name}}
@@ -167,7 +167,7 @@ class OSVClient(BaseCVEClient):
             return []
 
     def _query_by_package(self, package_name: str) -> list[CVEVulnerability]:
-        """Query OSV for all vulnerabilities affecting a package"""
+        """Query OSV for all vulnerabilities affecting a package."""
         url = f"{self.BASE_URL}/v1/query"
 
         query_data = {"package": {"name": package_name}}
@@ -194,7 +194,7 @@ class OSVClient(BaseCVEClient):
             return []
 
     def _detect_ecosystem(self, package_name: str) -> Optional[str]:
-        """Detect ecosystem from package name"""
+        """Detect ecosystem from package name."""
         if package_name.startswith("Maven:"):
             return "Maven"
         elif package_name.startswith("npm:"):
@@ -210,7 +210,7 @@ class OSVClient(BaseCVEClient):
             return None
 
     def _parse_osv_vulnerability(self, osv_data: dict[str, Any]) -> Optional[CVEVulnerability]:
-        """Parse OSV vulnerability data into CVEVulnerability object"""
+        """Parse OSV vulnerability data into CVEVulnerability object."""
         try:
             # Extract basic information
             vuln_id = osv_data.get("id", "")
@@ -287,7 +287,7 @@ class OSVClient(BaseCVEClient):
             return None
 
     def _parse_affected_library(self, affected_data: dict[str, Any]) -> Optional[AffectedLibrary]:
-        """Parse affected library information from OSV data"""
+        """Parse affected library information from OSV data."""
         try:
             package_info = affected_data.get("package", {})
             library_name = package_info.get("name", "")
@@ -316,7 +316,7 @@ class OSVClient(BaseCVEClient):
         return None
 
     def _parse_version_range(self, range_data: dict[str, Any]) -> Optional[VersionRange]:
-        """Parse version range from OSV range data"""
+        """Parse version range from OSV range data."""
         try:
             version_range = VersionRange()
 
@@ -337,7 +337,7 @@ class OSVClient(BaseCVEClient):
             return None
 
     def health_check(self) -> bool:
-        """Check if OSV API is available"""
+        """Check if OSV API is available."""
         try:
             self.logger.debug("OSV: Starting health check...")
             url = f"{self.BASE_URL}/v1/query"

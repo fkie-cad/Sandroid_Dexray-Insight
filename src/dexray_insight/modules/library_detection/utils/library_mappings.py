@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Library Name Mapping System
+Library Name Mapping System.
 
 This module provides mapping between library names found in Android properties files
 and their actual Maven Central coordinates, along with additional metadata for
@@ -34,8 +34,7 @@ from typing import Optional
 
 
 class LibraryMapping(NamedTuple):
-    """
-    Library mapping information
+    """Library mapping information.
 
     Args:
         maven_group_id: Maven Central group ID (e.g., 'com.google.android.gms')
@@ -55,21 +54,19 @@ class LibraryMapping(NamedTuple):
 
 
 class LibraryMappingRegistry:
-    """
-    Registry for library name mappings
+    """Registry for library name mappings.
 
     This class provides mapping between property file names and Maven coordinates
     for accurate version checking and library identification.
     """
 
     def __init__(self):
-        """Initialize the library mapping registry"""
+        """Initialize the library mapping registry."""
         self._mappings: dict[str, LibraryMapping] = {}
         self._initialize_default_mappings()
 
     def _initialize_default_mappings(self):
-        """Initialize default library mappings"""
-
+        """Initialize default library mappings."""
         # Google Play Services Libraries
         play_services_mappings = {
             "play-services-cast": LibraryMapping(
@@ -318,8 +315,7 @@ class LibraryMappingRegistry:
         self._mappings.update(all_mappings)
 
     def get_mapping(self, property_name: str) -> Optional[LibraryMapping]:
-        """
-        Get library mapping by property file name
+        """Get library mapping by property file name.
 
         Args:
             property_name: Name from properties file (e.g., 'play-services-cast')
@@ -339,8 +335,7 @@ class LibraryMappingRegistry:
         return None
 
     def _normalize_name(self, name: str) -> str:
-        """
-        Normalize library name for better matching
+        """Normalize library name for better matching.
 
         Args:
             name: Original library name
@@ -356,8 +351,7 @@ class LibraryMappingRegistry:
         return name
 
     def search_by_pattern(self, pattern: str) -> dict[str, LibraryMapping]:
-        """
-        Search libraries by pattern
+        """Search libraries by pattern.
 
         Args:
             pattern: Search pattern (regex supported)
@@ -379,8 +373,7 @@ class LibraryMappingRegistry:
         return matches
 
     def add_mapping(self, property_name: str, mapping: LibraryMapping):
-        """
-        Add or update a library mapping
+        """Add or update a library mapping.
 
         Args:
             property_name: Property file name
@@ -389,12 +382,11 @@ class LibraryMappingRegistry:
         self._mappings[property_name] = mapping
 
     def get_all_mappings(self) -> dict[str, LibraryMapping]:
-        """Get all available mappings"""
+        """Get all available mappings."""
         return self._mappings.copy()
 
     def get_maven_coordinates(self, property_name: str) -> Optional[str]:
-        """
-        Get Maven coordinates for a library
+        """Get Maven coordinates for a library.
 
         Args:
             property_name: Property file name
@@ -413,8 +405,7 @@ _registry = LibraryMappingRegistry()
 
 
 def get_library_mapping(property_name: str) -> Optional[LibraryMapping]:
-    """
-    Get library mapping by property name
+    """Get library mapping by property name.
 
     Args:
         property_name: Name from properties file
@@ -426,8 +417,7 @@ def get_library_mapping(property_name: str) -> Optional[LibraryMapping]:
 
 
 def get_maven_coordinates(property_name: str) -> Optional[str]:
-    """
-    Get Maven coordinates for a library
+    """Get Maven coordinates for a library.
 
     Args:
         property_name: Property file name
@@ -439,8 +429,7 @@ def get_maven_coordinates(property_name: str) -> Optional[str]:
 
 
 def search_libraries(pattern: str) -> dict[str, LibraryMapping]:
-    """
-    Search libraries by pattern
+    """Search libraries by pattern.
 
     Args:
         pattern: Search pattern
@@ -452,8 +441,7 @@ def search_libraries(pattern: str) -> dict[str, LibraryMapping]:
 
 
 def add_custom_mapping(property_name: str, mapping: LibraryMapping):
-    """
-    Add custom library mapping
+    """Add custom library mapping.
 
     Args:
         property_name: Property file name

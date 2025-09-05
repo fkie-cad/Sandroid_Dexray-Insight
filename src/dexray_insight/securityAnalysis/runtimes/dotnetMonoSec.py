@@ -19,8 +19,11 @@
 # # See the License for the specific language governing permissions and
 # # limitations under the License.
 
-"""Please note that the format of the output of Secure Code Scan is actually SARIF.
-For further information on SARIF have a look at: https://sarifweb.azurewebsites.net/"""
+"""
+Please note that the format of the output of Secure Code Scan is actually SARIF.
+
+For further information on SARIF have a look at: https://sarifweb.azurewebsites.net/
+"""
 
 import json
 import logging
@@ -31,6 +34,15 @@ from apkstaticanalysismonitor.Utils.file_utils import backup_and_replace_with_te
 
 
 def execute_dotnet_mono_security_analysis(app_name, dll_target_dir):
+    """Execute security analysis for .NET/Mono runtime assemblies.
+
+    Args:
+        app_name: Name of the application being analyzed
+        dll_target_dir: Directory containing extracted DLL files
+
+    Returns:
+        list: Security analysis results for .NET assemblies
+    """
     _results = []
     template = "template.csproj"
     try:

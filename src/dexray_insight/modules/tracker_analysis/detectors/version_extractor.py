@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Version Extractor for Tracker Analysis
+Version Extractor for Tracker Analysis.
 
 Specialized extractor for version information from tracker pattern matches.
 Uses both specific version patterns and fallback patterns for version detection.
@@ -43,6 +43,7 @@ class VersionExtractor:
     """
 
     def __init__(self):
+        """Initialize VersionExtractor with logger and fallback patterns."""
         self.logger = logging.getLogger(__name__)
 
         # Common fallback version patterns

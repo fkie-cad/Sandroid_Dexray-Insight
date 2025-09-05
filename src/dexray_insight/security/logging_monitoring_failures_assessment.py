@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 # #!/usr/bin/env python3
 # # -*- coding: utf-8 -*-
@@ -19,10 +20,15 @@
 # # See the License for the specific language governing permissions and
 # # limitations under the License.
 
+"""Logging and Monitoring Failures Assessment.
+
+This module implements OWASP A09:2021 - Security Logging and Monitoring Failures assessment.
+It identifies security logging deficiencies and monitoring gaps in Android applications.
+"""
+
 import logging
 from typing import Any
 
-from ..core.base_classes import AnalysisContext
 from ..core.base_classes import AnalysisSeverity
 from ..core.base_classes import BaseSecurityAssessment
 from ..core.base_classes import SecurityFinding
@@ -31,9 +37,10 @@ from ..core.base_classes import register_assessment
 
 @register_assessment("logging_monitoring_failures")
 class LoggingMonitoringFailuresAssessment(BaseSecurityAssessment):
-    """OWASP A09:2021 - Security Logging and Monitoring Failures assessment"""
+    """OWASP A09:2021 - Security Logging and Monitoring Failures assessment."""
 
     def __init__(self, config: dict[str, Any]):
+        """Initialize logging and monitoring failures assessment."""
         super().__init__(config)
         self.logger = logging.getLogger(__name__)
         self.owasp_category = "A09:2021-Security Logging and Monitoring Failures"
@@ -59,119 +66,117 @@ class LoggingMonitoringFailuresAssessment(BaseSecurityAssessment):
             "credit",
         ]
 
-    def assess(self, analysis_results: dict[str, Any], context: AnalysisContext | None = None) -> list[SecurityFinding]:
+    def assess(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
+        """Perform logging and monitoring failures assessment."""
         findings = []
 
         try:
-            # Check for excessive logging of sensitive data
-            logging_findings = self._assess_excessive_logging(analysis_results)
-            findings.extend(logging_findings)
+            string_results = analysis_results.get("string_analysis", {})
+            if hasattr(string_results, "to_dict"):
+                string_data = string_results.to_dict()
+            else:
+                string_data = string_results
 
-            # Check for missing security monitoring
-            monitoring_findings = self._assess_missing_monitoring(analysis_results)
-            findings.extend(monitoring_findings)
+            all_strings = string_data.get("all_strings", [])
+
+            # Check for sensitive data logging
+            sensitive_logs = []
+            debug_logs = []
+
+            for string in all_strings:
+                if isinstance(string, str):
+                    # Check for sensitive data in logs
+                    for pattern in self.sensitive_data_patterns:
+                        if pattern.lower() in string.lower():
+                            if any(log_keyword in string.lower() for log_keyword in ["log.", "system.out", "print"]):
+                                sensitive_logs.append(f"Sensitive data in logs: {string[:80]}...")
+                                break
+
+                    # Check for debug logging patterns
+                    if any(debug_pattern in string.lower() for debug_pattern in ["log.d", "log.v", "debug", "trace"]):
+                        debug_logs.append(f"Debug logging detected: {string[:60]}...")
+
+            # Create findings based on detected issues
+            if sensitive_logs:
+                findings.append(
+                    SecurityFinding(
+                        category=self.owasp_category,
+                        severity=AnalysisSeverity.HIGH,
+                        title="Sensitive Data Logging",
+                        description="Application logs sensitive information that could be exposed to unauthorized parties.",
+                        evidence=sensitive_logs[:10],  # Limit evidence items
+                        recommendations=[
+                            "Remove sensitive data from log statements",
+                            "Use conditional logging based on build configuration",
+                            "Implement secure logging practices with data sanitization",
+                            "Review log outputs before production releases",
+                            "Use structured logging to control data exposure",
+                        ],
+                    )
+                )
+
+            if len(debug_logs) > 10:  # Excessive debug logging
+                findings.append(
+                    SecurityFinding(
+                        category=self.owasp_category,
+                        severity=AnalysisSeverity.MEDIUM,
+                        title="Excessive Debug Logging",
+                        description="Application contains extensive debug logging that may leak internal information.",
+                        evidence=debug_logs[:8],  # Sample of debug logs
+                        recommendations=[
+                            "Disable debug logging in production builds",
+                            "Use ProGuard/R8 to remove debug code",
+                            "Implement logging levels appropriate for production",
+                            "Review log statements for information disclosure",
+                            "Use build-time constants to control logging verbosity",
+                        ],
+                    )
+                )
+
+            # Check manifest for logging permissions and configurations
+            manifest_results = analysis_results.get("manifest_analysis", {})
+            if hasattr(manifest_results, "to_dict"):
+                manifest_data = manifest_results.to_dict()
+            else:
+                manifest_data = manifest_results
+
+            permissions = manifest_data.get("permissions", [])
+
+            # Check for monitoring-related permissions
+            monitoring_permissions = [
+                perm
+                for perm in permissions
+                if any(mon_perm in perm.upper() for mon_perm in ["LOG", "DEBUG", "SYSTEM_ALERT", "DEVICE_ADMIN"])
+            ]
+
+            if not monitoring_permissions:
+                findings.append(
+                    SecurityFinding(
+                        category=self.owasp_category,
+                        severity=AnalysisSeverity.LOW,
+                        title="Limited Security Monitoring Capabilities",
+                        description="Application may lack adequate security monitoring and alerting capabilities.",
+                        evidence=["No security monitoring permissions detected"],
+                        recommendations=[
+                            "Implement security event logging for critical operations",
+                            "Add monitoring for authentication failures and suspicious activities",
+                            "Consider implementing tamper detection and alerting",
+                            "Log security-relevant events with appropriate detail",
+                            "Implement centralized logging for security events",
+                        ],
+                    )
+                )
 
         except Exception as e:
-            self.logger.error(f"Logging monitoring failures assessment failed: {str(e)}")
-
-        return findings
-
-    def _assess_excessive_logging(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        findings = []
-
-        string_results = analysis_results.get("string_analysis", {})
-        string_data = string_results.to_dict() if hasattr(string_results, "to_dict") else string_results
-        all_strings = string_data.get("all_strings", [])
-
-        sensitive_logging = []
-
-        for string in all_strings:
-            if isinstance(string, str):
-                for pattern in self.logging_patterns:
-                    import re
-
-                    if re.search(pattern, string, re.IGNORECASE):
-                        sensitive_logging.append(f"Sensitive data logging: {string[:100]}...")
-                        break
-
-        if sensitive_logging:
-            findings.append(
-                SecurityFinding(
-                    category=self.owasp_category,
-                    severity=AnalysisSeverity.MEDIUM,
-                    title="Excessive Logging of Sensitive Data",
-                    description="Application logs sensitive information that could be exposed through log files or debugging.",
-                    evidence=sensitive_logging[:10],
-                    recommendations=[
-                        "Remove sensitive data from log messages",
-                        "Use log levels appropriately (avoid debug logs in production)",
-                        "Implement log sanitization for sensitive fields",
-                        "Use structured logging with field filtering",
-                        "Review and audit all logging statements",
-                    ],
-                )
-            )
-
-        return findings
-
-    def _assess_missing_monitoring(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        findings = []
-
-        string_results = analysis_results.get("string_analysis", {})
-        string_data = string_results.to_dict() if hasattr(string_results, "to_dict") else string_results
-        all_strings = string_data.get("all_strings", [])
-
-        # Check for security event monitoring
-        has_security_monitoring = any(
-            "security" in s.lower() and ("log" in s.lower() or "monitor" in s.lower() or "audit" in s.lower())
-            for s in all_strings
-            if isinstance(s, str)
-        )
-
-        monitoring_issues = []
-
-        if not has_security_monitoring:
-            monitoring_issues.append("No security event monitoring implementation detected")
-
-        # Check for crash reporting that might expose sensitive data
-        crash_reporting = []
-        crash_patterns = [
-            r"Crashlytics",
-            r"Bugsnag",
-            r"Sentry",
-            r"ACRA",
-            r"printStackTrace\(\)",
-            r"Log\.getStackTraceString",
-        ]
-
-        for string in all_strings:
-            if isinstance(string, str):
-                for pattern in crash_patterns:
-                    import re
-
-                    if re.search(pattern, string, re.IGNORECASE):
-                        crash_reporting.append(f"Crash reporting: {string[:80]}...")
-                        break
-
-        if crash_reporting:
-            monitoring_issues.extend(crash_reporting[:3])
-            monitoring_issues.append("Crash reporting may expose sensitive information in stack traces")
-
-        if monitoring_issues:
+            self.logger.error(f"Logging and monitoring failures assessment failed: {str(e)}")
             findings.append(
                 SecurityFinding(
                     category=self.owasp_category,
                     severity=AnalysisSeverity.LOW,
-                    title="Insufficient Security Monitoring",
-                    description="Application lacks adequate security event logging and monitoring capabilities.",
-                    evidence=monitoring_issues,
-                    recommendations=[
-                        "Implement security event logging for authentication attempts",
-                        "Monitor and log suspicious activities",
-                        "Sanitize crash reports before transmission",
-                        "Implement proper log retention and analysis",
-                        "Add alerting for security-relevant events",
-                    ],
+                    title="Assessment Error",
+                    description="An error occurred during logging and monitoring assessment",
+                    evidence=[str(e)],
+                    recommendations=["Review application logging configuration manually"],
                 )
             )
 

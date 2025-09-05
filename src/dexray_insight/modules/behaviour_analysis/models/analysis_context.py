@@ -20,8 +20,7 @@
 # # See the License for the specific language governing permissions and
 # # limitations under the License.
 
-"""
-Behavior Analysis Context
+"""Behavior Analysis Context.
 
 Extended context for behavior analysis with mode-specific
 data and analysis coordination information.
@@ -36,7 +35,7 @@ from .behavior_evidence import BehaviorEvidence
 
 @dataclass
 class BehaviorAnalysisContext:
-    """Extended context for behavior analysis operations"""
+    """Extended context for behavior analysis operations."""
 
     # Analysis mode configuration
     analysis_mode: str  # 'fast' or 'deep'
@@ -61,6 +60,7 @@ class BehaviorAnalysisContext:
     high_confidence_evidence: Optional[list[BehaviorEvidence]] = None
 
     def __post_init__(self):
+        """Initialize default values for optional fields."""
         if self.analyzed_behaviors is None:
             self.analyzed_behaviors = []
         if self.evidence_by_type is None:
@@ -69,7 +69,7 @@ class BehaviorAnalysisContext:
             self.high_confidence_evidence = []
 
     def add_evidence(self, behavior_type: str, evidence: list[BehaviorEvidence]) -> None:
-        """Add evidence for a specific behavior type"""
+        """Add evidence for a specific behavior type."""
         if behavior_type not in self.evidence_by_type:
             self.evidence_by_type[behavior_type] = []
 
@@ -82,35 +82,35 @@ class BehaviorAnalysisContext:
                 self.high_confidence_evidence.append(ev)
 
     def mark_behavior_analyzed(self, behavior_type: str) -> None:
-        """Mark a behavior type as analyzed"""
+        """Mark a behavior type as analyzed."""
         if behavior_type not in self.analyzed_behaviors:
             self.analyzed_behaviors.append(behavior_type)
 
     def get_evidence_summary(self) -> dict[str, int]:
-        """Get summary of evidence by type"""
+        """Get summary of evidence by type."""
         summary = {}
         for behavior_type, evidence_list in self.evidence_by_type.items():
             summary[behavior_type] = len(evidence_list)
         return summary
 
     def get_high_confidence_count(self) -> int:
-        """Get count of high confidence evidence"""
+        """Get count of high confidence evidence."""
         return len(self.high_confidence_evidence)
 
     def is_deep_mode(self) -> bool:
-        """Check if running in deep analysis mode"""
+        """Check if running in deep analysis mode."""
         return self.deep_mode_enabled and self.analysis_mode == "deep"
 
     def has_dex_objects(self) -> bool:
-        """Check if DEX objects are available for analysis"""
+        """Check if DEX objects are available for analysis."""
         return self.dex_obj is not None and self.dx_obj is not None
 
     def get_analyzed_behavior_count(self) -> int:
-        """Get count of analyzed behavior types"""
+        """Get count of analyzed behavior types."""
         return len(self.analyzed_behaviors)
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert context to dictionary for logging/debugging"""
+        """Convert context to dictionary for logging/debugging."""
         return {
             "analysis_mode": self.analysis_mode,
             "deep_mode_enabled": self.deep_mode_enabled,

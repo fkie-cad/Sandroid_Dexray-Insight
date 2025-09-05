@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 # #!/usr/bin/env python3
 # # -*- coding: utf-8 -*-
@@ -18,6 +19,13 @@
 # # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # # See the License for the specific language governing permissions and
 # # limitations under the License.
+
+"""
+Mobile-Specific Security Assessment.
+
+This module implements OWASP Mobile Top 10 2016 security assessment.
+It identifies mobile-specific security vulnerabilities unique to mobile platforms.
+"""
 
 import logging
 import re
@@ -53,6 +61,7 @@ class MobileSpecificAssessment(BaseSecurityAssessment):
     """
 
     def __init__(self, config: dict[str, Any]):
+        """Initialize mobile-specific security assessment."""
         super().__init__(config)
         self.logger = logging.getLogger(__name__)
         self.owasp_category = "OWASP Mobile Top 10"
@@ -264,7 +273,7 @@ class MobileSpecificAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_improper_platform_usage(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """M1: Assess improper platform usage"""
+        """M1: Assess improper platform usage."""
         findings = []
 
         # Check manifest for permission issues
@@ -323,7 +332,7 @@ class MobileSpecificAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_insecure_data_storage(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """M2: Assess insecure data storage"""
+        """M2: Assess insecure data storage."""
         findings = []
 
         string_results = analysis_results.get("string_analysis", {})
@@ -362,7 +371,7 @@ class MobileSpecificAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_insecure_communication(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """M3: Assess insecure communication"""
+        """M3: Assess insecure communication."""
         findings = []
 
         string_results = analysis_results.get("string_analysis", {})
@@ -411,7 +420,7 @@ class MobileSpecificAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_mobile_authentication(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """M4: Assess mobile-specific authentication issues"""
+        """M4: Assess mobile-specific authentication issues."""
         findings = []
 
         string_results = analysis_results.get("string_analysis", {})
@@ -459,7 +468,7 @@ class MobileSpecificAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_insufficient_cryptography(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """M5: Assess insufficient cryptography"""
+        """M5: Assess insufficient cryptography."""
         findings = []
 
         string_results = analysis_results.get("string_analysis", {})
@@ -498,6 +507,7 @@ class MobileSpecificAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_insecure_authorization(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
+        """M6: Assess insecure authorization."""
         """M6: Assess insecure authorization"""
         findings = []
 
@@ -537,7 +547,7 @@ class MobileSpecificAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_code_quality(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """M7: Assess poor code quality"""
+        """M7: Assess poor code quality."""
         findings = []
 
         string_results = analysis_results.get("string_analysis", {})
@@ -576,7 +586,7 @@ class MobileSpecificAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_code_tampering_protection(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """M8: Assess code tampering protection"""
+        """M8: Assess code tampering protection."""
         findings = []
 
         string_results = analysis_results.get("string_analysis", {})
@@ -611,7 +621,7 @@ class MobileSpecificAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_reverse_engineering_protection(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """M9: Assess reverse engineering protection"""
+        """M9: Assess reverse engineering protection."""
         findings = []
 
         string_results = analysis_results.get("string_analysis", {})
@@ -646,7 +656,7 @@ class MobileSpecificAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_extraneous_functionality(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """M10: Assess extraneous functionality"""
+        """M10: Assess extraneous functionality."""
         findings = []
 
         string_results = analysis_results.get("string_analysis", {})

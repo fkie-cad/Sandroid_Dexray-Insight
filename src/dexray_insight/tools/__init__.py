@@ -20,7 +20,7 @@
 # # See the License for the specific language governing permissions and
 # # limitations under the License.
 
-"""External tools for Dexray Insight using the new OOP framework"""
+"""External tools for Dexray Insight using the new OOP framework."""
 
 # Import all tools to register them
 from . import apkid_tool

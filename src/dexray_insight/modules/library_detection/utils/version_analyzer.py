@@ -20,7 +20,7 @@
 # # limitations under the License.
 
 """
-Version Analysis Utilities for Library Detection
+Version Analysis Utilities for Library Detection.
 
 Provides version comparison, parsing, and age calculation functionality
 for determining how outdated detected libraries are.
@@ -39,7 +39,7 @@ from packaging import version
 
 @dataclass
 class VersionInfo:
-    """Information about a library version"""
+    """Information about a library version."""
 
     version: str
     release_date: datetime | None = None
@@ -48,7 +48,7 @@ class VersionInfo:
     vulnerability_count: int = 0
 
     def to_dict(self) -> dict:
-        """Convert to dictionary with JSON-serializable values"""
+        """Convert to dictionary with JSON-serializable values."""
         return {
             "version": self.version,
             "release_date": self.release_date.isoformat() if self.release_date else None,
@@ -60,7 +60,7 @@ class VersionInfo:
 
 @dataclass
 class VersionAnalysisResult:
-    """Result of version analysis for a library"""
+    """Result of version analysis for a library."""
 
     current_version: str
     latest_version: str | None = None
@@ -71,11 +71,12 @@ class VersionAnalysisResult:
     analysis_date: datetime = None
 
     def __post_init__(self):
+        """Initialize default values for optional fields."""
         if self.analysis_date is None:
             self.analysis_date = datetime.now()
 
     def to_dict(self) -> dict:
-        """Convert to dictionary with JSON-serializable values"""
+        """Convert to dictionary with JSON-serializable values."""
         return {
             "current_version": self.current_version,
             "latest_version": self.latest_version,
@@ -88,8 +89,7 @@ class VersionAnalysisResult:
 
 
 class VersionAnalyzer:
-    """
-    Analyzes library versions to determine how outdated they are and calculate security risks.
+    """Analyzes library versions to determine how outdated they are and calculate security risks.
 
     Supports multiple version sources:
     - Maven Central API for Android/Java libraries
@@ -101,6 +101,7 @@ class VersionAnalyzer:
     def __init__(
         self, config: dict[str, Any], logger: logging.Logger | None = None, security_analysis_enabled: bool = False
     ):
+        """Initialize LibraryVersionAnalyzer with configuration and optional logger."""
         self.logger = logger or logging.getLogger(__name__)
         self.config = config.get("version_analysis", {})
 
@@ -126,8 +127,7 @@ class VersionAnalyzer:
     def analyze_library_version(
         self, library_name: str, current_version: str, package_name: str | None = None
     ) -> VersionAnalysisResult:
-        """
-        Analyze a library version to determine how outdated it is.
+        """Analyze a library version to determine how outdated it is.
 
         Args:
             library_name: Human-readable library name
@@ -199,8 +199,7 @@ class VersionAnalyzer:
             )
 
     def _normalize_version(self, version_str: str) -> str | None:
-        """
-        Normalize version string to semantic version format.
+        """Normalize version string to semantic version format.
 
         Handles various version formats:
         - 1.2.3
@@ -236,7 +235,7 @@ class VersionAnalyzer:
         return None
 
     def _get_latest_version_info(self, library_name: str, package_name: str | None = None) -> VersionInfo | None:
-        """Get latest version information from various sources"""
+        """Get latest version information from various sources."""
         cache_key = package_name or library_name
 
         # Check cache first
@@ -266,7 +265,7 @@ class VersionAnalyzer:
         return None
 
     def _check_maven_central(self, library_name: str, package_name: str | None = None) -> VersionInfo | None:
-        """Check Maven Central for latest version using improved mapping"""
+        """Check Maven Central for latest version using improved mapping."""
         try:
             # Import library mappings
             from .library_mappings import get_maven_coordinates
@@ -365,7 +364,7 @@ class VersionAnalyzer:
         return None
 
     def _check_npm_registry(self, library_name: str, package_name: str | None = None) -> VersionInfo | None:
-        """Check npm registry for JavaScript libraries"""
+        """Check npm registry for JavaScript libraries."""
         # Try multiple name variations for better matching
         search_names = [
             package_name or library_name.lower().replace(" ", "-"),
@@ -405,7 +404,7 @@ class VersionAnalyzer:
         return None
 
     def _check_pypi(self, library_name: str, package_name: str | None = None) -> VersionInfo | None:
-        """Check PyPI for Python libraries (in case of Kivy/BeeWare apps)"""
+        """Check PyPI for Python libraries (in case of Kivy/BeeWare apps)."""
         search_name = package_name or library_name.lower().replace(" ", "-")
 
         try:
@@ -424,14 +423,13 @@ class VersionAnalyzer:
         return None
 
     def _check_custom_database(self, library_name: str, package_name: str | None = None) -> VersionInfo | None:
-        """Check custom version database (could be extended with local database)"""
+        """Check custom version database (could be extended with local database)."""
         # This could be extended to use a local database or custom API
         # For now, return None to indicate no custom database
         return None
 
     def _check_google_maven(self, library_name: str, package_name: str | None = None) -> VersionInfo | None:
-        """
-        Check Google Maven Repository for Play Services and Firebase libraries.
+        """Check Google Maven Repository for Play Services and Firebase libraries.
 
         Google maintains their own Maven repository at:
         https://maven.google.com/
@@ -535,8 +533,7 @@ class VersionAnalyzer:
         return None
 
     def _get_known_google_versions(self, group_id: str, artifact_id: str) -> VersionInfo | None:
-        """
-        Fallback method with known latest versions for major Google libraries.
+        """Fallback method with known latest versions for major Google libraries.
 
         This is updated manually with known stable versions as of early 2025.
         """
@@ -586,7 +583,7 @@ class VersionAnalyzer:
     def _calculate_years_behind(
         self, current_version: str, latest_version: str, release_date: datetime | None
     ) -> float | None:
-        """Calculate how many years behind the current version is"""
+        """Calculate how many years behind the current version is."""
         try:
             current_ver = version.parse(current_version)
             latest_ver = version.parse(latest_version)
@@ -612,7 +609,7 @@ class VersionAnalyzer:
             return None
 
     def _calculate_major_versions_behind(self, current_version: str, latest_version: str) -> int | None:
-        """Calculate how many major versions behind"""
+        """Calculate how many major versions behind."""
         try:
             current_ver = version.parse(current_version)
             latest_ver = version.parse(latest_version)
@@ -625,7 +622,7 @@ class VersionAnalyzer:
     def _assess_security_risk(
         self, years_behind: float | None, major_versions_behind: int | None, vulnerability_count: int
     ) -> tuple[str, str]:
-        """Assess security risk and provide recommendation"""
+        """Assess security risk and provide recommendation."""
         if not years_behind:
             return "UNKNOWN", "Unable to determine version age"
 
@@ -662,7 +659,7 @@ class VersionAnalyzer:
         return risk, recommendation
 
     def _is_cached_valid(self, cache_key: str) -> bool:
-        """Check if cached version info is still valid"""
+        """Check if cached version info is still valid."""
         if cache_key not in self._version_cache:
             return False
 
@@ -674,8 +671,7 @@ class VersionAnalyzer:
         return age < timedelta(hours=self.cache_duration)
 
     def format_version_output(self, library_name: str, analysis: VersionAnalysisResult, smali_path: str = "") -> str:
-        """
-        Format version analysis output for console display.
+        """Format version analysis output for console display.
 
         Format: library name (version): smali path : years behind
         Example: Gson (2.8.5): /com/google/gson/ : 2.1 years behind
@@ -706,7 +702,7 @@ _version_analyzer: VersionAnalyzer | None = None
 def get_version_analyzer(
     config: dict[str, Any] | None = None, security_analysis_enabled: bool = False
 ) -> VersionAnalyzer:
-    """Get global version analyzer instance"""
+    """Get global version analyzer instance."""
     global _version_analyzer
     # Always create a new instance if security context or config changes
     if (

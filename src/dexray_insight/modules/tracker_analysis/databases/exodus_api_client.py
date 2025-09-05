@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Exodus Privacy API Client
+Exodus Privacy API Client.
 
 Client for fetching tracker patterns from the Exodus Privacy API.
 Handles API communication, caching, and error management.
@@ -46,6 +46,7 @@ class ExodusAPIClient:
     """
 
     def __init__(self, config: dict[str, Any]):
+        """Initialize ExodusAPIClient with configuration."""
         self.logger = logging.getLogger(__name__)
         self.api_url = config.get("exodus_api_url", "https://reports.exodus-privacy.eu.org/api/trackers")
         self.timeout = config.get("api_timeout", 10)
@@ -58,7 +59,7 @@ class ExodusAPIClient:
             self.enabled = False
 
     def _validate_api_url(self) -> bool:
-        """Validate the Exodus Privacy API URL format"""
+        """Validate the Exodus Privacy API URL format."""
         try:
             parsed = urlparse(self.api_url)
             if not parsed.scheme or not parsed.netloc:
@@ -122,14 +123,14 @@ class ExodusAPIClient:
             raise Exception(error_msg) from e
 
     def clear_cache(self):
-        """Clear the cached tracker data"""
+        """Clear the cached tracker data."""
         self._cache = None
         self.logger.debug("Exodus tracker cache cleared")
 
     def is_enabled(self) -> bool:
-        """Check if Exodus API integration is enabled"""
+        """Check if Exodus API integration is enabled."""
         return self.enabled
 
     def get_cached_count(self) -> int:
-        """Get the number of cached trackers"""
+        """Get the number of cached trackers."""
         return len(self._cache) if self._cache else 0

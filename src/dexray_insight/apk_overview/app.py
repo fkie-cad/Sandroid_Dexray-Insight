@@ -43,8 +43,8 @@ logging.getLogger("androguard").disabled = True
 
 
 def get_manifest_data(checksum, app_dic, andro_apk=None):
-    app_dic["zipped"] = "apk"
     """Get Manifest Data."""
+    app_dic["zipped"] = "apk"
     # Manifest XML
     mani_file, ns, mani_xml = get_manifest(
         app_dic["app_path"],
@@ -75,11 +75,10 @@ def parse_apk(app_path):
 
 
 def get_libraries(androguard_apk):
-    """
-    Get application libraries
+    """Get application libraries.
+
     :return: application libraries list
     """
-
     lib_list = androguard_apk.get_libraries()
     if len(lib_list) < 1:
         # apk = APK(apk_path)
@@ -125,7 +124,7 @@ def get_app_name_from_values_folder(values_dir):
 
 
 def get_app_name_from_file(file_path):
-    """Looks for app_name in specific file."""
+    """Look for app_name in specific file."""
     with open(file_path, encoding="utf-8") as f:
         data = f.read()
 
@@ -140,6 +139,7 @@ def get_app_name_from_file(file_path):
 
 
 def initialize_app_dic(app_dic, file_ext):
+    """Initialize application dictionary with file information."""
     checksum = app_dic["md5"]
     app_dic["app_file"] = f"{checksum}.{file_ext}"
     app_dic["app_path"] = (app_dic["app_dir"] / app_dic["app_file"]).as_posix()
@@ -259,6 +259,7 @@ def analyze_all(man_analysis, man_data, to_json=False):
 
 
 def is_crossplatform(native_libs, directory_listing):
+    """Check if application uses cross-platform frameworks."""
     if len(native_libs) < 1:
         return False
 
@@ -275,11 +276,10 @@ def is_crossplatform(native_libs, directory_listing):
 
 
 def detect_framework(all_files: list[str], native_libs: list[str]) -> str:
-    """
-    Detects cross-platform frameworks using file and native library patterns.
+    """Detect cross-platform frameworks using file and native library patterns.
+
     Priority order: Flutter → Xamarin/.MAUI → React Native → Cordova/Ionic → Unknown
     """
-
     # Check native libraries first (higher confidence)
     flutter_libs = {lib for lib in native_libs if "libflutter" in lib}
     xamarin_libs = {lib for lib in native_libs if "libmonodroid" in lib or "libmonosgen" in lib}
@@ -325,6 +325,7 @@ def detect_framework(all_files: list[str], native_libs: list[str]) -> str:
 
 
 def analyze_apk(apk_path, apk_overview, app_dic, permissions_details=False):
+    """Perform comprehensive APK analysis."""
     if apk_overview is None:
         apk_overview = parse_apk(apk_path)
 

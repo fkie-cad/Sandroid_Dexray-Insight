@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Native Analysis Modules
+Native Analysis Modules.
 
 This package contains modules for analyzing native binaries (.so files)
 found in Android APKs using radare2/r2pipe.

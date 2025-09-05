@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Library Pattern Definitions for Heuristic Detection
+Library Pattern Definitions for Heuristic Detection.
 
 This module contains known library patterns used for heuristic-based library detection.
 Each pattern defines packages, classes, permissions, and other characteristics that

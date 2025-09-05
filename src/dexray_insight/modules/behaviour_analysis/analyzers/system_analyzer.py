@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-System Analyzer
+System Analyzer.
 
 Detects system-level behaviors including clipboard usage, dynamic receivers,
 running services access, and installed applications enumeration.
@@ -34,7 +34,7 @@ from ..models.behavior_evidence import BehaviorEvidence
 
 
 class SystemAnalyzer:
-    """Analyzer for system-level privacy behaviors"""
+    """Analyzer for system-level privacy behaviors."""
 
     CLIPBOARD_PATTERNS = [
         r"ClipboardManager",
@@ -76,10 +76,11 @@ class SystemAnalyzer:
     ]
 
     def __init__(self, logger: Optional[logging.Logger] = None):
+        """Initialize SystemAnalyzer with optional logger."""
         self.logger = logger or logging.getLogger(__name__)
 
     def analyze_clipboard_usage(self, apk_obj, dex_obj, dx_obj, result) -> list[BehaviorEvidence]:
-        """Check if app uses clipboard"""
+        """Check if app uses clipboard."""
         try:
             from ..engines.pattern_search_engine import PatternSearchEngine
 
@@ -102,7 +103,7 @@ class SystemAnalyzer:
             return []
 
     def analyze_dynamic_receivers(self, apk_obj, dex_obj, dx_obj, result) -> list[BehaviorEvidence]:
-        """Check for dynamically registered broadcast receivers"""
+        """Check for dynamically registered broadcast receivers."""
         try:
             from ..engines.pattern_search_engine import PatternSearchEngine
 
@@ -125,7 +126,7 @@ class SystemAnalyzer:
             return []
 
     def analyze_running_services_access(self, apk_obj, dex_obj, dx_obj, result) -> list[BehaviorEvidence]:
-        """Check if app tries to get running services"""
+        """Check if app tries to get running services."""
         try:
             from ..engines.pattern_search_engine import PatternSearchEngine
 
@@ -148,7 +149,7 @@ class SystemAnalyzer:
             return []
 
     def analyze_installed_applications(self, apk_obj, dex_obj, dx_obj, result) -> list[BehaviorEvidence]:
-        """Check if app gets installed applications"""
+        """Check if app gets installed applications."""
         evidence = []
 
         try:
@@ -186,7 +187,7 @@ class SystemAnalyzer:
             return []
 
     def analyze_installed_packages(self, apk_obj, dex_obj, dx_obj, result) -> list[BehaviorEvidence]:
-        """Check if app gets installed packages"""
+        """Check if app gets installed packages."""
         try:
             from ..engines.pattern_search_engine import PatternSearchEngine
 

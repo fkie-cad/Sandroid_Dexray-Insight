@@ -19,6 +19,8 @@
 # # See the License for the specific language governing permissions and
 # # limitations under the License.
 
+"""APK overview results module for comprehensive APK metadata and component analysis."""
+
 import json
 from dataclasses import dataclass
 from dataclasses import field
@@ -55,9 +57,7 @@ class APKOverview:
     permissions_details: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
-        """
-        Ensures that `permissions_details` is included only if provided during initialization.
-        """
+        """Ensure that `permissions_details` is included only if provided during initialization."""
         # Remove `permissions_details` if it's empty or not provided
         if not self.permissions_details:
             delattr(self, "permissions_details")
@@ -65,7 +65,7 @@ class APKOverview:
     # Utility Methods
     def to_dict(self) -> dict[str, Any]:
         """
-        Converts the APKOverview object to a dictionary.
+        Convert the APKOverview object to a dictionary.
 
         Returns:
             dict: The object represented as a dictionary, excluding optional fields if not set.
@@ -87,7 +87,7 @@ class APKOverview:
 
     def to_json(self) -> str:
         """
-        Converts the APKOverview object to a JSON string.
+        Convert the APKOverview object to a JSON string.
 
         Returns:
             str: The object represented as a JSON string.
@@ -95,14 +95,12 @@ class APKOverview:
         return json.dumps(self.to_dict(), cls=CustomJSONEncoder, indent=4)
 
     def print_results(self):
-        """
-        Prints the APKOverview object in a readable JSON format.
-        """
+        """Print the APKOverview object in a readable JSON format."""
         print(self.to_json())
 
     def update_from_dict(self, updates: dict[str, Any]):
         """
-        Updates fields of the APKOverview object using a dictionary.
+        Update fields of the APKOverview object using a dictionary.
 
         Args:
             updates (dict): A dictionary containing updates for the fields.
@@ -126,7 +124,7 @@ class APKOverview:
 
     def pretty_print(self):
         """
-        Prints a formatted overview of the APK details.
+        Print a formatted overview of the APK details.
 
         Args:
             do_in_depth_analysis (bool): Whether to include in-depth analysis in the output.
@@ -208,7 +206,7 @@ class APKOverview:
 
     @md5.setter
     def md5(self, value: str):
-        """Sets the MD5 checksum in general_info with validation."""
+        """Set the MD5 checksum in general_info with validation."""
         if not isinstance(value, str):
             raise ValueError("MD5 must be a string.")
         self.general_info["md5"] = value

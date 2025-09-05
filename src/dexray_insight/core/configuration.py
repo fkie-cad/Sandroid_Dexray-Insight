@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""Configuration management system for Dexray Insight analysis framework."""
 
 # #!/usr/bin/env python3
 # # -*- coding: utf-8 -*-
@@ -28,7 +29,7 @@ from typing import Optional
 
 
 class Configuration:
-    """Centralized configuration management for Dexray Insight"""
+    """Centralized configuration management for Dexray Insight."""
 
     DEFAULT_CONFIG = {
         "analysis": {
@@ -204,7 +205,7 @@ class Configuration:
 
     def __init__(self, config_path: Optional[str] = None, config_dict: Optional[dict[str, Any]] = None):
         """
-        Initialize configuration
+        Initialize configuration.
 
         Args:
             config_path: Path to configuration file (JSON or YAML)
@@ -225,7 +226,7 @@ class Configuration:
         self._load_from_environment()
 
     def _load_default_config(self):
-        """Try to load default config file from project root"""
+        """Try to load default config file from project root."""
         # Look for dexray.yaml in project root (relative to this file)
         current_dir = Path(__file__).parent
         project_root = current_dir.parent.parent.parent  # Go up to project root
@@ -247,7 +248,7 @@ class Configuration:
                     print(f"Warning: Could not load config from {cwd_config}: {e}")
 
     def _load_from_file(self, config_path: str):
-        """Load configuration from file"""
+        """Load configuration from file."""
         path = Path(config_path)
         if not path.exists():
             raise FileNotFoundError(f"Configuration file not found: {config_path}")
@@ -270,7 +271,7 @@ class Configuration:
             raise ValueError(f"Failed to load configuration from {config_path}: {str(e)}")
 
     def _load_from_environment(self):
-        """Load configuration from environment variables"""
+        """Load configuration from environment variables."""
         # API Keys
         vt_key = os.getenv("VIRUSTOTAL_API_KEY")
         if vt_key:
@@ -296,7 +297,7 @@ class Configuration:
             self.config["output"]["output_directory"] = output_dir
 
     def _merge_config(self, new_config: dict[str, Any]):
-        """Recursively merge new configuration with existing"""
+        """Recursively merge new configuration with existing."""
 
         def merge_dict(base: dict[str, Any], update: dict[str, Any]):
             for key, value in update.items():
@@ -308,47 +309,47 @@ class Configuration:
         merge_dict(self.config, new_config)
 
     def get_module_config(self, module_name: str) -> dict[str, Any]:
-        """Get configuration for a specific module"""
+        """Get configuration for a specific module."""
         return self.config.get("modules", {}).get(module_name, {})
 
     def get_tool_config(self, tool_name: str) -> dict[str, Any]:
-        """Get configuration for a specific external tool"""
+        """Get configuration for a specific external tool."""
         return self.config.get("tools", {}).get(tool_name, {})
 
     def get_temporal_analysis_config(self) -> dict[str, Any]:
-        """Get temporal analysis configuration"""
+        """Get temporal analysis configuration."""
         return self.config.get("temporal_analysis", {})
 
     def get_security_config(self) -> dict[str, Any]:
-        """Get security assessment configuration"""
+        """Get security assessment configuration."""
         return self.config.get("security", {})
 
     def get_output_config(self) -> dict[str, Any]:
-        """Get output configuration"""
+        """Get output configuration."""
         return self.config.get("output", {})
 
     @property
     def enable_security_assessment(self) -> bool:
-        """Check if OWASP security assessment is enabled"""
+        """Check if OWASP security assessment is enabled."""
         return self.config.get("security", {}).get("enable_owasp_assessment", False)
 
     @property
     def parallel_execution_enabled(self) -> bool:
-        """Check if parallel execution is enabled"""
+        """Check if parallel execution is enabled."""
         return self.config.get("analysis", {}).get("parallel_execution", {}).get("enabled", True)
 
     @property
     def max_workers(self) -> int:
-        """Get maximum number of parallel workers"""
+        """Get maximum number of parallel workers."""
         return self.config.get("analysis", {}).get("parallel_execution", {}).get("max_workers", 4)
 
     def to_dict(self) -> dict[str, Any]:
-        """Get complete configuration as dictionary"""
+        """Get complete configuration as dictionary."""
         return self.config.copy()
 
     def save_to_file(self, file_path: str, format: str = "json"):
         """
-        Save configuration to file
+        Save configuration to file.
 
         Args:
             file_path: Path to save configuration
@@ -369,7 +370,7 @@ class Configuration:
                 json.dump(self.config, f, indent=2)
 
     def update_from_kwargs(self, **kwargs):
-        """Update configuration from keyword arguments (for backward compatibility)"""
+        """Update configuration from keyword arguments (for backward compatibility)."""
         # Map common CLI arguments to configuration
         mapping = {
             "do_signature_check": ["modules", "signature_detection", "enabled"],
@@ -383,7 +384,7 @@ class Configuration:
                 self._set_nested_value(config_path, arg_value)
 
     def _set_nested_value(self, path: list, value: Any):
-        """Set a nested configuration value"""
+        """Set a nested configuration value."""
         current = self.config
         for key in path[:-1]:
             if key not in current:
@@ -397,7 +398,7 @@ class Configuration:
             current[path[-1]] = value
 
     def validate(self) -> bool:
-        """Validate configuration"""
+        """Validate configuration."""
         # Check required API keys if services are enabled
         sig_config = self.get_module_config("signature_detection")
         for provider, config in sig_config.get("providers", {}).items():

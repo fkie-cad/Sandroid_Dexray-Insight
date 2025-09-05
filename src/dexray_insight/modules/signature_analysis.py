@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""Digital signature analysis module for APK certificate verification."""
 
 # #!/usr/bin/env python3
 # # -*- coding: utf-8 -*-
@@ -37,19 +38,21 @@ from ..signature_detection.vt import vt_check_file_reputation
 
 @dataclass
 class SignatureAnalysisResult(BaseResult):
-    """Result class for signature analysis"""
+    """Result class for signature analysis."""
 
     signatures: dict[str, Any] = None
     apk_hash: str = ""
     providers_checked: list[str] = None
 
     def __post_init__(self):
+        """Initialize default values for optional fields."""
         if self.signatures is None:
             self.signatures = {}
         if self.providers_checked is None:
             self.providers_checked = []
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert result to dictionary."""
         base_dict = super().to_dict()
         base_dict.update(
             {"signatures": self.signatures, "apk_hash": self.apk_hash, "providers_checked": self.providers_checked}
@@ -59,19 +62,20 @@ class SignatureAnalysisResult(BaseResult):
 
 @register_module("signature_detection")
 class SignatureAnalysisModule(BaseAnalysisModule):
-    """Signature detection and hash-based analysis module"""
+    """Signature detection and hash-based analysis module."""
 
     def __init__(self, config: dict[str, Any]):
+        """Initialize SignatureAnalysisModule with configuration."""
         super().__init__(config)
         self.providers = config.get("providers", {})
 
     def get_dependencies(self) -> list[str]:
-        """No dependencies for signature analysis"""
+        """No dependencies for signature analysis."""
         return []
 
     def analyze(self, apk_path: str, context: AnalysisContext) -> SignatureAnalysisResult:
         """
-        Perform signature analysis on the APK
+        Perform signature analysis on the APK.
 
         Args:
             apk_path: Path to the APK file
@@ -138,7 +142,7 @@ class SignatureAnalysisModule(BaseAnalysisModule):
             )
 
     def validate_config(self) -> bool:
-        """Validate module configuration"""
+        """Validate module configuration."""
         # Check if at least one provider is enabled
         if not any(provider.get("enabled", False) for provider in self.providers.values()):
             return False

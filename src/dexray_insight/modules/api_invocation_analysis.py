@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""API invocation analysis module for detecting method calls and reflections."""
 
 # #!/usr/bin/env python3
 # # -*- coding: utf-8 -*-
@@ -34,7 +35,7 @@ from ..core.base_classes import register_module
 
 @dataclass
 class APIInvocationAnalysisResult(BaseResult):
-    """Result class for API invocation analysis"""
+    """Result class for API invocation analysis."""
 
     api_calls: list[dict[str, Any]] = None
     reflection_usage: list[dict[str, Any]] = None
@@ -43,6 +44,7 @@ class APIInvocationAnalysisResult(BaseResult):
     total_api_calls: int = 0
 
     def __post_init__(self):
+        """Initialize default values for optional fields."""
         if self.api_calls is None:
             self.api_calls = []
         if self.reflection_usage is None:
@@ -53,6 +55,7 @@ class APIInvocationAnalysisResult(BaseResult):
             self.suspicious_api_calls = []
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert result to dictionary."""
         base_dict = super().to_dict()
         base_dict.update(
             {
@@ -73,7 +76,7 @@ class APIInvocationAnalysisResult(BaseResult):
 
 @register_module("api_invocation")
 class APIInvocationAnalysisModule(BaseAnalysisModule):
-    """API invocation analysis module for detecting method calls and reflection usage"""
+    """API invocation analysis module for detecting method calls and reflection usage."""
 
     # Suspicious API patterns that might indicate malicious behavior
     SUSPICIOUS_API_PATTERNS = [
@@ -94,6 +97,7 @@ class APIInvocationAnalysisModule(BaseAnalysisModule):
     ]
 
     def __init__(self, config: dict[str, Any]):
+        """Initialize APIInvocationAnalysisModule with configuration."""
         super().__init__(config)
         self.logger = logging.getLogger(__name__)
         self.reflection_analysis = config.get("reflection_analysis", True)
@@ -101,12 +105,12 @@ class APIInvocationAnalysisModule(BaseAnalysisModule):
         self.suspicious_api_detection = config.get("suspicious_api_detection", True)
 
     def get_dependencies(self) -> list[str]:
-        """No dependencies for API invocation analysis"""
+        """No dependencies for API invocation analysis."""
         return []
 
     def analyze(self, apk_path: str, context: AnalysisContext) -> APIInvocationAnalysisResult:
         """
-        Perform API invocation analysis on the APK
+        Perform API invocation analysis on the APK.
 
         Args:
             apk_path: Path to the APK file
@@ -171,7 +175,7 @@ class APIInvocationAnalysisModule(BaseAnalysisModule):
             )
 
     def _analyze_method_calls(self, dx) -> list[dict[str, Any]]:
-        """Analyze method calls in the APK"""
+        """Analyze method calls in the APK."""
         api_calls = []
 
         try:
@@ -220,7 +224,7 @@ class APIInvocationAnalysisModule(BaseAnalysisModule):
         return api_calls
 
     def _analyze_reflection_usage(self, dx) -> list[dict[str, Any]]:
-        """Analyze reflection usage in the APK"""
+        """Analyze reflection usage in the APK."""
         reflection_usage = []
 
         try:
@@ -264,7 +268,7 @@ class APIInvocationAnalysisModule(BaseAnalysisModule):
         return reflection_usage
 
     def _detect_native_calls(self, dx) -> list[str]:
-        """Detect native method calls"""
+        """Detect native method calls."""
         native_calls = []
 
         try:
@@ -289,7 +293,7 @@ class APIInvocationAnalysisModule(BaseAnalysisModule):
         return native_calls
 
     def _detect_suspicious_api_calls(self, api_calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """Detect suspicious API calls that might indicate malicious behavior"""
+        """Detect suspicious API calls that might indicate malicious behavior."""
         suspicious_calls = []
 
         for api_call in api_calls:
@@ -309,7 +313,7 @@ class APIInvocationAnalysisModule(BaseAnalysisModule):
         return suspicious_calls
 
     def _classify_api_type(self, class_name: str) -> str:
-        """Classify the type of API based on class name"""
+        """Classify the type of API based on class name."""
         if class_name.startswith("Landroid/"):
             if "telephony" in class_name:
                 return "telephony"
@@ -336,7 +340,7 @@ class APIInvocationAnalysisModule(BaseAnalysisModule):
             return "other"
 
     def _assess_risk_level(self, pattern: str) -> str:
-        """Assess risk level of suspicious API patterns"""
+        """Assess risk level of suspicious API patterns."""
         high_risk_patterns = ["java.lang.Runtime.exec", "android.app.admin.DevicePolicyManager", "java.lang.reflect"]
 
         medium_risk_patterns = ["android.telephony.SmsManager", "android.location.LocationManager", "javax.crypto"]
@@ -349,5 +353,5 @@ class APIInvocationAnalysisModule(BaseAnalysisModule):
             return "low"
 
     def validate_config(self) -> bool:
-        """Validate module configuration"""
+        """Validate module configuration."""
         return True

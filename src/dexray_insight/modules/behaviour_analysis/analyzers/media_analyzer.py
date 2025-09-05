@@ -20,8 +20,7 @@
 # # See the License for the specific language governing permissions and
 # # limitations under the License.
 
-"""
-Media Analyzer
+"""Media Analyzer.
 
 Detects when applications attempt to access camera, microphone,
 and other media-related functionality.
@@ -34,15 +33,16 @@ from ..models.behavior_evidence import BehaviorEvidence
 
 
 class MediaAnalyzer:
-    """Analyzer for media and hardware access behaviors"""
+    """Analyzer for media and hardware access behaviors."""
 
     CAMERA_PATTERNS = [r"Camera\.open\(", r"camera2\.CameraManager", r"SurfaceView", r"MediaRecorder", r"CAMERA"]
 
     def __init__(self, logger: Optional[logging.Logger] = None):
+        """Initialize MediaAnalyzer with optional logger."""
         self.logger = logger or logging.getLogger(__name__)
 
     def analyze_camera_access(self, apk_obj, dex_obj, dx_obj, result) -> list[BehaviorEvidence]:
-        """Check if app tries to access camera"""
+        """Check if app tries to access camera."""
         evidence = []
 
         try:

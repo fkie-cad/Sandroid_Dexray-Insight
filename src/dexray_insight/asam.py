@@ -20,6 +20,27 @@
 # # See the License for the specific language governing permissions and
 # # limitations under the License.
 
+"""Android Security Analysis Module (ASAM) - Main CLI interface for Dexray Insight."""
+
+# #!/usr/bin/env python3
+# # -*- coding: utf-8 -*-
+#
+# # Copyright (C) {{ year }} Dexray Insight Contributors
+# #
+# # This file is part of Dexray Insight - Android APK Security Analysis Tool
+# #
+# # Licensed under the Apache License, Version 2.0 (the "License");
+# # you may not use this file except in compliance with the License.
+# # You may obtain a copy of the License at
+# #
+# #     http://www.apache.org/licenses/LICENSE-2.0
+# #
+# # Unless required by applicable law or agreed to in writing, software
+# # distributed under the License is distributed on an "AS IS" BASIS,
+# # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# # See the License for the specific language governing permissions and
+# # limitations under the License.
+
 import argparse
 import logging
 import sys
@@ -44,6 +65,7 @@ from .Utils.log import set_logger
 
 
 def print_logo():
+    """Print the Dexray Insight ASCII logo."""
     print(
         """        Dexray Insight
 ⠀⠀⠀⠀⢀⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⣀⣀⣀⣀⡀⠀⠀⠀⠀⠀⠀⠀
@@ -66,8 +88,7 @@ def print_logo():
 
 
 def create_configuration_from_args(args) -> Configuration:
-    """
-    Create configuration object from command line arguments.
+    """Create configuration object from command line arguments.
 
     Refactored to use single-responsibility functions following SOLID principles.
     Maintains exact same behavior as original while improving maintainability.
@@ -92,8 +113,7 @@ def create_configuration_from_args(args) -> Configuration:
 
 
 def _process_signature_flags(args, config_updates: dict) -> None:
-    """
-    Process signature detection related command line flags.
+    """Process signature detection related command line flags.
 
     Single Responsibility: Handle only signature detection flag processing.
 
@@ -106,8 +126,7 @@ def _process_signature_flags(args, config_updates: dict) -> None:
 
 
 def _process_security_flags(args, config_updates: dict) -> None:
-    """
-    Process security analysis related command line flags.
+    """Process security analysis related command line flags.
 
     Single Responsibility: Handle only security analysis flag processing.
 
@@ -120,8 +139,7 @@ def _process_security_flags(args, config_updates: dict) -> None:
 
 
 def _process_cve_flags(args, config_updates: dict) -> None:
-    """
-    Process CVE vulnerability scanning related command line flags.
+    """Process CVE vulnerability scanning related command line flags.
 
     Single Responsibility: Handle only CVE scanning flag processing.
     CVE scanning requires security analysis to be enabled.
@@ -174,8 +192,7 @@ def _process_cve_flags(args, config_updates: dict) -> None:
 
 
 def _process_logging_flags(args, config_updates: dict) -> None:
-    """
-    Process logging related command line flags.
+    """Process logging related command line flags.
 
     Single Responsibility: Handle only logging configuration flag processing.
 
@@ -190,8 +207,7 @@ def _process_logging_flags(args, config_updates: dict) -> None:
 
 
 def _process_analysis_flags(args, config_updates: dict) -> None:
-    """
-    Process analysis module related command line flags.
+    """Process analysis module related command line flags.
 
     Single Responsibility: Handle only analysis module flag processing.
 
@@ -219,8 +235,7 @@ def _process_analysis_flags(args, config_updates: dict) -> None:
 
 
 def _build_configuration_updates(args) -> dict:
-    """
-    Build configuration updates from command line arguments.
+    """Build configuration updates from command line arguments.
 
     Single Responsibility: Coordinate all flag processing to build complete config updates.
     Following Open/Closed Principle: Easy to extend with new flag processors.
@@ -246,7 +261,8 @@ def _build_configuration_updates(args) -> dict:
 def start_apk_static_analysis_new(
     apk_file_path: str, config: Configuration, print_results_to_terminal: bool = False, verbose: bool = False
 ):
-    """
+    """Perform APK static analysis with new engine architecture.
+
     Args:
         apk_file_path: Path to the APK file
         config: Configuration object
@@ -322,7 +338,7 @@ def start_apk_static_analysis_new(
 
 
 def dump_results_as_json_file(results, filename: str, timestamp: str = None) -> str:
-    """Save analysis results to JSON file"""
+    """Save analysis results to JSON file."""
     if timestamp is None:
         current_time = datetime.now()
         timestamp = current_time.strftime("%Y-%m-%d_%H-%M-%S")
@@ -343,7 +359,7 @@ def dump_results_as_json_file(results, filename: str, timestamp: str = None) -> 
 
 
 def dump_security_results_as_json_file(results, filename: str, timestamp: str = None) -> str:
-    """Save security assessment results to separate JSON file"""
+    """Save security assessment results to separate JSON file."""
     if timestamp is None:
         current_time = datetime.now()
         timestamp = current_time.strftime("%Y-%m-%d_%H-%M-%S")
@@ -370,7 +386,10 @@ def dump_security_results_as_json_file(results, filename: str, timestamp: str = 
 
 
 class ArgParser(argparse.ArgumentParser):
+    """Custom argument parser for Dexray Insight CLI."""
+
     def error(self, message):
+        """Handle argument parsing errors with custom formatting."""
         print("Dexray Insight v" + __version__ + " ")
         print("by " + __author__)
         print()
@@ -555,7 +574,7 @@ def parse_arguments():
 
 
 def main():
-    """Main entry point"""
+    """Execute the main entry point for the application."""
     try:
         parsed_args = parse_arguments()
         script_name = sys.argv[0]
@@ -660,9 +679,7 @@ def start_apk_static_analysis(
     do_sec_analysis=False,
     exclude_net_libs=None,
 ):
-    """
-    Backward compatibility wrapper for the old function signature
-    """
+    """Backward compatibility wrapper for the old function signature."""
     # Create configuration from old parameters
     config_dict = {
         "modules": {

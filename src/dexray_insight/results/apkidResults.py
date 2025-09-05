@@ -19,6 +19,8 @@
 # # See the License for the specific language governing permissions and
 # # limitations under the License.
 
+"""APKID results module for Android packer and compiler detection results."""
+
 import json
 from dataclasses import asdict
 from dataclasses import dataclass
@@ -62,6 +64,7 @@ class ApkidResults:
     def to_dict(self) -> dict[str, Any]:
         """
         Convert the object to a dictionary (JSON-compatible).
+
         Automatically parses raw_output if structured fields are empty.
         """
         # If structured fields are empty but we have raw_output, parse it
@@ -76,9 +79,7 @@ class ApkidResults:
         }
 
     def to_json(self) -> str:
-        """
-        Serialize the object into a JSON string.
-        """
+        """Serialize the object into a JSON string."""
         return json.dumps(self.to_dict(), cls=CustomJSONEncoder, indent=4)
 
     def update_from_dict(self, updates: dict[str, Any]):
@@ -139,6 +140,7 @@ class ApkidResults:
     def _parse_raw_output(self):
         """
         Parse raw_output JSON and populate structured fields if they are empty.
+
         This is a helper method used by to_dict() to ensure structured data is available.
         """
         if not self.raw_output:
@@ -168,9 +170,7 @@ class ApkidResults:
             logging.getLogger(__name__).warning(f"Failed to parse APKID raw_output in _parse_raw_output: {e}")
 
     def pretty_print(self, is_verbose=False):
-        """
-        Pretty print the apkid results in a readable format.
-        """
+        """Pretty print the apkid results in a readable format."""
         print(f"\n=== APKID Results (Version: {self.apkid_version}) ===\n")
 
         print("=== File Analysis ===")

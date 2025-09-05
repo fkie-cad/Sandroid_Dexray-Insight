@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-String Analysis Filters Package
+String Analysis Filters Package.
 
 Contains specialized filters for different string types including email addresses,
 IP addresses, URLs, domain names, and Android system properties.

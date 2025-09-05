@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Context Analysis Data Models
+Context Analysis Data Models.
 
 This module contains data models and classes for representing contextual
 information, enhanced findings, and analysis metadata used in context-aware

@@ -20,7 +20,7 @@
 # # limitations under the License.
 
 """
-String Extractor for String Analysis
+String Extractor for String Analysis.
 
 Specialized extractor for collecting strings from various APK components
 including DEX files, native analysis results, and .NET analysis results.
@@ -35,14 +35,14 @@ from dexray_insight.core.base_classes import AnalysisContext
 
 
 class StringExtractor:
-    """
-    Specialized extractor for string collection from APK components.
+    """Specialized extractor for string collection from APK components.
 
     Single Responsibility: Extract and filter strings from various
     APK sources with configurable filtering options.
     """
 
     def __init__(self, config: dict = None):
+        """Initialize StringExtractor with configuration."""
         self.logger = logging.getLogger(__name__)
         if config is None:
             config = {}
@@ -52,8 +52,7 @@ class StringExtractor:
         self.exclude_patterns = config.get("exclude_patterns", [])
 
     def extract_all_strings(self, context: AnalysisContext) -> set[str]:
-        """
-        Extract all strings from available analysis sources.
+        """Extract all strings from available analysis sources.
 
         Args:
             context: Analysis context with various module results
@@ -91,8 +90,7 @@ class StringExtractor:
         return strings_set
 
     def _extract_dotnet_strings(self, context: AnalysisContext) -> set[str]:
-        """
-        Extract strings from .NET analysis results.
+        """Extract strings from .NET analysis results.
 
         Args:
             context: Analysis context
@@ -113,8 +111,7 @@ class StringExtractor:
         return strings_set
 
     def _extract_native_strings(self, context: AnalysisContext) -> set[str]:
-        """
-        Extract strings from native analysis results.
+        """Extract strings from native analysis results.
 
         Args:
             context: Analysis context
@@ -135,8 +132,7 @@ class StringExtractor:
         return strings_set
 
     def _extract_dex_strings(self, context: AnalysisContext) -> set[str]:
-        """
-        Extract strings from DEX files using androguard.
+        """Extract strings from DEX files using androguard.
 
         Args:
             context: Analysis context with androguard object
@@ -194,8 +190,7 @@ class StringExtractor:
         return strings_set
 
     def _extract_xml_strings(self, context: AnalysisContext) -> set[str]:
-        """
-        Extract strings from XML resources using androguard APK object.
+        """Extract strings from XML resources using androguard APK object.
 
         This method extracts strings from XML resources like strings.xml, which often
         contain API keys, configuration values, and other sensitive data that should
@@ -293,8 +288,7 @@ class StringExtractor:
         return strings_set
 
     def _parse_xml_for_strings(self, xml_content: bytes, xml_file: str) -> set[str]:
-        """
-        Parse XML content to extract string values.
+        """Parse XML content to extract string values.
 
         Args:
             xml_content: Raw XML content as bytes
@@ -354,8 +348,7 @@ class StringExtractor:
         return strings_set
 
     def _extract_manifest_strings(self, apk_obj) -> set[str]:
-        """
-        Extract string values from AndroidManifest.xml.
+        """Extract string values from AndroidManifest.xml.
 
         Args:
             apk_obj: Androguard APK object
@@ -387,8 +380,7 @@ class StringExtractor:
         return strings_set
 
     def _should_exclude_string(self, string_val: str) -> bool:
-        """
-        Check if a string should be excluded based on configured patterns.
+        """Check if a string should be excluded based on configured patterns.
 
         Args:
             string_val: String to check
@@ -406,8 +398,7 @@ class StringExtractor:
             return False
 
     def _log_extraction_stats(self, total_raw: int, filtered_length: int, filtered_exclude: int, final_count: int):
-        """
-        Log comprehensive string extraction statistics.
+        """Log comprehensive string extraction statistics.
 
         Args:
             total_raw: Total raw strings found
@@ -427,8 +418,7 @@ class StringExtractor:
             self.logger.warning(f"⚠️  Very few strings found ({final_count}) - this might indicate an issue")
 
     def validate_configuration(self) -> bool:
-        """
-        Validate extractor configuration.
+        """Validate extractor configuration.
 
         Returns:
             True if configuration is valid

@@ -44,7 +44,7 @@ from dexray_insight.Utils.file_utils import CustomJSONEncoder
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 
 
-def run_cli_command(cmd_args, **kwargs):
+def run_cli_command(cmd_args, **kwargs) -> subprocess.CompletedProcess[bytes]:
     """Helper function to run CLI commands with proper environment setup"""
     cmd = [sys.executable, "-m", "dexray_insight.asam"] + cmd_args
 

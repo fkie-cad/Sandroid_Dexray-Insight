@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Library Detection Coordinator
+Library Detection Coordinator.
 
 Coordinator class for orchestrating all detection engines and aggregating results.
 Follows Single Responsibility Principle by focusing only on coordination.
@@ -55,6 +55,7 @@ class LibraryDetectionCoordinator:
     """
 
     def __init__(self, parent_module):
+        """Initialize LibraryDetectionCoordinator with parent module and detection engines."""
         self.parent = parent_module
         self.logger = parent_module.logger
 
@@ -219,6 +220,7 @@ class LibraryDetectionCoordinator:
     def _print_version_analysis_results(self, libraries: list[DetectedLibrary], context):
         """
         Print enhanced version analysis results to console.
+
         Only displays when security analysis is enabled or version_analysis.security_analysis_only is False.
 
         Format: library name (version): smali path : years behind

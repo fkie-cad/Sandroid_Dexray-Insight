@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Native Library Detection Engine for Library Detection
+Native Library Detection Engine for Library Detection.
 
 Specialized engine for native library detection (.so files).
 Handles timing, error management, and result processing for native library detection.
@@ -43,6 +43,7 @@ class NativeLibraryDetectionEngine:
     """
 
     def __init__(self, parent_module):
+        """Initialize NativeLibraryDetectionEngine with parent module."""
         self.parent = parent_module
         self.logger = parent_module.logger
 

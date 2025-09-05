@@ -18,15 +18,10 @@
 # # limitations under the License.
 
 """
-To-Do:
+String analysis and filtering utilities.
 
-- We should also indicate where this interestings has been found
-
-- There should also be something like emulator or root detection strings
-more at: https://github.com/mofneko/EmulatorDetector/blob/master/library/src/main/java/com/nekolaboratory/EmulatorDetector.java
-
-
-
+This module provides functions for extracting and filtering strings from APK analysis,
+including email addresses, URLs, IP addresses, and domain names.
 """
 
 import re
@@ -34,7 +29,7 @@ import re
 
 def filter_android_properties(strings: list[str]) -> tuple[dict[str, str], list[str]]:
     """
-    Filters a list of strings for known Android system properties and provides their descriptions.
+    Filter a list of strings for known Android system properties and provide their descriptions.
 
     Args:
         strings (list): A list of strings to filter for known Android properties.
@@ -124,6 +119,7 @@ def filter_android_properties(strings: list[str]) -> tuple[dict[str, str], list[
 
 
 def list_apk_strings(dex_obj, verbose=False, pre_found_strings=None):
+    """Extract and deduplicate strings from APK DEX objects."""
     if pre_found_strings is None:
         pre_found_strings = []
 
@@ -181,6 +177,7 @@ def list_apk_strings(dex_obj, verbose=False, pre_found_strings=None):
 
 
 def string_analysis_execute(apk_path, androguard_obj, pre_found_strings=None):
+    """Execute string analysis on APK using Androguard objects."""
     if pre_found_strings is None:
         pre_found_strings = []
     dex_obj = androguard_obj.get_androguard_dex()
@@ -191,7 +188,7 @@ def string_analysis_execute(apk_path, androguard_obj, pre_found_strings=None):
 
 def is_valid_domain(domain: str) -> bool:
     """
-    Validates whether a string is a valid domain based on specific rules.
+    Validate whether a string is a valid domain based on specific rules.
 
     Args:
         domain (str): The string to validate.
@@ -199,7 +196,6 @@ def is_valid_domain(domain: str) -> bool:
     Returns:
         bool: True if the string is considered a valid domain, False otherwise.
     """
-
     # Check for spaces
     if " " in domain:
         return False
@@ -272,6 +268,7 @@ def is_valid_domain(domain: str) -> bool:
 
 
 def filter_strings(strings):
+    """Filter strings to extract emails, IPs, domains, and URLs."""
     # TODO maybe extra regex for ipv6
     emailPattern = r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+"
     urlPattern = r"((?:http|https):\/\/(?:www\.)?[a-zA-Z0-9\.-]+\.[a-zA-Z]{2,}(?:\/[^\s]*)?)"
@@ -293,6 +290,7 @@ def filter_strings(strings):
 
 
 def filterEmails(strings):
+    """Filter strings to extract email addresses."""
     emailPattern = r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+"
 
     filteredStringsMails = []
@@ -303,6 +301,7 @@ def filterEmails(strings):
 
 
 def filterURLs(strings):
+    """Filter strings to extract HTTP/HTTPS URLs."""
     urlPattern = r"((?:http|https):\/\/(?:www\.)?[a-zA-Z0-9\.-]+\.[a-zA-Z]{2,}(?:\/[^\s]*)?)"
 
     filteredStringsURL = {string for string in strings if re.match(urlPattern, string)}
@@ -312,6 +311,7 @@ def filterURLs(strings):
 
 
 def filterIPs(strings):
+    """Filter strings to extract IPv4 addresses."""
     ipv4Pattern = (
         r"\b(?:(?:2[0-4][0-9]|25[0-5]|1[0-9]{2}|[1-9]?[0-9])\.){3}(?:2[0-4][0-9]|25[0-5]|1[0-9]{2}|[1-9]?[0-9])\b"
     )
@@ -326,6 +326,7 @@ def filterIPs(strings):
 
 
 def filter_domains(strings: list[str]) -> list[str]:
+    """Filter strings to extract valid domain names."""
     domainPattern = r"\b(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\b"
 
     filteredStringsDomains = []

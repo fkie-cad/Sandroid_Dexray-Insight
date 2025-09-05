@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Tracker Deduplicator for Tracker Analysis
+Tracker Deduplicator for Tracker Analysis.
 
 Specialized deduplicator for removing duplicate tracker detections.
 Handles conflict resolution based on confidence scores and version information.
@@ -43,6 +43,7 @@ class TrackerDeduplicator:
     """
 
     def __init__(self):
+        """Initialize TrackerDeduplicator with logger."""
         self.logger = logging.getLogger(__name__)
 
     def deduplicate_trackers(self, trackers: list[DetectedTracker]) -> list[DetectedTracker]:

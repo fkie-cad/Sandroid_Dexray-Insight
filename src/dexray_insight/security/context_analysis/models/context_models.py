@@ -20,6 +20,32 @@
 # # See the License for the specific language governing permissions and
 # # limitations under the License.
 
+"""
+Context analysis models for security assessments.
+
+This module provides data structures for contextual analysis including
+code locations, protection levels, and security contexts.
+"""
+
+# #!/usr/bin/env python3
+# # -*- coding: utf-8 -*-
+#
+# # Copyright (C) {{ year }} Dexray Insight Contributors
+# #
+# # This file is part of Dexray Insight - Android APK Security Analysis Tool
+# #
+# # Licensed under the Apache License, Version 2.0 (the "License");
+# # you may not use this file except in compliance with the License.
+# # You may obtain a copy of the License at
+# #
+# #     http://www.apache.org/licenses/LICENSE-2.0
+# #
+# # Unless required by applicable law or agreed to in writing, software
+# # distributed under the License is distributed on an "AS IS" BASIS,
+# # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# # See the License for the specific language governing permissions and
+# # limitations under the License.
+
 from dataclasses import dataclass
 from dataclasses import field
 from enum import Enum
@@ -28,7 +54,7 @@ from typing import Optional
 
 
 class CodeLocation(Enum):
-    """Types of code locations where secrets might be found"""
+    """Types of code locations where secrets might be found."""
 
     SOURCE_CODE = "source_code"
     CONFIGURATION_FILE = "configuration_file"
@@ -44,7 +70,7 @@ class CodeLocation(Enum):
 
 
 class ProtectionLevel(Enum):
-    """Levels of protection applied to secrets"""
+    """Levels of protection applied to secrets."""
 
     NONE = "none"  # No protection (plaintext)
     OBFUSCATION = "obfuscation"  # Simple obfuscation (base64, etc.)
@@ -79,7 +105,7 @@ class CodeContext:
     protection_level: ProtectionLevel = ProtectionLevel.NONE
 
     def has_test_indicators(self) -> bool:
-        """Check if the context indicates this is test code"""
+        """Check if the context indicates this is test code."""
         test_indicators = {
             "test",
             "mock",
@@ -124,7 +150,7 @@ class CodeContext:
         return False
 
     def has_configuration_indicators(self) -> bool:
-        """Check if the context indicates this is configuration data"""
+        """Check if the context indicates this is configuration data."""
         config_indicators = {
             "config",
             "settings",
@@ -152,7 +178,7 @@ class CodeContext:
         return False
 
     def get_encryption_indicators(self) -> list[str]:
-        """Get indicators that suggest encryption/security measures are in use"""
+        """Get indicators that suggest encryption/security measures are in use."""
         encryption_keywords = {
             "encrypt",
             "decrypt",
@@ -190,7 +216,7 @@ class CodeContext:
         return indicators
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary representation"""
+        """Convert to dictionary representation."""
         return {
             "location_type": self.location_type.value,
             "file_path": self.file_path,
@@ -231,7 +257,7 @@ class RiskContext:
     risk_multipliers: dict[str, float] = field(default_factory=dict)
 
     def calculate_risk_score(self) -> float:
-        """Calculate overall risk score based on various factors"""
+        """Calculate overall risk score based on various factors."""
         base_score = 0.5  # Base risk score
 
         # Network usage increases risk
@@ -262,7 +288,7 @@ class RiskContext:
         return min(1.0, max(0.0, base_score))
 
     def get_primary_risk_factors(self) -> list[str]:
-        """Get the primary risk factors contributing to this context"""
+        """Get the primary risk factors contributing to this context."""
         factors = []
 
         if self.data_exfiltration_risk:
@@ -279,7 +305,7 @@ class RiskContext:
         return factors
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary representation"""
+        """Convert to dictionary representation."""
         return {
             "network_usage_detected": self.network_usage_detected,
             "privileged_api_usage": self.privileged_api_usage,
@@ -311,7 +337,7 @@ class FalsePositiveIndicator:
     source: str  # Where this indicator was detected (e.g., 'code_analysis', 'pattern_matching')
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary representation"""
+        """Convert to dictionary representation."""
         return {
             "indicator_type": self.indicator_type,
             "indicator_value": self.indicator_value,

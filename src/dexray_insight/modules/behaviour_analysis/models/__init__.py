@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Behavior Models Package
+Behavior Models Package.
 
 Contains data structures and models for behavior analysis results.
 """

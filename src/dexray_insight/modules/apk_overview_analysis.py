@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""APK overview analysis module for extracting comprehensive APK metadata."""
 
 # #!/usr/bin/env python3
 # # -*- coding: utf-8 -*-
@@ -39,7 +40,7 @@ from ..Utils.file_utils import split_path_file_extension
 
 @dataclass
 class APKOverviewResult(BaseResult):
-    """Result class for APK overview analysis"""
+    """Result class for APK overview analysis."""
 
     general_info: dict[str, Any] = field(default_factory=dict)
     components: dict[str, Any] = field(default_factory=dict)
@@ -51,6 +52,7 @@ class APKOverviewResult(BaseResult):
     cross_platform_framework: str = ""
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert result to dictionary."""
         base_dict = super().to_dict()
         base_dict.update(
             {
@@ -69,24 +71,27 @@ class APKOverviewResult(BaseResult):
 
 @register_module("apk_overview")
 class APKOverviewModule(BaseAnalysisModule):
-    """Module for comprehensive APK overview analysis"""
+    """Module for comprehensive APK overview analysis."""
 
     def __init__(self, config: dict[str, Any]):
+        """Initialize APKOverviewAnalysisModule with configuration."""
         super().__init__(config)
         self.logger = logging.getLogger(__name__)
 
     def get_name(self) -> str:
+        """Get the module name."""
         return "APK Overview Analysis"
 
     def get_description(self) -> str:
+        """Get the module description."""
         return "Extracts comprehensive APK metadata, components, permissions, and certificates"
 
     def get_dependencies(self) -> list[str]:
+        """Get module dependencies."""
         return []  # APK overview has no dependencies - it's foundational
 
     def analyze(self, apk_path: str, context: AnalysisContext) -> APKOverviewResult:
-        """
-        Perform comprehensive APK overview analysis
+        """Perform comprehensive APK overview analysis.
 
         Args:
             apk_path: Path to APK file

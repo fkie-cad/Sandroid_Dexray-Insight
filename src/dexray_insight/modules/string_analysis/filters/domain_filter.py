@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Domain Filter for String Analysis
+Domain Filter for String Analysis.
 
 Specialized filter for extracting and validating domain names from string collections.
 Implements comprehensive false positive filtering for mobile app analysis.
@@ -42,6 +42,7 @@ class DomainFilter:
     """
 
     def __init__(self):
+        """Initialize DomainFilter with configuration."""
         self.logger = logging.getLogger(__name__)
 
         # Domain pattern matching - for standalone domains or domains within text
@@ -51,8 +52,7 @@ class DomainFilter:
         self._initialize_invalid_patterns()
 
     def _initialize_invalid_patterns(self):
-        """Initialize comprehensive invalid patterns for false positive filtering"""
-
+        """Initialize comprehensive invalid patterns for false positive filtering."""
         # File extensions that commonly appear as false positives
         self.invalid_extensions = (
             # Programming language files

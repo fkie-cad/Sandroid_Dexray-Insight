@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Fast Mode Analyzer
+Fast Mode Analyzer.
 
 Provides basic behavior analysis using only APK object data,
 without requiring full DEX analysis. Suitable for quick scans.
@@ -34,13 +34,14 @@ from ..models.behavior_evidence import BehaviorEvidence
 
 
 class FastModeAnalyzer:
-    """Basic analyzer for fast mode analysis using only APK object"""
+    """Basic analyzer for fast mode analysis using only APK object."""
 
     def __init__(self, logger: Optional[logging.Logger] = None):
+        """Initialize FastModeAnalyzer with optional logger."""
         self.logger = logger or logging.getLogger(__name__)
 
     def analyze_basic_permissions(self, apk_obj, result) -> list[BehaviorEvidence]:
-        """Fast mode: Basic permission analysis using only APK object"""
+        """Fast mode: Basic permission analysis using only APK object."""
         evidence = []
 
         try:
@@ -77,7 +78,7 @@ class FastModeAnalyzer:
             return []
 
     def analyze_basic_components(self, apk_obj, result) -> list[BehaviorEvidence]:
-        """Fast mode: Basic component analysis using only APK object"""
+        """Fast mode: Basic component analysis using only APK object."""
         evidence = []
 
         try:
@@ -156,7 +157,7 @@ class FastModeAnalyzer:
             return []
 
     def analyze_app_metadata(self, apk_obj, result) -> list[BehaviorEvidence]:
-        """Fast mode: Basic app metadata analysis"""
+        """Fast mode: Basic app metadata analysis."""
         evidence = []
 
         try:

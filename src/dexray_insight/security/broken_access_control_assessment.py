@@ -20,6 +20,12 @@
 # # See the License for the specific language governing permissions and
 # # limitations under the License.
 
+"""Broken Access Control Assessment.
+
+This module implements OWASP A01:2021 - Broken Access Control vulnerability assessment.
+It analyzes Android applications for access control weaknesses.
+"""
+
 import logging
 from typing import Any
 
@@ -31,9 +37,10 @@ from ..core.base_classes import register_assessment
 
 @register_assessment("broken_access_control")
 class BrokenAccessControlAssessment(BaseSecurityAssessment):
-    """OWASP A01:2021 - Broken Access Control vulnerability assessment"""
+    """OWASP A01:2021 - Broken Access Control vulnerability assessment."""
 
     def __init__(self, config: dict[str, Any]):
+        """Initialize broken access control assessment."""
         super().__init__(config)
         self.logger = logging.getLogger(__name__)
         self.owasp_category = "A01:2021-Broken Access Control"
@@ -48,232 +55,281 @@ class BrokenAccessControlAssessment(BaseSecurityAssessment):
             "MANAGE_EXTERNAL_STORAGE",
             "WRITE_SETTINGS",
             "WRITE_SECURE_SETTINGS",
-            "SYSTEM_ALERT_WINDOW",
-            "REQUEST_INSTALL_PACKAGES",
             "INSTALL_PACKAGES",
             "DELETE_PACKAGES",
-            "GET_TASKS",
-            "REORDER_TASKS",
-            "KILL_BACKGROUND_PROCESSES",
-            "READ_LOGS",
-            "WRITE_APN_SETTINGS",
-            "MOUNT_UNMOUNT_FILESYSTEMS",
-            "DEVICE_POWER",
-            "MODIFY_PHONE_STATE",
-            "CALL_PRIVILEGED",
+            "READ_PHONE_STATE",
+            "WRITE_SMS",
+            "SEND_SMS",
+            "CAMERA",
+            "RECORD_AUDIO",
+            "ACCESS_FINE_LOCATION",
+            "ACCESS_COARSE_LOCATION",
+            "SYSTEM_ALERT_WINDOW",
+            "BIND_ACCESSIBILITY_SERVICE",
+            "BIND_DEVICE_ADMIN",
         ]
 
-        # Component types that should typically not be exported
-        self.sensitive_component_patterns = ["admin", "config", "settings", "debug", "test", "internal"]
-
-    def assess(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """
-        Assess for broken access control vulnerabilities
-
-        Args:
-            analysis_results: Combined results from all analysis modules
-
-        Returns:
-            List of security findings related to access control issues
-        """
+    def assess(self, analysis_data: dict[str, Any]) -> list[SecurityFinding]:
+        """Perform broken access control vulnerability assessment."""
         findings = []
 
         try:
-            # Check exported components
             if self.check_exported_components:
-                exported_findings = self._assess_exported_components(analysis_results)
-                findings.extend(exported_findings)
+                findings.extend(self._assess_exported_components(analysis_data))
 
-            # Check dangerous permissions
             if self.check_permissions:
-                permission_findings = self._assess_dangerous_permissions(analysis_results)
-                findings.extend(permission_findings)
+                findings.extend(self._assess_dangerous_permissions(analysis_data))
 
-            # Check intent filter risks
-            intent_findings = self._assess_intent_filter_risks(analysis_results)
-            findings.extend(intent_findings)
+            findings.extend(self._assess_intent_filter_risks(analysis_data))
+
+            self.logger.info(
+                f"Completed broken access control assessment. Found {len(findings)} potential issues in {self.owasp_category}"
+            )
 
         except Exception as e:
-            self.logger.error(f"Broken access control assessment failed: {str(e)}")
-
-        return findings
-
-    def _assess_exported_components(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """Assess exported components for access control issues"""
-        findings = []
-
-        # Get manifest analysis results
-        manifest_results = analysis_results.get("manifest_analysis", {})
-        if hasattr(manifest_results, "to_dict"):
-            manifest_data = manifest_results.to_dict()
-        else:
-            manifest_data = manifest_results
-
-        if not isinstance(manifest_data, dict):
-            return findings
-
-        # Check activities
-        activities = manifest_data.get("activities", [])
-        exported_activities = self._find_potentially_exported_components(activities, "activity")
-
-        # Check services
-        services = manifest_data.get("services", [])
-        exported_services = self._find_potentially_exported_components(services, "service")
-
-        # Check receivers
-        receivers = manifest_data.get("receivers", [])
-        exported_receivers = self._find_potentially_exported_components(receivers, "receiver")
-
-        # Check content providers
-        providers = manifest_data.get("content_providers", [])
-        exported_providers = self._find_potentially_exported_components(providers, "provider")
-
-        all_exported = exported_activities + exported_services + exported_receivers + exported_providers
-
-        if all_exported:
+            self.logger.error(f"Error during broken access control assessment: {e}")
             findings.append(
                 SecurityFinding(
+                    title="Assessment Error",
                     category=self.owasp_category,
-                    severity=AnalysisSeverity.HIGH,
-                    title="Potentially Unsafe Exported Components",
-                    description="Components that may be exported without proper access controls, allowing unauthorized access from other applications.",
-                    evidence=all_exported,
-                    recommendations=[
-                        "Review all exported components and ensure they require appropriate permissions",
-                        "Use explicit intent filters rather than implicit ones where possible",
-                        "Implement proper authentication and authorization in exported components",
-                        "Consider making components non-exported if they don't need to be accessed by other apps",
-                        "Use signature-level permissions for sensitive inter-app communication",
-                    ],
+                    severity=AnalysisSeverity.LOW,
+                    description="An error occurred during access control assessment",
+                    evidence=[str(e)],
                 )
             )
 
         return findings
 
-    def _find_potentially_exported_components(self, components: list[str], component_type: str) -> list[str]:
-        """Find components that may be exported and potentially unsafe"""
-        potentially_unsafe = []
-
-        for component in components:
-            if isinstance(component, str):
-                component_name = component.lower()
-
-                # Check for sensitive patterns in component names
-                for pattern in self.sensitive_component_patterns:
-                    if pattern in component_name:
-                        potentially_unsafe.append(f"{component_type.capitalize()}: {component} (contains '{pattern}')")
-                        break
-
-        return potentially_unsafe
-
-    def _assess_dangerous_permissions(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """Assess dangerous permissions that may indicate access control issues"""
+    def _assess_exported_components(self, analysis_data: dict[str, Any]) -> list[SecurityFinding]:
+        """Assess exported components for access control issues."""
         findings = []
 
-        # Get permission analysis results
-        permission_results = analysis_results.get("permission_analysis", {})
-        if hasattr(permission_results, "to_dict"):
-            permission_data = permission_results.to_dict()
-        else:
-            permission_data = permission_results
+        try:
+            manifest_data = analysis_data.get("manifest_analysis", {})
+            components = manifest_data.get("components", {})
 
-        if not isinstance(permission_data, dict):
-            return findings
+            # Check for exported activities
+            activities = components.get("activities", [])
+            for activity in activities:
+                if activity.get("exported", False):
+                    if not activity.get("permission"):  # No permission protection
+                        findings.append(
+                            SecurityFinding(
+                                title="Unprotected Exported Activity",
+                                category=self.owasp_category,
+                                severity=AnalysisSeverity.MEDIUM,
+                                description=(
+                                    f"Activity '{activity['name']}' is exported but not protected with permissions. "
+                                    "This could allow unauthorized access by other applications."
+                                ),
+                                evidence=[f"Exported activity: {activity['name']}", "No permission protection found"],
+                            )
+                        )
 
-        all_permissions = permission_data.get("all_permissions", [])
-        dangerous_found = []
+            # Check for exported services
+            services = components.get("services", [])
+            for service in services:
+                if service.get("exported", False):
+                    if not service.get("permission"):
+                        severity = (
+                            AnalysisSeverity.HIGH
+                            if "bind" in service.get("name", "").lower()
+                            else AnalysisSeverity.MEDIUM
+                        )
+                        findings.append(
+                            SecurityFinding(
+                                title="Unprotected Exported Service",
+                                category=self.owasp_category,
+                                severity=severity,
+                                description=(
+                                    f"Service '{service['name']}' is exported but not protected with permissions. "
+                                    "This could allow unauthorized binding or interaction by malicious applications."
+                                ),
+                                evidence=[f"Exported service: {service['name']}", "No permission protection found"],
+                            )
+                        )
 
-        for permission in all_permissions:
-            if isinstance(permission, str):
-                for dangerous_perm in self.dangerous_permissions:
-                    if dangerous_perm in permission:
-                        dangerous_found.append(permission)
-                        break
+            # Check for exported receivers
+            receivers = components.get("receivers", [])
+            for receiver in receivers:
+                if receiver.get("exported", False):
+                    if not receiver.get("permission"):
+                        findings.append(
+                            SecurityFinding(
+                                title="Unprotected Exported Broadcast Receiver",
+                                category=self.owasp_category,
+                                severity=AnalysisSeverity.MEDIUM,
+                                description=(
+                                    f"Broadcast receiver '{receiver['name']}' is exported but not protected. "
+                                    "This could allow unauthorized broadcast injection."
+                                ),
+                                evidence=[f"Exported receiver: {receiver['name']}", "No permission protection found"],
+                            )
+                        )
 
-        if dangerous_found:
-            findings.append(
-                SecurityFinding(
-                    category=self.owasp_category,
-                    severity=AnalysisSeverity.MEDIUM,
-                    title="Dangerous Permissions Detected",
-                    description="Application requests permissions that could bypass normal access controls or grant elevated privileges.",
-                    evidence=[f"Permission: {perm}" for perm in dangerous_found],
-                    recommendations=[
-                        "Review all requested permissions and ensure they are necessary",
-                        "Use runtime permissions (Android 6.0+) for sensitive permissions",
-                        "Implement proper permission checks before accessing protected resources",
-                        "Follow the principle of least privilege",
-                        "Consider alternative approaches that require fewer permissions",
-                    ],
-                )
-            )
+            # Look for potentially exported components without explicit export declaration
+            potentially_exported = self._find_potentially_exported_components(components)
+            for component_type, component_list in potentially_exported.items():
+                for component in component_list:
+                    findings.append(
+                        SecurityFinding(
+                            title=f"Potentially Exported {component_type.capitalize()[:-1]}",
+                            category=self.owasp_category,
+                            severity=AnalysisSeverity.LOW,
+                            description=(
+                                f"{component_type.capitalize()[:-1]} '{component['name']}' may be implicitly exported "
+                                "due to intent filters without explicit export control."
+                            ),
+                            evidence=[
+                                f"Component: {component['name']}",
+                                f"Intent filters present: {len(component.get('intent_filters', []))}",
+                            ],
+                        )
+                    )
+
+        except Exception as e:
+            self.logger.error(f"Error assessing exported components: {e}")
 
         return findings
 
-    def _assess_intent_filter_risks(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """Assess intent filters for access control risks"""
+    def _find_potentially_exported_components(self, components: dict[str, list]) -> dict[str, list]:
+        """Find components that might be implicitly exported due to intent filters."""
+        potentially_exported = {"activities": [], "services": [], "receivers": []}
+
+        for component_type in potentially_exported.keys():
+            for component in components.get(component_type, []):
+                if not component.get("exported", False):  # Not explicitly exported
+                    if component.get("intent_filters") and len(component["intent_filters"]) > 0:
+                        potentially_exported[component_type].append(component)
+
+        return potentially_exported
+
+    def _assess_dangerous_permissions(self, analysis_data: dict[str, Any]) -> list[SecurityFinding]:
+        """Assess use of dangerous permissions that could indicate access control issues."""
         findings = []
 
-        # Get manifest analysis results
-        manifest_results = analysis_results.get("manifest_analysis", {})
-        if hasattr(manifest_results, "to_dict"):
-            manifest_data = manifest_results.to_dict()
-        else:
-            manifest_data = manifest_results
+        try:
+            manifest_data = analysis_data.get("manifest_analysis", {})
+            permissions = manifest_data.get("permissions", {})
+            uses_permissions = permissions.get("uses_permissions", [])
 
-        if not isinstance(manifest_data, dict):
-            return findings
+            dangerous_found = []
+            for permission in uses_permissions:
+                permission_name = permission.get("name", "").replace("android.permission.", "")
+                if permission_name in self.dangerous_permissions:
+                    dangerous_found.append(permission_name)
 
-        intent_filters = manifest_data.get("intent_filters", [])
-        risky_filters = []
-
-        for intent_filter in intent_filters:
-            if isinstance(intent_filter, dict):
-                component_name = intent_filter.get("component_name", "")
-                filters = intent_filter.get("filters", [])
-
-                # Check for overly broad intent filters
-                if self._is_risky_intent_filter(filters):
-                    risky_filters.append(f"{intent_filter.get('component_type', 'Component')}: {component_name}")
-
-        if risky_filters:
-            findings.append(
-                SecurityFinding(
-                    category=self.owasp_category,
-                    severity=AnalysisSeverity.MEDIUM,
-                    title="Potentially Risky Intent Filters",
-                    description="Intent filters that may allow unauthorized access to components or handle sensitive actions without proper access controls.",
-                    evidence=risky_filters,
-                    recommendations=[
-                        "Review intent filters to ensure they are as specific as possible",
-                        "Implement proper authentication in components that handle sensitive intents",
-                        "Use custom permissions to protect sensitive intent handlers",
-                        "Validate all intent data before processing",
-                        "Consider using explicit intents where possible",
-                    ],
+            if dangerous_found:
+                severity = (
+                    AnalysisSeverity.HIGH
+                    if len(dangerous_found) >= 5 or "WRITE_SECURE_SETTINGS" in dangerous_found
+                    else AnalysisSeverity.MEDIUM
                 )
-            )
+
+                findings.append(
+                    SecurityFinding(
+                        title="Excessive Dangerous Permissions",
+                        category=self.owasp_category,
+                        severity=severity,
+                        description=(
+                            f"Application requests {len(dangerous_found)} dangerous permissions. "
+                            "Ensure proper access controls are implemented to prevent privilege escalation."
+                        ),
+                        evidence=[f"Dangerous permissions: {', '.join(dangerous_found)}"],
+                    )
+                )
+
+            # Check for custom permissions definition
+            defined_permissions = permissions.get("permissions", [])
+            for perm in defined_permissions:
+                protection_level = perm.get("protectionLevel", "normal")
+                if protection_level in ["dangerous", "signature", "signatureOrSystem"]:
+                    findings.append(
+                        SecurityFinding(
+                            title="Custom Dangerous Permission Defined",
+                            category=self.owasp_category,
+                            severity=AnalysisSeverity.MEDIUM,
+                            description=(
+                                f"Application defines custom permission '{perm['name']}' with protection level "
+                                f"'{protection_level}'. Ensure proper access controls are enforced."
+                            ),
+                            evidence=[f"Permission: {perm['name']}", f"Protection level: {protection_level}"],
+                        )
+                    )
+
+        except Exception as e:
+            self.logger.error(f"Error assessing dangerous permissions: {e}")
 
         return findings
 
-    def _is_risky_intent_filter(self, filters) -> bool:
-        """Check if intent filters pose access control risks"""
-        # This is a simplified check - in a real implementation,
-        # you would parse the actual intent filter structure
+    def _assess_intent_filter_risks(self, analysis_data: dict[str, Any]) -> list[SecurityFinding]:
+        """Assess intent filter configurations for access control risks."""
+        findings = []
 
+        try:
+            manifest_data = analysis_data.get("manifest_analysis", {})
+            components = manifest_data.get("components", {})
+
+            for component_type in ["activities", "services", "receivers"]:
+                for component in components.get(component_type, []):
+                    intent_filters = component.get("intent_filters", [])
+                    for intent_filter in intent_filters:
+                        if self._is_risky_intent_filter(intent_filter):
+                            findings.append(
+                                SecurityFinding(
+                                    title="Risky Intent Filter Configuration",
+                                    category=self.owasp_category,
+                                    severity=AnalysisSeverity.MEDIUM,
+                                    description=(
+                                        f"{component_type.capitalize()[:-1]} '{component['name']}' has intent filters "
+                                        "that may allow unauthorized access or actions."
+                                    ),
+                                    evidence=[
+                                        f"Component: {component['name']}",
+                                        f"Actions: {', '.join(intent_filter.get('actions', []))}",
+                                        f"Categories: {', '.join(intent_filter.get('categories', []))}",
+                                    ],
+                                )
+                            )
+
+        except Exception as e:
+            self.logger.error(f"Error assessing intent filter risks: {e}")
+
+        return findings
+
+    def _is_risky_intent_filter(self, intent_filter: dict[str, Any]) -> bool:
+        """Check if an intent filter configuration poses access control risks."""
         risky_actions = [
-            "android.intent.action.BOOT_COMPLETED",
-            "android.intent.action.PACKAGE_INSTALL",
-            "android.intent.action.PACKAGE_REMOVED",
-            "android.provider.Telephony.SMS_RECEIVED",
-            "android.intent.action.PHONE_STATE",
+            "android.intent.action.VIEW",
+            "android.intent.action.EDIT",
+            "android.intent.action.DELETE",
+            "android.intent.action.INSERT",
+            "android.intent.action.SEND",
+            "android.intent.action.SENDTO",
+            "android.intent.action.SEND_MULTIPLE",
+            "android.intent.action.GET_CONTENT",
+            "android.intent.action.PICK",
         ]
 
-        if isinstance(filters, list):
-            for filter_item in filters:
-                if isinstance(filter_item, str):
-                    for risky_action in risky_actions:
-                        if risky_action in filter_item:
-                            return True
+        risky_categories = [
+            "android.intent.category.DEFAULT",
+            "android.intent.category.BROWSABLE",
+        ]
+
+        actions = intent_filter.get("actions", [])
+        categories = intent_filter.get("categories", [])
+
+        # Check for risky action/category combinations
+        has_risky_action = any(action in risky_actions for action in actions)
+        has_default_category = "android.intent.category.DEFAULT" in categories
+        has_browsable_category = "android.intent.category.BROWSABLE" in categories
+
+        # Particularly risky: browsable activities that can handle various actions
+        if has_browsable_category and has_risky_action:
+            return True
+
+        # Also risky: default handlers for sensitive actions
+        if has_default_category and has_risky_action:
+            return True
 
         return False

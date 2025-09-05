@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Analysis Modes Package
+Analysis Modes Package.
 
 Contains mode-specific analysis logic for fast and deep mode operations.
 """

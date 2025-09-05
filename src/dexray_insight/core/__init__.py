@@ -20,7 +20,7 @@
 # # See the License for the specific language governing permissions and
 # # limitations under the License.
 
-"""Core framework for Dexray Insight object-oriented analysis engine"""
+"""Core framework for Dexray Insight object-oriented analysis engine."""
 
 from .analysis_engine import AnalysisEngine
 from .analysis_engine import DependencyResolver

@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Tracker Analysis Databases Package
+Tracker Analysis Databases Package.
 
 Contains tracker pattern databases and external API integration.
 Separated from main module for better maintainability and to support

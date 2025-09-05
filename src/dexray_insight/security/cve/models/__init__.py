@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-CVE Data Models
+CVE Data Models.
 
 This module contains data models for representing CVE vulnerabilities,
 affected libraries, and version ranges.

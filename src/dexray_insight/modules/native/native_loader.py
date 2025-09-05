@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Native Binary Analysis Loader Module
+Native Binary Analysis Loader Module.
 
 This module serves as the main orchestrator for native binary analysis using radare2.
 It discovers native binaries in unzipped APKs, manages r2pipe connections, and
@@ -56,7 +56,7 @@ from .base_native_module import NativeStringSource
 
 @dataclass
 class NativeAnalysisModuleResult(BaseResult):
-    """Result container for the native analysis loader module"""
+    """Result container for the native analysis loader module."""
 
     analyzed_binaries: list[NativeBinaryInfo] = None
     total_strings_extracted: int = 0
@@ -66,6 +66,7 @@ class NativeAnalysisModuleResult(BaseResult):
     radare2_available: bool = False
 
     def __post_init__(self):
+        """Initialize default values for optional fields."""
         if self.analyzed_binaries is None:
             self.analyzed_binaries = []
         if self.strings_by_source is None:
@@ -76,7 +77,7 @@ class NativeAnalysisModuleResult(BaseResult):
             self.analysis_errors = []
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert result to dictionary for serialization"""
+        """Convert result to dictionary for serialization."""
         base_dict = super().to_dict()
         base_dict.update(
             {
@@ -131,12 +132,13 @@ class NativeAnalysisLoader(BaseAnalysisModule):
     """
 
     def __init__(self, config: dict[str, Any]):
+        """Initialize NativeAnalysisLoaderModule with configuration."""
         super().__init__(config)
         self.native_modules: list[BaseNativeModule] = []
         self._initialize_native_modules()
 
     def _initialize_native_modules(self):
-        """Initialize and register native analysis modules"""
+        """Initialize and register native analysis modules."""
         try:
             # Import and register native modules
             from .library_version_detection import NativeLibraryVersionModule
@@ -311,7 +313,7 @@ class NativeAnalysisLoader(BaseAnalysisModule):
             )
 
     def _check_radare2_availability(self) -> bool:
-        """Check if radare2 binary is available"""
+        """Check if radare2 binary is available."""
         try:
             # Get radare2 configuration
             from ...core.configuration import Configuration
@@ -623,7 +625,7 @@ class NativeAnalysisLoader(BaseAnalysisModule):
             self.logger.error(f"Error integrating native libraries: {e}")
 
     def _extract_architecture_from_path(self, file_path: str) -> str:
-        """Extract architecture from native library file path"""
+        """Extract architecture from native library file path."""
         try:
             # Common Android architectures in lib paths
             architectures = ["arm64-v8a", "armeabi-v7a", "armeabi", "x86", "x86_64", "mips", "mips64"]
@@ -638,6 +640,6 @@ class NativeAnalysisLoader(BaseAnalysisModule):
             return "unknown"
 
     def get_dependencies(self) -> list[str]:
-        """Get list of module dependencies"""
+        """Get list of module dependencies."""
         # Native analysis should run after basic analysis is done
         return ["apk_overview", "string_analysis"]

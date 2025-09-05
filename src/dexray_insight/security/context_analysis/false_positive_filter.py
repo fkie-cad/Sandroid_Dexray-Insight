@@ -20,6 +20,32 @@
 # # See the License for the specific language governing permissions and
 # # limitations under the License.
 
+"""
+False positive filtering for security assessment findings.
+
+This module provides filtering capabilities to reduce false positives in
+security vulnerability detection and improve accuracy.
+"""
+
+# #!/usr/bin/env python3
+# # -*- coding: utf-8 -*-
+#
+# # Copyright (C) {{ year }} Dexray Insight Contributors
+# #
+# # This file is part of Dexray Insight - Android APK Security Analysis Tool
+# #
+# # Licensed under the Apache License, Version 2.0 (the "License");
+# # you may not use this file except in compliance with the License.
+# # You may obtain a copy of the License at
+# #
+# #     http://www.apache.org/licenses/LICENSE-2.0
+# #
+# # Unless required by applicable law or agreed to in writing, software
+# # distributed under the License is distributed on an "AS IS" BASIS,
+# # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# # See the License for the specific language governing permissions and
+# # limitations under the License.
+
 import logging
 import math
 import re
@@ -35,8 +61,7 @@ from .models.contextual_finding import ContextualFinding
 
 class FalsePositiveFilter:
     """
-    Enhanced false positive filter that uses contextual analysis to reduce noise
-    in security findings.
+    Enhanced false positive filter that uses contextual analysis to reduce noise.
 
     This filter addresses the critical issue of high false positive rates (77K+
     low-severity findings) by implementing multiple sophisticated filtering
@@ -57,6 +82,7 @@ class FalsePositiveFilter:
     """
 
     def __init__(self):
+        """Initialize the false positive filter with default patterns."""
         self.logger = logging.getLogger(__name__)
 
         # Enhanced placeholder patterns with higher precision

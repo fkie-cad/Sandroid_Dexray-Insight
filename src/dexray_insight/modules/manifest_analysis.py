@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""Android manifest analysis module for intent filters and components."""
 
 # #!/usr/bin/env python3
 # # -*- coding: utf-8 -*-
@@ -34,7 +35,7 @@ from ..core.base_classes import register_module
 
 @dataclass
 class ManifestAnalysisResult(BaseResult):
-    """Result class for manifest analysis"""
+    """Result class for manifest analysis."""
 
     package_name: str = ""
     main_activity: str = ""
@@ -47,6 +48,7 @@ class ManifestAnalysisResult(BaseResult):
     manifest_xml: str = ""
 
     def __post_init__(self):
+        """Initialize default values for optional fields."""
         if self.permissions is None:
             self.permissions = []
         if self.activities is None:
@@ -61,6 +63,7 @@ class ManifestAnalysisResult(BaseResult):
             self.intent_filters = []
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert result to dictionary."""
         base_dict = super().to_dict()
         base_dict.update(
             {
@@ -86,21 +89,22 @@ class ManifestAnalysisResult(BaseResult):
 
 @register_module("manifest_analysis")
 class ManifestAnalysisModule(BaseAnalysisModule):
-    """Manifest analysis module for extracting AndroidManifest.xml information"""
+    """Manifest analysis module for extracting AndroidManifest.xml information."""
 
     def __init__(self, config: dict[str, Any]):
+        """Initialize ManifestAnalysisModule with configuration."""
         super().__init__(config)
         self.logger = logging.getLogger(__name__)
         self.extract_intent_filters = config.get("extract_intent_filters", True)
         self.analyze_exported_components = config.get("analyze_exported_components", True)
 
     def get_dependencies(self) -> list[str]:
-        """No dependencies for manifest analysis"""
+        """No dependencies for manifest analysis."""
         return []
 
     def analyze(self, apk_path: str, context: AnalysisContext) -> ManifestAnalysisResult:
         """
-        Perform manifest analysis on the APK
+        Perform manifest analysis on the APK.
 
         Args:
             apk_path: Path to the APK file
@@ -174,7 +178,7 @@ class ManifestAnalysisModule(BaseAnalysisModule):
             )
 
     def _extract_intent_filters(self, apk, services: list[str], receivers: list[str]) -> list[dict[str, Any]]:
-        """Extract intent filters from services and receivers"""
+        """Extract intent filters from services and receivers."""
         intent_filters = []
 
         try:
@@ -206,5 +210,5 @@ class ManifestAnalysisModule(BaseAnalysisModule):
         return intent_filters
 
     def validate_config(self) -> bool:
-        """Validate module configuration"""
+        """Validate module configuration."""
         return True

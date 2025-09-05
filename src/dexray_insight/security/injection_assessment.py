@@ -20,6 +20,12 @@
 # # See the License for the specific language governing permissions and
 # # limitations under the License.
 
+"""Injection Assessment.
+
+This module implements OWASP A03:2021 - Injection vulnerability assessment.
+It identifies various injection vulnerabilities in Android applications.
+"""
+
 import logging
 from typing import Any
 
@@ -31,9 +37,10 @@ from ..core.base_classes import register_assessment
 
 @register_assessment("injection")
 class InjectionAssessment(BaseSecurityAssessment):
-    """OWASP A03:2021 - Injection vulnerability assessment"""
+    """OWASP A03:2021 - Injection vulnerability assessment."""
 
     def __init__(self, config: dict[str, Any]):
+        """Initialize injection assessment."""
         super().__init__(config)
         self.logger = logging.getLogger(__name__)
         self.owasp_category = "A03:2021-Injection"
@@ -56,85 +63,96 @@ class InjectionAssessment(BaseSecurityAssessment):
         self.nosql_patterns = ["$where", "$ne", "$gt", "$lt", "$regex", "find(", "aggregate("]
 
     def assess(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """
-        Assess for injection vulnerabilities
-
-        Args:
-            analysis_results: Combined results from all analysis modules
-
-        Returns:
-            List of security findings related to injection vulnerabilities
-        """
+        """Assess for injection vulnerabilities."""
         findings = []
 
         try:
-            # Check for SQL injection patterns
+            # SQL injection assessment
             sql_findings = self._assess_sql_injection(analysis_results)
             findings.extend(sql_findings)
 
-            # Check for command injection patterns
+            # Command injection assessment
             command_findings = self._assess_command_injection(analysis_results)
             findings.extend(command_findings)
 
-            # Check for LDAP injection patterns
+            # LDAP injection assessment
             ldap_findings = self._assess_ldap_injection(analysis_results)
             findings.extend(ldap_findings)
 
-            # Check for NoSQL injection patterns
+            # NoSQL injection assessment
             nosql_findings = self._assess_nosql_injection(analysis_results)
             findings.extend(nosql_findings)
 
-            # Check API calls for injection risks
+            # API injection risks
             api_findings = self._assess_api_injection_risks(analysis_results)
             findings.extend(api_findings)
 
         except Exception as e:
             self.logger.error(f"Injection assessment failed: {str(e)}")
+            findings.append(
+                SecurityFinding(
+                    category=self.owasp_category,
+                    severity=AnalysisSeverity.LOW,
+                    title="Assessment Error",
+                    description="An error occurred during injection vulnerability assessment",
+                    evidence=[str(e)],
+                    recommendations=["Review application for injection vulnerabilities manually"],
+                )
+            )
 
         return findings
 
     def _assess_sql_injection(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """Assess for SQL injection vulnerabilities"""
+        """Assess for SQL injection vulnerabilities."""
         findings = []
 
-        # Check strings for SQL patterns
         string_results = analysis_results.get("string_analysis", {})
         if hasattr(string_results, "to_dict"):
             string_data = string_results.to_dict()
         else:
             string_data = string_results
 
-        all_strings = []
-        if isinstance(string_data, dict):
-            # Collect all string types
-            for key in ["emails", "urls", "domains"]:
-                strings = string_data.get(key, [])
-                if isinstance(strings, list):
-                    all_strings.extend(strings)
+        all_strings = string_data.get("all_strings", [])
+        sql_risks = []
 
-        # Look for SQL injection patterns in strings
-        sql_evidence = []
+        # Look for SQL injection patterns
         for string in all_strings:
             if isinstance(string, str):
-                for pattern in self.sql_patterns:
-                    if pattern.lower() in string.lower():
-                        sql_evidence.append(f"Found SQL pattern '{pattern}' in string: {string[:100]}...")
+                # Check for dynamic SQL construction with user input
+                if any(sql_pattern in string.upper() for sql_pattern in self.sql_patterns):
+                    if any(user_input in string.lower() for user_input in ["user", "input", "+", "concat", "format"]):
+                        sql_risks.append(f"Potential SQL injection: {string[:80]}...")
+
+                # Check for specific dangerous patterns
+                dangerous_patterns = [
+                    r"SELECT.*\+.*",  # String concatenation in SQL
+                    r"WHERE.*\+.*",  # WHERE clause concatenation
+                    r"INSERT.*\+.*",  # INSERT concatenation
+                    r"UPDATE.*\+.*",  # UPDATE concatenation
+                ]
+
+                import re
+
+                for pattern in dangerous_patterns:
+                    if re.search(pattern, string, re.IGNORECASE):
+                        sql_risks.append(f"Dangerous SQL pattern: {string[:80]}...")
                         break
 
-        if sql_evidence:
+        if sql_risks:
             findings.append(
                 SecurityFinding(
                     category=self.owasp_category,
                     severity=AnalysisSeverity.HIGH,
-                    title="Potential SQL Injection Vulnerability",
-                    description="SQL query patterns found in strings that may indicate SQL injection vulnerabilities if user input is not properly sanitized.",
-                    evidence=sql_evidence,
+                    title="SQL Injection Risk",
+                    description="Application may be vulnerable to SQL injection attacks through dynamic query construction.",
+                    evidence=sql_risks[:10],
                     recommendations=[
                         "Use parameterized queries or prepared statements",
-                        "Implement input validation and sanitization",
-                        "Use ORM frameworks that provide built-in protection",
-                        "Apply the principle of least privilege for database access",
-                        "Implement proper error handling to prevent information disclosure",
+                        "Validate and sanitize all user input before database operations",
+                        "Use ORM frameworks with built-in injection protection",
+                        "Implement strict input validation and type checking",
+                        "Apply principle of least privilege for database access",
+                        "Use stored procedures with proper parameter handling",
                     ],
                 )
             )
@@ -142,50 +160,43 @@ class InjectionAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_command_injection(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """Assess for command injection vulnerabilities"""
+        """Assess for command injection vulnerabilities."""
         findings = []
 
-        # Check API calls for command execution
-        api_results = analysis_results.get("api_invocation", {})
-        if hasattr(api_results, "to_dict"):
-            api_data = api_results.to_dict()
-        else:
-            api_data = api_results
+        string_results = analysis_results.get("string_analysis", {})
+        string_data = string_results.to_dict() if hasattr(string_results, "to_dict") else string_results
+        all_strings = string_data.get("all_strings", [])
 
-        command_evidence = []
+        command_risks = []
 
-        # Check suspicious API calls
-        suspicious_calls = api_data.get("suspicious_api_calls", [])
-        for call in suspicious_calls:
-            if isinstance(call, dict):
-                api_name = call.get("called_class", "") + "." + call.get("called_method", "")
-                for pattern in self.command_patterns:
-                    if pattern.lower() in api_name.lower():
-                        command_evidence.append(f"Command execution API detected: {api_name}")
-                        break
+        for string in all_strings:
+            if isinstance(string, str):
+                # Check for command execution with user input
+                if any(cmd_pattern in string.lower() for cmd_pattern in self.command_patterns):
+                    if any(user_input in string.lower() for user_input in ["user", "input", "param", "arg", "+"]):
+                        command_risks.append(f"Potential command injection: {string[:80]}...")
 
-        # Check regular API calls
-        api_calls = api_data.get("api_calls", [])
-        for call in api_calls:
-            if isinstance(call, dict):
-                api_name = call.get("called_class", "") + "." + call.get("called_method", "")
-                if "java.lang.Runtime.exec" in api_name or "java.lang.ProcessBuilder" in api_name:
-                    command_evidence.append(f"System command execution detected: {api_name}")
+                # Check for dangerous shell operators
+                dangerous_operators = ["|", "&", ";", "`", "$", "(", ")", "{", "}", "<", ">"]
+                if any(op in string for op in dangerous_operators):
+                    if any(exec_term in string.lower() for exec_term in ["runtime", "exec", "system"]):
+                        command_risks.append(f"Shell injection risk: {string[:80]}...")
 
-        if command_evidence:
+        if command_risks:
             findings.append(
                 SecurityFinding(
                     category=self.owasp_category,
-                    severity=AnalysisSeverity.CRITICAL,
-                    title="Potential Command Injection Vulnerability",
-                    description="System command execution APIs detected that may be vulnerable to command injection if user input is not properly validated.",
-                    evidence=command_evidence,
+                    severity=AnalysisSeverity.HIGH,
+                    title="Command Injection Risk",
+                    description="Application may be vulnerable to command injection attacks through system command execution.",
+                    evidence=command_risks[:8],
                     recommendations=[
-                        "Avoid system command execution when possible",
-                        "Use safe APIs instead of system commands",
-                        "Implement strict input validation and sanitization",
-                        "Use allowlists for acceptable input values",
-                        "Run processes with minimal privileges",
+                        "Avoid executing system commands with user input",
+                        "Use safe APIs instead of shell command execution",
+                        "Validate and sanitize all input used in system commands",
+                        "Use allowlists for permitted commands and parameters",
+                        "Run with minimal privileges and sandboxing",
+                        "Consider safer alternatives to Runtime.exec() or system calls",
                     ],
                 )
             )
@@ -193,45 +204,45 @@ class InjectionAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_ldap_injection(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """Assess for LDAP injection vulnerabilities"""
+        """Assess for LDAP injection vulnerabilities."""
         findings = []
 
-        # Check strings for LDAP patterns
         string_results = analysis_results.get("string_analysis", {})
-        if hasattr(string_results, "to_dict"):
-            string_data = string_results.to_dict()
-        else:
-            string_data = string_results
+        string_data = string_results.to_dict() if hasattr(string_results, "to_dict") else string_results
+        all_strings = string_data.get("all_strings", [])
 
-        ldap_evidence = []
-        all_strings = []
-
-        if isinstance(string_data, dict):
-            for key in ["urls", "domains"]:
-                strings = string_data.get(key, [])
-                if isinstance(strings, list):
-                    all_strings.extend(strings)
+        ldap_risks = []
 
         for string in all_strings:
             if isinstance(string, str):
-                for pattern in self.ldap_patterns:
-                    if pattern.lower() in string.lower():
-                        ldap_evidence.append(f"LDAP pattern found: {string}")
-                        break
+                # Check for LDAP operations with user input
+                if any(ldap_pattern in string for ldap_pattern in self.ldap_patterns):
+                    if any(user_input in string.lower() for user_input in ["user", "input", "+", "concat"]):
+                        ldap_risks.append(f"Potential LDAP injection: {string[:80]}...")
 
-        if ldap_evidence:
+                # Check for LDAP filter construction
+                if (
+                    "(" in string
+                    and "=" in string
+                    and any(ldap_term in string.lower() for ldap_term in ["ldap", "directory", "search"])
+                ):
+                    if any(user_input in string.lower() for user_input in ["user", "input", "param"]):
+                        ldap_risks.append(f"LDAP filter injection risk: {string[:80]}...")
+
+        if ldap_risks:
             findings.append(
                 SecurityFinding(
                     category=self.owasp_category,
                     severity=AnalysisSeverity.MEDIUM,
-                    title="Potential LDAP Injection Vulnerability",
-                    description="LDAP-related patterns found that may indicate LDAP injection vulnerabilities if user input is not properly escaped.",
-                    evidence=ldap_evidence,
+                    title="LDAP Injection Risk",
+                    description="Application may be vulnerable to LDAP injection through dynamic filter construction.",
+                    evidence=ldap_risks[:5],
                     recommendations=[
-                        "Use parameterized LDAP queries",
-                        "Implement proper input escaping for LDAP special characters",
-                        "Validate and sanitize all user inputs",
-                        "Use LDAP APIs that provide built-in protection",
+                        "Use parameterized LDAP queries and filters",
+                        "Validate and escape LDAP filter characters",
+                        "Use LDAP libraries with built-in injection protection",
+                        "Implement strict input validation for LDAP operations",
+                        "Use allowlists for permitted LDAP operations",
                     ],
                 )
             )
@@ -239,45 +250,43 @@ class InjectionAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_nosql_injection(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """Assess for NoSQL injection vulnerabilities"""
+        """Assess for NoSQL injection vulnerabilities."""
         findings = []
 
-        # Check strings for NoSQL patterns
         string_results = analysis_results.get("string_analysis", {})
-        if hasattr(string_results, "to_dict"):
-            string_data = string_results.to_dict()
-        else:
-            string_data = string_results
+        string_data = string_results.to_dict() if hasattr(string_results, "to_dict") else string_results
+        all_strings = string_data.get("all_strings", [])
 
-        nosql_evidence = []
-        all_strings = []
-
-        if isinstance(string_data, dict):
-            for key in ["emails", "urls", "domains"]:
-                strings = string_data.get(key, [])
-                if isinstance(strings, list):
-                    all_strings.extend(strings)
+        nosql_risks = []
 
         for string in all_strings:
             if isinstance(string, str):
-                for pattern in self.nosql_patterns:
-                    if pattern in string:
-                        nosql_evidence.append(f"NoSQL pattern found: {pattern} in {string[:50]}...")
-                        break
+                # Check for NoSQL operators with user input
+                if any(nosql_pattern in string for nosql_pattern in self.nosql_patterns):
+                    if any(user_input in string.lower() for user_input in ["user", "input", "param", "json"]):
+                        nosql_risks.append(f"Potential NoSQL injection: {string[:80]}...")
 
-        if nosql_evidence:
+                # Check for MongoDB-specific patterns
+                mongo_patterns = ["db.", "collection.", "find(", "update(", "insert(", "remove("]
+                if any(pattern in string for pattern in mongo_patterns):
+                    if "+" in string or "concat" in string.lower():
+                        nosql_risks.append(f"MongoDB injection risk: {string[:80]}...")
+
+        if nosql_risks:
             findings.append(
                 SecurityFinding(
                     category=self.owasp_category,
                     severity=AnalysisSeverity.MEDIUM,
-                    title="Potential NoSQL Injection Vulnerability",
-                    description="NoSQL query patterns found that may indicate NoSQL injection vulnerabilities.",
-                    evidence=nosql_evidence,
+                    title="NoSQL Injection Risk",
+                    description="Application may be vulnerable to NoSQL injection through dynamic query construction.",
+                    evidence=nosql_risks[:6],
                     recommendations=[
-                        "Implement proper input validation for NoSQL queries",
-                        "Use parameterized queries where available",
-                        "Sanitize user input before including in queries",
-                        "Apply schema validation for NoSQL documents",
+                        "Use parameterized NoSQL queries and operations",
+                        "Validate and sanitize input used in NoSQL operations",
+                        "Use NoSQL libraries with built-in injection protection",
+                        "Implement type validation for NoSQL query parameters",
+                        "Avoid dynamic query construction with user input",
+                        "Use schema validation for NoSQL operations",
                     ],
                 )
             )
@@ -285,33 +294,59 @@ class InjectionAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_api_injection_risks(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """Assess API calls for injection risks"""
+        """Assess for injection risks in API calls and data processing."""
         findings = []
 
-        # Check for reflection usage which can lead to injection
-        api_results = analysis_results.get("api_invocation", {})
-        if hasattr(api_results, "to_dict"):
-            api_data = api_results.to_dict()
-        else:
-            api_data = api_results
+        string_results = analysis_results.get("string_analysis", {})
+        string_data = string_results.to_dict() if hasattr(string_results, "to_dict") else string_results
+        all_strings = string_data.get("all_strings", [])
+        urls = string_data.get("urls", [])
 
-        reflection_usage = api_data.get("reflection_usage", [])
+        api_risks = []
 
-        if reflection_usage:
-            evidence = [f"Reflection API usage: {usage}" for usage in reflection_usage[:5]]  # Limit to first 5
+        # Check URLs for injection risks
+        for url in urls:
+            if isinstance(url, str):
+                # Look for dynamic URL construction with user input
+                if any(dynamic_indicator in url for dynamic_indicator in ["%s", "{", "}", "+", "concat"]):
+                    api_risks.append(f"Dynamic URL construction: {url}")
 
+                # Check for parameter injection risks
+                if "?" in url and ("user" in url.lower() or "input" in url.lower()):
+                    api_risks.append(f"Parameter injection risk: {url}")
+
+        # Check for XML/JSON injection patterns
+        injection_patterns = [
+            r"<\?xml.*user.*>",  # XML with user data
+            r"json.*user.*input",  # JSON with user input
+            r"xml.*concat.*user",  # XML concatenation
+            r"parse.*user.*input",  # Parsing user input
+        ]
+
+        import re
+
+        for string in all_strings:
+            if isinstance(string, str):
+                for pattern in injection_patterns:
+                    if re.search(pattern, string, re.IGNORECASE):
+                        api_risks.append(f"Data injection risk: {string[:70]}...")
+                        break
+
+        if api_risks:
             findings.append(
                 SecurityFinding(
                     category=self.owasp_category,
                     severity=AnalysisSeverity.MEDIUM,
-                    title="Reflection Usage May Enable Injection Attacks",
-                    description="Application uses reflection APIs which may be exploited for injection attacks if user input is not properly validated.",
-                    evidence=evidence,
+                    title="API and Data Injection Risks",
+                    description="Application may be vulnerable to injection through API calls and data processing.",
+                    evidence=api_risks[:8],
                     recommendations=[
-                        "Avoid reflection with user-controlled input",
-                        "Implement strict validation for reflection parameters",
-                        "Use allowlists for acceptable class and method names",
-                        "Consider alternative approaches that don't require reflection",
+                        "Use parameterized API calls and avoid URL concatenation",
+                        "Validate and sanitize all data used in API requests",
+                        "Use safe parsing libraries for XML/JSON processing",
+                        "Implement proper input validation for all API parameters",
+                        "Use content type validation for API requests",
+                        "Apply output encoding for dynamic content generation",
                     ],
                 )
             )

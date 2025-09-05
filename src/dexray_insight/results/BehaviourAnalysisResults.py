@@ -20,6 +20,8 @@
 # # See the License for the specific language governing permissions and
 # # limitations under the License.
 
+"""Behaviour analysis results module for tracking detected application behaviors and features."""
+
 from dataclasses import dataclass
 from dataclasses import field
 from typing import Any
@@ -30,7 +32,7 @@ from ..core.base_classes import BaseResult
 
 @dataclass
 class BehaviourAnalysisFinding:
-    """Represents a single behaviour analysis finding"""
+    """Represents a single behaviour analysis finding."""
 
     feature_name: str
     detected: bool
@@ -38,6 +40,7 @@ class BehaviourAnalysisFinding:
     description: str = ""
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert finding to dictionary format."""
         return {
             "feature_name": self.feature_name,
             "detected": self.detected,
@@ -48,13 +51,14 @@ class BehaviourAnalysisFinding:
 
 @dataclass
 class BehaviourAnalysisResults(BaseResult):
-    """Results class for behaviour analysis module"""
+    """Results class for behaviour analysis module."""
 
     findings: dict[str, BehaviourAnalysisFinding] = field(default_factory=dict)
     summary: dict[str, int] = field(default_factory=dict)
     androguard_objects: Optional[dict[str, Any]] = field(default=None, repr=False)
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert results to dictionary format."""
         base_dict = super().to_dict()
         base_dict.update(
             {
@@ -68,7 +72,7 @@ class BehaviourAnalysisResults(BaseResult):
     def add_finding(
         self, feature_name: str, detected: bool, evidence: list[dict[str, Any]] = None, description: str = ""
     ):
-        """Add a finding to the results"""
+        """Add a finding to the results."""
         if evidence is None:
             evidence = []
         self.findings[feature_name] = BehaviourAnalysisFinding(
@@ -76,11 +80,11 @@ class BehaviourAnalysisResults(BaseResult):
         )
 
     def get_detected_features(self) -> list[str]:
-        """Get list of detected feature names"""
+        """Get list of detected feature names."""
         return [name for name, finding in self.findings.items() if finding.detected]
 
     def get_terminal_summary(self) -> str:
-        """Get brief summary for terminal output"""
+        """Get brief summary for terminal output."""
         detected = self.get_detected_features()
         if not detected:
             return "🔍 Behaviour Analysis: No suspicious behaviors detected"

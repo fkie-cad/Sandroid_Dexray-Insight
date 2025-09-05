@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Analysis Engines Package
+Analysis Engines Package.
 
 Contains pattern search engines and analysis coordination logic.
 """

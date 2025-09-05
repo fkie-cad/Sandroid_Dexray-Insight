@@ -20,8 +20,7 @@
 # # See the License for the specific language governing permissions and
 # # limitations under the License.
 
-"""
-Device Information Analyzer
+"""Device Information Analyzer.
 
 Detects when applications attempt to access device-specific information
 such as device model, Android ID, and hardware identifiers.
@@ -35,7 +34,7 @@ from ..models.behavior_evidence import BehaviorEvidence
 
 
 class DeviceAnalyzer:
-    """Analyzer for device information access behaviors"""
+    """Analyzer for device information access behaviors."""
 
     DEVICE_PATTERNS = [
         r"android\.os\.Build\.MODEL",
@@ -46,10 +45,11 @@ class DeviceAnalyzer:
     ]
 
     def __init__(self, logger: Optional[logging.Logger] = None):
+        """Initialize DeviceAnalyzer with optional logger."""
         self.logger = logger or logging.getLogger(__name__)
 
     def analyze_device_model_access(self, apk_obj, dex_obj, dx_obj, result) -> list[BehaviorEvidence]:
-        """Check if app accesses device model information"""
+        """Check if app accesses device model information."""
         evidence = []
 
         try:
@@ -114,7 +114,7 @@ class DeviceAnalyzer:
             return []
 
     def analyze_android_version_access(self, apk_obj, dex_obj, dx_obj, result) -> list[BehaviorEvidence]:
-        """Check if app accesses Android version information"""
+        """Check if app accesses Android version information."""
         evidence = []
         patterns = [
             r"android\.os\.Build\.VERSION",

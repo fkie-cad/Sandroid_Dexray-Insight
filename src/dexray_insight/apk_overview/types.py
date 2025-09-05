@@ -1,5 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# #!/usr/bin/env python3
+# # -*- coding: utf-8 -*-
+#
+# # Copyright (C) {{ year }} Dexray Insight Contributors
+# #
+# # This file is part of Dexray Insight - Android APK Security Analysis Tool
+# #
+# # Licensed under the Apache License, Version 2.0 (the "License");
+# # you may not use this file except in compliance with the License.
+# # You may obtain a copy of the License at
+# #
+# #     http://www.apache.org/licenses/LICENSE-2.0
+# #
+# # Unless required by applicable law or agreed to in writing, software
+# # distributed under the License is distributed on an "AS IS" BASIS,
+# # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# # See the License for the specific language governing permissions and
+# # limitations under the License.
+
+"""Android resource type definitions for APK analysis."""
 # flake8: noqa
 # Type definiton for (type, data) tuples representing a value
 # See http://androidxref.com/9.0.0_r3/xref/frameworks/base/libs/androidfw/include/androidfw/ResourceTypes.h#262
@@ -38,16 +58,16 @@ TYPE_INT_HEX = 0x11
 # The 'data' is either 0 or 1, for input "false" or "true" respectively.
 TYPE_INT_BOOLEAN = 0x12
 # Beginning of color integer flavors...
-TYPE_FIRST_COLOR_INT = 0x1c
+TYPE_FIRST_COLOR_INT = 0x1C
 # The 'data' is a raw integer value of the form #aarrggbb.
-TYPE_INT_COLOR_ARGB8 = 0x1c
+TYPE_INT_COLOR_ARGB8 = 0x1C
 # The 'data' is a raw integer value of the form #rrggbb.
-TYPE_INT_COLOR_RGB8 = 0x1d
+TYPE_INT_COLOR_RGB8 = 0x1D
 # The 'data' is a raw integer value of the form #argb.
-TYPE_INT_COLOR_ARGB4 = 0x1e
+TYPE_INT_COLOR_ARGB4 = 0x1E
 # The 'data' is a raw integer value of the form #rgb.
-TYPE_INT_COLOR_RGB4 = 0x1f
+TYPE_INT_COLOR_RGB4 = 0x1F
 # ...end of integer flavors.
-TYPE_LAST_COLOR_INT = 0x1f
+TYPE_LAST_COLOR_INT = 0x1F
 # ...end of integer flavors.
-TYPE_LAST_INT = 0x1f
+TYPE_LAST_INT = 0x1F

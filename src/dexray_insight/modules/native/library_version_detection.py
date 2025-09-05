@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Native Library Version Detection Module
+Native Library Version Detection Module.
 
 This module analyzes native binaries (.so files) to identify library versions
 from compilation artifacts, build strings, and embedded version information.
@@ -47,7 +47,7 @@ from .base_native_module import NativeBinaryInfo
 
 @dataclass
 class NativeLibraryDetection:
-    """Represents a detected native library with version information"""
+    """Represents a detected native library with version information."""
 
     library_name: str
     version: str
@@ -58,6 +58,7 @@ class NativeLibraryDetection:
     additional_info: dict[str, Any] = None
 
     def __post_init__(self):
+        """Initialize default values for optional fields."""
         if self.additional_info is None:
             self.additional_info = {}
 
@@ -74,6 +75,7 @@ class NativeLibraryVersionModule(BaseNativeModule):
     """
 
     def __init__(self, config: dict[str, Any], logger: Optional[Any] = None):
+        """Initialize NativeLibraryVersionModule with configuration."""
         super().__init__(config, logger)
 
         # Configuration
@@ -85,8 +87,7 @@ class NativeLibraryVersionModule(BaseNativeModule):
         self._initialize_patterns()
 
     def _initialize_patterns(self):
-        """Initialize detection patterns for various libraries and version formats"""
-
+        """Initialize detection patterns for various libraries and version formats."""
         # --prefix= pattern for compilation flags
         self.prefix_pattern = re.compile(r"--prefix=([^\s]+)", re.IGNORECASE)
 
@@ -210,7 +211,7 @@ class NativeLibraryVersionModule(BaseNativeModule):
             )
 
     def _extract_strings_iz(self, r2: Any, binary_info: NativeBinaryInfo) -> list[str]:
-        """Extract strings from data sections using r2's iz command"""
+        """Extract strings from data sections using r2's iz command."""
         try:
             result = r2.cmd("iz")
             strings = []
@@ -237,7 +238,7 @@ class NativeLibraryVersionModule(BaseNativeModule):
             return []
 
     def _extract_strings_izz(self, r2: Any, binary_info: NativeBinaryInfo) -> list[str]:
-        """Extract strings from all sections using r2's izz command"""
+        """Extract strings from all sections using r2's izz command."""
         try:
             result = r2.cmd("izz")
             strings = []
@@ -266,7 +267,7 @@ class NativeLibraryVersionModule(BaseNativeModule):
     def _analyze_strings_for_libraries(
         self, strings: list[str], binary_info: NativeBinaryInfo
     ) -> list[NativeLibraryDetection]:
-        """Analyze strings to detect library versions"""
+        """Analyze strings to detect library versions."""
         detections = []
 
         for string in strings:
@@ -285,7 +286,7 @@ class NativeLibraryVersionModule(BaseNativeModule):
         return detections
 
     def _detect_prefix_libraries(self, string: str, binary_info: NativeBinaryInfo) -> list[NativeLibraryDetection]:
-        """Detect libraries from --prefix= compilation flags"""
+        """Detect libraries from --prefix= compilation flags."""
         detections = []
 
         # Look for --prefix= pattern
@@ -343,7 +344,7 @@ class NativeLibraryVersionModule(BaseNativeModule):
         return detections
 
     def _detect_version_strings(self, string: str, binary_info: NativeBinaryInfo) -> list[NativeLibraryDetection]:
-        """Detect libraries from direct version strings in binary content"""
+        """Detect libraries from direct version strings in binary content."""
         detections = []
 
         for library_name, patterns in self.version_string_patterns.items():
@@ -378,7 +379,7 @@ class NativeLibraryVersionModule(BaseNativeModule):
         return detections
 
     def _detect_build_info(self, string: str, binary_info: NativeBinaryInfo) -> list[NativeLibraryDetection]:
-        """Detect version information from build flags and compilation info"""
+        """Detect version information from build flags and compilation info."""
         detections = []
 
         for pattern in self.build_info_patterns:
@@ -400,8 +401,7 @@ class NativeLibraryVersionModule(BaseNativeModule):
         return detections
 
     def _cross_reference_detections(self, detections: list[NativeLibraryDetection]) -> list[NativeLibraryDetection]:
-        """Cross-reference detections to improve confidence and remove duplicates"""
-
+        """Cross-reference detections to improve confidence and remove duplicates."""
         # Group detections by library name
         library_groups = {}
         build_info_detections = []
@@ -446,11 +446,11 @@ class NativeLibraryVersionModule(BaseNativeModule):
         return filtered_detections
 
     def get_module_name(self) -> str:
-        """Get the module name"""
+        """Get the module name."""
         return "native_library_version"
 
     def can_analyze(self, binary_info: NativeBinaryInfo) -> bool:
-        """Check if this module can analyze the given binary"""
+        """Check if this module can analyze the given binary."""
         # Only analyze .so files and only if enabled
         return (
             self.enabled and binary_info.file_name.endswith(".so") and binary_info.file_size > 1024

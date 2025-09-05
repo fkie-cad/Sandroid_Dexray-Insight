@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Email Filter for String Analysis
+Email Filter for String Analysis.
 
 Specialized filter for extracting and validating email addresses from string collections.
 Uses regex patterns with validation to reduce false positives.
@@ -42,6 +42,7 @@ class EmailFilter:
     """
 
     def __init__(self):
+        """Initialize EmailFilter with configuration."""
         self.logger = logging.getLogger(__name__)
 
         # Email pattern with comprehensive matching

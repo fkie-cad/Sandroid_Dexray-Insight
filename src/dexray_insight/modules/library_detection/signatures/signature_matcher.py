@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Signature Matching for Library Detection
+Signature Matching for Library Detection.
 
 Contains functionality to match extracted signatures against known
 library patterns for similarity-based detection.
@@ -46,6 +46,7 @@ class SignatureMatcher:
     """
 
     def __init__(self, similarity_threshold: float = 0.85):
+        """Initialize SignatureMatcher with similarity threshold."""
         self.logger = logging.getLogger(__name__)
         self.similarity_threshold = similarity_threshold
 
@@ -53,7 +54,7 @@ class SignatureMatcher:
         self, signatures: dict[str, Any], existing_libraries: list[DetectedLibrary]
     ) -> list[DetectedLibrary]:
         """
-        Match class signatures against known library patterns
+        Match class signatures against known library patterns.
 
         This is a simplified implementation. A full LibScan approach would
         require a comprehensive database of library signatures.
@@ -125,7 +126,7 @@ class SignatureMatcher:
         lib_classes: dict[str, dict[str, Any]],
     ) -> float:
         """
-        Calculate similarity between extracted signatures and a known library
+        Calculate similarity between extracted signatures and a known library.
 
         Args:
             lib_name: Name of the library to compare against
@@ -170,7 +171,7 @@ class SignatureMatcher:
     def _calculate_method_similarity(
         self, lib_methods: dict[str, list[str]], app_methods: dict[str, list[str]]
     ) -> float:
-        """Calculate similarity based on method opcode patterns"""
+        """Calculate similarity based on method opcode patterns."""
         if not lib_methods or not app_methods:
             return 0.0
 
@@ -200,7 +201,7 @@ class SignatureMatcher:
     def _calculate_call_chain_similarity(
         self, lib_chains: dict[str, list[str]], app_chains: dict[str, list[str]]
     ) -> float:
-        """Calculate similarity based on call chain patterns"""
+        """Calculate similarity based on call chain patterns."""
         if not lib_chains or not app_chains:
             return 0.0
 
@@ -222,7 +223,7 @@ class SignatureMatcher:
     def _calculate_structural_similarity(
         self, lib_classes: dict[str, dict[str, Any]], app_classes: dict[str, dict[str, Any]]
     ) -> float:
-        """Calculate structural similarity based on class relationships"""
+        """Calculate structural similarity based on class relationships."""
         if not lib_classes or not app_classes:
             return 0.0
 
@@ -242,7 +243,7 @@ class SignatureMatcher:
         return matches / total_lib_classes if total_lib_classes > 0 else 0.0
 
     def _compare_class_structure(self, lib_class: dict[str, Any], app_class: dict[str, Any]) -> float:
-        """Compare two class structures for similarity"""
+        """Compare two class structures for similarity."""
         score = 0.0
         comparisons = 0
 

@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Tracker Analysis Module Package
+Tracker Analysis Module Package.
 
 Advertising and analytics tracker detection module using multi-stage analysis with specialized detectors.
 Refactored into submodules following Single Responsibility Principle.

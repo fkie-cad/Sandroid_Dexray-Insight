@@ -779,7 +779,7 @@ registry = ModuleRegistry()
 
 
 def register_module(name: str):
-    """Decorator for registering analysis modules."""
+    """Register analysis modules via decorator."""
 
     def decorator(cls):
         registry.register_module(name, cls)
@@ -789,7 +789,7 @@ def register_module(name: str):
 
 
 def register_tool(name: str):
-    """Decorator for registering external tools."""
+    """Register external tools via decorator."""
 
     def decorator(cls):
         registry.register_tool(name, cls)
@@ -799,7 +799,7 @@ def register_tool(name: str):
 
 
 def register_assessment(name: str):
-    """Decorator for registering security assessments."""
+    """Register security assessments via decorator."""
 
     def decorator(cls):
         registry.register_assessment(name, cls)

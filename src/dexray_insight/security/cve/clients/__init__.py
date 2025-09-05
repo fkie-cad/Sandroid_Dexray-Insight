@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-CVE Database Clients
+CVE Database Clients.
 
 This module contains clients for various CVE databases including
 OSV, NVD, and GitHub Advisory Database.

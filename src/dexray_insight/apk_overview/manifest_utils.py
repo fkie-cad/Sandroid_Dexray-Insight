@@ -74,6 +74,7 @@ def get_manifest_file(app_dir, app_path, typ, apk):
 
 
 def create_apktool_out(base_path):
+    """Create apktool output directory."""
     # Combine the base path with the new directory name
     target_path = os.path.join(base_path, "apktool_out")
 
@@ -103,6 +104,7 @@ def get_android_manifest_androguard(apk, app_dir):
 
 
 def get_manifest_apk(apk, app_dir):
+    """Extract AndroidManifest.xml from APK."""
     manifest = None
     manifest = get_android_manifest_androguard(apk, app_dir)
     return manifest
@@ -161,6 +163,7 @@ def get_xml_namespace(xml_str):
 
 
 def get_fallback():
+    """Return fallback XML manifest when parsing fails."""
     logger.warning("Using Fake XML to continue the Analysis")
     return minidom.parseString(
         r'<?xml version="1.0" encoding="utf-8"?><manifest xmlns:android='

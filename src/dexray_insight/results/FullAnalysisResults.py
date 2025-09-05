@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""Comprehensive analysis results aggregation and formatting for Dexray Insight."""
 # #!/usr/bin/env python3
 # # -*- coding: utf-8 -*-
 #
@@ -40,8 +41,7 @@ from .TrackerAnalysisResults import TrackerAnalysisResults
 
 @dataclass
 class FullAnalysisResults:
-    """
-    Combines both APK overview results and in-depth analysis results.
+    """Combines both APK overview results and in-depth analysis results.
 
     Fields:
         apk_overview: The APK overview results.
@@ -61,9 +61,7 @@ class FullAnalysisResults:
     deep_analysis: Optional["DeepAnalysisResults"] = None
 
     def __post_init__(self):
-        """
-        Ensure fields are initialized to empty objects if they are None.
-        """
+        """Ensure fields are initialized to empty objects if they are None."""
         if self.apk_overview is None:
             self.apk_overview = APKOverview()
         if self.in_depth_analysis is None:
@@ -74,8 +72,7 @@ class FullAnalysisResults:
             self.kavanoz_analysis = KavanozResults()
 
     def to_dict(self, include_security: bool = False) -> dict[str, Any]:
-        """
-        Returns the combined object as a dictionary.
+        """Return the combined object as a dictionary.
 
         Args:
             include_security: Whether to include security assessment results.
@@ -111,12 +108,12 @@ class FullAnalysisResults:
         return result
 
     def to_json(self) -> str:
-        """Returns the combined object as a JSON string."""
+        """Return the combined object as a JSON string."""
         return json.dumps(self.to_dict(), cls=CustomJSONEncoder, indent=4)
 
     def get_security_results_dict(self) -> dict[str, Any]:
-        """
-        Returns only the security assessment results as a dictionary.
+        """Return only the security assessment results as a dictionary.
+
         Used for saving security results to a separate JSON file.
         """
         if self.security_assessment:
@@ -124,16 +121,16 @@ class FullAnalysisResults:
         return {}
 
     def security_results_to_json(self) -> str:
-        """Returns only the security assessment results as a JSON string."""
+        """Return only the security assessment results as a JSON string."""
         return json.dumps(self.get_security_results_dict(), cls=CustomJSONEncoder, indent=4)
 
     def print_results(self):
-        """Prints the combined results as a JSON string."""
+        """Print the combined results as a JSON string."""
         print(self.to_json())
 
     def print_analyst_summary(self):
-        """
-        Prints a concise, analyst-friendly summary of the analysis results.
+        """Print a concise, analyst-friendly summary of the analysis results.
+
         Shows key findings with truncated details for better readability.
 
         Refactored to use single-responsibility functions following SOLID principles.
@@ -160,8 +157,7 @@ class FullAnalysisResults:
         self._print_summary_footer()
 
     def _print_summary_header(self):
-        """
-        Print formatted header for analysis summary.
+        """Print formatted header for analysis summary.
 
         Single Responsibility: Display the standardized header section only.
         """
@@ -170,8 +166,7 @@ class FullAnalysisResults:
         print("=" * 80)
 
     def _print_apk_information(self):
-        """
-        Print APK file and application information.
+        """Print APK file and application information.
 
         Single Responsibility: Display APK metadata and application details only.
         """
@@ -219,8 +214,7 @@ class FullAnalysisResults:
                 print(f"🔗 Cross-Platform: {self.apk_overview.cross_platform_framework}")
 
     def _print_permissions_summary(self):
-        """
-        Print permissions analysis with critical permission highlighting.
+        """Print permissions analysis with critical permission highlighting.
 
         Single Responsibility: Display permissions information with categorization only.
         """
@@ -253,8 +247,7 @@ class FullAnalysisResults:
                     print(f"ℹ️  Other Permissions: {len(other_perms)} (see full JSON for details)")
 
     def _print_string_analysis_summary(self):
-        """
-        Print string analysis results with categorization and truncation.
+        """Print string analysis results with categorization and truncation.
 
         Single Responsibility: Display string analysis findings only.
         """
@@ -598,7 +591,7 @@ class FullAnalysisResults:
 
     def update_from_dict(self, updates: dict[str, Any]):
         """
-        Updates the fields from a dictionary.
+        Update the fields from a dictionary.
 
         Args:
             updates: A dictionary containing updates for fields.
@@ -615,6 +608,7 @@ class FullAnalysisResults:
     def _print_version_analysis_summary(self):
         """
         Print version analysis results as part of the library detection summary.
+
         Only displays when security analysis is enabled and libraries have version information.
         """
         if not self.library_detection or not hasattr(self.library_detection, "detected_libraries"):
@@ -805,7 +799,7 @@ class FullAnalysisResults:
             return default
 
     def _extract_top_critical_cves(self, findings: list) -> list[dict[str, Any]]:
-        """Extract top critical CVEs with library attribution for terminal display"""
+        """Extract top critical CVEs with library attribution for terminal display."""
         critical_cves = []
 
         for finding in findings:
@@ -858,7 +852,7 @@ class FullAnalysisResults:
         return critical_cves
 
     def _print_cve_summary(self):
-        """Print CVE vulnerability scanning summary"""
+        """Print CVE vulnerability scanning summary."""
         try:
             # Check if we have CVE/security assessment results
             if not hasattr(self, "security_assessment") or not self.security_assessment:
@@ -996,7 +990,7 @@ class FullAnalysisResults:
             logging.debug(f"CVE summary error: {error_details}")
 
     def _print_enhanced_cve_summary(self, libraries_with_versions):
-        """Enhanced CVE summary that integrates with library version analysis"""
+        """Enhanced CVE summary that integrates with library version analysis."""
         try:
             if not hasattr(self, "security_assessment") or not self.security_assessment:
                 return
@@ -1065,7 +1059,7 @@ class FullAnalysisResults:
             logging.debug(f"Enhanced CVE summary error: {e}")
 
     def _extract_cve_by_library(self):
-        """Extract CVE information organized by library"""
+        """Extract CVE information organized by library."""
         cve_by_library = {}
 
         try:

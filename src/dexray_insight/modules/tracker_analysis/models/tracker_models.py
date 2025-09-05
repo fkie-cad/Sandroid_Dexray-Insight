@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Tracker Analysis Data Models
+Tracker Analysis Data Models.
 
 Data models for representing detected trackers and analysis results.
 
@@ -35,7 +35,7 @@ from typing import Optional
 
 @dataclass
 class DetectedTracker:
-    """Container for a detected tracker with metadata"""
+    """Container for a detected tracker with metadata."""
 
     name: str
     version: Optional[str] = None
@@ -49,10 +49,12 @@ class DetectedTracker:
     confidence: float = 1.0
 
     def __post_init__(self):
+        """Initialize default values for optional fields."""
         if self.locations is None:
             self.locations = []
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert tracker to dictionary."""
         return {
             "name": self.name,
             "version": self.version,

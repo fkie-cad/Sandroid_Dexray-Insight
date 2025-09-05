@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Native String Extraction Module
+Native String Extraction Module.
 
 This module extracts strings from native binaries (.so files) using radare2.
 The extracted strings are then made available to other analysis modules for
@@ -48,6 +48,7 @@ class NativeStringExtractionModule(BaseNativeModule):
     """
 
     def __init__(self, config: dict[str, Any], logger: Optional[Any] = None):
+        """Initialize NativeStringExtractionModule with configuration."""
         super().__init__(config, logger)
 
         # Configuration
@@ -122,7 +123,7 @@ class NativeStringExtractionModule(BaseNativeModule):
             )
 
     def _extract_strings_iz(self, r2: Any, binary_info: NativeBinaryInfo) -> list[NativeStringSource]:
-        """Extract strings using r2's iz command (data sections only)"""
+        """Extract strings using r2's iz command (data sections only)."""
         strings = []
 
         try:
@@ -161,7 +162,7 @@ class NativeStringExtractionModule(BaseNativeModule):
         return strings
 
     def _extract_strings_izz(self, r2: Any, binary_info: NativeBinaryInfo) -> list[NativeStringSource]:
-        """Extract strings using r2's izz command (all sections)"""
+        """Extract strings using r2's izz command (all sections)."""
         strings = []
 
         try:
@@ -202,7 +203,7 @@ class NativeStringExtractionModule(BaseNativeModule):
     def _parse_iz_text_output(
         self, output: str, binary_info: NativeBinaryInfo, method: str
     ) -> list[NativeStringSource]:
-        """Parse text output from iz/izz commands as fallback"""
+        """Parse text output from iz/izz commands as fallback."""
         strings = []
 
         if not output or not output.strip():
@@ -241,13 +242,13 @@ class NativeStringExtractionModule(BaseNativeModule):
         return strings
 
     def _is_valid_string_length(self, string_content: str) -> bool:
-        """Check if string meets length requirements"""
+        """Check if string meets length requirements."""
         if not string_content:
             return False
         return self.min_length <= len(string_content) <= self.max_length
 
     def _deduplicate_strings(self, strings: list[NativeStringSource]) -> list[NativeStringSource]:
-        """Remove duplicate strings while preserving order"""
+        """Remove duplicate strings while preserving order."""
         seen_contents = set()
         unique_strings = []
 
@@ -259,7 +260,7 @@ class NativeStringExtractionModule(BaseNativeModule):
         return unique_strings
 
     def _filter_noise_strings(self, strings: list[NativeStringSource]) -> list[NativeStringSource]:
-        """Filter out noise strings that are unlikely to be useful"""
+        """Filter out noise strings that are unlikely to be useful."""
         filtered = []
 
         for string_obj in strings:
@@ -284,10 +285,10 @@ class NativeStringExtractionModule(BaseNativeModule):
         return filtered
 
     def can_analyze(self, binary_info: NativeBinaryInfo) -> bool:
-        """Check if this module should analyze the given binary"""
+        """Check if this module should analyze the given binary."""
         # Only analyze .so files
         return super().can_analyze(binary_info) and binary_info.file_name.endswith(".so") and binary_info.file_size > 0
 
     def get_module_name(self) -> str:
-        """Get the module name"""
+        """Get the module name."""
         return "native_string_extraction"

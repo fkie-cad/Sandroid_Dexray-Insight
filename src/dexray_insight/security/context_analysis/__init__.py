@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Context-Aware Security Analysis Module
+Context-Aware Security Analysis Module.
 
 This module provides context-aware security analysis capabilities that enhance
 traditional pattern-based secret detection with intelligent context analysis,

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""Signature detection module for VirusTotal, Koodous, and Triage API integration."""
 
 # #!/usr/bin/env python3
 # # -*- coding: utf-8 -*-
@@ -30,6 +31,7 @@ from .vt import vt_check_file_reputation
 
 
 def signature_detection_execute(apk_path, androguard_obj, config=None):
+    """Execute signature detection across multiple services (VirusTotal, Koodous, Triage)."""
     if config is None:
         config = Configuration()
 

@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Tracker Analysis Detectors Package
+Tracker Analysis Detectors Package.
 
 Contains specialized detection engines for different tracker detection methods.
 Each detector follows Single Responsibility Principle and handles timing,

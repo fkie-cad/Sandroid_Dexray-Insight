@@ -20,7 +20,7 @@
 # # See the License for the specific language governing permissions and
 # # limitations under the License.
 
-"""OWASP Top 10 security assessment modules for Dexray Insight"""
+"""OWASP Top 10 security assessment modules for Dexray Insight."""
 
 # Import all security assessments to register them
 from . import authentication_failures_assessment

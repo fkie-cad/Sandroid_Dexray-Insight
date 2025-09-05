@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-String Analysis Module - Refactored Main Module
+String Analysis Module - Refactored Main Module.
 
 String extraction and analysis module using specialized extractors and filters.
 Refactored to use submodules following Single Responsibility Principle.
@@ -52,7 +52,7 @@ from .validators import StringValidators
 
 @dataclass
 class StringAnalysisResult(BaseResult):
-    """Result class for string analysis"""
+    """Result class for string analysis."""
 
     emails: list[str] = None
     ip_addresses: list[str] = None
@@ -63,6 +63,7 @@ class StringAnalysisResult(BaseResult):
     total_strings_analyzed: int = 0
 
     def __post_init__(self):
+        """Initialize default values for optional fields."""
         if self.emails is None:
             self.emails = []
         if self.ip_addresses is None:
@@ -77,6 +78,7 @@ class StringAnalysisResult(BaseResult):
             self.all_strings = []
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert result to dictionary."""
         base_dict = super().to_dict()
         base_dict.update(
             {
@@ -102,6 +104,7 @@ class StringAnalysisModule(BaseAnalysisModule):
     """
 
     def __init__(self, config: dict[str, Any]):
+        """Initialize StringAnalysisModule with configuration."""
         super().__init__(config)
         self.logger = logging.getLogger(__name__)
 
@@ -133,7 +136,7 @@ class StringAnalysisModule(BaseAnalysisModule):
             self.logger.error("Invalid string analysis configuration")
 
     def get_dependencies(self) -> list[str]:
-        """Dependencies: May use results from dotnet and native analysis if available"""
+        """Dependencies: May use results from dotnet and native analysis if available."""
         return []  # No hard dependencies, but can utilize other modules if available
 
     def analyze(self, apk_path: str, context: AnalysisContext) -> StringAnalysisResult:
@@ -315,7 +318,7 @@ class StringAnalysisModule(BaseAnalysisModule):
         return True
 
     def validate_config(self) -> bool:
-        """Validate module configuration (public interface)"""
+        """Validate module configuration (public interface)."""
         return self._validate_configuration()
 
     def get_analysis_capabilities(self) -> dict[str, bool]:

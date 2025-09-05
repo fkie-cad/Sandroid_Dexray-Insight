@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Behaviour Analysis Module
+Behaviour Analysis Module.
 
 This package provides comprehensive behavioral analysis for Android applications,
 supporting both fast mode (APK-only) and deep mode (full DEX analysis).

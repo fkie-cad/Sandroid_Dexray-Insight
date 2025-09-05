@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-CVE Vulnerability Scanning Framework for Dexray Insight
+CVE Vulnerability Scanning Framework for Dexray Insight.
 
 This module provides comprehensive CVE (Common Vulnerabilities and Exposures) scanning
 capabilities for detected libraries with known versions. It integrates with multiple

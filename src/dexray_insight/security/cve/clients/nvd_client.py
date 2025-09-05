@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-NVD (National Vulnerability Database) Client
+NVD (National Vulnerability Database) Client.
 
 This module provides a client for the NVD vulnerability database API.
 NVD is the U.S. government repository of standards-based vulnerability management data.
@@ -42,14 +42,14 @@ from .base_client import BaseCVEClient
 
 
 class NVDClient(BaseCVEClient):
-    """Client for NVD (National Vulnerability Database)"""
+    """Client for NVD (National Vulnerability Database)."""
 
     BASE_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
     CPE_URL = "https://services.nvd.nist.gov/rest/json/cpes/2.0"
 
     def _get_default_rate_limit_config(self) -> RateLimitConfig:
         # if self.api_key = "YOUR_NVD_API_KEY"  # pragma: allowlist secret
-        """NVD has stricter rate limits - but be more reasonable for 404 responses"""
+        """NVD has stricter rate limits - but be more reasonable for 404 responses."""
         if self.api_key:
             # With API key: 50 requests per 30 seconds
             return RateLimitConfig(
@@ -62,7 +62,7 @@ class NVDClient(BaseCVEClient):
             )
 
     def _setup_headers(self):
-        """Set up headers for NVD API - use browser-like User-Agent to avoid blocking"""
+        """Set up headers for NVD API - use browser-like User-Agent to avoid blocking."""
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
             "Accept": "application/json",
@@ -96,7 +96,7 @@ class NVDClient(BaseCVEClient):
         self._configure_ssl_handling()
 
     def _configure_ssl_handling(self):
-        """Configure SSL handling for NVD API which often has certificate issues"""
+        """Configure SSL handling for NVD API which often has certificate issues."""
         import platform
 
         import urllib3
@@ -163,7 +163,7 @@ class NVDClient(BaseCVEClient):
                 self.logger.debug(f"NVD connectivity test failed (not SSL-related): {ssl_error}")
 
     def get_source_name(self) -> str:
-        """Get the name of this CVE source"""
+        """Get the name of this CVE source."""
         return "nvd"
 
     def search_vulnerabilities(self, library_name: str, version: Optional[str] = None) -> list[CVEVulnerability]:
@@ -344,7 +344,7 @@ class NVDClient(BaseCVEClient):
             return []
 
     def _generate_search_terms(self, library_name: str) -> list[str]:
-        """Generate search terms from library name"""
+        """Generate search terms from library name."""
         terms = []
 
         # Add the library name as-is
@@ -385,7 +385,7 @@ class NVDClient(BaseCVEClient):
         return list(set(terms))  # Remove duplicates
 
     def _search_by_keyword(self, keyword: str) -> list[CVEVulnerability]:
-        """Search NVD by keyword with enhanced FFmpeg support"""
+        """Search NVD by keyword with enhanced FFmpeg support."""
         vulnerabilities = []
 
         try:
@@ -495,7 +495,7 @@ class NVDClient(BaseCVEClient):
             return []
 
     def _parse_nvd_vulnerability(self, nvd_data: dict[str, Any]) -> Optional[CVEVulnerability]:
-        """Parse NVD vulnerability data into CVEVulnerability object"""
+        """Parse NVD vulnerability data into CVEVulnerability object."""
         try:
             cve_data = nvd_data.get("cve", {})
 
@@ -580,7 +580,7 @@ class NVDClient(BaseCVEClient):
             return None
 
     def _parse_cpe_configurations(self, configurations: list[dict[str, Any]]) -> list[AffectedLibrary]:
-        """Parse CPE configurations to extract affected libraries"""
+        """Parse CPE configurations to extract affected libraries."""
         affected_libraries = []
 
         try:
@@ -621,7 +621,7 @@ class NVDClient(BaseCVEClient):
         return affected_libraries
 
     def _parse_cpe_name(self, cpe_name: str) -> Optional[AffectedLibrary]:
-        """Parse CPE name to extract library information"""
+        """Parse CPE name to extract library information."""
         try:
             # CPE format: cpe:2.3:part:vendor:product:version:update:edition:language:sw_edition:target_sw:target_hw:other
             parts = cpe_name.split(":")
@@ -648,7 +648,7 @@ class NVDClient(BaseCVEClient):
         return None
 
     def _version_affects_ffmpeg(self, vulnerability: "CVEVulnerability", target_version: str) -> bool:
-        """Simple heuristic to check if a vulnerability might affect the target FFmpeg version"""
+        """Check if a vulnerability might affect the target FFmpeg version."""
         try:
             # Very basic version comparison - if target is older than 2020, likely affected
             # FFmpeg 4.1.3 was released in 2018, so many CVEs from 2019+ likely affect it
@@ -665,7 +665,7 @@ class NVDClient(BaseCVEClient):
             return False  # Conservative approach
 
     def _filter_by_version(self, vulnerabilities: list[CVEVulnerability], version: str) -> list[CVEVulnerability]:
-        """Filter vulnerabilities by version (basic string matching)"""
+        """Filter vulnerabilities by version (basic string matching)."""
         filtered = []
 
         for vuln in vulnerabilities:
@@ -704,7 +704,7 @@ class NVDClient(BaseCVEClient):
         return filtered
 
     def _normalize_version(self, version: str) -> str:
-        """Normalize version string for CPE search"""
+        """Normalize version string for CPE search."""
         if not version:
             return version
 
@@ -718,7 +718,7 @@ class NVDClient(BaseCVEClient):
         return normalized
 
     def _normalize_library_name(self, library_name: str) -> str:
-        """Normalize library name for better CPE matching with enhanced FFmpeg support"""
+        """Normalize library name for better CPE matching with enhanced FFmpeg support."""
         if not library_name:
             return library_name
 
@@ -778,7 +778,7 @@ class NVDClient(BaseCVEClient):
         return normalized
 
     def _search_cpes(self, library_name: str, version: Optional[str] = None) -> list[str]:
-        """Search for CPEs (Common Platform Enumeration) entries with multiple search strategies"""
+        """Search for CPEs (Common Platform Enumeration) entries with multiple search strategies."""
         cpes = []
 
         try:
@@ -956,7 +956,7 @@ class NVDClient(BaseCVEClient):
         return cpes
 
     def _search_cve_by_cpe(self, cpe_name: str) -> list[CVEVulnerability]:
-        """Search for CVEs affecting a specific CPE"""
+        """Search for CVEs affecting a specific CPE."""
         vulnerabilities = []
 
         try:
@@ -1039,6 +1039,7 @@ class NVDClient(BaseCVEClient):
     def _try_alternative_cpe_search(self, library_name: str, version: Optional[str] = None) -> list[str]:
         """
         Alternative CPE search method when primary method fails.
+
         This uses a fresh session and different approach.
         """
         self.logger.info("🔄 Attempting alternative NVD CPE search with fresh session...")
@@ -1102,6 +1103,7 @@ class NVDClient(BaseCVEClient):
     def _get_known_ffmpeg_cves_4_1_3(self) -> list[CVEVulnerability]:
         """
         Return known critical CVEs for FFmpeg 4.1.3 when NVD API is inaccessible.
+
         This is a fallback to ensure users get some vulnerability information.
         """
         from datetime import datetime
@@ -1160,7 +1162,7 @@ class NVDClient(BaseCVEClient):
         return vulnerabilities
 
     def health_check(self) -> bool:
-        """Check if NVD API is available"""
+        """Check if NVD API is available."""
         try:
             self.logger.debug("NVD: Starting health check...")
             # Test with a simple CPE query (more reliable)

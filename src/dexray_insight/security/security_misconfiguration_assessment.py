@@ -20,6 +20,12 @@
 # # See the License for the specific language governing permissions and
 # # limitations under the License.
 
+"""Security Misconfiguration Assessment.
+
+This module implements OWASP A05:2021 - Security Misconfiguration assessment.
+It identifies security misconfigurations that weaken application security.
+"""
+
 import logging
 from typing import Any
 
@@ -48,6 +54,7 @@ class SecurityMisconfigurationAssessment(BaseSecurityAssessment):
     """
 
     def __init__(self, config: dict[str, Any]):
+        """Initialize security misconfiguration assessment."""
         super().__init__(config)
         self.logger = logging.getLogger(__name__)
         self.owasp_category = "A05:2021-Security Misconfiguration"
@@ -209,7 +216,7 @@ class SecurityMisconfigurationAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_debug_configurations(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """Assess debug and development configurations"""
+        """Assess debug and development configurations."""
         findings = []
 
         # Get manifest analysis for debug flags
@@ -296,7 +303,7 @@ class SecurityMisconfigurationAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_network_security_config(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """Assess network security configurations"""
+        """Assess network security configurations."""
         findings = []
 
         # Get manifest data for network security policy
@@ -369,7 +376,7 @@ class SecurityMisconfigurationAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_storage_configurations(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """Assess file and storage permission configurations"""
+        """Assess file and storage permission configurations."""
         findings = []
 
         string_results = analysis_results.get("string_analysis", {})
@@ -446,7 +453,7 @@ class SecurityMisconfigurationAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_component_configurations(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """Assess component configuration security"""
+        """Assess component configuration security."""
         findings = []
 
         manifest_results = analysis_results.get("manifest_analysis", {})
@@ -513,7 +520,7 @@ class SecurityMisconfigurationAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_security_policies(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """Assess security policy configurations"""
+        """Assess security policy configurations."""
         findings = []
 
         manifest_results = analysis_results.get("manifest_analysis", {})
@@ -560,7 +567,7 @@ class SecurityMisconfigurationAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_crypto_configurations(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """Assess cryptographic configuration issues"""
+        """Assess cryptographic configuration issues."""
         findings = []
 
         # Get API invocation results for crypto configuration

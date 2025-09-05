@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-API Rate Limiter for CVE Scanning
+API Rate Limiter for CVE Scanning.
 
 This module provides rate limiting functionality to respect API limits
 of various CVE data sources.
@@ -36,7 +36,7 @@ from typing import Optional
 
 @dataclass
 class RateLimitConfig:
-    """Configuration for rate limiting"""
+    """Configuration for rate limiting."""
 
     requests_per_minute: int = 30
     requests_per_hour: Optional[int] = None
@@ -46,9 +46,10 @@ class RateLimitConfig:
 
 
 class APIRateLimiter:
-    """Rate limiter for API requests to CVE databases"""
+    """Rate limiter for API requests to CVE databases."""
 
     def __init__(self, config: Optional[RateLimitConfig] = None):
+        """Initialize rate limiter with configuration."""
         self.logger = logging.getLogger(__name__)
         self.config = config or RateLimitConfig()
 
@@ -110,7 +111,7 @@ class APIRateLimiter:
         return time.time() - start_time
 
     def record_request(self):
-        """Record that a request was made"""
+        """Record that a request was made."""
         with self._lock:
             current_time = time.time()
 
@@ -124,7 +125,7 @@ class APIRateLimiter:
             self._clean_request_history(current_time)
 
     def _clean_request_history(self, current_time: float):
-        """Remove old entries from request history"""
+        """Remove old entries from request history."""
         # Clean minute history (keep last 60 seconds)
         self.request_history["minute"] = [t for t in self.request_history["minute"] if current_time - t < 60]
 
@@ -140,7 +141,7 @@ class APIRateLimiter:
         ]
 
     def _check_minute_limit(self, current_time: float) -> bool:
-        """Check if minute rate limit allows request"""
+        """Check if minute rate limit allows request."""
         if self.config.requests_per_minute <= 0:
             return True
 
@@ -148,7 +149,7 @@ class APIRateLimiter:
         return recent_requests < self.config.requests_per_minute
 
     def _check_hour_limit(self, current_time: float) -> bool:
-        """Check if hour rate limit allows request"""
+        """Check if hour rate limit allows request."""
         if not self.config.requests_per_hour or self.config.requests_per_hour <= 0:
             return True
 
@@ -156,7 +157,7 @@ class APIRateLimiter:
         return recent_requests < self.config.requests_per_hour
 
     def _check_day_limit(self, current_time: float) -> bool:
-        """Check if day rate limit allows request"""
+        """Check if day rate limit allows request."""
         if not self.config.requests_per_day or self.config.requests_per_day <= 0:
             return True
 
@@ -164,7 +165,7 @@ class APIRateLimiter:
         return recent_requests < self.config.requests_per_day
 
     def _check_burst_limit(self, current_time: float) -> bool:
-        """Check if burst limit allows request"""
+        """Check if burst limit allows request."""
         if not self.config.burst_limit or self.config.burst_limit <= 0:
             return True
 
@@ -172,7 +173,7 @@ class APIRateLimiter:
         return recent_requests < self.config.burst_limit
 
     def _calculate_wait_time(self) -> float:
-        """Calculate how long to wait before next request"""
+        """Calculate how long to wait before next request."""
         current_time = time.time()
         wait_times = []
 
@@ -213,7 +214,7 @@ class APIRateLimiter:
         return max(wait_times) if wait_times else 0
 
     def get_rate_limit_status(self) -> dict[str, any]:
-        """Get current rate limit status"""
+        """Get current rate limit status."""
         current_time = time.time()
 
         with self._lock:
@@ -236,7 +237,7 @@ class APIRateLimiter:
             }
 
     def reset(self):
-        """Reset rate limiter state"""
+        """Reset rate limiter state."""
         with self._lock:
             for window in self.request_history:
                 self.request_history[window] = []

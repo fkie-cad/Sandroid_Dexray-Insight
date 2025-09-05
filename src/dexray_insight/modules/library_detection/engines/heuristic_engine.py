@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Heuristic Detection Engine for Library Detection
+Heuristic Detection Engine for Library Detection.
 
 Specialized engine for heuristic-based library detection using known patterns.
 Handles timing, error management, and result processing for heuristic detection.
@@ -43,6 +43,7 @@ class HeuristicDetectionEngine:
     """
 
     def __init__(self, parent_module):
+        """Initialize HeuristicDetectionEngine with parent module."""
         self.parent = parent_module
         self.logger = parent_module.logger
 

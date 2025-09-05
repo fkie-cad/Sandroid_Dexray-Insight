@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""Koodous API integration for Android malware detection."""
 
 # #!/usr/bin/env python3
 # # -*- coding: utf-8 -*-
@@ -28,6 +29,7 @@ from ..core.configuration import Configuration
 
 
 def koodous_hash_check(apk_hash, config=None):
+    """Check APK hash against Koodous threat intelligence database."""
     if config is None:
         config = Configuration()
 

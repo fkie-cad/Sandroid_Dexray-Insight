@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Library Detection Utilities Package
+Library Detection Utilities Package.
 
 Utilities for version analysis, library matching, and other detection support functionality.
 """

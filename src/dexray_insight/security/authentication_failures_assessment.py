@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 # #!/usr/bin/env python3
 # # -*- coding: utf-8 -*-
@@ -19,6 +20,12 @@
 # # See the License for the specific language governing permissions and
 # # limitations under the License.
 
+"""Authentication Failures Assessment.
+
+This module implements OWASP A07:2021 - Identification and Authentication Failures assessment.
+It identifies weak authentication mechanisms and insecure session management in Android applications.
+"""
+
 import logging
 from typing import Any
 
@@ -31,9 +38,10 @@ from ..core.base_classes import register_assessment
 
 @register_assessment("authentication_failures")
 class AuthenticationFailuresAssessment(BaseSecurityAssessment):
-    """OWASP A07:2021 - Identification and Authentication Failures assessment"""
+    """OWASP A07:2021 - Identification and Authentication Failures assessment."""
 
     def __init__(self, config: dict[str, Any]):
+        """Initialize authentication failures assessment."""
         super().__init__(config)
         self.logger = logging.getLogger(__name__)
         self.owasp_category = "A07:2021-Identification and Authentication Failures"
@@ -54,6 +62,7 @@ class AuthenticationFailuresAssessment(BaseSecurityAssessment):
         ]
 
     def assess(self, analysis_results: dict[str, Any], context: AnalysisContext | None = None) -> list[SecurityFinding]:
+        """Perform authentication failures assessment."""
         findings = []
 
         try:

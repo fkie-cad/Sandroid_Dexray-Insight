@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Library Detection Signatures Package
+Library Detection Signatures Package.
 
 Contains signature extraction and matching functionality for similarity-based detection.
 Separated from main module for better maintainability and to support advanced

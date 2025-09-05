@@ -1,5 +1,28 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# #!/usr/bin/env python3
+# # -*- coding: utf-8 -*-
+#
+# # Copyright (C) {{ year }} Dexray Insight Contributors
+# #
+# # This file is part of Dexray Insight - Android APK Security Analysis Tool
+# #
+# # Licensed under the Apache License, Version 2.0 (the "License");
+# # you may not use this file except in compliance with the License.
+# # You may obtain a copy of the License at
+# #
+# #     http://www.apache.org/licenses/LICENSE-2.0
+# #
+# # Unless required by applicable law or agreed to in writing, software
+# # distributed under the License is distributed on an "AS IS" BASIS,
+# # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# # See the License for the specific language governing permissions and
+# # limitations under the License.
+
+"""Kavanoz tool integration for APK unpacking.
+
+Provides static unpacking capabilities through external Kavanoz tool.
+"""
 
 # #!/usr/bin/env python3
 # # -*- coding: utf-8 -*-
@@ -36,9 +59,10 @@ from ..results.kavanozResults import KavanozResults
 
 @register_tool("kavanoz")
 class KavanozTool(BaseExternalTool):
-    """Kavanoz external tool for detecting and unpacking packed Android malware"""
+    """Kavanoz external tool for detecting and unpacking packed Android malware."""
 
     def __init__(self, config: dict[str, Any]):
+        """Initialize Kavanoz tool with configuration."""
         super().__init__(config)
         self.logger = logging.getLogger(__name__)
         self.timeout = config.get("timeout", 600)
@@ -47,7 +71,7 @@ class KavanozTool(BaseExternalTool):
 
     def execute(self, apk_path: str, output_dir: Optional[str] = None) -> dict[str, Any]:
         """
-        Execute Kavanoz on the APK file
+        Execute Kavanoz on the APK file.
 
         Args:
             apk_path: Path to the APK file
@@ -92,7 +116,7 @@ class KavanozTool(BaseExternalTool):
 
     def _analyze_with_kavanoz(self, apk_path: str, output_dir: str) -> KavanozResults:
         """
-        Perform analysis using Kavanoz library
+        Perform analysis using Kavanoz library.
 
         Args:
             apk_path: Path to the APK file
@@ -177,7 +201,7 @@ class KavanozTool(BaseExternalTool):
 
     def _parse_results(self, raw_json: str) -> KavanozResults:
         """
-        Parse Kavanoz JSON output into a KavanozResults object
+        Parse Kavanoz JSON output into a KavanozResults object.
 
         Args:
             raw_json: Raw JSON output from Kavanoz
@@ -208,7 +232,7 @@ class KavanozTool(BaseExternalTool):
 
     def is_available(self) -> bool:
         """
-        Check if Kavanoz is available on the system
+        Check if Kavanoz is available on the system.
 
         Returns:
             True if Kavanoz library can be imported
@@ -234,7 +258,7 @@ class KavanozTool(BaseExternalTool):
 
     def get_version(self) -> Optional[str]:
         """
-        Get Kavanoz version
+        Get Kavanoz version.
 
         Returns:
             Version string if available, None otherwise
@@ -247,7 +271,7 @@ class KavanozTool(BaseExternalTool):
             return None
 
     def validate_config(self) -> bool:
-        """Validate tool configuration"""
+        """Validate tool configuration."""
         if self.timeout <= 0:
             self.logger.error("Timeout must be greater than 0")
             return False

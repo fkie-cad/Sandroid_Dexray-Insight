@@ -43,7 +43,7 @@ except ImportError:
 
 @dataclass
 class NativeStringSource:
-    """Represents a string extracted from a native binary with source information"""
+    """Represents a string extracted from a native binary with source information."""
 
     content: str  # The actual string content
     source_type: str = "native"  # Always "native" for native binaries
@@ -56,7 +56,7 @@ class NativeStringSource:
 
 @dataclass
 class NativeBinaryInfo:
-    """Information about a native binary being analyzed"""
+    """Information about a native binary being analyzed."""
 
     file_path: Path  # Full path to the binary file
     relative_path: str  # Relative path within APK (e.g., "lib/arm64-v8a/libexample.so")
@@ -67,7 +67,7 @@ class NativeBinaryInfo:
 
 @dataclass
 class NativeAnalysisResult:
-    """Result container for native binary analysis"""
+    """Result container for native binary analysis."""
 
     binary_info: NativeBinaryInfo
     module_name: str
@@ -78,6 +78,7 @@ class NativeAnalysisResult:
     additional_data: dict[str, Any] = None
 
     def __post_init__(self):
+        """Initialize default values for optional fields."""
         if self.strings_found is None:
             self.strings_found = []
         if self.additional_data is None:
@@ -136,11 +137,11 @@ class BaseNativeModule(ABC):
         return self.enabled
 
     def get_module_name(self) -> str:
-        """Get the module name for identification"""
+        """Get the module name for identification."""
         return self.name
 
     def is_enabled(self) -> bool:
-        """Check if the module is enabled"""
+        """Check if the module is enabled."""
         return self.enabled
 
     def get_dependencies(self) -> list[str]:
@@ -156,7 +157,7 @@ class BaseNativeModule(ABC):
         self, r2: Any, min_length: int = 4, max_length: int = 1024
     ) -> list[NativeStringSource]:
         """
-        Helper method to extract strings using radare2.
+        Extract strings using radare2.
 
         Args:
             r2: r2pipe connection

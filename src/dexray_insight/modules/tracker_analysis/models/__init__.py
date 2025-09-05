@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Tracker Analysis Models Package
+Tracker Analysis Models Package.
 
 Data models and result structures for tracker analysis.
 Extracted from monolithic tracker_analysis.py for better maintainability.

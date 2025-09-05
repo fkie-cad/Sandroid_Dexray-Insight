@@ -20,8 +20,7 @@
 # # See the License for the specific language governing permissions and
 # # limitations under the License.
 
-"""
-AndroidX Detection Engine for Library Detection
+"""AndroidX Detection Engine for Library Detection.
 
 Specialized engine for AndroidX library detection.
 Handles timing, error management, and result processing for AndroidX detection.
@@ -36,19 +35,18 @@ from ....core.base_classes import AnalysisContext
 
 
 class AndroidXDetectionEngine:
-    """
-    Specialized engine for AndroidX library detection.
+    """Specialized engine for AndroidX library detection.
 
     Single Responsibility: Handle AndroidX library detection with timing and error management.
     """
 
     def __init__(self, parent_module):
+        """Initialize AndroidXDetectionEngine with parent module."""
         self.parent = parent_module
         self.logger = parent_module.logger
 
     def execute_detection(self, context: AnalysisContext, analysis_errors: list[str]) -> dict[str, Any]:
-        """
-        Execute AndroidX library detection with comprehensive timing and error handling.
+        """Execute AndroidX library detection with comprehensive timing and error handling.
 
         Args:
             context: Analysis context with existing results

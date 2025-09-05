@@ -19,7 +19,7 @@
 
 # Script from: https://github.com/jakev/pyxamstore
 
-"""Pack and unpack Xamarin AssemblyStore files"""
+"""Pack and unpack Xamarin AssemblyStore files."""
 
 
 import argparse
@@ -68,15 +68,13 @@ DEBUG = False
 
 
 def debug(message):
-    """Print a debuggable message"""
-
+    """Print a debuggable message."""
     if DEBUG:
         print("[debug] %s" % message)
 
 
 class ManifestEntry(object):
-
-    """Element in Manifest"""
+    """Element in Manifest."""
 
     hash32 = ""
     hash64 = ""
@@ -85,8 +83,7 @@ class ManifestEntry(object):
     name = ""
 
     def __init__(self, hash32, hash64, blob_id, blob_idx, name):
-        """Initialize item"""
-
+        """Initialize item."""
         self.hash32 = hash32
         self.hash64 = hash64
         self.blob_id = int(blob_id)
@@ -95,12 +92,10 @@ class ManifestEntry(object):
 
 
 class ManifestList(list):
-
-    """List of manifest entries"""
+    """List of manifest entries."""
 
     def get_idx(self, blob_id, blob_idx):
-        """Find entry by ID"""
-
+        """Find entry by ID."""
         for entry in self:
             if entry.blob_idx == blob_idx and entry.blob_id == blob_id:
                 return entry
@@ -108,8 +103,7 @@ class ManifestList(list):
 
 
 class AssemblyStoreAssembly(object):
-
-    """Assembly Details"""
+    """Assembly Details."""
 
     data_offset = 0
     data_size = 0
@@ -119,12 +113,11 @@ class AssemblyStoreAssembly(object):
     config_data_size = 0
 
     def __init__(self):
-        pass
+        """Initialize assembly store assembly."""
 
 
 class AssemblyStoreHashEntry(object):
-
-    """Hash Details"""
+    """Hash Details."""
 
     hash_val = ""
     mapping_index = 0
@@ -132,12 +125,11 @@ class AssemblyStoreHashEntry(object):
     store_id = 0
 
     def __init__(self):
-        pass
+        """Initialize hash entry."""
 
 
 class AssemblyStore(object):
-
-    """AssemblyStore object"""
+    """AssemblyStore object."""
 
     raw = ""
 
@@ -156,8 +148,7 @@ class AssemblyStore(object):
     global_hash64 = None
 
     def __init__(self, in_file_name, manifest_entries, primary=True):
-        """Parse and read store"""
-
+        """Parse and read store."""
         self.manifest_entries = manifest_entries
         self.file_name = os.path.basename(in_file_name)
 
@@ -291,8 +282,7 @@ class AssemblyStore(object):
             i += 1
 
     def extract_all(self, json_config, outpath=".unpacked_blobs"):
-        """Extract everything"""
-
+        """Extract everything."""
         # Start the config JSON
         store_json = dict()
         store_json[self.file_name] = dict()
@@ -361,8 +351,7 @@ class AssemblyStore(object):
 
     @classmethod
     def decompress_lz4(cls, compressed_data):
-        """Unpack an assembly if LZ4 packed"""
-
+        """Unpack an assembly if LZ4 packed."""
         # From: https://github.com/securitygrind/lz4_decompress
 
         packed_payload_len = compressed_data[8:12]
@@ -373,8 +362,7 @@ class AssemblyStore(object):
 
 
 def lz4_compress(file_data, desc_idx):
-    """LZ4 compress data stream + add header"""
-
+    """LZ4 compress data stream + add header."""
     # 00 - 03: header XALZ
     # 04 - 07: desc_index (not the same as idx?)
     # 08 - 11: packed_payload_len
@@ -391,8 +379,7 @@ def lz4_compress(file_data, desc_idx):
 
 
 def gen_xxhash(name, raw=False):
-    """Generate xxhash32 + 64"""
-
+    """Generate xxhash32 + 64."""
     h32 = xxhash.xxh32(seed=0)
     h64 = xxhash.xxh64(seed=0)
 
@@ -406,8 +393,7 @@ def gen_xxhash(name, raw=False):
 
 
 def read_manifest(in_manifest):
-    """Read Manifest entries"""
-
+    """Read Manifest entries."""
     manifest_list = ManifestList()
     for line in open(in_manifest).read().split("\n"):
         if line == "" or len(line) == 0:
@@ -431,8 +417,7 @@ def read_manifest(in_manifest):
 
 
 def usage():
-    """Print usage"""
-
+    """Print usage."""
     print("usage: pyxamstore MODE <args>")
     print("")
     print("   MODES:")
@@ -445,8 +430,7 @@ def usage():
 
 
 def do_unpack(in_directory, in_arch, force):
-    """Unpack a assemblies.blob/manifest"""
-
+    """Unpack a assemblies.blob/manifest."""
     arch_assemblies = False
 
     if force and os.path.isdir(".unpacked_blobs/"):
@@ -504,8 +488,7 @@ def do_unpack(in_directory, in_arch, force):
 
 
 def do_pack(in_json_config):
-    """Create new assemblies.blob/manifest"""
-
+    """Create new assemblies.blob/manifest."""
     if not os.path.isfile(in_json_config):
         print("Config file '%s' does not exist!" % in_json_config)
         return -1
@@ -665,8 +648,7 @@ def do_pack(in_json_config):
 
 
 def unpack_store(args):
-    """Unpack an assemblies store"""
-
+    """Unpack an assemblies store."""
     parser = argparse.ArgumentParser(prog="pyxamstore unpack", description="Unpack DLLs from assemblies.blob store.")
     parser.add_argument(
         "--dir",
@@ -702,8 +684,7 @@ def unpack_store(args):
 
 
 def pack_store(args):
-    """Pack an assemblies store"""
-
+    """Pack an assemblies store."""
     parser = argparse.ArgumentParser(prog="pyxamstore pack", description="Repackage DLLs into assemblies.blob.")
     parser.add_argument(
         "--config",
@@ -725,8 +706,7 @@ def pack_store(args):
 
 
 def gen_hash(args):
-    """Generate xxhashes for a given file path/string, mostly for testing"""
-
+    """Generate xxhashes for a given file path/string, mostly for testing."""
     if len(args) < 1:
         print("Need to provide a string to hash!")
         return -1
@@ -744,8 +724,7 @@ def gen_hash(args):
 
 
 def main():
-    """Main Loop"""
-
+    """Execute main program loop."""
     if len(sys.argv) < 2:
         print("Mode is required!")
         usage()

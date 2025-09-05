@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Strings-based Fallback Native Library Version Detection
+Strings-based Fallback Native Library Version Detection.
 
 This module provides a fallback method for detecting library versions from native
 binaries when radare2 is not available, using the standard `strings` command.
@@ -49,6 +49,7 @@ class StringsFallbackDetectionModule(BaseNativeModule):
     """
 
     def __init__(self, config: dict[str, Any], logger: Optional[Any] = None):
+        """Initialize StringsFallbackDetectionModule with configuration."""
         super().__init__(config, logger)
 
         # Configuration
@@ -66,7 +67,7 @@ class StringsFallbackDetectionModule(BaseNativeModule):
             self.logger.warning("strings command not available - strings fallback detection disabled")
 
     def _initialize_patterns(self):
-        """Initialize detection patterns from the main detection module"""
+        """Initialize detection patterns from the main detection module."""
         from .library_version_detection import NativeLibraryVersionModule
 
         # Create a temporary instance to get patterns
@@ -160,7 +161,7 @@ class StringsFallbackDetectionModule(BaseNativeModule):
             )
 
     def _extract_strings_with_command(self, binary_info: NativeBinaryInfo) -> list[str]:
-        """Extract strings from binary using the strings command"""
+        """Extract strings from binary using the strings command."""
         try:
             # Run strings command with options for better extraction
             cmd = [
@@ -206,7 +207,7 @@ class StringsFallbackDetectionModule(BaseNativeModule):
     def _analyze_strings_for_libraries(
         self, strings: list[str], binary_info: NativeBinaryInfo
     ) -> list[NativeLibraryDetection]:
-        """Analyze strings to detect library versions - reuses patterns from main module"""
+        """Analyze strings to detect library versions - reuses patterns from main module."""
         detections = []
 
         for string in strings:
@@ -225,7 +226,7 @@ class StringsFallbackDetectionModule(BaseNativeModule):
         return detections
 
     def _detect_prefix_libraries(self, string: str, binary_info: NativeBinaryInfo) -> list[NativeLibraryDetection]:
-        """Detect libraries from --prefix= compilation flags - reuses logic from main module"""
+        """Detect libraries from --prefix= compilation flags - reuses logic from main module."""
         detections = []
 
         # Look for --prefix= pattern
@@ -280,7 +281,7 @@ class StringsFallbackDetectionModule(BaseNativeModule):
         return detections
 
     def _detect_version_strings(self, string: str, binary_info: NativeBinaryInfo) -> list[NativeLibraryDetection]:
-        """Detect libraries from direct version strings - reuses logic from main module"""
+        """Detect libraries from direct version strings - reuses logic from main module."""
         detections = []
 
         for library_name, patterns in self.version_string_patterns.items():
@@ -317,7 +318,7 @@ class StringsFallbackDetectionModule(BaseNativeModule):
         return detections
 
     def _detect_build_info(self, string: str, binary_info: NativeBinaryInfo) -> list[NativeLibraryDetection]:
-        """Detect version information from build flags - reuses logic from main module"""
+        """Detect version information from build flags - reuses logic from main module."""
         detections = []
 
         for pattern in self.build_info_patterns:
@@ -343,7 +344,7 @@ class StringsFallbackDetectionModule(BaseNativeModule):
         return detections
 
     def _cross_reference_detections(self, detections: list[NativeLibraryDetection]) -> list[NativeLibraryDetection]:
-        """Cross-reference detections - reuses logic from main module"""
+        """Cross-reference detections - reuses logic from main module."""
         # Group detections by library name
         library_groups = {}
         build_info_detections = []
@@ -388,11 +389,11 @@ class StringsFallbackDetectionModule(BaseNativeModule):
         return filtered_detections
 
     def get_module_name(self) -> str:
-        """Get the module name"""
+        """Get the module name."""
         return "native_library_version_strings_fallback"
 
     def can_analyze(self, binary_info: NativeBinaryInfo) -> bool:
-        """Check if this module can analyze the given binary"""
+        """Check if this module can analyze the given binary."""
         return (
             self.enabled
             and self.strings_available

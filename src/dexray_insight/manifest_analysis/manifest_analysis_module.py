@@ -20,10 +20,13 @@
 # # See the License for the specific language governing permissions and
 # # limitations under the License.
 
+"""Manifest analysis module for extracting Android manifest information and components."""
+
 import logging
 
 
 def get_package_name(apk):
+    """Get the package name from APK manifest."""
     # Get the package name
     package_name = apk.get_package()
     logging.info("Package Name:", package_name)
@@ -31,6 +34,7 @@ def get_package_name(apk):
 
 
 def get_main_activity(apk):
+    """Get the app's main activity from manifest."""
     # Get the app's main activity
     main_activity = apk.get_main_activity()
     logging.info("Main Activity:", main_activity)
@@ -38,6 +42,7 @@ def get_main_activity(apk):
 
 
 def get_permissions(apk):
+    """Get all permissions from APK manifest."""
     # List all permissions
     permissions = apk.get_permissions()
     logging.info("Permissions:")
@@ -48,6 +53,7 @@ def get_permissions(apk):
 
 
 def get_activities(apk):
+    """Get all activities from APK manifest."""
     # List all activities
     activities = apk.get_activities()
     logging.info("Activities:")
@@ -58,6 +64,7 @@ def get_activities(apk):
 
 
 def get_services(apk):
+    """Get all services from APK manifest."""
     # List all services from manifest
     services = apk.get_services()
     logging.info("Services:")
@@ -68,6 +75,7 @@ def get_services(apk):
 
 
 def get_content_provider(apk):
+    """Get all content providers from APK manifest."""
     # List all providers from manifest
     providers = apk.get_providers()
     logging.info("Content Provider:")
@@ -78,6 +86,7 @@ def get_content_provider(apk):
 
 
 def get_receivers(apk):
+    """Get all receivers from APK manifest."""
     # List all receivers from manifest
     receivers = apk.get_receivers()
     logging.info("Receivers:")
@@ -88,6 +97,7 @@ def get_receivers(apk):
 
 
 def get_manifest_as_plaintext(apk):
+    """Get the raw XML of the manifest file as plaintext."""
     # You can also access the raw XML of the manifest file
     android_manifest_xml = apk.get_android_manifest_xml()
     logging.info(android_manifest_xml)
@@ -95,6 +105,7 @@ def get_manifest_as_plaintext(apk):
 
 
 def get_intentfilters(apk):
+    """Get all intent filters from manifest services and receivers."""
     # get all intent filters
     intent_filters = []
     services = apk.get_services()
@@ -116,6 +127,7 @@ def get_intentfilters(apk):
 
 
 def manifest_analysis_execute(apk_path, androguard_obj):
+    """Execute comprehensive manifest analysis and return collected information."""
     apk = androguard_obj.get_androguard_apk()
 
     apk_info = {

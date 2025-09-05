@@ -20,6 +20,32 @@
 # # See the License for the specific language governing permissions and
 # # limitations under the License.
 
+"""
+Contextual security finding models and enumerations.
+
+This module defines data structures for contextual security findings with
+confidence levels, usage types, and risk assessment capabilities.
+"""
+
+# #!/usr/bin/env python3
+# # -*- coding: utf-8 -*-
+#
+# # Copyright (C) {{ year }} Dexray Insight Contributors
+# #
+# # This file is part of Dexray Insight - Android APK Security Analysis Tool
+# #
+# # Licensed under the Apache License, Version 2.0 (the "License");
+# # you may not use this file except in compliance with the License.
+# # You may obtain a copy of the License at
+# #
+# #     http://www.apache.org/licenses/LICENSE-2.0
+# #
+# # Unless required by applicable law or agreed to in writing, software
+# # distributed under the License is distributed on an "AS IS" BASIS,
+# # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# # See the License for the specific language governing permissions and
+# # limitations under the License.
+
 from dataclasses import dataclass
 from dataclasses import field
 from enum import Enum
@@ -28,7 +54,7 @@ from typing import Optional
 
 
 class ContextConfidence(Enum):
-    """Confidence levels for contextual analysis results"""
+    """Confidence levels for contextual analysis results."""
 
     VERY_LOW = "very_low"  # 0-20% confidence
     LOW = "low"  # 21-40% confidence
@@ -38,7 +64,7 @@ class ContextConfidence(Enum):
 
 
 class SecretUsageType(Enum):
-    """Types of secret usage patterns detected in code"""
+    """Types of secret usage patterns detected in code."""
 
     HARDCODED_CONSTANT = "hardcoded_constant"  # Direct hardcoded value
     CONFIGURATION_VALUE = "configuration_value"  # From config files/properties
@@ -51,7 +77,7 @@ class SecretUsageType(Enum):
 
 
 class RiskLevel(Enum):
-    """Risk levels based on contextual analysis"""
+    """Risk levels based on contextual analysis."""
 
     MINIMAL = "minimal"  # Likely false positive or test value
     LOW = "low"  # Low risk based on context
@@ -79,7 +105,7 @@ class UsageContext:
     class_context: Optional[str] = None
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary representation"""
+        """Convert to dictionary representation."""
         return {
             "usage_type": self.usage_type.value,
             "is_encrypted": self.is_encrypted,
@@ -110,7 +136,7 @@ class ContextMetadata:
     analysis_timestamp: Optional[str] = None
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary representation"""
+        """Convert to dictionary representation."""
         return {
             "analysis_confidence": self.analysis_confidence.value,
             "false_positive_probability": self.false_positive_probability,
@@ -153,16 +179,16 @@ class ContextualFinding:
 
     @property
     def is_likely_false_positive(self) -> bool:
-        """Determine if this finding is likely a false positive based on context"""
+        """Determine if this finding is likely a false positive based on context."""
         return self.context_metadata.false_positive_probability > 0.7
 
     @property
     def requires_immediate_attention(self) -> bool:
-        """Determine if this finding requires immediate attention"""
+        """Determine if this finding requires immediate attention."""
         return self.adjusted_risk_level in [RiskLevel.HIGH, RiskLevel.CRITICAL] and not self.is_likely_false_positive
 
     def get_contextual_description(self) -> str:
-        """Generate a contextual description of the finding"""
+        """Generate a contextual description of the finding."""
         base_type = self.original_finding.get("type", "Unknown Secret")
         usage = self.usage_context.usage_type.value.replace("_", " ").title()
 
@@ -174,7 +200,7 @@ class ContextualFinding:
             return f"{base_type} ({usage})"
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary representation for JSON serialization"""
+        """Convert to dictionary representation for JSON serialization."""
         return {
             "original_finding": self.original_finding,
             "usage_context": self.usage_context.to_dict(),
@@ -191,5 +217,5 @@ class ContextualFinding:
 
     @classmethod
     def from_original_finding(cls, original_finding: dict[str, Any]) -> "ContextualFinding":
-        """Create a ContextualFinding from an original detection result"""
+        """Create a ContextualFinding from an original detection result."""
         return cls(original_finding=original_finding)

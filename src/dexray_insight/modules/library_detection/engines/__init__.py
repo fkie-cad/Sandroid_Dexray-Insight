@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Library Detection Engines Package
+Library Detection Engines Package.
 
 Contains specialized detection engines for different library detection methods.
 Each engine follows Single Responsibility Principle and handles timing,

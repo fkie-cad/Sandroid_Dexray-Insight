@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""Android permission analysis module for detecting critical permissions."""
 
 # #!/usr/bin/env python3
 # # -*- coding: utf-8 -*-
@@ -40,7 +41,7 @@ except ImportError:
 
 @dataclass
 class PermissionAnalysisResult(BaseResult):
-    """Result class for permission analysis"""
+    """Result class for permission analysis."""
 
     all_permissions: list[str] = None
     critical_permissions: list[str] = None
@@ -48,12 +49,14 @@ class PermissionAnalysisResult(BaseResult):
     critical_permissions_found: int = 0
 
     def __post_init__(self):
+        """Initialize default values for optional fields."""
         if self.all_permissions is None:
             self.all_permissions = []
         if self.critical_permissions is None:
             self.critical_permissions = []
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert result to dictionary."""
         base_dict = super().to_dict()
         base_dict.update(
             {
@@ -68,7 +71,7 @@ class PermissionAnalysisResult(BaseResult):
 
 @register_module("permission_analysis")
 class PermissionAnalysisModule(BaseAnalysisModule):
-    """Permission analysis module for detecting critical Android permissions"""
+    """Permission analysis module for detecting critical Android permissions."""
 
     # Default critical permissions list
     DEFAULT_CRITICAL_PERMISSIONS = [
@@ -144,6 +147,7 @@ class PermissionAnalysisModule(BaseAnalysisModule):
     ]
 
     def __init__(self, config: dict[str, Any]):
+        """Initialize PermissionAnalysisModule with configuration."""
         super().__init__(config)
         self.logger = logging.getLogger(__name__)
         self.critical_permissions_file = config.get("critical_permissions_file")
@@ -151,11 +155,11 @@ class PermissionAnalysisModule(BaseAnalysisModule):
         self.critical_permissions = self._load_critical_permissions()
 
     def get_dependencies(self) -> list[str]:
-        """No dependencies for permission analysis"""
+        """No dependencies for permission analysis."""
         return []
 
     def _load_critical_permissions(self) -> list[str]:
-        """Load critical permissions from file or use default list"""
+        """Load critical permissions from file or use default list."""
         if self.critical_permissions_file:
             try:
                 path = Path(self.critical_permissions_file)
@@ -186,7 +190,7 @@ class PermissionAnalysisModule(BaseAnalysisModule):
 
     def analyze(self, apk_path: str, context: AnalysisContext) -> PermissionAnalysisResult:
         """
-        Perform permission analysis on the APK
+        Perform permission analysis on the APK.
 
         Args:
             apk_path: Path to the APK file
@@ -244,7 +248,7 @@ class PermissionAnalysisModule(BaseAnalysisModule):
             )
 
     def validate_config(self) -> bool:
-        """Validate module configuration"""
+        """Validate module configuration."""
         if self.critical_permissions_file:
             path = Path(self.critical_permissions_file)
             if not path.exists():

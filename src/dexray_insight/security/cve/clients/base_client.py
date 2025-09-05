@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Base CVE Client
+Base CVE Client.
 
 This module provides the abstract base class for CVE database clients.
 All specific CVE clients should inherit from this base class.
@@ -42,7 +42,7 @@ from ..utils.rate_limiter import RateLimitConfig
 
 
 class BaseCVEClient(ABC):
-    """Abstract base class for CVE database clients"""
+    """Abstract base class for CVE database clients."""
 
     def __init__(
         self,
@@ -87,15 +87,15 @@ class BaseCVEClient(ABC):
 
     @abstractmethod
     def _get_default_rate_limit_config(self) -> RateLimitConfig:
-        """Get default rate limit configuration for this client"""
+        """Get default rate limit configuration for this client."""
 
     @abstractmethod
     def _setup_headers(self):
-        """Set up HTTP headers for API requests"""
+        """Set up HTTP headers for API requests."""
 
     @abstractmethod
     def get_source_name(self) -> str:
-        """Get the name of this CVE source"""
+        """Get the name of this CVE source."""
 
     @abstractmethod
     def search_vulnerabilities(self, library_name: str, version: Optional[str] = None) -> list[CVEVulnerability]:
@@ -243,10 +243,10 @@ class BaseCVEClient(ABC):
             return False
 
     def get_rate_limit_status(self) -> dict[str, Any]:
-        """Get current rate limit status"""
+        """Get current rate limit status."""
         return self.rate_limiter.get_rate_limit_status()
 
     def __del__(self):
-        """Clean up resources"""
+        """Clean up resources."""
         if hasattr(self, "session"):
             self.session.close()

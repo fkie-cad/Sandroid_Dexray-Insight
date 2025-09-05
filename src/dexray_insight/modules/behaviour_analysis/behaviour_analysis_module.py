@@ -20,8 +20,7 @@
 # # See the License for the specific language governing permissions and
 # # limitations under the License.
 
-"""
-Behaviour Analysis Module - Refactored
+"""Behaviour Analysis Module - Refactored.
 
 Main coordinator for behavioral analysis with fast/deep modes.
 Delegates specific analysis tasks to specialized submodules.
@@ -53,9 +52,10 @@ from .modes.mode_manager import ModeManager
 
 @register_module("behaviour_analysis")
 class BehaviourAnalysisModule(BaseAnalysisModule):
-    """Refactored module for behavioral analysis with specialized components"""
+    """Refactored module for behavioral analysis with specialized components."""
 
     def __init__(self, config: dict[str, Any]):
+        """Initialize BehaviourAnalysisModule with specialized analyzers."""
         super().__init__(config)
         self.logger = logging.getLogger(__name__)
 
@@ -71,20 +71,23 @@ class BehaviourAnalysisModule(BaseAnalysisModule):
         self.reflection_analyzer = ReflectionAnalyzer(self.logger)
 
     def get_name(self) -> str:
+        """Get the module name."""
         return "Behaviour Analysis"
 
     def get_description(self) -> str:
+        """Get the module description."""
         return "Performs behavioral analysis to detect privacy-sensitive behaviors. Supports fast mode (APK only) and deep mode (full DEX analysis)"
 
     def get_dependencies(self) -> list[str]:
+        """Get module dependencies."""
         return ["apk_overview"]
 
     def get_priority(self) -> int:
+        """Get module priority."""
         return 1000
 
     def analyze(self, apk_path: str, context: AnalysisContext) -> BehaviourAnalysisResults:
-        """
-        Coordinate behavioral analysis using specialized components
+        """Coordinate behavioral analysis using specialized components.
 
         Args:
             apk_path: Path to APK file
@@ -160,7 +163,7 @@ class BehaviourAnalysisModule(BaseAnalysisModule):
             )
 
     def _perform_deep_analysis(self, analysis_objects: dict[str, Any], result: BehaviourAnalysisResults) -> None:
-        """Perform deep analysis using all available analyzers"""
+        """Perform deep analysis using all available analyzers."""
         apk_obj = analysis_objects["apk_obj"]
         dex_obj = analysis_objects["dex_obj"]
         dx_obj = analysis_objects["dx_obj"]
@@ -192,7 +195,7 @@ class BehaviourAnalysisModule(BaseAnalysisModule):
             raise
 
     def _perform_fast_analysis(self, analysis_objects: dict[str, Any], result: BehaviourAnalysisResults) -> None:
-        """Perform fast analysis using only APK object"""
+        """Perform fast analysis using only APK object."""
         apk_obj = analysis_objects["apk_obj"]
 
         try:

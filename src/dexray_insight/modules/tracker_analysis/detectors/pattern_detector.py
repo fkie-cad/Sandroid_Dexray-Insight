@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Pattern Detector for Tracker Analysis
+Pattern Detector for Tracker Analysis.
 
 Specialized detector for pattern-based tracker detection using regex matching
 against code signatures and network patterns.
@@ -47,6 +47,7 @@ class PatternDetector:
     """
 
     def __init__(self):
+        """Initialize PatternDetector with logger."""
         self.logger = logging.getLogger(__name__)
 
     def detect_tracker_patterns(

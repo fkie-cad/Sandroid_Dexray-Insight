@@ -21,7 +21,7 @@
 # # limitations under the License.
 
 """
-Behavior Evidence Data Structure
+Behavior Evidence Data Structure.
 
 Represents evidence found during behavior analysis,
 including the type, content, location, and context.
@@ -34,7 +34,7 @@ from typing import Optional
 
 @dataclass
 class BehaviorEvidence:
-    """Data structure representing evidence of a behavior"""
+    """Data structure representing evidence of a behavior."""
 
     # Evidence content and type
     type: str  # 'string', 'code', 'permission', 'activity', 'service', 'receiver', 'metadata'
@@ -54,7 +54,7 @@ class BehaviorEvidence:
     additional_data: Optional[dict[str, Any]] = None
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert evidence to dictionary format for JSON serialization"""
+        """Convert evidence to dictionary format for JSON serialization."""
         result = {"type": self.type, "content": self.content, "location": self.location, "confidence": self.confidence}
 
         # Add optional fields if they have values
@@ -73,7 +73,7 @@ class BehaviorEvidence:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "BehaviorEvidence":
-        """Create BehaviorEvidence from dictionary"""
+        """Create BehaviorEvidence from dictionary."""
         return cls(
             type=data.get("type", ""),
             content=data.get("content", ""),
@@ -87,23 +87,23 @@ class BehaviorEvidence:
         )
 
     def is_high_confidence(self) -> bool:
-        """Check if this evidence has high confidence"""
+        """Check if this evidence has high confidence."""
         return self.confidence >= 0.8
 
     def is_code_evidence(self) -> bool:
-        """Check if this evidence comes from code analysis"""
+        """Check if this evidence comes from code analysis."""
         return self.type == "code"
 
     def is_permission_evidence(self) -> bool:
-        """Check if this evidence comes from permission analysis"""
+        """Check if this evidence comes from permission analysis."""
         return self.type == "permission"
 
     def is_string_evidence(self) -> bool:
-        """Check if this evidence comes from string analysis"""
+        """Check if this evidence comes from string analysis."""
         return self.type == "string"
 
     def get_summary(self) -> str:
-        """Get a human-readable summary of the evidence"""
+        """Get a human-readable summary of the evidence."""
         if self.pattern_matched:
             return f"{self.type}: {self.content} (matched: {self.pattern_matched})"
         else:

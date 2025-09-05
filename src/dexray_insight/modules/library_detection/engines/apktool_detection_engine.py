@@ -20,8 +20,7 @@
 # # See the License for the specific language governing permissions and
 # # limitations under the License.
 
-"""
-Apktool-based Library Detection Engine
+"""Apktool-based Library Detection Engine.
 
 This engine integrates the functionality from detect_libs.py, requiring apktool
 extraction to analyze smali directories and other extracted files for library detection.
@@ -53,14 +52,13 @@ from ..utils.version_analyzer import get_version_analyzer
 
 
 class ApktoolDetectionEngine:
-    """
-    Library detection engine that requires apktool extraction results.
+    """Library detection engine that requires apktool extraction results.
+
     Integrates three detection approaches from detect_libs.py.
     """
 
     def __init__(self, config: dict[str, Any], logger: Optional[logging.Logger] = None):
-        """
-        Initialize ApktoolDetectionEngine with configuration.
+        """Initialize ApktoolDetectionEngine with configuration.
 
         Args:
             config: Configuration dictionary containing apktool_detection settings
@@ -101,8 +99,7 @@ class ApktoolDetectionEngine:
             self._update_library_definitions()
 
     def is_available(self, context) -> bool:
-        """
-        Check if apktool extraction results are available for analysis.
+        """Check if apktool extraction results are available for analysis.
 
         Args:
             context: Analysis context containing temporal paths
@@ -122,8 +119,7 @@ class ApktoolDetectionEngine:
         return apktool_dir and apktool_dir.exists() and any(apktool_dir.iterdir())
 
     def detect_libraries(self, context, errors: list[str]) -> list[DetectedLibrary]:
-        """
-        Main detection method that orchestrates all three approaches
+        """Detect libraries using all three approaches.
 
         Args:
             context: Analysis context with temporal directory paths
@@ -195,8 +191,7 @@ class ApktoolDetectionEngine:
         return detected_libraries
 
     def _update_library_definitions(self):
-        """
-        Download newer library definitions from IzzyOnDroid repository if available.
+        """Download newer library definitions from IzzyOnDroid repository if available.
 
         This method checks if local library definition files (libsmali.jsonl and libinfo.jsonl)
         need to be updated from the IzzyOnDroid repository. Updates are performed if:
@@ -222,7 +217,7 @@ class ApktoolDetectionEngine:
             self.logger.warning(f"Failed to update library definitions: {e}")
 
     def _should_update_file(self, local_path: str, url: str) -> bool:
-        """Check if local file should be updated from remote URL"""
+        """Check if local file should be updated from remote URL."""
         if not os.path.exists(local_path):
             return True
 
@@ -233,7 +228,7 @@ class ApktoolDetectionEngine:
         return age_days > 7
 
     def _download_file(self, url: str, local_path: str):
-        """Download file from URL to local path"""
+        """Download file from URL to local path."""
         response = requests.get(url, timeout=30)
         response.raise_for_status()
 
@@ -244,7 +239,7 @@ class ApktoolDetectionEngine:
             f.write(response.text)
 
     def _load_library_definitions(self):
-        """Load library definitions from JSONL files"""
+        """Load library definitions from JSONL files."""
         if self._libs_by_path is not None:
             return  # Already loaded
 
@@ -296,7 +291,7 @@ class ApktoolDetectionEngine:
             self.logger.error(f"Error loading libinfo.jsonl: {e}")
 
     def _load_jsonl(self, path: str) -> list[dict]:
-        """Load JSONL file robustly"""
+        """Load JSONL file robustly."""
         items = []
         with open(path, encoding="utf-8") as f:
             for line_no, line in enumerate(f, 1):
@@ -312,7 +307,7 @@ class ApktoolDetectionEngine:
         return items
 
     def _find_smali_roots(self, apktool_dir: Path) -> list[Path]:
-        """Find all smali* directories in apktool output"""
+        """Find all smali* directories in apktool output."""
         smali_roots = []
         try:
             for item in apktool_dir.iterdir():
@@ -323,7 +318,7 @@ class ApktoolDetectionEngine:
         return smali_roots
 
     def _lib_dir_exists(self, apktool_dir: Path, lib_path: str) -> bool:
-        """Check if library path exists in any smali root directory"""
+        """Check if library path exists in any smali root directory."""
         smali_roots = self._find_smali_roots(apktool_dir)
         if not smali_roots:
             self.logger.debug(f"No smali roots found in {apktool_dir}")
@@ -345,8 +340,7 @@ class ApktoolDetectionEngine:
         return False
 
     def _scan_lib_patterns(self, apktool_dir: Path, errors: list[str]) -> list[DetectedLibrary]:
-        """
-        Scan for libraries using pattern matching against IzzyOnDroid JSONL definitions.
+        """Scan for libraries using pattern matching against IzzyOnDroid JSONL definitions.
 
         This method implements the first detection approach from detect_libs.py,
         checking if known library paths exist in the extracted smali directories.
@@ -434,7 +428,7 @@ class ApktoolDetectionEngine:
         return detected_libraries
 
     def _scan_properties(self, apktool_dir: Path, errors: list[str]) -> list[DetectedLibrary]:
-        """Scan for .properties files containing library version information"""
+        """Scan for .properties files containing library version information."""
         detected_libraries = []
 
         try:
@@ -500,7 +494,7 @@ class ApktoolDetectionEngine:
         return detected_libraries
 
     def _scan_buildconfig_smali(self, apktool_dir: Path, errors: list[str]) -> list[DetectedLibrary]:
-        """Extract library information from BuildConfig.smali files"""
+        """Extract library information from BuildConfig.smali files."""
         detected_libraries = []
 
         # Regex patterns for smali field extraction
@@ -574,7 +568,7 @@ class ApktoolDetectionEngine:
         return detected_libraries
 
     def _parse_smali_int(self, raw: str) -> Optional[str]:
-        """Parse smali integer (decimal, hex, negative) and return as string"""
+        """Parse smali integer (decimal, hex, negative) and return as string."""
         if not raw:
             return None
         s = raw.strip().lower()
@@ -590,7 +584,7 @@ class ApktoolDetectionEngine:
     def _create_detected_library_from_definition(
         self, definition: dict, method: LibraryDetectionMethod, lib_path: str
     ) -> Optional[DetectedLibrary]:
-        """Create DetectedLibrary object from JSONL definition"""
+        """Create DetectedLibrary object from JSONL definition."""
         try:
             lib_id = definition.get("id")
             name = definition.get("name", lib_id)
@@ -643,11 +637,11 @@ class ApktoolDetectionEngine:
             return None
 
     def _map_type_to_category(self, lib_type: str) -> LibraryCategory:
-        """Map library type string to LibraryCategory enum"""
+        """Map library type string to LibraryCategory enum."""
         return self._map_category_string_to_enum(lib_type)
 
     def _map_category_string_to_enum(self, category_str: str) -> LibraryCategory:
-        """Map category string to LibraryCategory enum"""
+        """Map category string to LibraryCategory enum."""
         category_mapping = {
             "ads": LibraryCategory.ADVERTISING,
             "advertising": LibraryCategory.ADVERTISING,
@@ -678,7 +672,7 @@ class ApktoolDetectionEngine:
         return category_mapping.get(category_lower, LibraryCategory.UNKNOWN)
 
     def _deduplicate_libraries(self, libraries: list[DetectedLibrary]) -> list[DetectedLibrary]:
-        """Remove duplicate libraries based on name and package"""
+        """Remove duplicate libraries based on name and package."""
         seen = {}
         deduplicated = []
 
@@ -703,8 +697,7 @@ class ApktoolDetectionEngine:
         return deduplicated
 
     def _enhance_library_with_version_analysis(self, library: DetectedLibrary):
-        """
-        Enhance detected library with version analysis information.
+        """Enhance detected library with version analysis information.
 
         Args:
             library: DetectedLibrary object to enhance with version analysis
@@ -752,8 +745,7 @@ class ApktoolDetectionEngine:
             self.logger.debug(f"Version analysis failed for {library.name}: {e}")
 
     def _print_version_analysis_results(self, libraries: list[DetectedLibrary]):
-        """
-        Print enhanced version analysis results to console.
+        """Print enhanced version analysis results to console.
 
         Format: library name (version): smali path : years behind
         Example: Gson (2.8.5): /com/google/gson/ : 2.1 years behind

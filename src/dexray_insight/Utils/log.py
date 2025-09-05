@@ -1,3 +1,31 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# #!/usr/bin/env python3
+# # -*- coding: utf-8 -*-
+#
+# # Copyright (C) {{ year }} Dexray Insight Contributors
+# #
+# # This file is part of Dexray Insight - Android APK Security Analysis Tool
+# #
+# # Licensed under the Apache License, Version 2.0 (the "License");
+# # you may not use this file except in compliance with the License.
+# # You may obtain a copy of the License at
+# #
+# #     http://www.apache.org/licenses/LICENSE-2.0
+# #
+# # Unless required by applicable law or agreed to in writing, software
+# # distributed under the License is distributed on an "AS IS" BASIS,
+# # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# # See the License for the specific language governing permissions and
+# # limitations under the License.
+
+"""Logging utilities for Dexray Insight.
+
+This module provides custom logging configuration with colored console output,
+file logging capabilities, and APK-specific debug logging functionality.
+"""
+
 # #!/usr/bin/env python3
 # # -*- coding: utf-8 -*-
 #
@@ -23,8 +51,10 @@ from typing import Optional
 
 
 class NullHandler(logging.Handler):
+    """Null logging handler that discards log records."""
+
     def emit(self, record):
-        pass
+        """Discard the log record."""
 
 
 class CustomFormatter(logging.Formatter):
@@ -39,15 +69,20 @@ class CustomFormatter(logging.Formatter):
     }
 
     def format(self, record):
+        """Format log record with color based on level."""
         self._style._fmt = self.FORMAT.get(record.levelno, self.FORMAT[logging.ERROR])  # Default to ERROR format
         return logging.Formatter.format(self, record)
 
 
 class LogFilter(logging.Filter):
+    """Filter log records by filename."""
+
     def __init__(self, files_to_filter):
+        """Initialize filter with files to include."""
         self.files = files_to_filter
 
     def filter(self, record: logging.LogRecord) -> bool:
+        """Filter log record based on filename."""
         if record.filename in self.files:
             return True
         return False
@@ -65,11 +100,13 @@ class FileFormatter(logging.Formatter):
     }
 
     def format(self, record):
+        """Format log record without colors for file output."""
         self._style._fmt = self.FORMAT.get(record.levelno, self.FORMAT[logging.ERROR])
         return logging.Formatter.format(self, record)
 
 
 def set_logger(args, config=None):
+    """Configure logging based on command line arguments and config."""
     log_level = logging.ERROR  # Default to ERROR
     if args.debug == "INFO":
         log_level = logging.INFO
