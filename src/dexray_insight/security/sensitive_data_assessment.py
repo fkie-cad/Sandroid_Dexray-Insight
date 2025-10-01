@@ -193,12 +193,30 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
                 "pattern": r"AIza[0-9A-Za-z\\-_]{35}",
                 "description": "Google API Key (AIza format)",
                 "severity": "CRITICAL",
+                "context_required": ["api", "key", "google"],  # Reduce false positives
+            },
+            "google_maps_api_key": {
+                "pattern": r"(?i)(?:maps?|geo|location).*AIza[0-9A-Za-z\-_]{35}",
+                "description": "Google Maps API Key",
+                "severity": "CRITICAL",
             },
             # Firebase & Other Critical
             "firebase_cloud_messaging_key": {
                 "pattern": r"AAAA[A-Za-z0-9_-]{7}:[A-Za-z0-9_-]{140}",
                 "description": "Firebase Cloud Messaging Key",
                 "severity": "CRITICAL",
+            },
+            "firebase_realtime_db_key": {
+                "pattern": r"(?i)firebase.*['\"]([a-zA-Z0-9]{20,})['\"]",
+                "description": "Firebase Realtime Database Key",
+                "severity": "CRITICAL",
+                "min_entropy": 4.0,
+            },
+            "aws_amplify_key": {
+                "pattern": r"(?i)amplify.*['\"]([a-zA-Z0-9+/=]{40,})['\"]",
+                "description": "AWS Amplify API Key",
+                "severity": "CRITICAL",
+                "min_entropy": 4.5,
             },
             "password_in_url": {
                 "pattern": r'[a-zA-Z]{3,10}://[^/\s:@]{3,20}:([^/\s:@]{3,20})@.{1,100}["\'\s]',
@@ -214,21 +232,25 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
         """
         # HIGH SEVERITY PATTERNS
         high_patterns = {
-            # Generic Password/API Key Patterns
+            # Generic Password/API Key Patterns - Enhanced with context
             "generic_password": {
                 "pattern": r'(?i)\b(?:password|pass|pwd|passwd)\b\s*[:=]\s*[\'"]?([^\s\'"/\\,;<>]{8,})[\'"]?',
                 "description": "Password",
                 "severity": "HIGH",
+                "context_required": ["password", "pass", "pwd", "auth"],
+                "min_entropy": 3.0,  # Require some randomness
             },
             "generic_api_key": {
                 "pattern": r'(?i)\b(?:api_key|apikey|api-key|access_key|access-key|secret_key|secret-key)\b\s*[:=]\s*[\'"]?([a-zA-Z0-9-_.]{20,})[\'"]?',
                 "description": "Generic API Key",
                 "severity": "HIGH",
+                "min_entropy": 4.0,  # API keys should have good entropy
             },
             "generic_secret": {
                 "pattern": r'(?i)\bsecret\b.*[\'"]([0-9a-zA-Z]{32,45})[\'"]',
                 "description": "Generic Secret",
                 "severity": "HIGH",
+                "min_entropy": 4.5,  # Secrets should be random
             },
             # JWT tokens
             "jwt_token": {
@@ -383,6 +405,20 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
                 "pattern": r'const-string\s+v\d+,\s*"([^"]{20,})"',
                 "description": "Smali const-string API key pattern",
                 "severity": "MEDIUM",
+                "min_entropy": 4.0,
+                "context_required": ["key", "token", "secret", "api"],
+            },
+            # Android-specific API keys
+            "android_build_config_key": {
+                "pattern": r'BuildConfig\.[A-Z_]+\s*=\s*[\'"]([a-zA-Z0-9]{20,})[\'"]',
+                "description": "Android BuildConfig API Key",
+                "severity": "MEDIUM",
+                "min_entropy": 4.0,
+            },
+            "android_resources_api_key": {
+                "pattern": r'R\.string\.[a-z_]*(?:key|token|secret|api)[a-z_]*',
+                "description": "Android Resources API Key Reference",
+                "severity": "LOW",  # Just a reference, not the actual key
             },
         }
 
@@ -1051,53 +1087,43 @@ class PatternDetectionStrategy:
             Match object if found, None otherwise
         """
         try:
-            # Ultra-aggressive safety checks for CI environment
-            if len(text) > 1000:  # Much more restrictive
+            import os
+
+            # Detect CI environment for stricter limits
+            is_ci = any(env_var in os.environ for env_var in ["CI", "GITHUB_ACTIONS", "TRAVIS", "JENKINS_URL"])
+
+            # Balanced safety checks - stricter in CI, more permissive in normal use
+            text_limit = 2000 if is_ci else 10000  # 2KB in CI, 10KB normally
+            pattern_limit = 150 if is_ci else 300  # Stricter pattern limit in CI
+
+            if len(text) > text_limit:
                 self.logger.debug(f"Skipping long text ({len(text)} chars) for pattern {pattern_name}")
                 return None
 
-            if len(pattern) > 100:  # Very small pattern limit
-                self.logger.debug(f"Skipping complex pattern for {pattern_name}")
+            if len(pattern) > pattern_limit:
+                self.logger.debug(f"Skipping complex pattern ({len(pattern)} chars) for {pattern_name}")
                 return None
 
-            # Enhanced problematic pattern detection
-            problematic_patterns = [
-                r".*.*",
-                r".+.+",
-                r".*+",
-                r".*.+",  # Original patterns
-                r".*\s*.*",
-                r".+\s+.+",  # Whitespace with quantifiers
-                r"[.*]+",
-                r"[.+]+",  # Character classes with quantifiers
-                r"\w*.*\w*",
-                r"\w+.+\w+",  # Word boundaries with quantifiers
-                r"[a-zA-Z0-9]*.*[a-zA-Z0-9]*",  # Character ranges with quantifiers
-                r"\S*.*\S*",
-                r"\S+.+\S+",  # Non-whitespace with quantifiers
+            # Only check for truly dangerous patterns that cause exponential backtracking
+            dangerous_patterns = [
+                r"(.*)*",  # Nested quantifiers
+                r"(.+)+",
+                r"(.*)+",
+                r"(.+)*",
+                r".*{.*}.*",  # Multiple wildcards with ranges
+                r".+{.+}.+",
             ]
 
-            # Check for any potentially problematic patterns
-            for prob_pattern in problematic_patterns:
-                if prob_pattern in pattern:
-                    self.logger.debug(
-                        f"Skipping potentially problematic pattern {pattern_name}: contains {prob_pattern}"
-                    )
+            # Check for truly dangerous constructs only
+            for dangerous in dangerous_patterns:
+                if dangerous in pattern:
+                    self.logger.debug(f"Skipping pattern with dangerous constructs {pattern_name}: {dangerous}")
                     return None
 
-            # Check for excessive quantifier nesting
-            if pattern.count("*") > 3 or pattern.count("+") > 3:
-                self.logger.debug(f"Skipping pattern with excessive quantifiers {pattern_name}")
-                return None
-
-            # Check for known problematic constructs
-            if any(dangerous in pattern for dangerous in [".*{", ".+{", "(.*)*", "(.+)+", r"\s*.*\s*"]):
-                self.logger.debug(f"Skipping pattern with dangerous constructs {pattern_name}")
-                return None
-
-            # For CI integration tests - be extremely conservative
-            if "integration" in pattern_name.lower() or len(text) > 500:
-                self.logger.debug(f"Skipping pattern in integration context {pattern_name}")
+            # Check for excessive quantifier combinations (not individual quantifiers)
+            quantifier_combos = pattern.count(".*") + pattern.count(".+") + pattern.count("*+") + pattern.count("+*")
+            if quantifier_combos > 2:
+                self.logger.debug(f"Skipping pattern with {quantifier_combos} quantifier combinations: {pattern_name}")
                 return None
 
             # Simple, fast regex search with IGNORECASE
@@ -1111,9 +1137,9 @@ class PatternDetectionStrategy:
     def detect_secrets(self, strings_with_location: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Detect secrets in strings using pattern matching.
 
-        Ultra-conservative approach for CI/integration environments to prevent timeouts.
+        Balanced approach: thorough in normal use, conservative in CI/integration environments.
 
-        This method applies the comprehensive set of 54 secret detection patterns
+        This method applies the comprehensive set of 54+ secret detection patterns
         to identify hardcoded secrets across four severity levels (CRITICAL, HIGH,
         MEDIUM, LOW). It filters out very short strings and applies pattern matching
         logic to find potential secrets.
@@ -1144,13 +1170,13 @@ class PatternDetectionStrategy:
 
         detected_secrets = []
 
-        # In CI environments, severely limit the number of strings processed
-        max_strings = 100 if is_ci else len(strings_with_location)
+        # In CI environments, limit strings; in normal use, process all
+        max_strings = 500 if is_ci else len(strings_with_location)  # Increased from 100 to 500
         strings_to_process = strings_with_location[:max_strings]
 
         self.logger.info(f"🔍 Scanning {len(strings_to_process)} strings for secrets...")
-        if is_ci:
-            self.logger.debug(f"CI mode enabled: Limited to {max_strings} strings for performance")
+        if is_ci and len(strings_with_location) > max_strings:
+            self.logger.debug(f"CI mode: Limited to {max_strings}/{len(strings_with_location)} strings for performance")
 
         for string_data in strings_to_process:
             string_value = string_data.get("value", "")
@@ -1258,10 +1284,18 @@ class ResultClassificationStrategy:
         Single Responsibility: Organize findings into severity categories.
         """
         classified_findings = {"critical": [], "high": [], "medium": [], "low": []}
-
         detected_secrets_by_severity = {"critical": [], "high": [], "medium": [], "low": []}
 
+        # Deduplicate secrets - track by (type, value) pairs to avoid duplicates
+        seen_secrets = set()
+
         for detection in detected_secrets:
+            # Create deduplication key based on secret type and normalized value
+            dedup_key = (detection["type"], detection["value"][:50])  # Use first 50 chars for dedup
+
+            if dedup_key in seen_secrets:
+                continue  # Skip duplicate
+            seen_secrets.add(dedup_key)
             # Create detailed evidence entry
             evidence_entry = {
                 "type": detection["type"],
@@ -1863,18 +1897,22 @@ class FindingGenerationStrategy:
         # Common false positive patterns
         false_positives = [
             # Android/Java class names and packages
-            r"^(com|android|java|javax)\.",
+            r"^(com|android|java|javax|kotlin|androidx)\.",
             r"\.class$",
             r"\.java$",
+            r"\.kt$",
             r"\.xml$",
             r"\.png$",
             r"\.jpg$",
+            r"\.so$",
             # Common placeholder values - expanded set
             r"^(test|example|sample|demo|placeholder|dummy)",
-            r"^(your_api_key|your_token|your_secret|insert_key_here|api_key_here)",
+            r"^(your_api_key|your_token|your_secret|insert_key_here|api_key_here|replace_with)",
             r"^(null|undefined|none|nil|empty)$",
-            r"(test|demo|sample|example).*key",
+            r"(test|demo|sample|example).*(?:key|token|secret)",
             r"(fake|mock|stub).*",
+            r"^xxx+$",
+            r"^yyy+$",
             # Development/debugging strings
             r"^(debug|log|print|console)",
             r"lorem.*ipsum",
@@ -1882,12 +1920,15 @@ class FindingGenerationStrategy:
             # Repeated characters (unlikely to be real keys)
             r"^(.)\1{10,}$",
             r"^(a|b|c|x|y|z){20,}$",
+            r"^(0123456789){2,}$",
             # URLs and domains - expanded
             r"^https?://",
-            r"\.(?:com|org|net|edu|gov|mil|int|co\.uk|de|fr|jp)(?:/|$)",
+            r"\.(?:com|org|net|edu|gov|mil|int|io|co\.uk|de|fr|jp)(?:/|$)",
             r"localhost",
             r"127\.0\.0\.1",
             r"0\.0\.0\.0",
+            r"example\.com",
+            r"test\.com",
             # Version strings and identifiers
             r"^\d+\.\d+",
             r"^v\d+",
@@ -1907,16 +1948,25 @@ class FindingGenerationStrategy:
             r"^[\\/]",  # Starts with path separator
             r"\\x[0-9a-f]{2}",  # Hex escape sequences
             r"%[0-9a-f]{2}",  # URL encoding
-            # Common Android/mobile development false positives
+            # Common Android/mobile development false positives - EXPANDED
             r"android.*",
             r"build.*config",
             r"manifest.*",
             r"application.*id",
             r"package.*name",
+            r"^com\.google\.android\.gms",  # Google Play Services
+            r"^androidx\.",  # AndroidX libraries
+            r"activity|fragment|service|receiver|provider",  # Component types
+            r"layout|drawable|string|color|dimen",  # Resource types
             # Base64 patterns that are likely not secrets
             r"^data:image",  # Data URLs
             r"iVBORw0KGgo",  # PNG header in base64
             r"/9j/",  # JPEG header in base64
+            # Common Android SDK/NDK identifiers
+            r"lib[a-z]+\.so",  # Native library names
+            r"^[A-Z_]+_VERSION",  # Version constants
+            r"^SDK_INT",
+            r"^BUILD_",
         ]
 
         for pattern in false_positives:

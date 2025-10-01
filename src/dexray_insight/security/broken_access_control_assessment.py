@@ -113,7 +113,7 @@ class BrokenAccessControlAssessment(BaseSecurityAssessment):
                 "activities": manifest_data.get("activities", []),
                 "services": manifest_data.get("services", []),
                 "receivers": manifest_data.get("receivers", []),
-                "content_providers": manifest_data.get("content_providers", [])
+                "content_providers": manifest_data.get("content_providers", []),
             }
 
             # Check for exported activities
@@ -225,7 +225,9 @@ class BrokenAccessControlAssessment(BaseSecurityAssessment):
             dangerous_found = []
             for permission in uses_permissions:
                 # After to_dict(), permissions are always strings
-                permission_name = permission.replace("android.permission.", "") if isinstance(permission, str) else str(permission)
+                permission_name = (
+                    permission.replace("android.permission.", "") if isinstance(permission, str) else str(permission)
+                )
 
                 if permission_name in self.dangerous_permissions:
                     dangerous_found.append(permission_name)

@@ -346,24 +346,35 @@ security:
           pem_keys: true              # PEM formatted private keys and certificates
           ssh_keys: true              # SSH public/private keys
           jwt_tokens: true            # JWT tokens
-          api_keys: true              # Various API keys (AWS, GitHub, Google, etc.)
+          api_keys: true              # Various API keys (AWS, GitHub, Google, Firebase, etc.)
           base64_keys: true           # Base64 encoded potential keys
           hex_keys: true              # Hexadecimal keys
           database_connections: true  # Database connection strings
           high_entropy_strings: true  # Generic high-entropy strings
-        # Entropy thresholds for detection
+          mobile_specific: true       # Mobile-specific patterns (Firebase, Google Maps, AWS Amplify)
+          android_specific: true      # Android-specific patterns (BuildConfig, Resources)
+        # Entropy thresholds for detection (reduce false positives)
         entropy_thresholds:
           min_base64_entropy: 4.0     # Minimum entropy for base64 strings
-          min_hex_entropy: 3.5        # Minimum entropy for hex strings  
+          min_hex_entropy: 3.5        # Minimum entropy for hex strings
           min_generic_entropy: 5.0    # Minimum entropy for generic strings
         # String length filters
         length_filters:
           min_key_length: 16          # Minimum length for potential keys
           max_key_length: 512         # Maximum length to avoid very long strings
-        # Context detection settings
+        # Context detection settings (NEW - improves accuracy)
         context_detection:
           enabled: true               # Enable context-aware detection
           strict_mode: false          # Require context for all detections
+        # Deduplication settings (NEW - reduces duplicate findings)
+        deduplication:
+          enabled: true               # Enable deduplication of similar secrets
+          similarity_threshold: 0.9   # Threshold for considering secrets as duplicates
+        # Performance settings
+        performance:
+          max_strings_ci: 500         # Maximum strings to scan in CI environment
+          max_text_length: 10000      # Maximum text length for pattern matching (10KB)
+          max_pattern_length: 300     # Maximum regex pattern length
     broken_access_control:
       enabled: true
       check_exported_components: true
