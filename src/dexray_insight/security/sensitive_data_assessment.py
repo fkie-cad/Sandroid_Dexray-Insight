@@ -24,6 +24,7 @@ import logging
 import re
 from typing import Any
 
+from ..core.base_classes import AnalysisContext
 from ..core.base_classes import AnalysisSeverity
 from ..core.base_classes import BaseSecurityAssessment
 from ..core.base_classes import SecurityFinding
@@ -499,7 +500,7 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
             "WRITE_CALENDAR",
         ]
 
-    def assess(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
+    def assess(self, analysis_results: dict[str, Any], context: AnalysisContext | None = None) -> list[SecurityFinding]:
         """Assess for sensitive data exposure vulnerabilities.
 
         Args:

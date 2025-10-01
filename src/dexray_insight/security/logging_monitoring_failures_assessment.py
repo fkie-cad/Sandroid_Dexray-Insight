@@ -29,6 +29,7 @@ It identifies security logging deficiencies and monitoring gaps in Android appli
 import logging
 from typing import Any
 
+from ..core.base_classes import AnalysisContext
 from ..core.base_classes import AnalysisSeverity
 from ..core.base_classes import BaseSecurityAssessment
 from ..core.base_classes import SecurityFinding
@@ -66,7 +67,7 @@ class LoggingMonitoringFailuresAssessment(BaseSecurityAssessment):
             "credit",
         ]
 
-    def assess(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
+    def assess(self, analysis_results: dict[str, Any], context: AnalysisContext | None = None) -> list[SecurityFinding]:
         """Perform logging and monitoring failures assessment."""
         findings = []
 

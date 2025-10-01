@@ -198,8 +198,7 @@ def get_browsable_activities(node, ns):
 
 
 def _analyze_custom_permissions(mfxml, ns):
-    """
-    Analyze custom permission definitions and protection levels.
+    """Analyze custom permission definitions and protection levels.
 
     Single Responsibility: Handle custom permission analysis only.
     """
@@ -226,8 +225,7 @@ def _analyze_custom_permissions(mfxml, ns):
 
 
 def _validate_sdk_versions(man_data_dic):
-    """
-    Validate SDK versions and identify security vulnerabilities.
+    """Validate SDK versions and identify security vulnerabilities.
 
     Single Responsibility: Handle SDK version security validation only.
     """
@@ -264,8 +262,7 @@ def _validate_sdk_versions(man_data_dic):
 
 
 def _analyze_application_configuration(mfxml, ns):
-    """
-    Analyze application-level security configurations.
+    """Analyze application-level security configurations.
 
     Single Responsibility: Handle application-level attribute analysis only.
     """
@@ -298,8 +295,7 @@ def _analyze_application_configuration(mfxml, ns):
 
 
 def _determine_export_status(node, ns, itemname, permission_dict, perm_appl_level_exists=False):
-    """
-    Determine if a component is exported and the security implications.
+    """Determine if a component is exported and the security implications.
 
     Single Responsibility: Handle component export status determination only.
     """
@@ -339,8 +335,7 @@ def _determine_export_status(node, ns, itemname, permission_dict, perm_appl_leve
 
 
 def _analyze_permission_protection(permission_name, permission_dict):
-    """
-    Analyze the protection level and security implications of a permission.
+    """Analyze the protection level and security implications of a permission.
 
     Single Responsibility: Handle permission protection analysis only.
     """
@@ -365,8 +360,7 @@ def _analyze_permission_protection(permission_name, permission_dict):
 
 
 def _analyze_components(mfxml, ns, man_data_dic, permission_dict):
-    """
-    Analyze Android components (activities, services, receivers, providers).
+    """Analyze Android components (activities, services, receivers, providers).
 
     Single Responsibility: Handle component analysis and export determination only.
     """
@@ -440,8 +434,7 @@ def _analyze_components(mfxml, ns, man_data_dic, permission_dict):
 
 
 def _process_exported_component(node, ns, itemname, component_name, export_info, an_or_a):
-    """
-    Process an exported component and generate appropriate security findings.
+    """Process an exported component and generate appropriate security findings.
 
     Single Responsibility: Generate security findings for exported components only.
     """
@@ -494,8 +487,7 @@ def _process_exported_component(node, ns, itemname, component_name, export_info,
 
 
 def _should_count_as_exported(export_info):
-    """
-    Determine if a component should be counted as exported for statistics.
+    """Determine if a component should be counted as exported for statistics.
 
     Single Responsibility: Determine export counting logic only.
     """
@@ -516,8 +508,7 @@ def _should_count_as_exported(export_info):
 
 
 def _analyze_grant_uri_permissions(mfxml, ns):
-    """
-    Analyze grant-uri-permission configurations for security issues.
+    """Analyze grant-uri-permission configurations for security issues.
 
     Single Responsibility: Handle URI permission analysis only.
     """
@@ -536,8 +527,7 @@ def _analyze_grant_uri_permissions(mfxml, ns):
 
 
 def _analyze_data_tags(mfxml, ns):
-    """
-    Analyze intent data tags for security issues.
+    """Analyze intent data tags for security issues.
 
     Single Responsibility: Handle data tag analysis only.
     """
@@ -556,8 +546,7 @@ def _analyze_data_tags(mfxml, ns):
 
 
 def _analyze_intent_priorities(mfxml, ns):
-    """
-    Analyze intent filter and action priorities for suspicious values.
+    """Analyze intent filter and action priorities for suspicious values.
 
     Single Responsibility: Handle intent priority analysis only.
     """
@@ -583,8 +572,7 @@ def _analyze_intent_priorities(mfxml, ns):
 
 
 def _process_analysis_results(findings_list):
-    """
-    Convert raw analysis findings to structured output format.
+    """Convert raw analysis findings to structured output format.
 
     Single Responsibility: Handle result formatting and template processing only.
     """
@@ -610,8 +598,7 @@ def _process_analysis_results(findings_list):
 
 
 def _integrate_network_security(checksum, man_data_dic, do_netsec, src_type, app_dir):
-    """
-    Integrate network security configuration analysis.
+    """Integrate network security configuration analysis.
 
     Single Responsibility: Handle network security integration only.
     """
@@ -637,8 +624,7 @@ def _integrate_network_security(checksum, man_data_dic, do_netsec, src_type, app
 
 
 def manifest_analysis(checksum, mfxml, ns, man_data_dic, src_type, app_dir):
-    """
-    Analyze manifest file using specialized analysis functions.
+    """Analyze manifest file using specialized analysis functions.
 
     Refactored coordinator function that orchestrates all manifest analysis tasks
     following the Single Responsibility Principle. Each analysis concern is handled

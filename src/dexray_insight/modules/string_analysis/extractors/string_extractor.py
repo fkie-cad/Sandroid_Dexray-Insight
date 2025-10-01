@@ -361,7 +361,7 @@ class StringExtractor:
         try:
             # Get manifest as XML
             manifest_xml = apk_obj.get_android_manifest_xml()
-            if manifest_xml:
+            if manifest_xml is not None:
                 # Extract strings from manifest XML elements
                 for elem in manifest_xml.iter():
                     if elem.text and elem.text.strip():

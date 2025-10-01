@@ -30,6 +30,7 @@ import logging
 from typing import Any
 from typing import Optional
 
+from ..core.base_classes import AnalysisContext
 from ..core.base_classes import AnalysisSeverity
 from ..core.base_classes import BaseSecurityAssessment
 from ..core.base_classes import SecurityFinding
@@ -160,7 +161,7 @@ class VulnerableComponentsAssessment(BaseSecurityAssessment):
             },
         }
 
-    def assess(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
+    def assess(self, analysis_results: dict[str, Any], context: AnalysisContext | None = None) -> list[SecurityFinding]:
         """Assess for vulnerable and outdated component vulnerabilities.
 
         Args:

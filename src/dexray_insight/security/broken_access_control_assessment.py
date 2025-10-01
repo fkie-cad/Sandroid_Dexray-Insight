@@ -29,6 +29,7 @@ It analyzes Android applications for access control weaknesses.
 import logging
 from typing import Any
 
+from ..core.base_classes import AnalysisContext
 from ..core.base_classes import AnalysisSeverity
 from ..core.base_classes import BaseSecurityAssessment
 from ..core.base_classes import SecurityFinding
@@ -69,7 +70,7 @@ class BrokenAccessControlAssessment(BaseSecurityAssessment):
             "BIND_DEVICE_ADMIN",
         ]
 
-    def assess(self, analysis_data: dict[str, Any]) -> list[SecurityFinding]:
+    def assess(self, analysis_data: dict[str, Any], context: AnalysisContext | None = None) -> list[SecurityFinding]:
         """Perform broken access control vulnerability assessment."""
         findings = []
 
@@ -105,8 +106,15 @@ class BrokenAccessControlAssessment(BaseSecurityAssessment):
         findings = []
 
         try:
-            manifest_data = analysis_data.get("manifest_analysis", {})
-            components = manifest_data.get("components", {})
+            manifest_results = analysis_data.get("manifest_analysis", {})
+            manifest_data = manifest_results.to_dict() if hasattr(manifest_results, "to_dict") else manifest_results
+
+            components = {
+                "activities": manifest_data.get("activities", []),
+                "services": manifest_data.get("services", []),
+                "receivers": manifest_data.get("receivers", []),
+                "content_providers": manifest_data.get("content_providers", [])
+            }
 
             # Check for exported activities
             activities = components.get("activities", [])
@@ -209,13 +217,16 @@ class BrokenAccessControlAssessment(BaseSecurityAssessment):
         findings = []
 
         try:
-            manifest_data = analysis_data.get("manifest_analysis", {})
-            permissions = manifest_data.get("permissions", {})
-            uses_permissions = permissions.get("uses_permissions", [])
+            manifest_results = analysis_data.get("manifest_analysis", {})
+            manifest_data = manifest_results.to_dict() if hasattr(manifest_results, "to_dict") else manifest_results
+
+            uses_permissions = manifest_data.get("permissions", [])
 
             dangerous_found = []
             for permission in uses_permissions:
-                permission_name = permission.get("name", "").replace("android.permission.", "")
+                # After to_dict(), permissions are always strings
+                permission_name = permission.replace("android.permission.", "") if isinstance(permission, str) else str(permission)
+
                 if permission_name in self.dangerous_permissions:
                     dangerous_found.append(permission_name)
 
@@ -239,8 +250,9 @@ class BrokenAccessControlAssessment(BaseSecurityAssessment):
                     )
                 )
 
-            # Check for custom permissions definition
-            defined_permissions = permissions.get("permissions", [])
+            # Check for custom permissions definition (not available in ManifestAnalysisResult)
+            defined_permissions = []
+
             for perm in defined_permissions:
                 protection_level = perm.get("protectionLevel", "normal")
                 if protection_level in ["dangerous", "signature", "signatureOrSystem"]:
@@ -267,30 +279,26 @@ class BrokenAccessControlAssessment(BaseSecurityAssessment):
         findings = []
 
         try:
-            manifest_data = analysis_data.get("manifest_analysis", {})
-            components = manifest_data.get("components", {})
+            manifest_results = analysis_data.get("manifest_analysis", {})
+            manifest_data = manifest_results.to_dict() if hasattr(manifest_results, "to_dict") else manifest_results
 
-            for component_type in ["activities", "services", "receivers"]:
-                for component in components.get(component_type, []):
-                    intent_filters = component.get("intent_filters", [])
-                    for intent_filter in intent_filters:
-                        if self._is_risky_intent_filter(intent_filter):
-                            findings.append(
-                                SecurityFinding(
-                                    title="Risky Intent Filter Configuration",
-                                    category=self.owasp_category,
-                                    severity=AnalysisSeverity.MEDIUM,
-                                    description=(
-                                        f"{component_type.capitalize()[:-1]} '{component['name']}' has intent filters "
-                                        "that may allow unauthorized access or actions."
-                                    ),
-                                    evidence=[
-                                        f"Component: {component['name']}",
-                                        f"Actions: {', '.join(intent_filter.get('actions', []))}",
-                                        f"Categories: {', '.join(intent_filter.get('categories', []))}",
-                                    ],
-                                )
-                            )
+            # Get intent filters from manifest data
+            intent_filters = manifest_data.get("intent_filters", [])
+
+            for intent_filter in intent_filters:
+                if self._is_risky_intent_filter(intent_filter):
+                    findings.append(
+                        SecurityFinding(
+                            title="Risky Intent Filter Configuration",
+                            category=self.owasp_category,
+                            severity=AnalysisSeverity.MEDIUM,
+                            description="Intent filter configuration detected that may allow unauthorized access.",
+                            evidence=[
+                                f"Actions: {', '.join(intent_filter.get('actions', []))}",
+                                f"Categories: {', '.join(intent_filter.get('categories', []))}",
+                            ],
+                        )
+                    )
 
         except Exception as e:
             self.logger.error(f"Error assessing intent filter risks: {e}")
