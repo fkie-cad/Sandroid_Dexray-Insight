@@ -250,6 +250,37 @@ class AnalysisEngine:
         self.dependency_resolver = DependencyResolver(self.registry)
         self.security_engine = SecurityAssessmentEngine(config) if config.enable_security_assessment else None
         self.logger = logging.getLogger(__name__)
+        # Single shared cache manager (thread-safe) reused across modules.
+        self.cache_manager = self._build_cache_manager()
+
+    def _build_cache_manager(self):
+        """Create the shared analysis cache manager from configuration."""
+        try:
+            from .cache_manager import AnalysisCacheManager
+
+            caching_cfg = self.config.get_caching_config()
+            return AnalysisCacheManager(
+                cache_dir=caching_cfg.get("cache_dir"),
+                enabled=caching_cfg.get("enabled", True),
+                tiers=caching_cfg.get("tiers"),
+            )
+        except Exception as e:
+            self.logger.warning(f"Could not initialize analysis cache (continuing without it): {e}")
+            return None
+
+    @staticmethod
+    def _compute_apk_md5(apk_path: str) -> str | None:
+        """Compute the APK file's MD5 content hash (cache key). None on error."""
+        try:
+            import hashlib
+
+            digest = hashlib.md5(usedforsecurity=False)
+            with open(apk_path, "rb") as f:
+                for chunk in iter(lambda: f.read(1024 * 1024), b""):
+                    digest.update(chunk)
+            return digest.hexdigest()
+        except Exception:
+            return None
 
     def analyze_apk(
         self,
@@ -411,6 +442,9 @@ class AnalysisEngine:
                 except Exception as e:
                     self.logger.debug(f"Failed to update debug logging: {e}")
 
+        # Compute the APK content hash used as the cache key (cheap; done once).
+        apk_md5 = self._compute_apk_md5(apk_path) if self.cache_manager is not None else None
+
         # Create analysis context
         context = AnalysisContext(
             apk_path=apk_path,
@@ -419,6 +453,8 @@ class AnalysisEngine:
             temporal_paths=temporal_paths,
             jadx_available=temporal_manager.check_tool_availability("jadx"),
             apktool_available=temporal_manager.check_tool_availability("apktool"),
+            cache_manager=self.cache_manager,
+            apk_md5=apk_md5,
         )
 
         return context
@@ -857,26 +893,42 @@ class AnalysisEngine:
         from ..results.apkidResults import ApkidResults
         from ..results.kavanozResults import KavanozResults
 
-        # Build APKID results
-        apkid_version = ""
-        if "apkid" in tool_results:
-            apkid_data = tool_results["apkid"]
-            if apkid_data and apkid_data.get("success"):
-                apkid_version = apkid_data.get("version", "unknown")
+        def _unwrap(tool_name: str) -> dict[str, Any] | None:
+            """Return the tool's execute() payload for a successful run, else None.
 
-        apkid_results = ApkidResults(apkid_version=apkid_version)
-        if "apkid" in tool_results:
-            apkid_data = tool_results["apkid"]
-            if apkid_data and apkid_data.get("success"):
-                apkid_results.raw_output = apkid_data.get("output", "")
-                # The results will be parsed from raw_output automatically in to_dict()
+            Each entry produced by _execute_external_tools has the shape
+            ``{"result": <execute dict>, "execution_time": ..., "status": ...}``
+            where the execute dict is keyed ``status``/``raw_output``/``results``.
+            Skipped/failed/absent tools yield None so callers fall back to the
+            empty default result objects.
+            """
+            entry = tool_results.get(tool_name)
+            if not isinstance(entry, dict):
+                return None
+            if entry.get("status") != AnalysisStatus.SUCCESS.value:
+                return None
+            exec_result = entry.get("result")
+            return exec_result if isinstance(exec_result, dict) else None
+
+        # Build APKID results
+        apkid_results = ApkidResults(apkid_version="")
+        apkid_exec = _unwrap("apkid")
+        if apkid_exec is not None:
+            parsed = apkid_exec.get("results")
+            if isinstance(parsed, ApkidResults):
+                apkid_results = parsed
+            else:
+                # No parsed object available; preserve raw output so to_dict()
+                # can still surface it.
+                apkid_results.raw_output = apkid_exec.get("raw_output", "")
 
         # Build Kavanoz results
         kavanoz_results = KavanozResults()
-        if "kavanoz" in tool_results:
-            kavanoz_data = tool_results["kavanoz"]
-            if kavanoz_data and kavanoz_data.get("success"):
-                kavanoz_results.results = kavanoz_data.get("results", {})
+        kavanoz_exec = _unwrap("kavanoz")
+        if kavanoz_exec is not None:
+            parsed = kavanoz_exec.get("results")
+            if isinstance(parsed, KavanozResults):
+                kavanoz_results = parsed
 
         return apkid_results, kavanoz_results
 
@@ -897,9 +949,16 @@ class AnalysisEngine:
 
                 if not tool.is_available():
                     # Optional external tools (e.g. apkid) are only applied when
-                    # they are actually installed. A missing optional tool is
-                    # expected, so log at info level rather than warning.
+                    # they are actually installed and runnable. A missing or
+                    # broken optional tool is expected, so log at info level and
+                    # record it as skipped (rather than silently vanishing from
+                    # the results) so downstream reporting reflects it.
                     self.logger.info(f"Tool {tool_name} is not available on system, skipping")
+                    results[tool_name] = {
+                        "result": None,
+                        "execution_time": 0,
+                        "status": AnalysisStatus.SKIPPED.value,
+                    }
                     continue
 
                 self.logger.info(f"Executing tool: {tool_name}")
@@ -907,9 +966,17 @@ class AnalysisEngine:
                 result = tool.execute(apk_path)
                 execution_time = time.time() - start_time
 
-                results[tool_name] = {"result": result, "execution_time": execution_time, "status": "success"}
+                # Honor the status the tool itself reports (e.g. a tool may
+                # gracefully skip when its environment is incompatible) rather
+                # than hardcoding success.
+                status = result.get("status", "success") if isinstance(result, dict) else "success"
+                if status == AnalysisStatus.SKIPPED.value:
+                    reason = result.get("reason", "environment issue") if isinstance(result, dict) else ""
+                    self.logger.info(f"Tool {tool_name} skipped: {reason}")
+                else:
+                    self.logger.info(f"Tool {tool_name} completed in {execution_time:.2f}s")
 
-                self.logger.info(f"Tool {tool_name} completed in {execution_time:.2f}s")
+                results[tool_name] = {"result": result, "execution_time": execution_time, "status": status}
 
             except Exception as e:
                 import traceback

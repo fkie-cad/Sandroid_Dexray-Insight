@@ -13,6 +13,22 @@ analysis:
     module_timeout: 300  # 5 minutes per module
     tool_timeout: 600    # 10 minutes per tool
 
+# Analysis Result Caching
+# Re-uses expensive, deterministic prerequisites (e.g. the extracted DEX string
+# pool) across runs of the SAME APK, keyed by the APK's MD5 content hash.
+# Invalidation is fingerprint-based (dexray + androguard version + schema), not
+# time-based; skipped/failed results are never cached. Disable per-run with
+# --no-cache; purge with --clear-analysis-cache.
+caching:
+  enabled: true
+  cache_dir: null            # null -> ~/.dexray_insight/analysis_cache
+  tiers:
+    dex_strings: true        # shared per-DEX string extraction (biggest low-risk win)
+    library_signatures: true # library similarity signatures
+    module_results: true     # per-module result dicts
+    full_result: true        # assembled full-run report (identical re-run short-circuit)
+  full_hit_gate: true        # short-circuit an identical re-run entirely from cache
+
 # Module Configuration
 modules:
   signature_detection:
@@ -72,6 +88,12 @@ modules:
     fetch_exodus_trackers: true
     exodus_api_url: "https://reports.exodus-privacy.eu.org/api/trackers"
     api_timeout: 10
+    # EXPENSIVE deep option: when true, performs a full second pass over ALL DEX
+    # bytecode (every class -> method -> instruction operand) to map each string
+    # to the method(s) it appears in. On large APKs this is a very slow second
+    # full-bytecode traversal and is NOT needed for tracker detection (which uses
+    # the DEX string pool). Leave false unless you need per-string method locations.
+    deep_string_location_analysis: false
     
   behaviour_analysis:
     enabled: true  # Enabled by default in fast mode

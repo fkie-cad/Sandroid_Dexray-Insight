@@ -233,6 +233,10 @@ def _process_analysis_flags(args, config_updates: dict) -> None:
     if hasattr(args, "deep") and args.deep:
         config_updates.setdefault("modules", {})["behaviour_analysis"] = {"enabled": True, "deep_mode": True}
 
+    # Analysis result cache
+    if hasattr(args, "no_cache") and args.no_cache:
+        config_updates.setdefault("caching", {})["enabled"] = False
+
 
 def _build_configuration_updates(args) -> dict:
     """Build configuration updates from command line arguments.
@@ -507,6 +511,24 @@ def _add_security_arguments(args_group):
             "Useful when you want the latest vulnerability information."
         ),
     )
+    args_group.add_argument(
+        "--no-cache",
+        required=False,
+        action="store_true",
+        help=(
+            "Disable the analysis result cache for this run (both reads and writes). "
+            "Forces every prerequisite (e.g. DEX string extraction) to be recomputed."
+        ),
+    )
+    args_group.add_argument(
+        "--clear-analysis-cache",
+        required=False,
+        action="store_true",
+        help=(
+            "Clear the analysis result cache (~/.dexray_insight/analysis_cache) before "
+            "analysis. Does not affect the CVE cache (see --clear-cve-cache)."
+        ),
+    )
 
 
 def _add_module_control_arguments(args_group):
@@ -663,6 +685,17 @@ def main():
                 print("[*] CVE cache cleared successfully")
             except Exception as e:
                 print(f"[!] Warning: Failed to clear CVE cache: {e}")
+
+        # Clear analysis cache if requested
+        if hasattr(parsed_args, "clear_analysis_cache") and parsed_args.clear_analysis_cache:
+            try:
+                from .core.cache_manager import AnalysisCacheManager
+
+                caching_cfg = config.get_caching_config()
+                AnalysisCacheManager(cache_dir=caching_cfg.get("cache_dir")).clear_cache()
+                print("[*] Analysis cache cleared successfully")
+            except Exception as e:
+                print(f"[!] Warning: Failed to clear analysis cache: {e}")
 
         print(f"[*] Analyzing APK: {target_apk}")
         print(f"[*] OWASP Top 10 Security Assessment: {'Enabled' if config.enable_security_assessment else 'Disabled'}")

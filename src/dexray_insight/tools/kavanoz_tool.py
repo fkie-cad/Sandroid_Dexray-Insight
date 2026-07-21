@@ -244,24 +244,10 @@ class KavanozTool(BaseExternalTool):
         Returns:
             True if Kavanoz library can be imported
         """
-        try:
-            # Try to handle distutils compatibility first
-            try:
-                # import distutils
-                pass
-            except ImportError:
-                try:
-                    # import setuptools
-                    # import distutils
-                    pass
-                except ImportError:
-                    self.logger.debug("distutils/setuptools not available, Kavanoz may not work")
-
-            # from kavanoz.core import Kavanoz
-            return True
-        except ImportError as e:
-            self.logger.debug(f"Kavanoz not available: {str(e)}")
-            return False
+        available = self._python_module_importable("kavanoz")
+        if not available:
+            self.logger.debug("Kavanoz library not importable, skipping")
+        return available
 
     def get_version(self) -> str | None:
         """

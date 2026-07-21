@@ -819,18 +819,41 @@ class StringCollectionStrategy:
 
         Single Responsibility: Gather strings from all available sources.
         """
-        all_strings_with_location = []
+        all_strings_with_location: list[dict[str, Any]] = []
 
         string_data = self._resolve_string_data(analysis_results)
 
         if not isinstance(string_data, dict):
             return all_strings_with_location
 
-        all_strings_with_location.extend(self._collect_category_location_strings(string_data))
-        all_strings_with_location.extend(self._collect_all_strings_field(string_data))
-        all_strings_with_location.extend(self._collect_module_all_strings(analysis_results))
-        all_strings_with_location.extend(self._collect_android_property_strings(string_data))
-        all_strings_with_location.extend(self._collect_raw_strings(string_data))
+        # B1a: Collapse the multiple string sources into ONE de-duplicated pass.
+        # The same underlying strings were previously gathered up to three times - via
+        # the "all_strings" field, the string module's all_strings attribute, and the
+        # raw strings collector - which made the downstream pattern scan run over
+        # identical values 2-3x. Every collector is still consulted (each may
+        # contribute genuinely unique values), but only the FIRST occurrence of each
+        # distinct string value is retained. Duplicate string values can only ever
+        # yield identical detections (which are de-duplicated again in
+        # ResultClassificationStrategy), so dropping them here does not change the set
+        # of detected secrets or any reported count - it only avoids redundant scanning.
+        seen_values: set[str] = set()
+
+        def _add_unique(collected: list[dict[str, Any]]) -> None:
+            for item in collected:
+                value = item.get("value", "")
+                dedup_key = value if isinstance(value, str) else str(value)
+                if dedup_key in seen_values:
+                    continue
+                seen_values.add(dedup_key)
+                all_strings_with_location.append(item)
+
+        _add_unique(self._collect_category_location_strings(string_data))
+        _add_unique(self._collect_all_strings_field(string_data))
+        _add_unique(self._collect_module_all_strings(analysis_results))
+        _add_unique(self._collect_android_property_strings(string_data))
+        _add_unique(self._collect_raw_strings(string_data))
+
+        self.logger.debug(f"Collected {len(all_strings_with_location)} unique strings for secret scanning")
 
         return all_strings_with_location
 
@@ -1097,10 +1120,145 @@ class PatternDetectionStrategy:
     SOLID Principles: Single Responsibility (only handles pattern detection)
     """
 
+    # B2: Required literal substrings (lower-cased) for patterns whose regex can only
+    # match when the literal is present. Detection runs case-insensitively, so a match
+    # guarantees the (lower-cased) literal appears in the (lower-cased) input; skipping
+    # the regex when no listed literal is present therefore never drops a real match.
+    # For patterns whose match is an alternation of prefixes, every listed literal is a
+    # candidate and the prefilter passes if ANY of them is present. Patterns without an
+    # obvious required literal (pure hex/base64/high-entropy, discord token, jenkins,
+    # captcha) are intentionally omitted so they always run.
+    _PATTERN_LITERALS: dict[str, list[str]] = {
+        "pem_private_key": ["-----begin"],
+        "ssh_private_key": ["-----begin openssh private key-----"],
+        "aws_access_key": ["a3t", "akia", "agpa", "aida", "aroa", "aipa", "anpa", "anva", "asia"],
+        "aws_secret_key": ["aws"],
+        "github_token": ["ghp_"],
+        "github_fine_grained_token": ["github_pat_"],
+        "github_token_in_url": ["github.com"],
+        "google_oauth_token": ["ya29."],
+        "google_service_account": ["service_account"],
+        "google_api_key_aiza": ["aiza"],
+        "google_maps_api_key": ["aiza"],
+        "firebase_cloud_messaging_key": ["aaaa"],
+        "firebase_realtime_db_key": ["firebase"],
+        "aws_amplify_key": ["amplify"],
+        "password_in_url": ["://"],
+        "generic_password": ["pass", "pwd"],
+        "generic_api_key": ["key"],
+        "generic_secret": ["secret"],
+        "jwt_token": ["ey"],
+        "azure_client_secret": ["client_secret"],
+        "heroku_api_key": ["heroku"],
+        "stripe_api_key": ["_live_"],
+        "gitlab_personal_token": ["glpat-"],
+        "amazon_mws_auth_token": ["amzn.mws."],
+        "facebook_access_token": ["eaacedeose0cba"],
+        "facebook_oauth_secret": ["facebook"],
+        "mailchimp_api_key": ["-us"],
+        "mailgun_api_key": ["key-"],
+        "picatic_api_key": ["sk_live_"],
+        "square_access_token": ["sq0atp-", "eaaa"],
+        "square_oauth_secret": ["sq0csp-"],
+        "twitter_access_token": ["twitter"],
+        "twitter_oauth_secret": ["twitter"],
+        "authorization_basic": ["basic"],
+        "authorization_bearer": ["bearer"],
+        "slack_token": ["xox"],
+        "slack_token_legacy": ["xox"],
+        "mongodb_uri": ["mongodb"],
+        "postgresql_uri": ["postgres"],
+        "mysql_uri": ["mysql://"],
+        "redis_uri": ["redis://"],
+        "cloudinary_url": ["cloudinary://"],
+        "firebase_url": ["firebaseio.com"],
+        "slack_webhook_url": ["hooks.slack.com"],
+        "ssh_public_key": ["ssh-"],
+        "pem_certificate": ["-----begin certificate-----"],
+        "smali_const_string_api_key": ["const-string"],
+        "android_build_config_key": ["buildconfig"],
+        "android_resources_api_key": ["r.string."],
+        "stripe_restricted_key": ["rk_live_"],
+        "paypal_braintree_token": ["access_token$production$"],
+        "s3_bucket_url": ["s3.amazonaws.com"],
+    }
+
     def __init__(self, detection_patterns: dict[str, Any], logger):
-        """Initialize with detection patterns and logger."""
+        """Initialize with detection patterns and logger.
+
+        B2: Environment-dependent limits and the (~60) regex patterns are resolved once
+        here instead of being recomputed for every scanned string. Patterns are
+        pre-compiled with re.IGNORECASE and paired with cheap literal prefilters.
+        """
         self.detection_patterns = detection_patterns
         self.logger = logger
+
+        # Determine environment-based limits once (env vars do not change at runtime).
+        # These mirror the values previously computed per call in _safe_regex_search.
+        import os
+
+        self._is_ci = any(env_var in os.environ for env_var in ["CI", "GITHUB_ACTIONS", "TRAVIS", "JENKINS_URL"])
+        self._text_limit = 2000 if self._is_ci else 10000  # 2KB in CI, 10KB normally
+        self._pattern_length_limit = 150 if self._is_ci else 300  # stricter in CI
+
+        # Compile each detection pattern exactly once (was implicitly recompiled per
+        # string via _safe_regex_search / re.search on every call).
+        self._compiled_patterns = self._precompile_patterns(detection_patterns)
+
+    def _precompile_patterns(self, detection_patterns: dict[str, Any]) -> list[dict[str, Any]]:
+        """Compile detection patterns once, preserving the original pattern order.
+
+        Applies the same pattern-level safety filtering that _safe_regex_search used to
+        perform per call (pattern length, dangerous constructs, quantifier combos) and
+        attaches the literal prefilter. Each returned entry contains:
+        - 'name': pattern name
+        - 'config': the original pattern configuration dict
+        - 'regex': compiled re.Pattern (IGNORECASE) or None when the pattern is skipped
+        - 'literals': list of lower-cased candidate literals (ANY must match), or []
+        """
+        compiled: list[dict[str, Any]] = []
+        for pattern_name, pattern_config in detection_patterns.items():
+            pattern_str = pattern_config.get("pattern", "")
+            regex = None
+            if self._is_pattern_safe(pattern_str, pattern_name):
+                try:
+                    regex = re.compile(pattern_str, re.IGNORECASE)
+                except re.error as e:
+                    self.logger.debug(f"Skipping uncompilable pattern {pattern_name}: {e}")
+                    regex = None
+            compiled.append(
+                {
+                    "name": pattern_name,
+                    "config": pattern_config,
+                    "regex": regex,
+                    "literals": self._PATTERN_LITERALS.get(pattern_name, []),
+                }
+            )
+        return compiled
+
+    def _is_pattern_safe(self, pattern: str, pattern_name: str) -> bool:
+        """Run the pattern-level safety checks from _safe_regex_search once, at compile
+        time, instead of on every scanned string. Returns False when the pattern would
+        previously have been skipped (yielding no match) by _safe_regex_search.
+        """
+        if len(pattern) > self._pattern_length_limit:
+            self.logger.debug(f"Skipping complex pattern ({len(pattern)} chars) for {pattern_name}")
+            return False
+
+        # Only reject truly dangerous constructs that cause exponential backtracking.
+        dangerous_patterns = [r"(.*)*", r"(.+)+", r"(.*)+", r"(.+)*", r".*{.*}.*", r".+{.+}.+"]
+        for dangerous in dangerous_patterns:
+            if dangerous in pattern:
+                self.logger.debug(f"Skipping pattern with dangerous constructs {pattern_name}: {dangerous}")
+                return False
+
+        # Reject excessive quantifier combinations (not individual quantifiers).
+        quantifier_combos = pattern.count(".*") + pattern.count(".+") + pattern.count("*+") + pattern.count("+*")
+        if quantifier_combos > 2:
+            self.logger.debug(f"Skipping pattern with {quantifier_combos} quantifier combinations: {pattern_name}")
+            return False
+
+        return True
 
     def _safe_regex_search(self, pattern: str, text: str, pattern_name: str = "unknown") -> re.Match[str] | None:
         """Perform a regex search with protection against catastrophic backtracking.
@@ -1244,17 +1402,41 @@ class PatternDetectionStrategy:
             self.logger.debug(f"Skipping very long string ({len(string_value)} chars) to prevent timeout")
             return matches
 
-        for pattern_name, pattern_config in self.detection_patterns.items():
-            try:
-                pattern_regex = pattern_config["pattern"]
-                match = self._safe_regex_search(pattern_regex, string_value, pattern_name)
+        # B2: Per-string text-length guard. This check previously lived inside
+        # _safe_regex_search and ran once per pattern; applying it once per string is
+        # equivalent (an over-long text yields no match for any pattern) and much cheaper.
+        if len(string_value) > self._text_limit:
+            self.logger.debug(f"Skipping long text ({len(string_value)} chars) for secret scanning")
+            return matches
 
+        # B2: Lower-cased view reused by every literal prefilter below. Detection is
+        # case-insensitive, so a case-insensitive literal test is a sound prefilter.
+        lowered_value = string_value.lower()
+
+        # B2: Iterate the pre-compiled patterns (compiled once in __init__) instead of
+        # recompiling each pattern for every string.
+        for entry in self._compiled_patterns:
+            regex = entry["regex"]
+            if regex is None:
+                # Pattern was filtered out by the safety checks - preserves the previous
+                # behaviour where _safe_regex_search returned None (no match) for it.
+                continue
+
+            # Cheap literal prefilter: skip the expensive regex when a required literal
+            # cannot be present. Only skips when the regex could not have matched anyway.
+            literals = entry["literals"]
+            if literals and not any(literal in lowered_value for literal in literals):
+                continue
+
+            try:
+                match = regex.search(string_value)
                 if match:
+                    pattern_config = entry["config"]
                     matches.append(
                         {
-                            "type": pattern_config.get("description", pattern_name),
+                            "type": pattern_config.get("description", entry["name"]),
                             "severity": pattern_config.get("severity", "MEDIUM"),
-                            "pattern_name": pattern_name,
+                            "pattern_name": entry["name"],
                             "value": match.group(),
                             "location": string_data.get("location", ""),
                             "file_path": string_data.get("file_path"),
@@ -1263,7 +1445,7 @@ class PatternDetectionStrategy:
                     )
 
             except Exception as e:
-                self.logger.warning(f"Error applying pattern {pattern_name}: {str(e)}")
+                self.logger.warning(f"Error applying pattern {entry['name']}: {str(e)}")
                 continue
 
         return matches
@@ -1286,6 +1468,11 @@ class ResultClassificationStrategy:
     Design Pattern: Strategy Pattern (fourth phase of secret detection workflow)
     SOLID Principles: Single Responsibility (only handles result classification)
     """
+
+    # B1b: Maximum number of sample evidence entries retained per severity. The finding
+    # generator only slices the first 10-20 entries, so 50 is a safe upper bound while
+    # the running counters preserve the true totals for the finding titles.
+    _SAMPLE_LIMIT = 50
 
     def classify_by_severity(self, detected_secrets: list[dict[str, Any]]) -> dict[str, Any]:
         """Classify detected secrets by severity level.
@@ -1312,6 +1499,11 @@ class ResultClassificationStrategy:
         """
         classified_findings = {"critical": [], "high": [], "medium": [], "low": []}
         detected_secrets_by_severity = {"critical": [], "high": [], "medium": [], "low": []}
+        # B1b: running TRUE totals per severity (after de-duplication). The sample
+        # buffers above are capped at _SAMPLE_LIMIT, so a 100k+ element LOW list is no
+        # longer materialised; these counters preserve the exact totals used for the
+        # finding titles/descriptions (e.g. "LOW: 13785 Potential Information Leakage").
+        counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
 
         # Deduplicate secrets - track by (type, value) pairs to avoid duplicates
         seen_secrets = set()
@@ -1323,6 +1515,22 @@ class ResultClassificationStrategy:
             if dedup_key in seen_secrets:
                 continue  # Skip duplicate
             seen_secrets.add(dedup_key)
+
+            # Classify by severity
+            severity = detection["severity"].lower()
+            if severity not in classified_findings:
+                continue
+
+            # Count every unique detection (true total, used for the finding titles).
+            counts[severity] += 1
+
+            # B1b: only materialise a bounded sample of evidence entries / terminal
+            # display strings. The finding generator only ever slices the first 10-20
+            # items, so buffering _SAMPLE_LIMIT entries is behaviourally identical while
+            # avoiding the unbounded per-detection dict + f-string construction.
+            if len(classified_findings[severity]) >= self._SAMPLE_LIMIT:
+                continue
+
             # Create detailed evidence entry
             evidence_entry = {
                 "type": detection["type"],
@@ -1345,13 +1553,10 @@ class ResultClassificationStrategy:
 
             terminal_display = f"🔑 [{detection['severity']}] {detection['type']}: {evidence_entry['preview']} (found in {location_info})"
 
-            # Classify by severity
-            severity = detection["severity"].lower()
-            if severity in classified_findings:
-                classified_findings[severity].append(terminal_display)
-                detected_secrets_by_severity[severity].append(evidence_entry)
+            classified_findings[severity].append(terminal_display)
+            detected_secrets_by_severity[severity].append(evidence_entry)
 
-        return {"findings": classified_findings, "secrets": detected_secrets_by_severity}
+        return {"findings": classified_findings, "secrets": detected_secrets_by_severity, "counts": counts}
 
 
 class FindingGenerationStrategy:
@@ -1408,29 +1613,39 @@ class FindingGenerationStrategy:
         """
         findings: list[SecurityFinding] = []
         classified_findings = classified_results["findings"]
+        # B1b: prefer the TRUE per-severity totals when provided. The 'findings' sample
+        # buffers are capped by ResultClassificationStrategy, so their length is no
+        # longer the real count. Fall back to the sample length for callers/tests that
+        # pass classifications without a 'counts' entry (behaviour-preserving).
+        counts = classified_results.get("counts")
+
+        def _count(severity: str) -> int:
+            if counts is not None:
+                return counts.get(severity, len(classified_findings[severity]))
+            return len(classified_findings[severity])
 
         # Create findings based on severity levels with secret-finder style messaging
         if classified_findings["critical"]:
-            findings.append(self._build_critical_severity_finding(classified_findings))
+            findings.append(self._build_critical_severity_finding(classified_findings, _count("critical")))
 
         if classified_findings["high"]:
-            findings.append(self._build_high_severity_finding(classified_findings))
+            findings.append(self._build_high_severity_finding(classified_findings, _count("high")))
 
         if classified_findings["medium"]:
-            findings.append(self._build_medium_severity_finding(classified_findings))
+            findings.append(self._build_medium_severity_finding(classified_findings, _count("medium")))
 
         if classified_findings["low"]:
-            findings.append(self._build_low_severity_finding(classified_findings))
+            findings.append(self._build_low_severity_finding(classified_findings, _count("low")))
 
         return findings
 
-    def _build_critical_severity_finding(self, classified_findings: dict[str, Any]) -> SecurityFinding:
+    def _build_critical_severity_finding(self, classified_findings: dict[str, Any], count: int) -> SecurityFinding:
         """Build the CRITICAL severity SecurityFinding from classified findings."""
         return SecurityFinding(
             category=self.owasp_category,
             severity=AnalysisSeverity.CRITICAL,
-            title=f"🔴 CRITICAL: {len(classified_findings['critical'])} Hard-coded Secrets Found",
-            description=f"Found {len(classified_findings['critical'])} critical severity secrets that pose immediate security risks. These include private keys, AWS credentials, and other highly sensitive data that could lead to complete system compromise.",
+            title=f"🔴 CRITICAL: {count} Hard-coded Secrets Found",
+            description=f"Found {count} critical severity secrets that pose immediate security risks. These include private keys, AWS credentials, and other highly sensitive data that could lead to complete system compromise.",
             evidence=classified_findings["critical"][:10],
             recommendations=[
                 "🚨 IMMEDIATE ACTION REQUIRED: Remove all hard-coded secrets and use secure secret management solutions like environment variables, HashiCorp Vault, or cloud-native secret stores. Rotate any exposed credentials immediately.",
@@ -1442,13 +1657,13 @@ class FindingGenerationStrategy:
             ],
         )
 
-    def _build_high_severity_finding(self, classified_findings: dict[str, Any]) -> SecurityFinding:
+    def _build_high_severity_finding(self, classified_findings: dict[str, Any], count: int) -> SecurityFinding:
         """Build the HIGH severity SecurityFinding from classified findings."""
         return SecurityFinding(
             category=self.owasp_category,
             severity=AnalysisSeverity.HIGH,
-            title=f"🟠 HIGH: {len(classified_findings['high'])} Potential Secrets Found",
-            description=f"Found {len(classified_findings['high'])} high severity potential secrets including API keys, tokens, and service credentials that could provide unauthorized access to systems and data.",
+            title=f"🟠 HIGH: {count} Potential Secrets Found",
+            description=f"Found {count} high severity potential secrets including API keys, tokens, and service credentials that could provide unauthorized access to systems and data.",
             evidence=classified_findings["high"][:10],
             recommendations=[
                 "⚠️ HIGH PRIORITY: Review and remove suspected secrets. Implement proper secret management practices.",
@@ -1459,13 +1674,13 @@ class FindingGenerationStrategy:
             ],
         )
 
-    def _build_medium_severity_finding(self, classified_findings: dict[str, Any]) -> SecurityFinding:
+    def _build_medium_severity_finding(self, classified_findings: dict[str, Any], count: int) -> SecurityFinding:
         """Build the MEDIUM severity SecurityFinding from classified findings."""
         return SecurityFinding(
             category=self.owasp_category,
             severity=AnalysisSeverity.MEDIUM,
-            title=f"🟡 MEDIUM: {len(classified_findings['medium'])} Suspicious Strings Found",
-            description=f"Found {len(classified_findings['medium'])} medium severity suspicious strings that may contain sensitive information like database URLs, SSH keys, or encoded secrets.",
+            title=f"🟡 MEDIUM: {count} Suspicious Strings Found",
+            description=f"Found {count} medium severity suspicious strings that may contain sensitive information like database URLs, SSH keys, or encoded secrets.",
             evidence=classified_findings["medium"][:15],
             recommendations=[
                 "⚠️ Review suspicious strings for potential sensitive data exposure. Consider if these should be externalized.",
@@ -1476,13 +1691,13 @@ class FindingGenerationStrategy:
             ],
         )
 
-    def _build_low_severity_finding(self, classified_findings: dict[str, Any]) -> SecurityFinding:
+    def _build_low_severity_finding(self, classified_findings: dict[str, Any], count: int) -> SecurityFinding:
         """Build the LOW severity SecurityFinding from classified findings."""
         return SecurityFinding(
             category=self.owasp_category,
             severity=AnalysisSeverity.LOW,
-            title=f"🔵 LOW: {len(classified_findings['low'])} Potential Information Leakage",
-            description=f"Found {len(classified_findings['low'])} low severity strings that may leak information about system configuration, third-party services, or internal infrastructure.",
+            title=f"🔵 LOW: {count} Potential Information Leakage",
+            description=f"Found {count} low severity strings that may leak information about system configuration, third-party services, or internal infrastructure.",
             evidence=classified_findings["low"][:20],
             recommendations=[
                 "ℹ️ Review for information disclosure. Consider if exposed details provide unnecessary information to potential attackers.",

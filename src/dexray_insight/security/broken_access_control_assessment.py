@@ -96,10 +96,64 @@ class BrokenAccessControlAssessment(BaseSecurityAssessment):
                     severity=AnalysisSeverity.LOW,
                     description="An error occurred during access control assessment",
                     evidence=[str(e)],
+                    recommendations=["Review analysis logs and re-run the assessment"],
                 )
             )
 
         return findings
+
+    @staticmethod
+    def _component_name(component: Any) -> str:
+        """Return a component's class name whether it is a dict or a plain string.
+
+        ManifestAnalysisResult stores components as plain name strings, but this
+        assessment is written against a richer dict shape. This accessor bridges
+        both so the assessment never crashes on the string form.
+        """
+        if isinstance(component, dict):
+            return component.get("name", "")
+        return str(component)
+
+    @staticmethod
+    def _build_intent_filter_index(manifest_data: dict[str, Any]) -> dict[str, list]:
+        """Index intent-filter entries by component name.
+
+        Manifest intent_filters entries have the shape
+        ``{"component_type", "component_name", "filters"}`` (see
+        manifest_analysis._extract_intent_filters). Only services and receivers
+        carry intent filters upstream; activities are not indexed.
+        """
+        index: dict[str, list] = {}
+        for entry in manifest_data.get("intent_filters", []) or []:
+            if isinstance(entry, dict):
+                name = entry.get("component_name")
+                if name is not None:
+                    index.setdefault(name, []).append(entry)
+        return index
+
+    def _normalize_component(self, component: Any, intent_index: dict[str, list]) -> dict[str, Any]:
+        """Normalize a component (dict or name-string) to a canonical dict.
+
+        For the name-only data actually produced today, export/permission
+        metadata is unknown (``None``) so the explicit-export checks safely
+        produce no findings, while intent-filter-based detection still works via
+        the intent_index.
+        """
+        if isinstance(component, dict):
+            # Ensure intent_filters is present so downstream .get calls are safe.
+            if "intent_filters" not in component:
+                component = {
+                    **component,
+                    "intent_filters": intent_index.get(component.get("name"), []),
+                }
+            return component
+        name = str(component)
+        return {
+            "name": name,
+            "exported": None,
+            "permission": None,
+            "intent_filters": intent_index.get(name, []),
+        }
 
     def _assess_exported_components(self, analysis_data: dict[str, Any]) -> list[SecurityFinding]:
         """Assess exported components for access control issues."""
@@ -109,11 +163,16 @@ class BrokenAccessControlAssessment(BaseSecurityAssessment):
             manifest_results = analysis_data.get("manifest_analysis", {})
             manifest_data = manifest_results.to_dict() if hasattr(manifest_results, "to_dict") else manifest_results
 
+            intent_index = self._build_intent_filter_index(manifest_data)
+
+            def _normalize_list(key: str) -> list[dict[str, Any]]:
+                return [self._normalize_component(c, intent_index) for c in manifest_data.get(key, []) or []]
+
             components = {
-                "activities": manifest_data.get("activities", []),
-                "services": manifest_data.get("services", []),
-                "receivers": manifest_data.get("receivers", []),
-                "content_providers": manifest_data.get("content_providers", []),
+                "activities": _normalize_list("activities"),
+                "services": _normalize_list("services"),
+                "receivers": _normalize_list("receivers"),
+                "content_providers": _normalize_list("content_providers"),
             }
 
             findings.extend(self._assess_exported_activities(components))
@@ -134,16 +193,22 @@ class BrokenAccessControlAssessment(BaseSecurityAssessment):
         activities = components.get("activities", [])
         for activity in activities:
             if activity.get("exported", False) and not activity.get("permission"):  # No permission protection
+                name = self._component_name(activity)
                 findings.append(
                         SecurityFinding(
                             title="Unprotected Exported Activity",
                             category=self.owasp_category,
                             severity=AnalysisSeverity.MEDIUM,
                             description=(
-                                f"Activity '{activity['name']}' is exported but not protected with permissions. "
+                                f"Activity '{name}' is exported but not protected with permissions. "
                                 "This could allow unauthorized access by other applications."
                             ),
-                            evidence=[f"Exported activity: {activity['name']}", "No permission protection found"],
+                            evidence=[f"Exported activity: {name}", "No permission protection found"],
+                            recommendations=[
+                                "Set android:exported=\"false\" unless the component must be public",
+                                "Protect exported components with signature-level permissions",
+                                "Validate all incoming Intent data",
+                            ],
                         )
                     )
 
@@ -157,9 +222,10 @@ class BrokenAccessControlAssessment(BaseSecurityAssessment):
         services = components.get("services", [])
         for service in services:
             if service.get("exported", False) and not service.get("permission"):
+                name = self._component_name(service)
                 severity = (
                     AnalysisSeverity.HIGH
-                    if "bind" in service.get("name", "").lower()
+                    if "bind" in name.lower()
                     else AnalysisSeverity.MEDIUM
                 )
                 findings.append(
@@ -168,10 +234,15 @@ class BrokenAccessControlAssessment(BaseSecurityAssessment):
                         category=self.owasp_category,
                         severity=severity,
                         description=(
-                            f"Service '{service['name']}' is exported but not protected with permissions. "
+                            f"Service '{name}' is exported but not protected with permissions. "
                             "This could allow unauthorized binding or interaction by malicious applications."
                         ),
-                        evidence=[f"Exported service: {service['name']}", "No permission protection found"],
+                        evidence=[f"Exported service: {name}", "No permission protection found"],
+                        recommendations=[
+                            "Set android:exported=\"false\" unless the service must be public",
+                            "Protect exported services with signature-level permissions",
+                            "Validate all incoming Intent data before acting on it",
+                        ],
                     )
                 )
 
@@ -185,16 +256,22 @@ class BrokenAccessControlAssessment(BaseSecurityAssessment):
         receivers = components.get("receivers", [])
         for receiver in receivers:
             if receiver.get("exported", False) and not receiver.get("permission"):
+                name = self._component_name(receiver)
                 findings.append(
                     SecurityFinding(
                         title="Unprotected Exported Broadcast Receiver",
                         category=self.owasp_category,
                         severity=AnalysisSeverity.MEDIUM,
                         description=(
-                            f"Broadcast receiver '{receiver['name']}' is exported but not protected. "
+                            f"Broadcast receiver '{name}' is exported but not protected. "
                             "This could allow unauthorized broadcast injection."
                         ),
-                        evidence=[f"Exported receiver: {receiver['name']}", "No permission protection found"],
+                        evidence=[f"Exported receiver: {name}", "No permission protection found"],
+                        recommendations=[
+                            "Set android:exported=\"false\" unless the receiver must be public",
+                            "Protect exported receivers with signature-level permissions",
+                            "Validate the source and contents of received broadcasts",
+                        ],
                     )
                 )
 
@@ -208,18 +285,24 @@ class BrokenAccessControlAssessment(BaseSecurityAssessment):
         potentially_exported = self._find_potentially_exported_components(components)
         for component_type, component_list in potentially_exported.items():
             for component in component_list:
+                name = self._component_name(component)
                 findings.append(
                     SecurityFinding(
                         title=f"Potentially Exported {component_type.capitalize()[:-1]}",
                         category=self.owasp_category,
                         severity=AnalysisSeverity.LOW,
                         description=(
-                            f"{component_type.capitalize()[:-1]} '{component['name']}' may be implicitly exported "
+                            f"{component_type.capitalize()[:-1]} '{name}' may be implicitly exported "
                             "due to intent filters without explicit export control."
                         ),
                         evidence=[
-                            f"Component: {component['name']}",
+                            f"Component: {name}",
                             f"Intent filters present: {len(component.get('intent_filters', []))}",
+                        ],
+                        recommendations=[
+                            "Explicitly set android:exported for components with intent filters",
+                            "Add permission guards to components reachable via intent filters",
+                            "Use explicit intents internally where possible",
                         ],
                     )
                 )
@@ -278,6 +361,11 @@ class BrokenAccessControlAssessment(BaseSecurityAssessment):
                             "Ensure proper access controls are implemented to prevent privilege escalation."
                         ),
                         evidence=[f"Dangerous permissions: {', '.join(dangerous_found)}"],
+                        recommendations=[
+                            "Request only the minimum permissions required by the app",
+                            "Justify each dangerous permission and enforce runtime permission checks",
+                            "Avoid signature/system permissions unless strictly necessary",
+                        ],
                     )
                 )
 
@@ -297,6 +385,11 @@ class BrokenAccessControlAssessment(BaseSecurityAssessment):
                                 f"'{protection_level}'. Ensure proper access controls are enforced."
                             ),
                             evidence=[f"Permission: {perm['name']}", f"Protection level: {protection_level}"],
+                            recommendations=[
+                                "Use the highest appropriate protection level for custom permissions",
+                                "Document why each custom permission is required",
+                                "Enforce the permission on every component it is meant to guard",
+                            ],
                         )
                     )
 
@@ -318,6 +411,10 @@ class BrokenAccessControlAssessment(BaseSecurityAssessment):
 
             for intent_filter in intent_filters:
                 if self._is_risky_intent_filter(intent_filter):
+                    actions, categories = self._intent_filter_actions_categories(intent_filter)
+                    component_name = (
+                        intent_filter.get("component_name", "") if isinstance(intent_filter, dict) else ""
+                    )
                     findings.append(
                         SecurityFinding(
                             title="Risky Intent Filter Configuration",
@@ -325,8 +422,14 @@ class BrokenAccessControlAssessment(BaseSecurityAssessment):
                             severity=AnalysisSeverity.MEDIUM,
                             description="Intent filter configuration detected that may allow unauthorized access.",
                             evidence=[
-                                f"Actions: {', '.join(intent_filter.get('actions', []))}",
-                                f"Categories: {', '.join(intent_filter.get('categories', []))}",
+                                f"Component: {component_name}" if component_name else "Component: (unknown)",
+                                f"Actions: {', '.join(actions)}",
+                                f"Categories: {', '.join(categories)}",
+                            ],
+                            recommendations=[
+                                "Use explicit intents where possible",
+                                "Add android:exported and permission guards to components with intent filters",
+                                "Validate action/category/data before handling the intent",
                             ],
                         )
                     )
@@ -335,6 +438,28 @@ class BrokenAccessControlAssessment(BaseSecurityAssessment):
             self.logger.error(f"Error assessing intent filter risks: {e}")
 
         return findings
+
+    @staticmethod
+    def _intent_filter_actions_categories(intent_filter: Any) -> tuple[list, list]:
+        """Extract (actions, categories) from an intent-filter entry.
+
+        Handles both the manifest shape
+        ``{"component_type", "component_name", "filters": {"action": [...], "category": [...]}}``
+        and a flat legacy shape with top-level ``actions``/``categories``.
+        """
+        if not isinstance(intent_filter, dict):
+            return [], []
+        filters = intent_filter.get("filters")
+        if isinstance(filters, dict):
+            actions = filters.get("action", filters.get("actions", []))
+            categories = filters.get("category", filters.get("categories", []))
+        else:
+            actions = intent_filter.get("actions", [])
+            categories = intent_filter.get("categories", [])
+        # Normalize to lists of strings.
+        actions = list(actions) if actions else []
+        categories = list(categories) if categories else []
+        return actions, categories
 
     def _is_risky_intent_filter(self, intent_filter: dict[str, Any]) -> bool:
         """Check if an intent filter configuration poses access control risks."""
@@ -355,8 +480,7 @@ class BrokenAccessControlAssessment(BaseSecurityAssessment):
             "android.intent.category.BROWSABLE",
         ]
 
-        actions = intent_filter.get("actions", [])
-        categories = intent_filter.get("categories", [])
+        actions, categories = self._intent_filter_actions_categories(intent_filter)
 
         # Check for risky action/category combinations
         has_risky_action = any(action in risky_actions for action in actions)

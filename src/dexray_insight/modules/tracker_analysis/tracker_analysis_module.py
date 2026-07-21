@@ -106,6 +106,12 @@ class TrackerAnalysisModule(BaseAnalysisModule):
 
         # Configuration
         self.fetch_exodus_trackers = config.get("fetch_exodus_trackers", True)
+        # Expensive deep option: when True, perform a full second pass over all DEX
+        # bytecode (class -> method -> instruction operands) to attribute each string
+        # to the method(s) it appears in. This is costly on large APKs and is NOT
+        # required for tracker detection (which relies on the string set / DEX string
+        # pool). Default False; enable only when per-string method locations are needed.
+        self.deep_string_location_analysis = config.get("deep_string_location_analysis", False)
 
     def get_dependencies(self) -> list[str]:
         """Dependencies: string analysis for pattern matching."""
@@ -228,53 +234,54 @@ class TrackerAnalysisModule(BaseAnalysisModule):
         to the list of locations (method names or the DEX strings pool) where it was found.
         """
         string_locations = {}
-        if context.androguard_obj:
+
+        # Extract strings with per-method location context (opt-in, expensive).
+        #
+        # This full second pass over all DEX bytecode
+        # (class -> method -> instruction operands) is expensive on large APKs
+        # and only produces the per-string method-location attribution stored in
+        # ``string_locations``. It is NOT needed for tracker detection, which
+        # matches against the string set populated from the shared DEX string
+        # pool below (a superset of the string constants referenced by bytecode).
+        # It is therefore gated behind an opt-in flag and requires live androguard.
+        if self.deep_string_location_analysis and context.androguard_obj:
             try:
                 dex_obj = context.androguard_obj.get_androguard_dex()
-                if dex_obj:
-                    for dex in dex_obj:
-                        # Extract strings with class/method context
-                        for class_analysis in dex.get_classes():
-                            class_name = class_analysis.get_name()
-                            for method in class_analysis.get_methods():
-                                method_name = method.get_name()
-                                method_full_name = f"{class_name}->{method_name}"
+                for dex in dex_obj or []:
+                    for class_analysis in dex.get_classes():
+                        class_name = class_analysis.get_name()
+                        for method in class_analysis.get_methods():
+                            method_name = method.get_name()
+                            method_full_name = f"{class_name}->{method_name}"
 
-                                # Get strings from method bytecode
-                                try:
-                                    for instruction in method.get_instructions():
-                                        if hasattr(instruction, "get_operands"):
-                                            for operand in instruction.get_operands():
-                                                if hasattr(operand, "get_value"):
-                                                    operand_value = operand.get_value()
-                                                    if isinstance(operand_value, str) and len(operand_value) > 3:
-                                                        all_strings.add(operand_value)
-                                                        if operand_value not in string_locations:
-                                                            string_locations[operand_value] = []
-                                                        string_locations[operand_value].append(method_full_name)
-                                except Exception:  # noqa: S110
-                                    pass  # Skip errors in instruction parsing
-
-                        # Also get all strings from DEX (fallback)
-                        for string in dex.get_strings():
-                            string_value = str(string)
-                            all_strings.add(string_value)
-                            # If no specific location found, mark as generic
-                            if string_value not in string_locations:
-                                string_locations[string_value] = ["DEX strings pool"]
+                            # Get strings from method bytecode
+                            try:
+                                for instruction in method.get_instructions():
+                                    if hasattr(instruction, "get_operands"):
+                                        for operand in instruction.get_operands():
+                                            if hasattr(operand, "get_value"):
+                                                operand_value = operand.get_value()
+                                                if isinstance(operand_value, str) and len(operand_value) > 3:
+                                                    all_strings.add(operand_value)
+                                                    if operand_value not in string_locations:
+                                                        string_locations[operand_value] = []
+                                                    string_locations[operand_value].append(method_full_name)
+                            except Exception:  # noqa: S110
+                                pass  # Skip errors in instruction parsing
             except Exception as e:
-                self.logger.warning(f"Error extracting raw strings: {str(e)}")
-                # Fallback to simple string extraction
-                try:
-                    dex_obj = context.androguard_obj.get_androguard_dex()
-                    if dex_obj:
-                        for dex in dex_obj:
-                            for string in dex.get_strings():
-                                string_value = str(string)
-                                all_strings.add(string_value)
-                                string_locations[string_value] = ["DEX strings pool"]
-                except Exception:  # noqa: S110
-                    pass
+                self.logger.warning(f"Error during deep string-location analysis: {str(e)}")
+
+        # Always: pull the full DEX string pool from the shared, compute-once
+        # extraction on the context (Tier-1 cache backed). This replaces the
+        # previous per-module dex.get_strings() re-scan.
+        try:
+            for string_value in context.get_dex_strings():
+                all_strings.add(string_value)
+                # If no specific method location was recorded, mark as generic.
+                if string_value not in string_locations:
+                    string_locations[string_value] = ["DEX strings pool"]
+        except Exception as e:
+            self.logger.warning(f"Error extracting DEX string pool: {str(e)}")
 
         return string_locations
 

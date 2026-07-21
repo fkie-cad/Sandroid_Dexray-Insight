@@ -142,26 +142,29 @@ class StringExtractor:
         """
         strings_set = set()
 
-        if not context.androguard_obj:
-            self.logger.warning("No androguard object available in context")
+        # Use the shared, compute-once DEX string extraction on the context.
+        # This is the single source of raw DEX strings for the whole pipeline
+        # (string/tracker/behaviour/security), and is backed by the Tier-1 cache.
+        # We still apply this module's own length/exclude filtering below.
+        dex_groups = context.get_dex_strings_by_index()
+
+        if not dex_groups:
+            if not context.androguard_obj:
+                self.logger.warning("No androguard object available in context")
+            else:
+                self.logger.warning("No DEX strings available from context")
             return strings_set
 
         try:
-            dex_obj = context.androguard_obj.get_androguard_dex()
-            self.logger.debug(f"Found {len(dex_obj) if dex_obj else 0} DEX objects in binary")
-
-            if not dex_obj:
-                self.logger.warning("No DEX objects returned from androguard")
-                return strings_set
+            self.logger.debug(f"Found {len(dex_groups)} DEX objects in binary")
 
             total_raw_strings = 0
             filtered_by_length = 0
             filtered_by_exclude = 0
 
-            for i, dex in enumerate(dex_obj):
-                dex_strings = dex.get_strings()
+            for i, dex_strings in enumerate(dex_groups):
                 total_raw_strings += len(dex_strings)
-                self.logger.debug(f"DEX {i+1}/{len(dex_obj)}: Processing {len(dex_strings)} raw strings")
+                self.logger.debug(f"DEX {i+1}/{len(dex_groups)}: Processing {len(dex_strings)} raw strings")
 
                 for string in dex_strings:
                     string_val = str(string)

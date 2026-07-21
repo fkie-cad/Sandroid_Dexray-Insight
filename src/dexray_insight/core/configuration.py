@@ -36,6 +36,20 @@ class Configuration:
             "parallel_execution": {"enabled": True, "max_workers": 4},
             "timeout": {"module_timeout": 300, "tool_timeout": 600},  # 5 minutes per module  # 10 minutes per tool
         },
+        "caching": {
+            # MD5-keyed reuse of expensive, deterministic analysis prerequisites.
+            # Invalidation is fingerprint-based (tool + androguard version +
+            # schema), not time-based. Skipped/failed results are never cached.
+            "enabled": True,
+            "cache_dir": None,  # None -> ~/.dexray_insight/analysis_cache
+            "tiers": {
+                "dex_strings": True,  # shared per-DEX string lists (biggest low-risk win)
+                "library_signatures": True,  # library similarity signatures
+                "module_results": True,  # per-module result dicts
+                "full_result": True,  # assembled full-run report (full-hit gate)
+            },
+            "full_hit_gate": True,  # short-circuit an identical re-run from cache
+        },
         "modules": {
             "signature_detection": {
                 "enabled": True,
@@ -78,6 +92,10 @@ class Configuration:
                 "fetch_exodus_trackers": True,
                 "exodus_api_url": "https://reports.exodus-privacy.eu.org/api/trackers",
                 "api_timeout": 10,
+                # Expensive deep option: full second pass over all DEX bytecode to
+                # attribute each string to its method location(s). Not required for
+                # tracker detection; disabled by default.
+                "deep_string_location_analysis": False,
             },
             "behaviour_analysis": {
                 "enabled": True,
@@ -346,6 +364,15 @@ class Configuration:
     def max_workers(self) -> int:
         """Get maximum number of parallel workers."""
         return self.config.get("analysis", {}).get("parallel_execution", {}).get("max_workers", 4)
+
+    @property
+    def caching_enabled(self) -> bool:
+        """Check if analysis result caching is enabled."""
+        return self.config.get("caching", {}).get("enabled", True)
+
+    def get_caching_config(self) -> dict[str, Any]:
+        """Get the caching configuration section."""
+        return self.config.get("caching", {})
 
     def to_dict(self) -> dict[str, Any]:
         """Get complete configuration as dictionary."""

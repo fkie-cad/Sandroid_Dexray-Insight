@@ -49,6 +49,7 @@ import shutil
 import subprocess
 from typing import Any
 
+from ..core.base_classes import AnalysisStatus
 from ..core.base_classes import BaseExternalTool
 from ..core.base_classes import register_tool
 from ..results.apkidResults import ApkidFileAnalysis
@@ -58,6 +59,26 @@ from ..results.apkidResults import ApkidResults
 @register_tool("apkid")
 class APKIDTool(BaseExternalTool):
     """APKID external tool for detecting packers, obfuscation, and anti-analysis techniques."""
+
+    # Substrings in stderr that indicate a broken *environment* (not a genuine
+    # analysis error) — most commonly an installed apkid whose compiled YARA
+    # rules are incompatible with the installed yara-python. These are treated
+    # as a graceful skip rather than a hard error.
+    _ENV_FAILURE_MARKERS = (
+        "yara",
+        "rules",
+        "could not compile",
+        "libyara",
+        "syntaxerror",
+        "version mismatch",
+        "incompatible",
+    )
+
+    @classmethod
+    def _is_environment_failure(cls, stderr: str) -> bool:
+        """Return True if stderr indicates a broken install rather than a real error."""
+        text = (stderr or "").lower()
+        return any(marker in text for marker in cls._ENV_FAILURE_MARKERS)
 
     def __init__(self, config: dict[str, Any]):
         """Initialize APKID tool with configuration."""
@@ -105,9 +126,25 @@ class APKIDTool(BaseExternalTool):
             )
 
             if result.returncode != 0:
-                error_msg = f"APKID execution failed with return code {result.returncode}: {result.stderr}"
+                stderr = result.stderr or ""
+                if self._is_environment_failure(stderr):
+                    reason = (
+                        "APKID skipped: incompatible environment (likely a YARA "
+                        "rule/version mismatch between apkid and the installed "
+                        f"yara-python). Details: {stderr.strip()[:200]}"
+                    )
+                    # Info, not error: this is an environment issue, not an
+                    # analysis failure. No traceback is surfaced to the user.
+                    self.logger.info(reason)
+                    return {
+                        "status": AnalysisStatus.SKIPPED.value,
+                        "reason": reason,
+                        "raw_output": stderr,
+                        "results": None,
+                    }
+                error_msg = f"APKID execution failed with return code {result.returncode}: {stderr}"
                 self.logger.error(error_msg)
-                return {"status": "failure", "error": error_msg, "raw_output": result.stderr, "results": None}
+                return {"status": "failure", "error": error_msg, "raw_output": stderr, "results": None}
 
             # Parse results
             raw_output = result.stdout
@@ -164,9 +201,17 @@ class APKIDTool(BaseExternalTool):
 
         Returns:
             True if APKID is available and can be executed
+
+        Note:
+            A ``--version`` probe catches a missing or totally broken install,
+            but apkid can still report its version while its compiled YARA rules
+            are incompatible with the installed yara-python. That runtime case is
+            handled separately in ``execute()`` (returns ``skipped``).
         """
         try:
-            return shutil.which("apkid") is not None
+            if shutil.which("apkid") is None:
+                return False
+            return self._binary_runs_cleanly(["apkid", "--version"])
         except Exception:
             return False
 

@@ -30,7 +30,7 @@ import logging
 import os
 import subprocess
 
-from apkstaticanalysismonitor.Utils.file_utils import backup_and_replace_with_template
+from ...Utils.file_utils import backup_and_replace_with_template
 
 
 def execute_dotnet_mono_security_analysis(app_name, dll_target_dir):

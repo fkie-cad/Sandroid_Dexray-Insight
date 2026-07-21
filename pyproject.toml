@@ -42,7 +42,11 @@ dependencies = [
     "bs4",
     "kavanoz",
     "python-magic",
-    "r2pipe"
+    "r2pipe",
+    "packaging",   # Version parsing/comparison in library_detection & CVE modules
+    "loguru",      # Logging in androguardObjClass & kavanoz_tool
+    "asn1crypto",  # Certificate/ASN.1 parsing in apk_overview
+    "urllib3"      # Retry handling in CVE NVD client
 ]
 
 [project.optional-dependencies]

@@ -21,11 +21,15 @@
 # # See the License for the specific language governing permissions and
 # # limitations under the License.
 
+import contextlib
+import importlib.util
 import json
 import logging
+import subprocess
 from abc import ABC
 from abc import abstractmethod
 from dataclasses import dataclass
+from dataclasses import field
 from enum import Enum
 from typing import Any
 from typing import Optional
@@ -106,11 +110,90 @@ class AnalysisContext:
     temporal_paths: Any | None = None  # TemporalDirectoryPaths object
     jadx_available: bool = False
     apktool_available: bool = False
+    # Caching support (populated by the engine when caching is enabled)
+    cache_manager: Any | None = None  # AnalysisCacheManager instance or None
+    apk_md5: str | None = None  # content hash used as the cache key
+    # Compute-once shared DEX string extraction. Kept off the repr/eq so the
+    # (potentially huge) string lists don't bloat logging or comparisons.
+    _dex_strings_by_index: list[list[str]] | None = field(default=None, repr=False, compare=False)
+    _dex_strings_flat: list[str] | None = field(default=None, repr=False, compare=False)
+    _dex_strings_set: frozenset | None = field(default=None, repr=False, compare=False)
 
     def __post_init__(self):
         """Initialize module results dictionary after dataclass creation."""
         if self.module_results is None:
             self.module_results = {}
+
+    def get_dex_strings_by_index(self) -> list[list[str]]:
+        """Return DEX strings grouped by DEX index, preserving per-DEX provenance.
+
+        This is the single, shared string-extraction pass. It is computed once
+        and cached on the context so that string_analysis, tracker_analysis,
+        behaviour_analysis and the security assessment no longer each re-scan the
+        full DEX string pool.
+
+        Resolution order (the injected cache is authoritative so a valid cache
+        hit is honored even when the androguard object failed to build):
+        1. Tier-1 analysis cache (if a cache_manager + apk_md5 are set)
+        2. Live extraction from the androguard object
+        3. Empty list (androguard unavailable and no cache)
+
+        Never raises — extraction failures degrade to an empty group.
+        """
+        if self._dex_strings_by_index is not None:
+            return self._dex_strings_by_index
+
+        by_index: list[list[str]] | None = None
+
+        # 1) Authoritative Tier-1 cache
+        if self.cache_manager is not None and self.apk_md5:
+            try:
+                cached = self.cache_manager.get_dex_strings(self.apk_md5)
+                if cached is not None:
+                    by_index = [list(group) for group in cached]
+            except Exception:
+                by_index = None
+
+        # 2) Live extraction from androguard (merge across ALL dex files)
+        if by_index is None and self.androguard_obj is not None:
+            try:
+                dex_list = self.androguard_obj.get_androguard_dex() or []
+                by_index = []
+                for dex in dex_list:
+                    try:
+                        by_index.append([str(s) for s in dex.get_strings()])
+                    except Exception:
+                        by_index.append([])
+                # Write-through so subsequent runs can reuse it.
+                if self.cache_manager is not None and self.apk_md5:
+                    with contextlib.suppress(Exception):
+                        self.cache_manager.set_dex_strings(self.apk_md5, by_index)
+            except Exception:
+                by_index = None
+
+        self._dex_strings_by_index = by_index if by_index is not None else []
+        return self._dex_strings_by_index
+
+    def get_dex_strings(self) -> list[str]:
+        """Return all DEX strings as a flat list.
+
+        Order is deterministic (DEX 0 strings, then DEX 1, ...) and duplicate
+        occurrences are preserved so consumers that count occurrences or need
+        insertion order behave as before. Consumers wanting uniqueness should use
+        :meth:`get_dex_strings_set`.
+        """
+        if self._dex_strings_flat is None:
+            flat: list[str] = []
+            for group in self.get_dex_strings_by_index():
+                flat.extend(group)
+            self._dex_strings_flat = flat
+        return self._dex_strings_flat
+
+    def get_dex_strings_set(self) -> frozenset:
+        """Return unique DEX strings as a frozenset for O(1) membership checks."""
+        if self._dex_strings_set is None:
+            self._dex_strings_set = frozenset(self.get_dex_strings())
+        return self._dex_strings_set
 
     def add_result(self, module_name: str, result: Any):
         """Add a module result to the context for use by dependent modules.
@@ -493,6 +576,43 @@ class BaseExternalTool(ABC):
     def is_enabled(self) -> bool:
         """Check if tool is enabled."""
         return self.enabled
+
+    def _binary_runs_cleanly(self, command: list[str], timeout: int = 10) -> bool:
+        """Functional availability probe for CLI-backed tools.
+
+        Runs a lightweight command (e.g. ``["apkid", "--version"]``) and reports
+        whether it executes and exits 0. Unlike a bare ``shutil.which`` check this
+        catches a present-but-broken install (missing shared libs, incompatible
+        rule files, etc.).
+
+        Args:
+            command: Command + args to execute as the probe.
+            timeout: Seconds before the probe is abandoned.
+
+        Returns:
+            True only if the command ran and returned exit code 0.
+        """
+        try:
+            result = subprocess.run(
+                command, capture_output=True, text=True, timeout=timeout
+            )
+            return result.returncode == 0
+        except Exception:
+            return False
+
+    def _python_module_importable(self, module_name: str) -> bool:
+        """Availability probe for library-backed tools (e.g. kavanoz).
+
+        Args:
+            module_name: Top-level importable module name.
+
+        Returns:
+            True if the module can be located for import.
+        """
+        try:
+            return importlib.util.find_spec(module_name) is not None
+        except Exception:
+            return False
 
 
 class BaseSecurityAssessment(ABC):
