@@ -54,7 +54,27 @@ class DomainFilter:
     def _initialize_invalid_patterns(self):
         """Initialize comprehensive invalid patterns for false positive filtering."""
         # File extensions that commonly appear as false positives
-        self.invalid_extensions = (
+        self.invalid_extensions = self._build_invalid_extensions()
+
+        # Package/namespace prefixes that commonly appear as false positives
+        self.invalid_prefixes = self._build_invalid_prefixes()
+
+        # Complex regex patterns for advanced false positive detection
+        self.invalid_regex_patterns = self._build_invalid_regex_patterns()
+
+        # Case-sensitive patterns that should NOT be applied case-insensitively
+        self.case_sensitive_patterns = self._build_case_sensitive_patterns()
+
+    def _build_invalid_extensions(self):
+        """Build the tuple of invalid file extensions for false positive filtering."""
+        return (
+            self._build_invalid_extensions_code_and_data()
+            + self._build_invalid_extensions_binary_and_misc()
+        )
+
+    def _build_invalid_extensions_code_and_data(self):
+        """Build code, markup, data, and RDF file extensions."""
+        return (
             # Programming language files
             ".java",
             ".kt",
@@ -104,6 +124,11 @@ class DomainFilter:
             ".nt",
             ".trig",
             ".jsonld",
+        )
+
+    def _build_invalid_extensions_binary_and_misc(self):
+        """Build archive, media, build, and documentation file extensions."""
+        return (
             # Archive and binary files
             ".zip",
             ".jar",
@@ -158,8 +183,17 @@ class DomainFilter:
             ".pptx",
         )
 
-        # Package/namespace prefixes that commonly appear as false positives
-        self.invalid_prefixes = (
+    def _build_invalid_prefixes(self):
+        """Build the tuple of invalid package/namespace prefixes."""
+        return (
+            self._build_invalid_prefixes_part1()
+            + self._build_invalid_prefixes_part2()
+            + self._build_invalid_prefixes_part3()
+        )
+
+    def _build_invalid_prefixes_part1(self):
+        """Build Android, Java, .NET, mobile framework, and dev tool prefixes."""
+        return (
             # Android and Google packages (but not domains)
             "android.",
             "androidx.",
@@ -216,6 +250,11 @@ class DomainFilter:
             "okhttp.",
             "gson.",
             "jackson.",
+        )
+
+    def _build_invalid_prefixes_part2(self):
+        """Build library, VCS, dev artifact, protocol, and file system prefixes."""
+        return (
             # Common libraries and frameworks
             "apache.",
             "commons.",
@@ -275,6 +314,11 @@ class DomainFilter:
             "macos.",
             "ios.",
             "darwin.",
+        )
+
+    def _build_invalid_prefixes_part3(self):
+        """Build network, database, analytics, and ad network prefixes."""
+        return (
             # Network and infrastructure
             "localhost.",
             "127.0.0.1.",
@@ -336,8 +380,17 @@ class DomainFilter:
             "tapjoy.",
         )
 
-        # Complex regex patterns for advanced false positive detection
-        self.invalid_regex_patterns = [
+    def _build_invalid_regex_patterns(self):
+        """Build the list of complex regex patterns for false positive detection."""
+        return (
+            self._build_invalid_regex_patterns_part1()
+            + self._build_invalid_regex_patterns_part2()
+            + self._build_invalid_regex_patterns_part3()
+        )
+
+    def _build_invalid_regex_patterns_part1(self):
+        """Build file extension, OMX, MIME, vendor, and Kotlin regex patterns."""
+        return [
             # File extensions (regex patterns for flexibility)
             r"\.(java|kt|class|js|ts|py|rb|cpp|c|h|hpp|cs|vb|swift|go|rs|scala|clj|hs|ml|php)$",
             r"\.(xml|json|yaml|yml|toml|ini|cfg|conf|properties)$",
@@ -394,6 +447,11 @@ class DomainFilter:
             r"^kotlinx\.coroutines\.",
             r"^kotlin\.",
             r"kotlinx\.",
+        ]
+
+    def _build_invalid_regex_patterns_part2(self):
+        """Build codec, GCM, mapping, framework, and version regex patterns."""
+        return [
             # Android Codec and Media Properties
             r"^codec\.",
             r"^media\.",
@@ -456,6 +514,11 @@ class DomainFilter:
             r"\.beta\d*$",
             r"\.rc\d*$",
             r"\.final$",
+        ]
+
+    def _build_invalid_regex_patterns_part3(self):
+        """Build config, network, filesystem, mobile, and ad network regex patterns."""
+        return [
             # Configuration and property patterns
             r"\.debug$",
             r"\.release$",
@@ -520,8 +583,9 @@ class DomainFilter:
             r"googlesyndication\.",
         ]
 
-        # Case-sensitive patterns that should NOT be applied case-insensitively
-        self.case_sensitive_patterns = [
+    def _build_case_sensitive_patterns(self):
+        """Build case-sensitive patterns that must not be matched case-insensitively."""
+        return [
             r"^[A-Z]\w*\.[A-Z]\w*$",  # Likely class references (e.g., "Utils.Logger")
         ]
 
@@ -619,6 +683,18 @@ class DomainFilter:
                 return False
 
         # Additional validation: Check if domain has reasonable structure
+        return self._has_valid_domain_structure(domain)
+
+    def _has_valid_domain_structure(self, domain: str) -> bool:
+        """
+        Validate the structural properties of a domain (parts, TLD, lengths).
+
+        Args:
+            domain: String to validate as domain
+
+        Returns:
+            True if the domain has a valid structure
+        """
         parts = domain.split(".")
         if len(parts) < 2:  # Domains should have at least 2 parts
             return False
@@ -640,10 +716,7 @@ class DomainFilter:
                 return False
 
         # Final check: domain shouldn't be too long overall (RFC 1035 limit)
-        if len(domain) > 253:
-            return False
-
-        return True
+        return len(domain) <= 253
 
     def _is_java_package_name(self, domain: str) -> bool:
         """
@@ -668,127 +741,142 @@ class DomainFilter:
         # - Contain lowercase segments with specific naming
         # - Often have method/class-like segments at the end
 
-        if len(parts) >= 3:
+        if len(parts) >= 3 and parts[0] in ["com", "org", "net"]:
             # Common Java package patterns - but only if 3+ segments AND specific indicators
-            if parts[0] in ["com", "org", "net"] and len(parts) >= 3:
-                # Look for Java-specific patterns in the path
-                java_indicators = [
-                    # Common Java framework/library segments
-                    "sdk",
-                    "msdk",
-                    "api",
-                    "impl",
-                    "util",
-                    "core",
-                    "base",
-                    "common",
-                    "service",
-                    "client",
-                    "server",
-                    "model",
-                    "view",
-                    "controller",
-                    "dao",
-                    "entity",
-                    "dto",
-                    "vo",
-                    "bean",
-                    "factory",
-                    "builder",
-                    "manager",
-                    "handler",
-                    "listener",
-                    "adapter",
-                    "provider",
-                    "processor",
-                    "executor",
-                    "worker",
-                    "task",
-                    "job",
-                    "scheduler",
-                    # Library-specific segments
-                    "glide",
-                    "fresco",
-                    "picasso",
-                    "retrofit",
-                    "okhttp",
-                    "gson",
-                    "jackson",
-                    "moshi",
-                    "butterknife",
-                    "dagger",
-                    "guice",
-                    "spring",
-                    "hibernate",
-                    "mybatis",
-                    "log4j",
-                    "slf4j",
-                    "mbridge",
-                    "bumptech",
-                    "superlab",
-                    "facebook",  # Add specific ones from test
-                    # Android-specific segments
-                    "android",
-                    "androidx",
-                    "support",
-                    "material",
-                    "arch",
-                    "lifecycle",
-                    "navigation",
-                    "room",
-                    "paging",
-                    "workmanager",
-                    # Pattern indicators (single letters for obfuscated packages)
-                    "a",
-                    "b",
-                    "c",
-                    "d",
-                    "e",
-                    "f",
-                    "g",
-                    "h",
-                    "i",
-                    "j",
-                    "k",
-                    "l",
-                    "m",
-                    "n",
-                    "o",
-                    "p",
-                    "q",
-                    "r",
-                    "s",
-                    "t",
-                    "u",
-                    "v",
-                    "w",
-                    "x",
-                    "y",
-                    "z",
-                ]
+            # Look for Java-specific patterns in the path
+            java_indicators = self._get_java_package_indicators()
 
-                # Only flag as Java package if it has MORE than 2 parts AND specific indicators
-                if len(parts) > 2:
-                    # Check for Java package indicators
-                    package_segments = [part.lower() for part in parts[1:]]  # Skip the TLD part
+            # Only flag as Java package if it has MORE than 2 parts AND specific indicators
+            if len(parts) > 2:
+                # Check for Java package indicators
+                package_segments = [part.lower() for part in parts[1:]]  # Skip the TLD part
 
-                    # If any segment matches Java indicators, it's likely a package
-                    if any(segment in java_indicators for segment in package_segments):
-                        return True
+                # If any segment matches Java indicators, it's likely a package
+                if any(segment in java_indicators for segment in package_segments):
+                    return True
 
-                    # Check for pattern: single letter segments (obfuscated Java packages)
-                    if any(len(segment) == 1 for segment in package_segments):
-                        return True
+                # Check for pattern: single letter segments (obfuscated Java packages)
+                if any(len(segment) == 1 for segment in package_segments):
+                    return True
 
-                    # Check for very specific class-like final segments
-                    last_segment = parts[-1]
-                    if len(last_segment) > 1 and (
-                        last_segment[0].isupper()
-                        or last_segment in ["aa", "bb", "cc", "dd"]  # Starts with capital (class name)
-                    ):  # Obfuscated class names
-                        return True
+                # Check for very specific class-like final segments
+                last_segment = parts[-1]
+                if len(last_segment) > 1 and (
+                    last_segment[0].isupper()
+                    or last_segment in ["aa", "bb", "cc", "dd"]  # Starts with capital (class name)
+                ):  # Obfuscated class names
+                    return True
 
         return False
+
+    def _get_java_package_indicators(self):
+        """Build the list of Java package indicator segments."""
+        return (
+            self._get_java_package_indicators_common()
+            + self._get_java_package_indicators_android_and_obfuscated()
+        )
+
+    def _get_java_package_indicators_common(self):
+        """Build common Java framework/library and library-specific segments."""
+        return [
+            # Common Java framework/library segments
+            "sdk",
+            "msdk",
+            "api",
+            "impl",
+            "util",
+            "core",
+            "base",
+            "common",
+            "service",
+            "client",
+            "server",
+            "model",
+            "view",
+            "controller",
+            "dao",
+            "entity",
+            "dto",
+            "vo",
+            "bean",
+            "factory",
+            "builder",
+            "manager",
+            "handler",
+            "listener",
+            "adapter",
+            "provider",
+            "processor",
+            "executor",
+            "worker",
+            "task",
+            "job",
+            "scheduler",
+            # Library-specific segments
+            "glide",
+            "fresco",
+            "picasso",
+            "retrofit",
+            "okhttp",
+            "gson",
+            "jackson",
+            "moshi",
+            "butterknife",
+            "dagger",
+            "guice",
+            "spring",
+            "hibernate",
+            "mybatis",
+            "log4j",
+            "slf4j",
+            "mbridge",
+            "bumptech",
+            "superlab",
+            "facebook",  # Add specific ones from test
+        ]
+
+    def _get_java_package_indicators_android_and_obfuscated(self):
+        """Build Android-specific segments and single-letter obfuscation indicators."""
+        return [
+            # Android-specific segments
+            "android",
+            "androidx",
+            "support",
+            "material",
+            "arch",
+            "lifecycle",
+            "navigation",
+            "room",
+            "paging",
+            "workmanager",
+            # Pattern indicators (single letters for obfuscated packages)
+            "a",
+            "b",
+            "c",
+            "d",
+            "e",
+            "f",
+            "g",
+            "h",
+            "i",
+            "j",
+            "k",
+            "l",
+            "m",
+            "n",
+            "o",
+            "p",
+            "q",
+            "r",
+            "s",
+            "t",
+            "u",
+            "v",
+            "w",
+            "x",
+            "y",
+            "z",
+        ]
 
     def categorize_domains_by_tld(self, domains: list[str]) -> dict[str, list[str]]:
         """
@@ -825,7 +913,7 @@ class DomainFilter:
         """
         stats = {
             "total_domains": len(domains),
-            "unique_tlds": len(set(domain.split(".")[-1].lower() for domain in domains)),
+            "unique_tlds": len({domain.split(".")[-1].lower() for domain in domains}),
             "average_length": sum(len(domain) for domain in domains) / len(domains) if domains else 0,
             "longest_domain": max(domains, key=len) if domains else None,
             "shortest_domain": min(domains, key=len) if domains else None,
@@ -860,4 +948,4 @@ class DomainFilter:
                 root_domain = ".".join(parts[-2:])
                 root_domains.add(root_domain)
 
-        return sorted(list(root_domains))
+        return sorted(root_domains)

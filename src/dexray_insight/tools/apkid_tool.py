@@ -48,7 +48,6 @@ import logging
 import shutil
 import subprocess
 from typing import Any
-from typing import Optional
 
 from ..core.base_classes import BaseExternalTool
 from ..core.base_classes import register_tool
@@ -69,7 +68,7 @@ class APKIDTool(BaseExternalTool):
         self.include_types = config.get("include_types", True)
         self.json_output = config.get("json_output", True)
 
-    def execute(self, apk_path: str, output_dir: Optional[str] = None) -> dict[str, Any]:
+    def execute(self, apk_path: str, output_dir: str | None = None) -> dict[str, Any]:
         """
         Execute APKID on the APK file.
 
@@ -102,7 +101,7 @@ class APKIDTool(BaseExternalTool):
 
             # Execute command
             result = subprocess.run(
-                command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=self.timeout
+                command, capture_output=True, text=True, timeout=self.timeout
             )
 
             if result.returncode != 0:
@@ -171,7 +170,7 @@ class APKIDTool(BaseExternalTool):
         except Exception:
             return False
 
-    def get_version(self) -> Optional[str]:
+    def get_version(self) -> str | None:
         """
         Get APKID version.
 
@@ -180,7 +179,7 @@ class APKIDTool(BaseExternalTool):
         """
         try:
             result = subprocess.run(
-                ["apkid", "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=10
+                ["apkid", "--version"], capture_output=True, text=True, timeout=10
             )
 
             if result.returncode == 0:

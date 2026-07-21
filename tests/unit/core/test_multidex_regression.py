@@ -21,7 +21,7 @@ from dexray_insight.core.analysis_engine import AnalysisEngine
 from dexray_insight.core.base_classes import AnalysisContext
 from dexray_insight.core.configuration import Configuration
 from dexray_insight.modules.string_analysis import StringAnalysisModule
-from dexray_insight.Utils.androguardObjClass import Androguard_Obj
+from dexray_insight.Utils.androguardObjClass import AndroguardObj
 
 
 @pytest.mark.multidex
@@ -66,7 +66,7 @@ class TestMultidexRegression:
     @patch("dexray_insight.Utils.androguardObjClass.AnalyzeAPK")
     def test_androguard_object_handles_multidex(self, mock_analyze_apk):
         """
-        Test that Androguard_Obj correctly initializes with all DEX files in a multidex APK.
+        Test that AndroguardObj correctly initializes with all DEX files in a multidex APK.
 
         This is the core test for the regression - ensuring that androguard returns
         all DEX files, not just the first one.
@@ -79,7 +79,7 @@ class TestMultidexRegression:
         mock_analyze_apk.return_value = (mock_apk, mock_dex_objects, mock_dx_analysis)
 
         # Act
-        androguard_obj = Androguard_Obj(apk_path)
+        androguard_obj = AndroguardObj(apk_path)
 
         # Assert
         dex_obj = androguard_obj.get_androguard_dex()
@@ -110,7 +110,7 @@ class TestMultidexRegression:
         mock_analyze_apk.return_value = (mock_apk, mock_dex_objects, mock_dx_analysis)
 
         # Create androguard object
-        androguard_obj = Androguard_Obj(apk_path)
+        androguard_obj = AndroguardObj(apk_path)
 
         # Create analysis context
         config = Configuration()
@@ -170,7 +170,7 @@ class TestMultidexRegression:
         engine = AnalysisEngine(config)
 
         # Create androguard object
-        androguard_obj = Androguard_Obj(apk_path)
+        androguard_obj = AndroguardObj(apk_path)
 
         # Act - Run analysis through refactored engine
         results = engine.analyze_apk(apk_path, requested_modules=["string_analysis"], androguard_obj=androguard_obj)
@@ -208,7 +208,7 @@ class TestMultidexRegression:
             mock_analyze_apk.return_value = (mock_apk, mock_dex_objects, mock_dx_analysis)
 
             # Act
-            androguard_obj = Androguard_Obj(apk_path)
+            androguard_obj = AndroguardObj(apk_path)
 
             # Assert
             dex_obj = androguard_obj.get_androguard_dex()
@@ -232,7 +232,7 @@ class TestMultidexRegression:
 
         # Act & Assert
         with pytest.raises(Exception, match="Androguard analysis failed"):
-            Androguard_Obj(apk_path)
+            AndroguardObj(apk_path)
 
         # Cleanup
         os.unlink(apk_path)
@@ -250,7 +250,7 @@ class TestMultidexRegression:
             mock_analyze_apk.return_value = (mock_apk, [], mock_dx_analysis)  # Empty DEX list
 
             # Act
-            androguard_obj = Androguard_Obj(apk_path)
+            androguard_obj = AndroguardObj(apk_path)
 
             # Assert
             dex_obj = androguard_obj.get_androguard_dex()

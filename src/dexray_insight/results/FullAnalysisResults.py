@@ -29,6 +29,8 @@ from typing import Optional
 if TYPE_CHECKING:
     from .DeepAnalysisResults import DeepAnalysisResults
 
+import contextlib
+
 from ..Utils.file_utils import CustomJSONEncoder
 from .apkidResults import ApkidResults
 from .apkOverviewResults import APKOverview
@@ -50,14 +52,14 @@ class FullAnalysisResults:
         kavanoz_analysis: Tells if the apk is packed or not. If its packed Kavanoz tries to statically unpack them
     """
 
-    apk_overview: Optional[APKOverview] = None
-    in_depth_analysis: Optional[Results] = None
-    apkid_analysis: Optional[ApkidResults] = None
-    kavanoz_analysis: Optional[KavanozResults] = None
-    security_assessment: Optional[dict[str, Any]] = None
-    tracker_analysis: Optional[TrackerAnalysisResults] = None
-    behaviour_analysis: Optional[BehaviourAnalysisResults] = None
-    library_detection: Optional[LibraryDetectionResults] = None
+    apk_overview: APKOverview | None = None
+    in_depth_analysis: Results | None = None
+    apkid_analysis: ApkidResults | None = None
+    kavanoz_analysis: KavanozResults | None = None
+    security_assessment: dict[str, Any] | None = None
+    tracker_analysis: TrackerAnalysisResults | None = None
+    behaviour_analysis: BehaviourAnalysisResults | None = None
+    library_detection: LibraryDetectionResults | None = None
     deep_analysis: Optional["DeepAnalysisResults"] = None
 
     def __post_init__(self):
@@ -308,12 +310,12 @@ class FullAnalysisResults:
                     print(f"   ... and {len(self.in_depth_analysis.strings_emails) - 3} more")
 
             # .NET assemblies
-            if self.in_depth_analysis.dotnetMono_assemblies:
-                print(f"⚙️  .NET Assemblies: {len(self.in_depth_analysis.dotnetMono_assemblies)}")
-                for assembly in self.in_depth_analysis.dotnetMono_assemblies[:3]:  # Show max 3
+            if self.in_depth_analysis.dotnet_mono_assemblies:
+                print(f"⚙️  .NET Assemblies: {len(self.in_depth_analysis.dotnet_mono_assemblies)}")
+                for assembly in self.in_depth_analysis.dotnet_mono_assemblies[:3]:  # Show max 3
                     print(f"   • {assembly}")
-                if len(self.in_depth_analysis.dotnetMono_assemblies) > 3:
-                    print(f"   ... and {len(self.in_depth_analysis.dotnetMono_assemblies) - 3} more")
+                if len(self.in_depth_analysis.dotnet_mono_assemblies) > 3:
+                    print(f"   ... and {len(self.in_depth_analysis.dotnet_mono_assemblies) - 3} more")
 
     def _print_security_assessment_summary(self):
         """
@@ -417,125 +419,131 @@ class FullAnalysisResults:
 
         # APKID results - Show compiler information and repacking warnings
         if self.apkid_analysis:
-            # Check if apkid_analysis has files attribute and non-empty files
-            files = getattr(self.apkid_analysis, "files", [])
-
-            # If no files in the object, try to parse from raw_output
-            if not files and hasattr(self.apkid_analysis, "raw_output") and self.apkid_analysis.raw_output:
-                try:
-                    import json
-
-                    raw_data = json.loads(self.apkid_analysis.raw_output)
-                    if "files" in raw_data:
-                        from .apkidResults import ApkidFileAnalysis
-
-                        files = [
-                            ApkidFileAnalysis(
-                                filename=file_data.get("filename", ""), matches=file_data.get("matches", {})
-                            )
-                            for file_data in raw_data["files"]
-                        ]
-                        # Update the object with parsed files
-                        self.apkid_analysis.files = files
-                except Exception as e:
-                    import logging
-
-                    logging.getLogger(__name__).debug(f"Failed to parse APKID raw_output: {e}")
-
+            files = self._parse_apkid_files()
             if files:
-                print("\n🔧 COMPILER & APKID ANALYSIS")
-                print("-" * 40)
+                self._print_apkid_findings(files)
 
-                # Collect all compiler and packer information
-                compilers = []
-                packers = []
-                other_findings = {}
-                first_dex_compiler = None
+    def _parse_apkid_files(self):
+        """Return APKID file analyses, parsing raw_output when needed."""
+        # Check if apkid_analysis has files attribute and non-empty files
+        files = getattr(self.apkid_analysis, "files", [])
 
-                for file_analysis in files:
-                    # Skip library files to avoid noise
-                    if "!lib/" in file_analysis.filename.lower():
-                        continue
+        # If no files in the object, try to parse from raw_output
+        if not files and hasattr(self.apkid_analysis, "raw_output") and self.apkid_analysis.raw_output:
+            try:
+                import json
 
-                    # Check if this is the first/main dex file
-                    filename_lower = file_analysis.filename.lower()
-                    is_main_dex = (
-                        filename_lower.endswith("classes.dex")
-                        or filename_lower.endswith("classes1.dex")
-                        or "!classes.dex" in filename_lower
-                        or "!classes1.dex" in filename_lower
-                    )
+                raw_data = json.loads(self.apkid_analysis.raw_output)
+                if "files" in raw_data:
+                    from .apkidResults import ApkidFileAnalysis
 
-                    for category, matches in file_analysis.matches.items():
-                        if category.lower() == "compiler":
-                            compilers.extend(matches)
-                            # Capture first dex compiler for special highlighting
-                            if is_main_dex and first_dex_compiler is None and matches:
-                                first_dex_compiler = matches[0] if isinstance(matches, list) else matches
-                        elif category.lower() == "packer":
-                            packers.extend(matches)
-                        else:
-                            # Collect other interesting findings
-                            if category.lower() in ["obfuscator", "anti_vm", "anti_debug", "anti_disassembly"]:
-                                if category not in other_findings:
-                                    other_findings[category] = []
-                                other_findings[category].extend(matches)
+                    files = [
+                        ApkidFileAnalysis(
+                            filename=file_data.get("filename", ""), matches=file_data.get("matches", {})
+                        )
+                        for file_data in raw_data["files"]
+                    ]
+                    # Update the object with parsed files
+                    self.apkid_analysis.files = files
+            except Exception as e:
+                import logging
 
-                # Remove duplicates
-                compilers = list(set(compilers))
-                packers = list(set(packers))
+                logging.getLogger(__name__).debug(f"Failed to parse APKID raw_output: {e}")
 
-                # Show first dex compiler prominently if found
-                if first_dex_compiler:
-                    print(f"🎯 Primary DEX Compiler: {first_dex_compiler}")
+        return files
 
-                    # Check for repacking indicators
-                    compiler_lower = first_dex_compiler.lower()
-                    if any(
-                        repack_indicator in compiler_lower for repack_indicator in ["dexlib", "dx", "baksmali", "smali"]
-                    ):
-                        print(f"   ⚠️  WARNING: {first_dex_compiler} detected - APK may be repacked/modified")
-                    print()
+    def _print_apkid_findings(self, files):
+        """Print APKID compiler, packer, and security findings."""
+        print("\n🔧 COMPILER & APKID ANALYSIS")
+        print("-" * 40)
 
-                # Show all compiler information
-                if compilers:
-                    print("🛠️  All Compiler(s) Detected:")
-                    for compiler in compilers:
-                        # Mark the first dex compiler if it's in the list
-                        if compiler == first_dex_compiler:
-                            print(f"   • {compiler} ⭐ (Primary DEX)")
-                        else:
-                            print(f"   • {compiler}")
-                    print()
+        # Collect all compiler and packer information
+        compilers = []
+        packers = []
+        other_findings = {}
+        first_dex_compiler = None
 
-                # Show packer information
-                if packers:
-                    print("📦 Packer(s) Detected:")
-                    for packer in packers:
-                        print(f"   • {packer}")
-                    print()
+        for file_analysis in files:
+            # Skip library files to avoid noise
+            if "!lib/" in file_analysis.filename.lower():
+                continue
 
-                # Show other security-relevant findings
-                for category, matches in other_findings.items():
-                    if matches:
-                        unique_matches = list(set(matches))
-                        print(f"🛡️  {category.replace('_', ' ').title()}:")
-                        for match in unique_matches[:3]:  # Show max 3
-                            print(f"   • {match}")
-                        if len(unique_matches) > 3:
-                            print(f"   ... and {len(unique_matches) - 3} more")
-                        print()
+            # Check if this is the first/main dex file
+            filename_lower = file_analysis.filename.lower()
+            is_main_dex = (
+                filename_lower.endswith(("classes.dex", "classes1.dex")) or "!classes.dex" in filename_lower or "!classes1.dex" in filename_lower
+            )
 
-                # If no specific categories found, show general findings
-                if not compilers and not packers and not other_findings:
-                    print("ℹ️  No specific compiler, packer, or security findings detected")
-                    # Show any other findings from the first file
-                    if files and files[0].matches:
-                        shown = 0
-                        for category, matches in files[0].matches.items():
-                            if matches and shown < 3:
-                                print(f"   {category.replace('_', ' ').title()}: {', '.join(matches[:2])}")
-                                shown += 1
+            for category, matches in file_analysis.matches.items():
+                if category.lower() == "compiler":
+                    compilers.extend(matches)
+                    # Capture first dex compiler for special highlighting
+                    if is_main_dex and first_dex_compiler is None and matches:
+                        first_dex_compiler = matches[0] if isinstance(matches, list) else matches
+                elif category.lower() == "packer":
+                    packers.extend(matches)
+                else:
+                    # Collect other interesting findings
+                    if category.lower() in ["obfuscator", "anti_vm", "anti_debug", "anti_disassembly"]:
+                        if category not in other_findings:
+                            other_findings[category] = []
+                        other_findings[category].extend(matches)
+
+        # Remove duplicates
+        compilers = list(set(compilers))
+        packers = list(set(packers))
+
+        # Show first dex compiler prominently if found
+        if first_dex_compiler:
+            print(f"🎯 Primary DEX Compiler: {first_dex_compiler}")
+
+            # Check for repacking indicators
+            compiler_lower = first_dex_compiler.lower()
+            if any(
+                repack_indicator in compiler_lower for repack_indicator in ["dexlib", "dx", "baksmali", "smali"]
+            ):
+                print(f"   ⚠️  WARNING: {first_dex_compiler} detected - APK may be repacked/modified")
+            print()
+
+        # Show all compiler information
+        if compilers:
+            print("🛠️  All Compiler(s) Detected:")
+            for compiler in compilers:
+                # Mark the first dex compiler if it's in the list
+                if compiler == first_dex_compiler:
+                    print(f"   • {compiler} ⭐ (Primary DEX)")
+                else:
+                    print(f"   • {compiler}")
+            print()
+
+        # Show packer information
+        if packers:
+            print("📦 Packer(s) Detected:")
+            for packer in packers:
+                print(f"   • {packer}")
+            print()
+
+        # Show other security-relevant findings
+        for category, matches in other_findings.items():
+            if matches:
+                unique_matches = list(set(matches))
+                print(f"🛡️  {category.replace('_', ' ').title()}:")
+                for match in unique_matches[:3]:  # Show max 3
+                    print(f"   • {match}")
+                if len(unique_matches) > 3:
+                    print(f"   ... and {len(unique_matches) - 3} more")
+                print()
+
+        # If no specific categories found, show general findings
+        if not compilers and not packers and not other_findings:
+            print("ℹ️  No specific compiler, packer, or security findings detected")
+            # Show any other findings from the first file
+            if files and files[0].matches:
+                shown = 0
+                for category, matches in files[0].matches.items():
+                    if matches and shown < 3:
+                        print(f"   {category.replace('_', ' ').title()}: {', '.join(matches[:2])}")
+                        shown += 1
 
     def _print_component_behavior_summary(self):
         """
@@ -669,52 +677,8 @@ class FullAnalysisResults:
             if not hasattr(lib, "security_risk") or lib.security_risk in ["LOW", None]
         ]
 
-        # Print critical libraries first
-        if critical_libs:
-            print(f"\n⚠️  CRITICAL RISK LIBRARIES ({len(critical_libs)}):")
-            print("-" * 40)
-            for lib in sorted(critical_libs, key=lambda x: getattr(x, "years_behind", 0), reverse=True):
-                formatted = self._format_library_version_output(lib)
-                print(f"   {formatted}")
-                if hasattr(lib, "version_recommendation") and lib.version_recommendation:
-                    print(f"   └─ {lib.version_recommendation}")
-
-        # Print high risk libraries
-        if high_risk_libs:
-            print(f"\n⚠️  HIGH RISK LIBRARIES ({len(high_risk_libs)}):")
-            print("-" * 40)
-            for lib in sorted(high_risk_libs, key=lambda x: getattr(x, "years_behind", 0), reverse=True):
-                formatted = self._format_library_version_output(lib)
-                print(f"   {formatted}")
-                if hasattr(lib, "version_recommendation") and lib.version_recommendation:
-                    print(f"   └─ {lib.version_recommendation}")
-
-        # Print medium risk libraries
-        if medium_risk_libs:
-            print(f"\n⚠️  MEDIUM RISK LIBRARIES ({len(medium_risk_libs)}):")
-            print("-" * 40)
-            for lib in sorted(medium_risk_libs, key=lambda x: getattr(x, "years_behind", 0), reverse=True):
-                formatted = self._format_library_version_output(lib)
-                print(f"   {formatted}")
-
-        # Print low risk libraries (summary only)
-        if low_risk_libs:
-            current_libs = [lib for lib in low_risk_libs if getattr(lib, "years_behind", 0) < 0.5]
-            outdated_libs = [lib for lib in low_risk_libs if getattr(lib, "years_behind", 0) >= 0.5]
-
-            if outdated_libs:
-                print(f"\n📋 OUTDATED LIBRARIES ({len(outdated_libs)}):")
-                print("-" * 40)
-                for lib in sorted(outdated_libs, key=lambda x: getattr(x, "years_behind", 0), reverse=True):
-                    formatted = self._format_library_version_output(lib)
-                    print(f"   {formatted}")
-
-            if current_libs:
-                print(f"\n✅ CURRENT LIBRARIES ({len(current_libs)}):")
-                print("-" * 40)
-                for lib in sorted(current_libs, key=lambda x: getattr(x, "name", "")):
-                    formatted = self._format_library_version_output(lib)
-                    print(f"   {formatted}")
+        # Print libraries grouped by security risk
+        self._print_version_risk_groups(critical_libs, high_risk_libs, medium_risk_libs, low_risk_libs)
 
         # Show libraries without version analysis
         if no_analysis_libs:
@@ -762,6 +726,55 @@ class FullAnalysisResults:
             self._print_cve_summary()
 
         print("=" * 80)
+
+    def _print_version_risk_groups(self, critical_libs, high_risk_libs, medium_risk_libs, low_risk_libs):
+        """Print detected libraries grouped by security risk level."""
+        # Print critical libraries first
+        if critical_libs:
+            print(f"\n⚠️  CRITICAL RISK LIBRARIES ({len(critical_libs)}):")
+            print("-" * 40)
+            for lib in sorted(critical_libs, key=lambda x: getattr(x, "years_behind", 0), reverse=True):
+                formatted = self._format_library_version_output(lib)
+                print(f"   {formatted}")
+                if hasattr(lib, "version_recommendation") and lib.version_recommendation:
+                    print(f"   └─ {lib.version_recommendation}")
+
+        # Print high risk libraries
+        if high_risk_libs:
+            print(f"\n⚠️  HIGH RISK LIBRARIES ({len(high_risk_libs)}):")
+            print("-" * 40)
+            for lib in sorted(high_risk_libs, key=lambda x: getattr(x, "years_behind", 0), reverse=True):
+                formatted = self._format_library_version_output(lib)
+                print(f"   {formatted}")
+                if hasattr(lib, "version_recommendation") and lib.version_recommendation:
+                    print(f"   └─ {lib.version_recommendation}")
+
+        # Print medium risk libraries
+        if medium_risk_libs:
+            print(f"\n⚠️  MEDIUM RISK LIBRARIES ({len(medium_risk_libs)}):")
+            print("-" * 40)
+            for lib in sorted(medium_risk_libs, key=lambda x: getattr(x, "years_behind", 0), reverse=True):
+                formatted = self._format_library_version_output(lib)
+                print(f"   {formatted}")
+
+        # Print low risk libraries (summary only)
+        if low_risk_libs:
+            current_libs = [lib for lib in low_risk_libs if getattr(lib, "years_behind", 0) < 0.5]
+            outdated_libs = [lib for lib in low_risk_libs if getattr(lib, "years_behind", 0) >= 0.5]
+
+            if outdated_libs:
+                print(f"\n📋 OUTDATED LIBRARIES ({len(outdated_libs)}):")
+                print("-" * 40)
+                for lib in sorted(outdated_libs, key=lambda x: getattr(x, "years_behind", 0), reverse=True):
+                    formatted = self._format_library_version_output(lib)
+                    print(f"   {formatted}")
+
+            if current_libs:
+                print(f"\n✅ CURRENT LIBRARIES ({len(current_libs)}):")
+                print("-" * 40)
+                for lib in sorted(current_libs, key=lambda x: getattr(x, "name", "")):
+                    formatted = self._format_library_version_output(lib)
+                    print(f"   {formatted}")
 
     def _safe_get_finding_attribute(self, finding, attr_name, default=""):
         """
@@ -873,14 +886,12 @@ class FullAnalysisResults:
                 findings = self.security_assessment
             elif isinstance(self.security_assessment, dict):
                 # Flatten dict to find findings
-                for key, value in self.security_assessment.items():
+                for _key, value in self.security_assessment.items():
                     if isinstance(value, list):
                         findings.extend(value)
                     elif hasattr(value, "__iter__") and not isinstance(value, str):
-                        try:
+                        with contextlib.suppress(Exception):
                             findings.extend(value)
-                        except Exception:
-                            pass
 
             # Look for CVE findings with multiple criteria
             for finding in findings:
@@ -902,61 +913,7 @@ class FullAnalysisResults:
 
                 if is_cve_finding:
                     cve_findings.append(finding)
-                    # Try to extract vulnerability count from title, description, and evidence
-                    count_found = False
-
-                    # Check title for numbers
-                    finding_title = self._safe_get_finding_attribute(finding, "title")
-                    if finding_title and isinstance(finding_title, str):
-                        import re
-
-                        title_numbers = re.findall(r"(\d+)\s*(?:vulnerabilities?|cves?)", finding_title.lower())
-                        if title_numbers:
-                            total_vulnerabilities += int(title_numbers[0])
-                            count_found = True
-
-                    # Check description for numbers
-                    if not count_found:
-                        finding_description = self._safe_get_finding_attribute(finding, "description")
-                        if finding_description and isinstance(finding_description, str):
-                            import re
-
-                            desc_numbers = re.findall(
-                                r"(\d+)\s*(?:vulnerabilities?|cves?)", finding_description.lower()
-                            )
-                            if desc_numbers:
-                                total_vulnerabilities += int(desc_numbers[0])
-                                count_found = True
-
-                    # Check evidence for numbers
-                    if not count_found:
-                        finding_evidence = self._safe_get_finding_attribute(finding, "evidence", [])
-                        if finding_evidence:
-                            # Handle case where evidence might be returned as string instead of list
-                            evidence_list = (
-                                finding_evidence if isinstance(finding_evidence, list) else [finding_evidence]
-                            )
-                            for evidence in evidence_list:
-                                if isinstance(evidence, str):
-                                    import re
-
-                                    evidence_numbers = re.findall(
-                                        r"(\d+)\s*(?:vulnerabilities?|cves?)", evidence.lower()
-                                    )
-                                    if evidence_numbers:
-                                        total_vulnerabilities += int(evidence_numbers[0])
-                                        count_found = True
-                                        break
-                                    # Also look for specific CVE count patterns
-                                    total_pattern = re.search(
-                                        r"total\s+cve\s+vulnerabilities\s+found:\s*(\d+)", evidence.lower()
-                                    )
-                                    if total_pattern:
-                                        total_vulnerabilities = int(
-                                            total_pattern.group(1)
-                                        )  # Use exact count, don't add
-                                        count_found = True
-                                        break
+                    total_vulnerabilities = self._extract_cve_vulnerability_count(finding, total_vulnerabilities)
 
             # Print enhanced CVE summary with top critical findings
             if cve_findings:
@@ -988,6 +945,66 @@ class FullAnalysisResults:
             import logging
 
             logging.debug(f"CVE summary error: {error_details}")
+
+    def _extract_cve_vulnerability_count(self, finding, total_vulnerabilities):
+        """Extract the vulnerability count for a CVE finding from its fields."""
+        # Try to extract vulnerability count from title, description, and evidence
+        count_found = False
+
+        # Check title for numbers
+        finding_title = self._safe_get_finding_attribute(finding, "title")
+        if finding_title and isinstance(finding_title, str):
+            import re
+
+            title_numbers = re.findall(r"(\d+)\s*(?:vulnerabilities?|cves?)", finding_title.lower())
+            if title_numbers:
+                total_vulnerabilities += int(title_numbers[0])
+                count_found = True
+
+        # Check description for numbers
+        if not count_found:
+            finding_description = self._safe_get_finding_attribute(finding, "description")
+            if finding_description and isinstance(finding_description, str):
+                import re
+
+                desc_numbers = re.findall(
+                    r"(\d+)\s*(?:vulnerabilities?|cves?)", finding_description.lower()
+                )
+                if desc_numbers:
+                    total_vulnerabilities += int(desc_numbers[0])
+                    count_found = True
+
+        # Check evidence for numbers
+        if not count_found:
+            finding_evidence = self._safe_get_finding_attribute(finding, "evidence", [])
+            if finding_evidence:
+                # Handle case where evidence might be returned as string instead of list
+                evidence_list = (
+                    finding_evidence if isinstance(finding_evidence, list) else [finding_evidence]
+                )
+                for evidence in evidence_list:
+                    if isinstance(evidence, str):
+                        import re
+
+                        evidence_numbers = re.findall(
+                            r"(\d+)\s*(?:vulnerabilities?|cves?)", evidence.lower()
+                        )
+                        if evidence_numbers:
+                            total_vulnerabilities += int(evidence_numbers[0])
+                            count_found = True
+                            break
+                        # Also look for specific CVE count patterns
+                        total_pattern = re.search(
+                            r"total\s+cve\s+vulnerabilities\s+found:\s*(\d+)", evidence.lower()
+                        )
+                        if total_pattern:
+                            total_vulnerabilities = int(
+                                total_pattern.group(1)
+                            )  # Use exact count, don't add
+                            count_found = True
+                            break
+
+        return total_vulnerabilities
 
     def _print_enhanced_cve_summary(self, libraries_with_versions):
         """Enhanced CVE summary that integrates with library version analysis."""

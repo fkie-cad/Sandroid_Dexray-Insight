@@ -29,7 +29,6 @@ Handles searching through DEX strings, smali code, and other APK components.
 
 import logging
 import re
-from typing import Optional
 
 from ..models.behavior_evidence import BehaviorEvidence
 
@@ -37,7 +36,7 @@ from ..models.behavior_evidence import BehaviorEvidence
 class PatternSearchEngine:
     """Centralized pattern search engine for behavior analysis."""
 
-    def __init__(self, logger: Optional[logging.Logger] = None):
+    def __init__(self, logger: logging.Logger | None = None):
         """Initialize PatternSearchEngine with optional logger."""
         self.logger = logger or logging.getLogger(__name__)
 

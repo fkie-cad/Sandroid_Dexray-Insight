@@ -192,9 +192,8 @@ class TestVersionAnalysisDisplayLocation:
 
         # Capture full summary output
         with patch("sys.stdout", new=StringIO()) as fake_out:
-            with patch.object(results, "_print_summary_header"):
-                with patch.object(results, "_print_summary_footer"):
-                    results.print_analyst_summary()
+            with patch.object(results, "_print_summary_header"), patch.object(results, "_print_summary_footer"):
+                results.print_analyst_summary()
             output = fake_out.getvalue()
 
         # Should contain both library detection and version analysis

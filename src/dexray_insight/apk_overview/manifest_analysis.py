@@ -623,6 +623,54 @@ def _integrate_network_security(checksum, man_data_dic, do_netsec, src_type, app
     return additional_findings
 
 
+def _collect_browsable_activities(mfxml, ns):
+    """Collect browsable activities for later analysis.
+
+    Single Responsibility: Gather browsable activity metadata only.
+    """
+    browsable_activities = {}
+    applications = mfxml.getElementsByTagName("application")
+    for application in applications:
+        for node in application.childNodes:
+            if hasattr(node, "nodeName") and node.nodeName in ["activity", "activity-alias"]:
+                browse_dic = get_browsable_activities(node, ns)
+                if browse_dic["browsable"]:
+                    browsable_activities[node.getAttribute(f"{ns}:name")] = browse_dic
+    return browsable_activities
+
+
+def _build_permissions_output(man_data_dic):
+    """Process permissions into structured output format.
+
+    Single Responsibility: Build the permissions output dictionary only.
+    """
+    permissions = {}
+    if "perm" in man_data_dic:
+        for k, permission in man_data_dic["perm"].items():
+            permissions[k] = {
+                "status": permission[0],
+                "info": permission[1],
+                "description": permission[2],
+            }
+    return permissions
+
+
+def _determine_network_security_requirements(mfxml, ns):
+    """Determine network security analysis requirements from the manifest.
+
+    Single Responsibility: Derive network security config and debuggable flag only.
+    """
+    do_netsec = False
+    debuggable = False
+    applications = mfxml.getElementsByTagName("application")
+    for application in applications:
+        if application.getAttribute(f"{ns}:networkSecurityConfig"):
+            do_netsec = application.getAttribute(f"{ns}:networkSecurityConfig")
+        if application.getAttribute(f"{ns}:debuggable") == "true":
+            debuggable = True
+    return do_netsec, debuggable
+
+
 def manifest_analysis(checksum, mfxml, ns, man_data_dic, src_type, app_dir):
     """Analyze manifest file using specialized analysis functions.
 
@@ -683,24 +731,10 @@ def manifest_analysis(checksum, mfxml, ns, man_data_dic, src_type, app_dir):
         network_security_findings = _integrate_network_security(checksum, man_data_dic, False, src_type, app_dir)
 
         # Phase 11: Collect browsable activities for later analysis
-        browsable_activities = {}
-        applications = mfxml.getElementsByTagName("application")
-        for application in applications:
-            for node in application.childNodes:
-                if hasattr(node, "nodeName") and node.nodeName in ["activity", "activity-alias"]:
-                    browse_dic = get_browsable_activities(node, ns)
-                    if browse_dic["browsable"]:
-                        browsable_activities[node.getAttribute(f"{ns}:name")] = browse_dic
+        browsable_activities = _collect_browsable_activities(mfxml, ns)
 
         # Phase 12: Process permissions for output
-        permissions = {}
-        if "perm" in man_data_dic:
-            for k, permission in man_data_dic["perm"].items():
-                permissions[k] = {
-                    "status": permission[0],
-                    "info": permission[1],
-                    "description": permission[2],
-                }
+        permissions = _build_permissions_output(man_data_dic)
 
         # Phase 13: Count exported components
         exported_comp = {
@@ -711,14 +745,7 @@ def manifest_analysis(checksum, mfxml, ns, man_data_dic, src_type, app_dir):
         }
 
         # Phase 14: Determine network security analysis requirements
-        do_netsec = False
-        debuggable = False
-        applications = mfxml.getElementsByTagName("application")
-        for application in applications:
-            if application.getAttribute(f"{ns}:networkSecurityConfig"):
-                do_netsec = application.getAttribute(f"{ns}:networkSecurityConfig")
-            if application.getAttribute(f"{ns}:debuggable") == "true":
-                debuggable = True
+        do_netsec, debuggable = _determine_network_security_requirements(mfxml, ns)
 
         # Phase 15: Build final result dictionary
         man_an_dic = {

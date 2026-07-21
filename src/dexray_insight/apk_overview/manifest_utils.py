@@ -165,7 +165,7 @@ def get_xml_namespace(xml_str):
 def get_fallback():
     """Return fallback XML manifest when parsing fails."""
     logger.warning("Using Fake XML to continue the Analysis")
-    return minidom.parseString(
+    return minidom.parseString(  # noqa: S318
         r'<?xml version="1.0" encoding="utf-8"?><manifest xmlns:android='
         r'"http://schemas.android.com/apk/res/android" '
         r'android:versionCode="Failed"  '
@@ -210,14 +210,141 @@ def get_manifest(app_path, app_dir, typ, apk):
         if ns and ns != "android":
             logger.warning("Non standard XML namespace: %s", ns)
         try:
-            return manifest_file, ns, minidom.parseString(xml_str)
+            return manifest_file, ns, minidom.parseString(xml_str)  # noqa: S318
         except ExpatError:
             logger.warning("Parsing AndroidManifest.xml failed")
-            return manifest_file, ns, minidom.parseString(bs4_xml_parser(xml_str))
+            return manifest_file, ns, minidom.parseString(bs4_xml_parser(xml_str))  # noqa: S318
     except Exception:
         msg = "Parsing AndroidManifest.xml failed"
         logger.exception(msg)
     return manifest_file, ns, get_fallback()
+
+
+def _extract_sdk_versions(sdk, ns):
+    """Extract min/max/target SDK versions from uses-sdk nodes."""
+    minsdk = ""
+    maxsdk = ""
+    targetsdk = ""
+    for node in sdk:
+        minsdk = node.getAttribute(f"{ns}:minSdkVersion")
+        maxsdk = node.getAttribute(f"{ns}:maxSdkVersion")
+        # Esteve 08.08.2016 - begin - If android:targetSdkVersion
+        # is not set, the default value is the one of the
+        # minSdkVersiontargetsdk
+        # = node.getAttribute (f'{ns}:targetSdkVersion')
+        if node.getAttribute(f"{ns}:targetSdkVersion"):
+            targetsdk = node.getAttribute(f"{ns}:targetSdkVersion")
+        else:
+            targetsdk = node.getAttribute(f"{ns}:minSdkVersion")
+        # End
+    return minsdk, maxsdk, targetsdk
+
+
+def _extract_manifest_attrs(manifest, ns):
+    """Extract package name and version code/name from manifest nodes."""
+    package = ""
+    androidversioncode = ""
+    androidversionname = ""
+    for node in manifest:
+        package = node.getAttribute("package")
+        androidversioncode = node.getAttribute(f"{ns}:versionCode")
+        androidversionname = node.getAttribute(f"{ns}:versionName")
+    return package, androidversioncode, androidversionname
+
+
+def _extract_activities(activities, ns):
+    """Extract activity names and the main activity."""
+    act = []
+    mainact = ""
+    alt_main = ""
+    for activity in activities:
+        act_2 = activity.getAttribute(f"{ns}:name")
+        act.append(act_2)
+        if not mainact:
+            # ^ Some manifest has more than one MAIN, take only
+            # the first occurrence.
+            for sitem in activity.getElementsByTagName("action"):
+                val = sitem.getAttribute(f"{ns}:name")
+                if val == "android.intent.action.MAIN":
+                    mainact = activity.getAttribute(f"{ns}:name")
+            # Manifest has no MAIN, look for launch activity.
+            for sitem in activity.getElementsByTagName("category"):
+                val = sitem.getAttribute(f"{ns}:name")
+                if val == "android.intent.category.LAUNCHER":
+                    alt_main = activity.getAttribute(f"{ns}:name")
+    if not mainact and alt_main:
+        mainact = alt_main
+    return act, mainact
+
+
+def _extract_components(services, providers, receivers, libs, categories, ns):
+    """Extract services, providers, receivers, libraries and categories."""
+    svc = []
+    cnp = []
+    brd = []
+    lib = []
+    cat = []
+    for service in services:
+        service_name = service.getAttribute(f"{ns}:name")
+        svc.append(service_name)
+
+    for provider in providers:
+        provider_name = provider.getAttribute(f"{ns}:name")
+        cnp.append(provider_name)
+
+    for receiver in receivers:
+        rec = receiver.getAttribute(f"{ns}:name")
+        brd.append(rec)
+
+    for _lib in libs:
+        library = _lib.getAttribute(f"{ns}:name")
+        lib.append(library)
+
+    for category in categories:
+        cat.append(category.getAttribute(f"{ns}:name"))
+    return svc, cnp, brd, lib, cat
+
+
+def _extract_icons(applications, ns):
+    """Extract icon paths from application nodes."""
+    icons = []
+    for application in applications:
+        try:
+            icon_path = application.getAttribute(f"{ns}:icon")
+            icons.append(icon_path)
+        except Exception:  # noqa: S112
+            continue  # No icon attribute?
+    return icons
+
+
+def _extract_permissions(permissions, ns):
+    """Resolve declared permissions against the DVM permission reference."""
+    perm = []
+    dvm_perm = {}
+    android_permission_tags = ("com.google.", "android.", "com.google.")
+    for permission in permissions:
+        perm.append(permission.getAttribute(f"{ns}:name"))
+    for full_perm in perm:
+        # For general android permissions
+        prm = full_perm
+        pos = full_perm.rfind(".")
+        if pos != -1:
+            prm = full_perm[pos + 1 :]
+        if not full_perm.startswith(android_permission_tags):
+            prm = full_perm
+        try:
+            dvm_perm[full_perm] = DVM_PERMISSIONS["MANIFEST_PERMISSION"][prm]
+        except KeyError:
+            # Handle Special Perms
+            if DVM_PERMISSIONS["SPECIAL_PERMISSIONS"].get(full_perm):
+                dvm_perm[full_perm] = DVM_PERMISSIONS["SPECIAL_PERMISSIONS"][full_perm]
+            else:
+                dvm_perm[full_perm] = [
+                    "unknown",
+                    "Unknown permission",
+                    "Unknown permission from android reference",
+                ]
+    return dvm_perm
 
 
 def manifest_data(mfxml, ns):
@@ -225,22 +352,7 @@ def manifest_data(mfxml, ns):
     try:
         msg = "Extracting Manifest Data"
         logger.info(msg)
-        svc = []
-        act = []
-        brd = []
-        cnp = []
-        lib = []
-        perm = []
-        cat = []
         icons = []
-        dvm_perm = {}
-        package = ""
-        minsdk = ""
-        maxsdk = ""
-        targetsdk = ""
-        mainact = ""
-        androidversioncode = ""
-        androidversionname = ""
         applications = mfxml.getElementsByTagName("application")
         permissions = mfxml.getElementsByTagName("uses-permission")
         permsdk23 = mfxml.getElementsByTagName("uses-permission-sdk-23")
@@ -254,90 +366,12 @@ def manifest_data(mfxml, ns):
         libs = mfxml.getElementsByTagName("uses-library")
         sdk = mfxml.getElementsByTagName("uses-sdk")
         categories = mfxml.getElementsByTagName("category")
-        for node in sdk:
-            minsdk = node.getAttribute(f"{ns}:minSdkVersion")
-            maxsdk = node.getAttribute(f"{ns}:maxSdkVersion")
-            # Esteve 08.08.2016 - begin - If android:targetSdkVersion
-            # is not set, the default value is the one of the
-            # minSdkVersiontargetsdk
-            # = node.getAttribute (f'{ns}:targetSdkVersion')
-            if node.getAttribute(f"{ns}:targetSdkVersion"):
-                targetsdk = node.getAttribute(f"{ns}:targetSdkVersion")
-            else:
-                targetsdk = node.getAttribute(f"{ns}:minSdkVersion")
-            # End
-        for node in manifest:
-            package = node.getAttribute("package")
-            androidversioncode = node.getAttribute(f"{ns}:versionCode")
-            androidversionname = node.getAttribute(f"{ns}:versionName")
-        alt_main = ""
-        for activity in activities:
-            act_2 = activity.getAttribute(f"{ns}:name")
-            act.append(act_2)
-            if not mainact:
-                # ^ Some manifest has more than one MAIN, take only
-                # the first occurrence.
-                for sitem in activity.getElementsByTagName("action"):
-                    val = sitem.getAttribute(f"{ns}:name")
-                    if val == "android.intent.action.MAIN":
-                        mainact = activity.getAttribute(f"{ns}:name")
-                # Manifest has no MAIN, look for launch activity.
-                for sitem in activity.getElementsByTagName("category"):
-                    val = sitem.getAttribute(f"{ns}:name")
-                    if val == "android.intent.category.LAUNCHER":
-                        alt_main = activity.getAttribute(f"{ns}:name")
-        if not mainact and alt_main:
-            mainact = alt_main
-
-        for service in services:
-            service_name = service.getAttribute(f"{ns}:name")
-            svc.append(service_name)
-
-        for provider in providers:
-            provider_name = provider.getAttribute(f"{ns}:name")
-            cnp.append(provider_name)
-
-        for receiver in receivers:
-            rec = receiver.getAttribute(f"{ns}:name")
-            brd.append(rec)
-
-        for _lib in libs:
-            library = _lib.getAttribute(f"{ns}:name")
-            lib.append(library)
-
-        for category in categories:
-            cat.append(category.getAttribute(f"{ns}:name"))
-
-        for application in applications:
-            try:
-                icon_path = application.getAttribute(f"{ns}:icon")
-                icons.append(icon_path)
-            except Exception:
-                continue  # No icon attribute?
-
-        android_permission_tags = ("com.google.", "android.", "com.google.")
-        for permission in permissions:
-            perm.append(permission.getAttribute(f"{ns}:name"))
-        for full_perm in perm:
-            # For general android permissions
-            prm = full_perm
-            pos = full_perm.rfind(".")
-            if pos != -1:
-                prm = full_perm[pos + 1 :]
-            if not full_perm.startswith(android_permission_tags):
-                prm = full_perm
-            try:
-                dvm_perm[full_perm] = DVM_PERMISSIONS["MANIFEST_PERMISSION"][prm]
-            except KeyError:
-                # Handle Special Perms
-                if DVM_PERMISSIONS["SPECIAL_PERMISSIONS"].get(full_perm):
-                    dvm_perm[full_perm] = DVM_PERMISSIONS["SPECIAL_PERMISSIONS"][full_perm]
-                else:
-                    dvm_perm[full_perm] = [
-                        "unknown",
-                        "Unknown permission",
-                        "Unknown permission from android reference",
-                    ]
+        minsdk, maxsdk, targetsdk = _extract_sdk_versions(sdk, ns)
+        package, androidversioncode, androidversionname = _extract_manifest_attrs(manifest, ns)
+        act, mainact = _extract_activities(activities, ns)
+        svc, cnp, brd, lib, cat = _extract_components(services, providers, receivers, libs, categories, ns)
+        icons = _extract_icons(applications, ns)
+        dvm_perm = _extract_permissions(permissions, ns)
 
         man_data_dic = {
             "services": svc,

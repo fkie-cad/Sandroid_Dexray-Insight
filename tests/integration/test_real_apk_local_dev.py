@@ -17,6 +17,7 @@ Tests covered:
 """
 
 import logging
+import os
 
 # Import analysis components
 import sys
@@ -36,6 +37,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from dexray_insight.core.analysis_engine import AnalysisEngine
 from dexray_insight.core.configuration import Configuration
+
+# Local-development real-APK tests: they require external tools and sample APKs
+# not available in GitHub Actions. Skip them in CI; they still run locally.
+pytestmark = pytest.mark.skipif(
+    os.getenv("GITHUB_ACTIONS") == "true",
+    reason="Real-APK tests require local external tools/baseline not available in CI",
+)
 
 
 @pytest.mark.real_apk
@@ -170,7 +178,7 @@ class TestRealAPKLocalDevelopment:
                         "high_severity_findings": len([f for f in findings if f.get("severity") == "HIGH"]),
                         "critical_findings": len([f for f in findings if f.get("severity") == "CRITICAL"]),
                         "owasp_categories": list(
-                            set(f.get("category", "").split(":")[0] for f in findings if f.get("category"))
+                            {f.get("category", "").split(":")[0] for f in findings if f.get("category")}
                         ),
                     }
 

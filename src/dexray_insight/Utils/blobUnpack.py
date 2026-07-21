@@ -30,7 +30,6 @@ import os.path
 import shutil
 import struct
 import sys
-from builtins import object
 
 import lz4.block
 import xxhash
@@ -70,10 +69,10 @@ DEBUG = False
 def debug(message):
     """Print a debuggable message."""
     if DEBUG:
-        print("[debug] %s" % message)
+        print(f"[debug] {message}")
 
 
-class ManifestEntry(object):
+class ManifestEntry:
     """Element in Manifest."""
 
     hash32 = ""
@@ -102,7 +101,7 @@ class ManifestList(list):
         return None
 
 
-class AssemblyStoreAssembly(object):
+class AssemblyStoreAssembly:
     """Assembly Details."""
 
     data_offset = 0
@@ -116,7 +115,7 @@ class AssemblyStoreAssembly(object):
         """Initialize assembly store assembly."""
 
 
-class AssemblyStoreHashEntry(object):
+class AssemblyStoreHashEntry:
     """Hash Details."""
 
     hash_val = ""
@@ -128,7 +127,7 @@ class AssemblyStoreHashEntry(object):
         """Initialize hash entry."""
 
 
-class AssemblyStore(object):
+class AssemblyStore:
     """AssemblyStore object."""
 
     raw = ""
@@ -152,140 +151,139 @@ class AssemblyStore(object):
         self.manifest_entries = manifest_entries
         self.file_name = os.path.basename(in_file_name)
 
-        blob_file = open(in_file_name, "rb")
+        with open(in_file_name, "rb") as blob_file:
+            self.raw = blob_file.read()
 
-        self.raw = blob_file.read()
+            blob_file.seek(0)
 
-        blob_file.seek(0)
+            # Header Section
+            #
+            # 0  -  3: Magic
+            # 4  -  7: Version
+            # 8  - 11: LocalEntryCount
+            # 12 - 15: GlobalEntryCount
+            # 16 - 19: StoreID
 
-        # Header Section
-        #
-        # 0  -  3: Magic
-        # 4  -  7: Version
-        # 8  - 11: LocalEntryCount
-        # 12 - 15: GlobalEntryCount
-        # 16 - 19: StoreID
+            magic = blob_file.read(4)
+            if magic != ASSEMBLY_STORE_MAGIC:
+                raise Exception(f"Invalid Magic: {magic}")
 
-        magic = blob_file.read(4)
-        if magic != ASSEMBLY_STORE_MAGIC:
-            raise Exception("Invalid Magic: %s" % magic)
+            version = struct.unpack("I", blob_file.read(4))[0]
+            if version > ASSEMBLY_STORE_FORMAT_VERSION:
+                raise Exception(
+                    f"This version is higher than expected! Max = {ASSEMBLY_STORE_FORMAT_VERSION}, got {version}"
+                )
 
-        version = struct.unpack("I", blob_file.read(4))[0]
-        if version > ASSEMBLY_STORE_FORMAT_VERSION:
-            raise Exception(
-                "This version is higher than expected! Max = %d, got %d" % ASSEMBLY_STORE_FORMAT_VERSION, version
-            )
+            self.hdr_version = version
 
-        self.hdr_version = version
+            self.hdr_lec = struct.unpack("I", blob_file.read(4))[0]
+            self.hdr_gec = struct.unpack("I", blob_file.read(4))[0]
+            self.hdr_store_id = struct.unpack("I", blob_file.read(4))[0]
 
-        self.hdr_lec = struct.unpack("I", blob_file.read(4))[0]
-        self.hdr_gec = struct.unpack("I", blob_file.read(4))[0]
-        self.hdr_store_id = struct.unpack("I", blob_file.read(4))[0]
+            debug(f"Local entry count: {self.hdr_lec}")
+            debug(f"Global entry count: {self.hdr_gec}")
 
-        debug("Local entry count: %d" % self.hdr_lec)
-        debug("Global entry count: %d" % self.hdr_gec)
+            self.assemblies_list = []
 
-        self.assemblies_list = list()
+            debug(f"Entries start at: {blob_file.tell()} (0x{blob_file.tell():x})")
 
-        debug("Entries start at: %d (0x%x)" % (blob_file.tell(), blob_file.tell()))
+            i = 0
+            while i < self.hdr_lec:
+                #  0 -  3: DataOffset
+                #  4 -  7: DataSize
+                #  8 - 11: DebugDataOffset
+                # 12 - 15: DebugDataSize
+                # 16 - 19: ConfigDataOffset
+                # 20 - 23: ConfigDataSize
 
-        i = 0
-        while i < self.hdr_lec:
-            #  0 -  3: DataOffset
-            #  4 -  7: DataSize
-            #  8 - 11: DebugDataOffset
-            # 12 - 15: DebugDataSize
-            # 16 - 19: ConfigDataOffset
-            # 20 - 23: ConfigDataSize
+                debug(f"Extracting Assembly: {blob_file.tell()} (0x{blob_file.tell():x})")
+                entry = blob_file.read(24)
 
-            debug("Extracting Assembly: %d (0x%x)" % (blob_file.tell(), blob_file.tell()))
-            entry = blob_file.read(24)
+                assembly = AssemblyStoreAssembly()
 
-            assembly = AssemblyStoreAssembly()
+                assembly.data_offset = struct.unpack("I", entry[0:4])[0]
+                assembly.data_size = struct.unpack("I", entry[4:8])[0]
+                assembly.debug_data_offset = struct.unpack("I", entry[8:12])[0]
+                assembly.debug_data_size = struct.unpack("I", entry[12:16])[0]
+                assembly.config_data_offset = struct.unpack("I", entry[16:20])[0]
+                assembly.config_data_size = struct.unpack("I", entry[20:24])[0]
 
-            assembly.data_offset = struct.unpack("I", entry[0:4])[0]
-            assembly.data_size = struct.unpack("I", entry[4:8])[0]
-            assembly.debug_data_offset = struct.unpack("I", entry[8:12])[0]
-            assembly.debug_data_size = struct.unpack("I", entry[12:16])[0]
-            assembly.config_data_offset = struct.unpack("I", entry[16:20])[0]
-            assembly.config_data_size = struct.unpack("I", entry[20:24])[0]
+                self.assemblies_list.append(assembly)
 
-            self.assemblies_list.append(assembly)
+                debug(f"  Data Offset: {assembly.data_offset} (0x{assembly.data_offset:x})")
+                debug(f"  Data Size: {assembly.data_size} (0x{assembly.data_size:x})")
+                debug(f"  Config Offset: {assembly.config_data_offset} (0x{assembly.config_data_offset:x})")
+                debug(f"  Config Size: {assembly.config_data_size} (0x{assembly.config_data_size:x})")
+                debug(f"  Debug Offset: {assembly.debug_data_offset} (0x{assembly.debug_data_offset:x})")
+                debug(f"  Debug Size: {assembly.debug_data_size} (0x{assembly.debug_data_size:x})")
 
-            debug("  Data Offset: %d (0x%x)" % (assembly.data_offset, assembly.data_offset))
-            debug("  Data Size: %d (0x%x)" % (assembly.data_size, assembly.data_size))
-            debug("  Config Offset: %d (0x%x)" % (assembly.config_data_offset, assembly.config_data_offset))
-            debug("  Config Size: %d (0x%x)" % (assembly.config_data_size, assembly.config_data_size))
-            debug("  Debug Offset: %d (0x%x)" % (assembly.debug_data_offset, assembly.debug_data_offset))
-            debug("  Debug Size: %d (0x%x)" % (assembly.debug_data_size, assembly.debug_data_size))
+                i += 1
 
-            i += 1
+            if not primary:
+                debug("Skipping hash sections in non-primary store")
+                return
 
-        if not primary:
-            debug("Skipping hash sections in non-primary store")
-            return
+            # Parse Hash data
+            #
+            # The following 2 sections are _required_ to be in order from
+            # lowest to highest (e.g. 0x00000000 to 0xffffffff).
+            # Since you're very likely not going to be adding assemblies
+            # (or renaming) to the store, I'm going to store the hashes with the
+            # assemblies.json to make sorting easier when packing.
 
-        # Parse Hash data
-        #
-        # The following 2 sections are _required_ to be in order from
-        # lowest to highest (e.g. 0x00000000 to 0xffffffff).
-        # Since you're very likely not going to be adding assemblies
-        # (or renaming) to the store, I'm going to store the hashes with the
-        # assemblies.json to make sorting easier when packing.
+            debug(f"Hash32 start at: {blob_file.tell()} (0x{blob_file.tell():x})")
+            self.global_hash32 = []
 
-        debug("Hash32 start at: %d (0x%x)" % (blob_file.tell(), blob_file.tell()))
-        self.global_hash32 = list()
+            i = 0
+            while i < self.hdr_lec:
+                entry = blob_file.read(20)
 
-        i = 0
-        while i < self.hdr_lec:
-            entry = blob_file.read(20)
+                hash_entry = AssemblyStoreHashEntry()
 
-            hash_entry = AssemblyStoreHashEntry()
+                hash_entry.hash_val = f"0x{struct.unpack('<I', entry[0:4])[0]:08x}"
+                hash_entry.mapping_index = struct.unpack("I", entry[8:12])[0]
+                hash_entry.local_store_index = struct.unpack("I", entry[12:16])[0]
+                hash_entry.store_id = struct.unpack("I", entry[16:20])[0]
 
-            hash_entry.hash_val = "0x%08x" % struct.unpack("<I", entry[0:4])[0]
-            hash_entry.mapping_index = struct.unpack("I", entry[8:12])[0]
-            hash_entry.local_store_index = struct.unpack("I", entry[12:16])[0]
-            hash_entry.store_id = struct.unpack("I", entry[16:20])[0]
+                debug("New Hash32 Section:")
+                debug(f"   mapping index: {hash_entry.mapping_index}")
+                debug(f"   local store index: {hash_entry.local_store_index}")
+                debug(f"   store id: {hash_entry.store_id}")
+                debug(f"   Hash32: {hash_entry.hash_val}")
 
-            debug("New Hash32 Section:")
-            debug("   mapping index: %d" % hash_entry.mapping_index)
-            debug("   local store index: %d" % hash_entry.local_store_index)
-            debug("   store id: %d" % hash_entry.store_id)
-            debug("   Hash32: %s" % hash_entry.hash_val)
+                self.global_hash32.append(hash_entry)
 
-            self.global_hash32.append(hash_entry)
+                i += 1
 
-            i += 1
+            debug(f"Hash64 start at: {blob_file.tell()} (0x{blob_file.tell():x})")
+            self.global_hash64 = []
 
-        debug("Hash64 start at: %d (0x%x)" % (blob_file.tell(), blob_file.tell()))
-        self.global_hash64 = list()
+            i = 0
+            while i < self.hdr_lec:
+                entry = blob_file.read(20)
 
-        i = 0
-        while i < self.hdr_lec:
-            entry = blob_file.read(20)
+                hash_entry = AssemblyStoreHashEntry()
 
-            hash_entry = AssemblyStoreHashEntry()
+                hash_entry.hash_val = f"0x{struct.unpack('<Q', entry[0:8])[0]:016x}"
+                hash_entry.mapping_index = struct.unpack("I", entry[8:12])[0]
+                hash_entry.local_store_index = struct.unpack("I", entry[12:16])[0]
+                hash_entry.store_id = struct.unpack("I", entry[16:20])[0]
 
-            hash_entry.hash_val = "0x%016x" % struct.unpack("<Q", entry[0:8])[0]
-            hash_entry.mapping_index = struct.unpack("I", entry[8:12])[0]
-            hash_entry.local_store_index = struct.unpack("I", entry[12:16])[0]
-            hash_entry.store_id = struct.unpack("I", entry[16:20])[0]
+                debug("New Hash64 Section:")
+                debug(f"   mapping index: {hash_entry.mapping_index}")
+                debug(f"   local store index: {hash_entry.local_store_index}")
+                debug(f"   store id: {hash_entry.store_id}")
+                debug(f"   Hash64: {hash_entry.hash_val}")
 
-            debug("New Hash64 Section:")
-            debug("   mapping index: %d" % hash_entry.mapping_index)
-            debug("   local store index: %d" % hash_entry.local_store_index)
-            debug("   store id: %d" % hash_entry.store_id)
-            debug("   Hash64: %s" % hash_entry.hash_val)
+                self.global_hash64.append(hash_entry)
 
-            self.global_hash64.append(hash_entry)
-
-            i += 1
+                i += 1
 
     def extract_all(self, json_config, outpath=".unpacked_blobs"):
         """Extract everything."""
         # Start the config JSON
-        store_json = dict()
-        store_json[self.file_name] = dict()
+        store_json = {}
+        store_json[self.file_name] = {}
 
         # Set the JSON header data
         store_json[self.file_name]["header"] = {
@@ -295,10 +293,9 @@ class AssemblyStore(object):
             "store_id": self.hdr_store_id,
         }
 
-        i = 0
-        for assembly in self.assemblies_list:
+        for i, assembly in enumerate(self.assemblies_list):
             # Set assembly JSON dictionary
-            assembly_dict = dict()
+            assembly_dict = {}
 
             # Assume no compression
             assembly_dict["lz4"] = False
@@ -315,7 +312,7 @@ class AssemblyStore(object):
             assembly_dict["hash64"] = entry.hash64
 
             # Set and save outpath
-            out_file = "%s/%s.dll" % (outpath, entry.name)
+            out_file = f"{outpath}/{entry.name}.dll"
             assembly_dict["file"] = out_file
 
             # Check if compressed, otherwise write
@@ -331,20 +328,16 @@ class AssemblyStore(object):
             else:
                 assembly_data = self.raw[assembly.data_offset : assembly.data_offset + assembly.data_size]
 
-            logging.debug("Extracting %s..." % entry.name)
+            logging.debug(f"Extracting {entry.name}...")
 
             if not os.path.isdir(os.path.dirname(out_file)):
                 os.mkdir(os.path.dirname(out_file))
 
-            wfile = open(out_file, "wb")
-
-            wfile.write(assembly_data)
-            wfile.close()
+            with open(out_file, "wb") as wfile:
+                wfile.write(assembly_data)
 
             # Append to assemblies JSON
             json_config["assemblies"].append(assembly_dict)
-
-            i += 1
 
         json_config["stores"].append(store_json)
         return json_config
@@ -395,7 +388,9 @@ def gen_xxhash(name, raw=False):
 def read_manifest(in_manifest):
     """Read Manifest entries."""
     manifest_list = ManifestList()
-    for line in open(in_manifest).read().split("\n"):
+    with open(in_manifest) as manifest_file:
+        manifest_content = manifest_file.read()
+    for line in manifest_content.split("\n"):
         if line == "" or len(line) == 0:
             continue
         if line[0:4] == "Hash":
@@ -445,10 +440,10 @@ def do_unpack(in_directory, in_arch, force):
     assemblies_path = os.path.join(in_directory, FILE_ASSEMBLIES_BLOB)
 
     if not os.path.isfile(manifest_path):
-        print("Manifest file '%s' does not exist!" % manifest_path)
+        print(f"Manifest file '{manifest_path}' does not exist!")
         return 4
     elif not os.path.isfile(assemblies_path):
-        print("Main assemblies blob '%s' does not exist!" % assemblies_path)
+        print(f"Main assemblies blob '{assemblies_path}' does not exist!")
         return 4
 
     # The manifest will have all entries (regardless of which
@@ -460,9 +455,9 @@ def do_unpack(in_directory, in_arch, force):
         print("Unable to parse assemblies.manifest file!")
         return 5
 
-    json_data = dict()
-    json_data["stores"] = list()
-    json_data["assemblies"] = list()
+    json_data = {}
+    json_data["stores"] = []
+    json_data["assemblies"] = []
 
     os.mkdir(".unpacked_blobs/")
 
@@ -487,10 +482,10 @@ def do_unpack(in_directory, in_arch, force):
         assembly_file.write(json.dumps(json_data, indent=4))
 
 
-def do_pack(in_json_config):
-    """Create new assemblies.blob/manifest."""
+def _validate_pack_inputs(in_json_config):
+    """Validate pack inputs; return an error code, or None if valid."""
     if not os.path.isfile(in_json_config):
-        print("Config file '%s' does not exist!" % in_json_config)
+        print(f"Config file '{in_json_config}' does not exist!")
         return -1
 
     if os.path.isfile("assemblies.manifest.new"):
@@ -501,148 +496,186 @@ def do_pack(in_json_config):
         print("Output blob exists!")
         return -3
 
-    json_data = None
-    with open(in_json_config) as json_f:
-        json_data = json.load(json_f)
+    return None
 
-    # Write new assemblies.manifest
+
+def _write_pack_manifest(json_data):
+    """Write the new assemblies.manifest file."""
     print("Writing 'assemblies.manifest.new'...")
-    assemblies_manifest_f = open("assemblies.manifest.new", "w")
+    with open("assemblies.manifest.new", "w") as assemblies_manifest_f:
+        assemblies_manifest_f.write("Hash 32     Hash 64             ")
+        assemblies_manifest_f.write("Blob ID  Blob idx  Name\r\n")
 
-    assemblies_manifest_f.write("Hash 32     Hash 64             ")
-    assemblies_manifest_f.write("Blob ID  Blob idx  Name\r\n")
+        # for _, store_json in json_data['stores'].items():
+        for assembly in json_data["assemblies"]:
+            hash32, hash64 = gen_xxhash(assembly["name"])
 
-    # for _, store_json in json_data['stores'].items():
-    for assembly in json_data["assemblies"]:
-        hash32, hash64 = gen_xxhash(assembly["name"])
+            line = "0x{:>8}  0x{:>16}  {:03d}      {:04d}      {}\r\n".format(
+                hash32,
+                hash64,
+                assembly["store_id"],
+                assembly["blob_idx"],
+                assembly["name"],
+            )
 
-        line = "0x%08s  0x%016s  %03d      %04d      %s\r\n" % (
-            hash32,
-            hash64,
-            assembly["store_id"],
-            assembly["blob_idx"],
-            assembly["name"],
-        )
+            assemblies_manifest_f.write(line)
 
-        assemblies_manifest_f.write(line)
 
-    assemblies_manifest_f.close()
-
+def _get_store_zero_lec(json_data):
+    """Determine the primary store's lec (needed when multiple stores exist)."""
     # This is hacky, but we need the lec/gec if there are multiple stores.
     store_zero_lec = 0
     for assembly_store in json_data["stores"]:
         for store_name, store_data in list(assembly_store.items()):
             if store_name == "assemblies.blob":
                 store_zero_lec = store_data["header"]["lec"]
+    return store_zero_lec
+
+
+def _write_store_header(assemblies_blob_f, json_hdr):
+    """Write the AssemblyStore header."""
+    assemblies_blob_f.write(
+        struct.pack(
+            "4sIIII",
+            ASSEMBLY_STORE_MAGIC,
+            json_hdr["version"],
+            json_hdr["lec"],
+            json_hdr["gec"],
+            json_hdr["store_id"],
+        )
+    )
+
+
+def _write_store_entries(assemblies_blob_f, json_data, json_hdr, next_entry_offset, next_data_offset):
+    """First pass: Write the entries + DLL content."""
+    for assembly in json_data["assemblies"]:
+        if assembly["store_id"] != json_hdr["store_id"]:
+            debug("Skipping assembly for another store")
+            continue
+
+        with open(assembly["file"], "rb") as assembly_f:
+            assembly_data = assembly_f.read()
+        if assembly["lz4"]:
+            assembly_data = lz4_compress(assembly_data, assembly["lz4_desc_idx"])
+
+        data_size = len(assembly_data)
+
+        # Write the entry data
+        assemblies_blob_f.seek(next_entry_offset)
+        assemblies_blob_f.write(struct.pack("IIIIII", next_data_offset, data_size, 0, 0, 0, 0))
+
+        # Write binary data
+        assemblies_blob_f.seek(next_data_offset)
+        assemblies_blob_f.write(assembly_data)
+
+        # Move all offsets forward.
+        next_data_offset += data_size
+        next_entry_offset += 24
+
+
+def _write_store_hashes(assemblies_blob_f, json_data, json_hdr, store_zero_lec):
+    """Second + third pass: sort the hashes and write them (primary store only)."""
+    next_hash32_offset = 20 + (json_hdr["lec"] * 24)
+    next_hash64_offset = 20 + (json_hdr["lec"] * 24) + (json_hdr["gec"] * 20)
+
+    assembly_data = json_data["assemblies"]
+
+    # hash32
+    for assembly in sorted(assembly_data, key=lambda d: d["hash32"]):
+        # Hash sections
+        hash32, hash64 = gen_xxhash(assembly["name"], raw=True)
+        mapping_id = (
+            assembly["blob_idx"] if assembly["store_id"] == 0 else store_zero_lec + assembly["blob_idx"]
+        )
+
+        # Write the hash32
+        assemblies_blob_f.seek(next_hash32_offset)
+        assemblies_blob_f.write(
+            struct.pack("4sIIII", hash32, 0, mapping_id, assembly["blob_idx"], assembly["store_id"])
+        )
+
+        next_hash32_offset += 20
+
+    # hash64
+    for assembly in sorted(assembly_data, key=lambda d: d["hash64"]):
+        # Hash sections
+        hash32, hash64 = gen_xxhash(assembly["name"], raw=True)
+        mapping_id = (
+            assembly["blob_idx"] if assembly["store_id"] == 0 else store_zero_lec + assembly["blob_idx"]
+        )
+
+        # Write the hash64
+        assemblies_blob_f.seek(next_hash64_offset)
+        assemblies_blob_f.write(
+            struct.pack("8sIII", hash64, mapping_id, assembly["blob_idx"], assembly["store_id"])
+        )
+
+        next_hash64_offset += 20
+
+
+def _pack_assembly_store(store_name, store_data, json_data, store_zero_lec):
+    """Pack a single new AssemblyStore structure to '<store_name>.new'."""
+    out_store_name = f"{store_name}.new"
+
+    # Pack the new AssemblyStore structure
+    print(f"Writing '{out_store_name}'...")
+    assemblies_blob_f = open(out_store_name, "wb")  # noqa: SIM115
+
+    # Write header
+    json_hdr = store_data["header"]
+    _write_store_header(assemblies_blob_f, json_hdr)
+
+    # Offsets are weird.
+    # If this is a primary store, the data is:
+    #  -header
+    #  -ASA header
+    #  -hash32
+    #  -hash64
+    #  -ASA data
+    # But a non-primary does not have hashes. Best to determine early
+    # if this is primary and act accordingly throughout.
+    primary = bool(json_hdr["store_id"] == 0)
+
+    next_entry_offset = 20
+    next_data_offset = 20 + (json_hdr["lec"] * 24) + (json_hdr["gec"] * 40)
+
+    if not primary:
+        next_data_offset = 20 + (json_hdr["lec"] * 24)
+
+    # First pass: Write the entries + DLL content.
+    _write_store_entries(assemblies_blob_f, json_data, json_hdr, next_entry_offset, next_data_offset)
+
+    # Second + third pass: sort the hashes and write them
+    # But skip if not primary.
+    if not primary:
+        assemblies_blob_f.close()
+        return
+
+    _write_store_hashes(assemblies_blob_f, json_data, json_hdr, store_zero_lec)
+
+    # Done!
+    assemblies_blob_f.close()
+
+
+def do_pack(in_json_config):
+    """Create new assemblies.blob/manifest."""
+    error_code = _validate_pack_inputs(in_json_config)
+    if error_code is not None:
+        return error_code
+
+    json_data = None
+    with open(in_json_config) as json_f:
+        json_data = json.load(json_f)
+
+    # Write new assemblies.manifest
+    _write_pack_manifest(json_data)
+
+    store_zero_lec = _get_store_zero_lec(json_data)
 
     # Next do the blobs.
     for assembly_store in json_data["stores"]:
         for store_name, store_data in list(assembly_store.items()):
-            out_store_name = "%s.new" % store_name
-
-            # Pack the new AssemblyStore structure
-            print("Writing '%s'..." % out_store_name)
-            assemblies_blob_f = open(out_store_name, "wb")
-
-            # Write header
-            json_hdr = store_data["header"]
-            assemblies_blob_f.write(
-                struct.pack(
-                    "4sIIII",
-                    ASSEMBLY_STORE_MAGIC,
-                    json_hdr["version"],
-                    json_hdr["lec"],
-                    json_hdr["gec"],
-                    json_hdr["store_id"],
-                )
-            )
-
-            # Offsets are weird.
-            # If this is a primary store, the data is:
-            #  -header
-            #  -ASA header
-            #  -hash32
-            #  -hash64
-            #  -ASA data
-            # But a non-primary does not have hashes. Best to determine early
-            # if this is primary and act accordingly throughout.
-            primary = bool(json_hdr["store_id"] == 0)
-
-            next_entry_offset = 20
-            next_data_offset = 20 + (json_hdr["lec"] * 24) + (json_hdr["gec"] * 40)
-
-            if not primary:
-                next_data_offset = 20 + (json_hdr["lec"] * 24)
-
-            # First pass: Write the entries + DLL content.
-            for assembly in json_data["assemblies"]:
-                if assembly["store_id"] != json_hdr["store_id"]:
-                    debug("Skipping assembly for another store")
-                    continue
-
-                assembly_data = open(assembly["file"], "rb").read()
-                if assembly["lz4"]:
-                    assembly_data = lz4_compress(assembly_data, assembly["lz4_desc_idx"])
-
-                data_size = len(assembly_data)
-
-                # Write the entry data
-                assemblies_blob_f.seek(next_entry_offset)
-                assemblies_blob_f.write(struct.pack("IIIIII", next_data_offset, data_size, 0, 0, 0, 0))
-
-                # Write binary data
-                assemblies_blob_f.seek(next_data_offset)
-                assemblies_blob_f.write(assembly_data)
-
-                # Move all offsets forward.
-                next_data_offset += data_size
-                next_entry_offset += 24
-
-            # Second + third pass: sort the hashes and write them
-            # But skip if not primary.
-            if not primary:
-                assemblies_blob_f.close()
-                continue
-
-            next_hash32_offset = 20 + (json_hdr["lec"] * 24)
-            next_hash64_offset = 20 + (json_hdr["lec"] * 24) + (json_hdr["gec"] * 20)
-
-            assembly_data = json_data["assemblies"]
-
-            # hash32
-            for assembly in sorted(assembly_data, key=lambda d: d["hash32"]):
-                # Hash sections
-                hash32, hash64 = gen_xxhash(assembly["name"], raw=True)
-                mapping_id = (
-                    assembly["blob_idx"] if assembly["store_id"] == 0 else store_zero_lec + assembly["blob_idx"]
-                )
-
-                # Write the hash32
-                assemblies_blob_f.seek(next_hash32_offset)
-                assemblies_blob_f.write(
-                    struct.pack("4sIIII", hash32, 0, mapping_id, assembly["blob_idx"], assembly["store_id"])
-                )
-
-                next_hash32_offset += 20
-
-            # hash64
-            for assembly in sorted(assembly_data, key=lambda d: d["hash64"]):
-                # Hash sections
-                hash32, hash64 = gen_xxhash(assembly["name"], raw=True)
-                mapping_id = (
-                    assembly["blob_idx"] if assembly["store_id"] == 0 else store_zero_lec + assembly["blob_idx"]
-                )
-
-                # Write the hash64
-                assemblies_blob_f.seek(next_hash64_offset)
-                assemblies_blob_f.write(
-                    struct.pack("8sIII", hash64, mapping_id, assembly["blob_idx"], assembly["store_id"])
-                )
-
-                next_hash64_offset += 20
-
-            # Done!
-            assemblies_blob_f.close()
+            _pack_assembly_store(store_name, store_data, json_data, store_zero_lec)
 
     return 0
 
@@ -699,7 +732,7 @@ def pack_store(args):
     parsed_args = parser.parse_args(args)
 
     if not os.path.isfile(parsed_args.config_json):
-        print("File '%s' doesn't exist!" % parsed_args.config_json)
+        print(f"File '{parsed_args.config_json}' doesn't exist!")
         return -3
 
     return do_pack(parsed_args.config_json)
@@ -714,11 +747,11 @@ def gen_hash(args):
     file_name = args.pop(0)
     hash_name = os.path.splitext(os.path.basename(file_name))[0]
 
-    print("Generating hashes for string '%s' (%s)" % (file_name, hash_name))
+    print(f"Generating hashes for string '{file_name}' ({hash_name})")
     hash32, hash64 = gen_xxhash(hash_name)
 
-    print("Hash32: 0x%s" % hash32)
-    print("Hash64: 0x%s" % hash64)
+    print(f"Hash32: 0x{hash32}")
+    print(f"Hash64: 0x{hash64}")
 
     return 0
 
@@ -742,7 +775,7 @@ def main():
     elif mode in ["-h", "--h", "help"]:
         return usage()
 
-    print("Unknown mode: '%s'" % mode)
+    print(f"Unknown mode: '{mode}'")
     return -2
 
 

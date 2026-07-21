@@ -25,7 +25,6 @@
 from dataclasses import dataclass
 from dataclasses import field
 from typing import Any
-from typing import Optional
 
 from ..core.base_classes import BaseResult
 
@@ -55,7 +54,7 @@ class BehaviourAnalysisResults(BaseResult):
 
     findings: dict[str, BehaviourAnalysisFinding] = field(default_factory=dict)
     summary: dict[str, int] = field(default_factory=dict)
-    androguard_objects: Optional[dict[str, Any]] = field(default=None, repr=False)
+    androguard_objects: dict[str, Any] | None = field(default=None, repr=False)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert results to dictionary format."""

@@ -17,6 +17,22 @@ import pytest
 from .utils.apk_builder import SyntheticAPKBuilder
 
 
+def pytest_addoption(parser):
+    """Register custom command-line options used by conditional test skips."""
+    parser.addoption(
+        "--run-slow-tests",
+        action="store_true",
+        default=False,
+        help="Run tests marked as slow (e.g. full CLI end-to-end runs).",
+    )
+    parser.addoption(
+        "--run-network-tests",
+        action="store_true",
+        default=False,
+        help="Run tests that require network access.",
+    )
+
+
 def pytest_configure(config):
     """Configure pytest with custom markers"""
     # Original test markers

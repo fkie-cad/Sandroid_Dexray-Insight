@@ -27,6 +27,7 @@ This module provides caching functionality for CVE scan results to avoid
 repeated API calls and improve performance.
 """
 
+import contextlib
 import hashlib
 import json
 import logging
@@ -34,13 +35,12 @@ from datetime import datetime
 from datetime import timedelta
 from pathlib import Path
 from typing import Any
-from typing import Optional
 
 
 class CVECacheManager:
     """Manages caching of CVE scan results."""
 
-    def __init__(self, cache_dir: Optional[Path] = None, cache_duration_hours: int = 24):
+    def __init__(self, cache_dir: Path | None = None, cache_duration_hours: int = 24):
         """Initialize CVE cache manager with directory and duration settings."""
         self.logger = logging.getLogger(__name__)
 
@@ -93,7 +93,7 @@ class CVECacheManager:
     def _generate_cache_key(self, library_name: str, version: str, source: str) -> str:
         """Generate cache key for library/version/source combination."""
         key_data = f"{library_name}:{version}:{source}".lower()
-        return hashlib.md5(key_data.encode()).hexdigest()
+        return hashlib.md5(key_data.encode(), usedforsecurity=False).hexdigest()
 
     def _get_cache_file_path(self, cache_key: str) -> Path:
         """Get cache file path for a given key."""
@@ -110,7 +110,7 @@ class CVECacheManager:
 
         return datetime.now() < expiry_time
 
-    def get_cached_result(self, library_name: str, version: str, source: str) -> Optional[list[dict[str, Any]]]:
+    def get_cached_result(self, library_name: str, version: str, source: str) -> list[dict[str, Any]] | None:
         """
         Get cached CVE results for a library/version/source combination.
 
@@ -200,7 +200,7 @@ class CVECacheManager:
         except Exception as e:
             self.logger.warning(f"Could not cache result: {e}")
 
-    def clear_cache(self, older_than_hours: Optional[int] = None):
+    def clear_cache(self, older_than_hours: int | None = None):
         """
         Clear cache entries.
 
@@ -263,10 +263,8 @@ class CVECacheManager:
         """Get total cache size in megabytes."""
         total_size = 0
         for cache_file in self.cache_dir.glob("*.json"):
-            try:
+            with contextlib.suppress(Exception):
                 total_size += cache_file.stat().st_size
-            except Exception:
-                pass
 
         return total_size / (1024 * 1024)  # Convert to MB
 

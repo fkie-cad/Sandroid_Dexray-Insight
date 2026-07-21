@@ -544,187 +544,215 @@ class AXMLParser:
                 self._valid = False
                 return
 
-            # Special chunk: Resource Map. This chunk might be contained inside
-            # the file, after the string pool.
-            if h.type == RES_XML_RESOURCE_MAP_TYPE:
-                logger.debug("AXML contains a RESOURCE MAP")
-                # Check size: < 8 bytes mean that the chunk is not complete
-                # Should be aligned to 4 bytes.
-                if h.size < 8 or (h.size % 4) != 0:
-                    logger.error("Invalid chunk size in chunk XML_RESOURCE_MAP")
-                    self._valid = False
-                    return
-
-                for i in range((h.size - h.header_size) // 4):
-                    self.m_resourceIDs.append(unpack("<L", self.buff.read(4))[0])
-
-                continue
-
-            # Parse now the XML chunks.
-            # unknown chunk types might cause problems, but we can skip them!
-            if h.type < RES_XML_FIRST_CHUNK_TYPE or h.type > RES_XML_LAST_CHUNK_TYPE:
-                # h.size is the size of the whole chunk including the header.
-                # We read already 8 bytes of the header, thus we need to
-                # subtract them.
-                logger.error("Not a XML resource chunk type: 0x{:04x}. Skipping {} bytes".format(h.type, h.size))
-                self.buff.seek(h.end)
-                continue
-
-            # Check that we read a correct header
-            if h.header_size != 0x10:
-                logger.error(
-                    "XML Resource Type Chunk header size does not match 16! "
-                    "At chunk type 0x{:04x}, declared header size=0x{:04x}, chunk size=0x{:04x}".format(
-                        h.type, h.header_size, h.size
-                    )
-                )
-                self.buff.seek(h.end)
-                continue
-
-            # Line Number of the source file, only used as meta information
-            (self.m_lineNumber,) = unpack("<L", self.buff.read(4))
-
-            # Comment_Index (usually 0xFFFFFFFF)
-            (self.m_comment_index,) = unpack("<L", self.buff.read(4))
-
-            if self.m_comment_index != 0xFFFFFFFF and h.type in [
-                RES_XML_START_NAMESPACE_TYPE,
-                RES_XML_END_NAMESPACE_TYPE,
-            ]:
-                logger.warning("Unhandled Comment at namespace chunk: '{}'".format(self.sb[self.m_comment_index]))
-
-            if h.type == RES_XML_START_NAMESPACE_TYPE:
-                (prefix,) = unpack("<L", self.buff.read(4))
-                (uri,) = unpack("<L", self.buff.read(4))
-
-                s_prefix = self.sb[prefix]
-                s_uri = self.sb[uri]
-
-                logger.debug(
-                    "Start of Namespace mapping: prefix {}: '{}' --> uri {}: '{}'".format(prefix, s_prefix, uri, s_uri)
-                )
-
-                if s_uri == "":
-                    logger.warning(
-                        "Namespace prefix '{}' resolves to empty URI. " "This might be a packer.".format(s_prefix)
-                    )
-
-                if (prefix, uri) in self.namespaces:
-                    logger.debug(
-                        "Namespace mapping ({}, {}) already seen! "
-                        "This is usually not a problem but could indicate packers or broken AXML compilers.".format(
-                            prefix, uri
-                        )
-                    )
-                self.namespaces.append((prefix, uri))
-
-                # We can continue with the next chunk, as we store the namespace
-                # mappings for each tag
-                continue
-
-            if h.type == RES_XML_END_NAMESPACE_TYPE:
-                # END_PREFIX contains again prefix and uri field
-                (prefix,) = unpack("<L", self.buff.read(4))
-                (uri,) = unpack("<L", self.buff.read(4))
-
-                # We remove the last namespace mapping matching
-                if (prefix, uri) in self.namespaces:
-                    self.namespaces.remove((prefix, uri))
-                else:
-                    logger.warning(
-                        "Reached a NAMESPACE_END without having the namespace stored before? "
-                        "Prefix ID: {}, URI ID: {}".format(prefix, uri)
-                    )
-
-                # We can continue with the next chunk, as we store the namespace
-                # mappings for each tag
-                continue
-
-            # START_TAG is the start of a new tag.
-            if h.type == RES_XML_START_ELEMENT_TYPE:
-                # The TAG consists of some fields:
-                # * (chunk_size, line_number, comment_index - we read before)
-                # * namespace_uri
-                # * name
-                # * flags
-                # * attribute_count
-                # * class_attribute
-                # After that, there are two lists of attributes, 20 bytes each
-
-                # Namespace URI (String ID)
-                (self.m_namespaceUri,) = unpack("<L", self.buff.read(4))
-                # Name of the Tag (String ID)
-                (self.m_name,) = unpack("<L", self.buff.read(4))
-                self.at_start, self.at_size = unpack("<HH", self.buff.read(4))
-                # Attribute Count
-                (attributeCount,) = unpack("<L", self.buff.read(4))
-                # Class Attribute
-                (self.m_classAttribute,) = unpack("<L", self.buff.read(4))
-
-                self.m_idAttribute = (attributeCount >> 16) - 1
-                self.m_attribute_count = attributeCount & 0xFFFF
-                self.m_styleAttribute = (self.m_classAttribute >> 16) - 1
-                self.m_classAttribute = (self.m_classAttribute & 0xFFFF) - 1
-
-                # Now, we parse the attributes.
-                # Each attribute has 5 fields of 4 byte
-                for i in range(0, self.m_attribute_count):
-                    # Each field is linearly parsed into the array
-                    # Each Attribute contains:
-                    # * Namespace URI (String ID)
-                    # * Name (String ID)
-                    # * Value
-                    # * Type
-                    # * Data
-                    for j in range(0, ATTRIBUTE_LENGTH):
-                        self.m_attributes.append(unpack("<L", self.buff.read(4))[0])
-                    if self.at_size != 20:
-                        self.buff.read(self.at_size - 20)
-
-                # Then there are class_attributes
-                for i in range(ATTRIBUTE_IX_VALUE_TYPE, len(self.m_attributes), ATTRIBUTE_LENGTH):
-                    self.m_attributes[i] = self.m_attributes[i] >> 24
-
-                self.m_event = START_TAG
+            action = self._do_next_handle_chunk(h)
+            if action == "return":
+                return
+            if action == "break":
                 break
+            if action == "continue":
+                continue
 
-            if h.type == RES_XML_END_ELEMENT_TYPE:
-                (self.m_namespaceUri,) = unpack("<L", self.buff.read(4))
-                (self.m_name,) = unpack("<L", self.buff.read(4))
+    def _do_next_handle_chunk(self, h):
+        # Special chunk: Resource Map. This chunk might be contained inside
+        # the file, after the string pool.
+        if h.type == RES_XML_RESOURCE_MAP_TYPE:
+            return self._parse_resource_map(h)
 
-                self.m_event = END_TAG
-                break
-
-            if h.type == RES_XML_CDATA_TYPE:
-                # The CDATA field is like an attribute.
-                # It contains an index into the String pool
-                # as well as a typed value.
-                # usually, this typed value is set to UNDEFINED
-
-                # ResStringPool_ref data --> uint32_t index
-                (self.m_name,) = unpack("<L", self.buff.read(4))
-
-                # Res_value typedData:
-                # uint16_t size
-                # uint8_t res0 -> always zero
-                # uint8_t dataType
-                # uint32_t data
-                # For now, we ingore these values
-                size, res0, dataType, data = unpack("<HBBL", self.buff.read(8))
-
-                logger.debug(
-                    "found a CDATA Chunk: "
-                    "index={: 6d}, size={: 4d}, res0={: 4d}, dataType={: 4d}, data={: 4d}".format(
-                        self.m_name, size, res0, dataType, data
-                    )
-                )
-
-                self.m_event = TEXT
-                break
-
-            # Still here? Looks like we read an unknown XML header, try to skip it...
-            logger.warning("Unknown XML Chunk: 0x{:04x}, skipping {} bytes.".format(h.type, h.size))
+        # Parse now the XML chunks.
+        # unknown chunk types might cause problems, but we can skip them!
+        if h.type < RES_XML_FIRST_CHUNK_TYPE or h.type > RES_XML_LAST_CHUNK_TYPE:
+            # h.size is the size of the whole chunk including the header.
+            # We read already 8 bytes of the header, thus we need to
+            # subtract them.
+            logger.error("Not a XML resource chunk type: 0x{:04x}. Skipping {} bytes".format(h.type, h.size))
             self.buff.seek(h.end)
+            return "continue"
+
+        # Check that we read a correct header
+        if h.header_size != 0x10:
+            logger.error(
+                "XML Resource Type Chunk header size does not match 16! "
+                "At chunk type 0x{:04x}, declared header size=0x{:04x}, chunk size=0x{:04x}".format(
+                    h.type, h.header_size, h.size
+                )
+            )
+            self.buff.seek(h.end)
+            return "continue"
+
+        # Line Number of the source file, only used as meta information
+        (self.m_lineNumber,) = unpack("<L", self.buff.read(4))
+
+        # Comment_Index (usually 0xFFFFFFFF)
+        (self.m_comment_index,) = unpack("<L", self.buff.read(4))
+
+        if self.m_comment_index != 0xFFFFFFFF and h.type in [
+            RES_XML_START_NAMESPACE_TYPE,
+            RES_XML_END_NAMESPACE_TYPE,
+        ]:
+            logger.warning("Unhandled Comment at namespace chunk: '{}'".format(self.sb[self.m_comment_index]))
+
+        if h.type == RES_XML_START_NAMESPACE_TYPE:
+            return self._parse_start_namespace()
+
+        if h.type == RES_XML_END_NAMESPACE_TYPE:
+            return self._parse_end_namespace()
+
+        # START_TAG is the start of a new tag.
+        if h.type == RES_XML_START_ELEMENT_TYPE:
+            return self._parse_start_element()
+
+        if h.type == RES_XML_END_ELEMENT_TYPE:
+            return self._parse_end_element()
+
+        if h.type == RES_XML_CDATA_TYPE:
+            return self._parse_cdata()
+
+        # Still here? Looks like we read an unknown XML header, try to skip it...
+        logger.warning("Unknown XML Chunk: 0x{:04x}, skipping {} bytes.".format(h.type, h.size))
+        self.buff.seek(h.end)
+        return "continue"
+
+    def _parse_resource_map(self, h):
+        logger.debug("AXML contains a RESOURCE MAP")
+        # Check size: < 8 bytes mean that the chunk is not complete
+        # Should be aligned to 4 bytes.
+        if h.size < 8 or (h.size % 4) != 0:
+            logger.error("Invalid chunk size in chunk XML_RESOURCE_MAP")
+            self._valid = False
+            return "return"
+
+        for i in range((h.size - h.header_size) // 4):
+            self.m_resourceIDs.append(unpack("<L", self.buff.read(4))[0])
+
+        return "continue"
+
+    def _parse_start_namespace(self):
+        (prefix,) = unpack("<L", self.buff.read(4))
+        (uri,) = unpack("<L", self.buff.read(4))
+
+        s_prefix = self.sb[prefix]
+        s_uri = self.sb[uri]
+
+        logger.debug(
+            "Start of Namespace mapping: prefix {}: '{}' --> uri {}: '{}'".format(prefix, s_prefix, uri, s_uri)
+        )
+
+        if s_uri == "":
+            logger.warning(
+                "Namespace prefix '{}' resolves to empty URI. " "This might be a packer.".format(s_prefix)
+            )
+
+        if (prefix, uri) in self.namespaces:
+            logger.debug(
+                "Namespace mapping ({}, {}) already seen! "
+                "This is usually not a problem but could indicate packers or broken AXML compilers.".format(
+                    prefix, uri
+                )
+            )
+        self.namespaces.append((prefix, uri))
+
+        # We can continue with the next chunk, as we store the namespace
+        # mappings for each tag
+        return "continue"
+
+    def _parse_end_namespace(self):
+        # END_PREFIX contains again prefix and uri field
+        (prefix,) = unpack("<L", self.buff.read(4))
+        (uri,) = unpack("<L", self.buff.read(4))
+
+        # We remove the last namespace mapping matching
+        if (prefix, uri) in self.namespaces:
+            self.namespaces.remove((prefix, uri))
+        else:
+            logger.warning(
+                "Reached a NAMESPACE_END without having the namespace stored before? "
+                "Prefix ID: {}, URI ID: {}".format(prefix, uri)
+            )
+
+        # We can continue with the next chunk, as we store the namespace
+        # mappings for each tag
+        return "continue"
+
+    def _parse_start_element(self):
+        # The TAG consists of some fields:
+        # * (chunk_size, line_number, comment_index - we read before)
+        # * namespace_uri
+        # * name
+        # * flags
+        # * attribute_count
+        # * class_attribute
+        # After that, there are two lists of attributes, 20 bytes each
+
+        # Namespace URI (String ID)
+        (self.m_namespaceUri,) = unpack("<L", self.buff.read(4))
+        # Name of the Tag (String ID)
+        (self.m_name,) = unpack("<L", self.buff.read(4))
+        self.at_start, self.at_size = unpack("<HH", self.buff.read(4))
+        # Attribute Count
+        (attributeCount,) = unpack("<L", self.buff.read(4))
+        # Class Attribute
+        (self.m_classAttribute,) = unpack("<L", self.buff.read(4))
+
+        self.m_idAttribute = (attributeCount >> 16) - 1
+        self.m_attribute_count = attributeCount & 0xFFFF
+        self.m_styleAttribute = (self.m_classAttribute >> 16) - 1
+        self.m_classAttribute = (self.m_classAttribute & 0xFFFF) - 1
+
+        # Now, we parse the attributes.
+        # Each attribute has 5 fields of 4 byte
+        for i in range(0, self.m_attribute_count):
+            # Each field is linearly parsed into the array
+            # Each Attribute contains:
+            # * Namespace URI (String ID)
+            # * Name (String ID)
+            # * Value
+            # * Type
+            # * Data
+            for j in range(0, ATTRIBUTE_LENGTH):
+                self.m_attributes.append(unpack("<L", self.buff.read(4))[0])
+            if self.at_size != 20:
+                self.buff.read(self.at_size - 20)
+
+        # Then there are class_attributes
+        for i in range(ATTRIBUTE_IX_VALUE_TYPE, len(self.m_attributes), ATTRIBUTE_LENGTH):
+            self.m_attributes[i] = self.m_attributes[i] >> 24
+
+        self.m_event = START_TAG
+        return "break"
+
+    def _parse_end_element(self):
+        (self.m_namespaceUri,) = unpack("<L", self.buff.read(4))
+        (self.m_name,) = unpack("<L", self.buff.read(4))
+
+        self.m_event = END_TAG
+        return "break"
+
+    def _parse_cdata(self):
+        # The CDATA field is like an attribute.
+        # It contains an index into the String pool
+        # as well as a typed value.
+        # usually, this typed value is set to UNDEFINED
+
+        # ResStringPool_ref data --> uint32_t index
+        (self.m_name,) = unpack("<L", self.buff.read(4))
+
+        # Res_value typedData:
+        # uint16_t size
+        # uint8_t res0 -> always zero
+        # uint8_t dataType
+        # uint32_t data
+        # For now, we ingore these values
+        size, res0, dataType, data = unpack("<HBBL", self.buff.read(8))
+
+        logger.debug(
+            "found a CDATA Chunk: "
+            "index={: 6d}, size={: 4d}, res0={: 4d}, dataType={: 4d}, data={: 4d}".format(
+                self.m_name, size, res0, dataType, data
+            )
+        )
+
+        self.m_event = TEXT
+        return "break"
 
     @property
     def name(self):
@@ -1491,106 +1519,112 @@ class ARSCParser:
                     logger.debug("Found the main string pool: %s", self.stringpool_main)
 
             elif res_header.type == RES_TABLE_PACKAGE_TYPE:
-                if len(self.packages) > self.packageCount:
-                    raise ResParserError(
-                        "Got more packages ({}) than expected ({})".format(len(self.packages), self.packageCount)
-                    )
-
-                current_package = ARSCResTablePackage(self.buff, res_header)
-                package_name = current_package.get_name()
-
-                # After the Header, we have the resource type symbol table
-                self.buff.seek(current_package.header.start + current_package.typeStrings)
-                type_sp_header = ARSCHeader(self.buff, expected_type=RES_STRING_POOL_TYPE)
-                mTableStrings = StringBlock(self.buff, type_sp_header)
-
-                # Next, we should have the resource key symbol table
-                self.buff.seek(current_package.header.start + current_package.keyStrings)
-                key_sp_header = ARSCHeader(self.buff, expected_type=RES_STRING_POOL_TYPE)
-                mKeyStrings = StringBlock(self.buff, key_sp_header)
-
-                # Add them to the dict of read packages
-                self.packages[package_name].append(current_package)
-                self.packages[package_name].append(mTableStrings)
-                self.packages[package_name].append(mKeyStrings)
-
-                pc = PackageContext(current_package, self.stringpool_main, mTableStrings, mKeyStrings)
-                logger.debug("Constructed a PackageContext: %s", pc)
-
-                # skip to the first header in this table package chunk
-                # FIXME is this correct? We have already read the first two sections!
-                # self.buff.set_idx(res_header.start + res_header.header_size)
-                # this looks more like we want: (???)
-                # FIXME it looks like that the two string pools we have read might not be concatenated to each other,
-                # thus jumping to the sum of the sizes might not be correct...
-                next_idx = res_header.start + res_header.header_size + type_sp_header.size + key_sp_header.size
-
-                if next_idx != self.buff.tell():
-                    # If this happens, we have a testfile ;)
-                    logger.error("This looks like an odd resources.arsc file!")
-                    logger.error("Please report this error including the file you have parsed!")
-                    logger.error("next_idx = {}, current buffer position = {}".format(next_idx, self.buff.tell()))
-                    logger.error("Please open a issue at https://github.com/androguard/androguard/issues")
-                    logger.error("Thank you!")
-
-                self.buff.seek(next_idx)
-
-                # Read all other headers
-                while self.buff.tell() <= res_header.end - ARSCHeader.SIZE:
-                    pkg_chunk_header = ARSCHeader(self.buff)
-                    logger.debug("Found a header: {}".format(pkg_chunk_header))
-                    if pkg_chunk_header.start + pkg_chunk_header.size > res_header.end:
-                        # we are way off the package chunk; bail out
-                        break
-
-                    self.packages[package_name].append(pkg_chunk_header)
-
-                    if pkg_chunk_header.type == RES_TABLE_TYPE_SPEC_TYPE:
-                        self.packages[package_name].append(ARSCResTypeSpec(self.buff, pc))
-
-                    elif pkg_chunk_header.type == RES_TABLE_TYPE_TYPE:
-                        # Parse a RES_TABLE_TYPE
-                        # http://androidxref.com/9.0.0_r3/xref/frameworks/base/tools/aapt2/format/binary/BinaryResourceParser.cpp#311
-                        a_res_type = ARSCResType(self.buff, pc)
-                        self.packages[package_name].append(a_res_type)
-                        self.resource_configs[package_name][a_res_type].add(a_res_type.config)
-
-                        logger.debug("Config: {}".format(a_res_type.config))
-
-                        entries = []
-                        for i in range(0, a_res_type.entryCount):
-                            current_package.mResId = current_package.mResId & 0xFFFF0000 | i
-                            entries.append((unpack("<i", self.buff.read(4))[0], current_package.mResId))
-
-                        self.packages[package_name].append(entries)
-
-                        for entry, res_id in entries:
-                            if entry != -1:
-                                ate = ARSCResTableEntry(self.buff, res_id, pc)
-                                self.packages[package_name].append(ate)
-                                if ate.is_weak():
-                                    # FIXME we are not sure how to implement the FLAG_WEAK!
-                                    # We saw the following: There is just a single Res_value after the ARSCResTableEntry
-                                    # and then comes the next ARSCHeader.
-                                    # Therefore we think this means all entries are somehow replicated?
-                                    # So we do some kind of hack here. We set the idx to the entry again...
-                                    # Now we will read all entries!
-                                    # Not sure if this is a good solution though
-                                    self.buff.seek(ate.start)
-                    elif pkg_chunk_header.type == RES_TABLE_LIBRARY_TYPE:
-                        logger.warning("RES_TABLE_LIBRARY_TYPE chunk is not supported")
-                    else:
-                        # Unknown / not-handled chunk type
-                        logger.warning("Unknown chunk type encountered inside RES_TABLE_PACKAGE: %s", pkg_chunk_header)
-
-                    # skip to the next chunk
-                    self.buff.seek(pkg_chunk_header.end)
+                self._parse_table_package(res_header)
             else:
                 # Unknown / not-handled chunk type
                 logger.warning("Unknown chunk type encountered: %s", res_header)
 
             # move to the next resource chunk
             self.buff.seek(res_header.end)
+
+    def _parse_table_package(self, res_header):
+        if len(self.packages) > self.packageCount:
+            raise ResParserError(
+                "Got more packages ({}) than expected ({})".format(len(self.packages), self.packageCount)
+            )
+
+        current_package = ARSCResTablePackage(self.buff, res_header)
+        package_name = current_package.get_name()
+
+        # After the Header, we have the resource type symbol table
+        self.buff.seek(current_package.header.start + current_package.typeStrings)
+        type_sp_header = ARSCHeader(self.buff, expected_type=RES_STRING_POOL_TYPE)
+        mTableStrings = StringBlock(self.buff, type_sp_header)
+
+        # Next, we should have the resource key symbol table
+        self.buff.seek(current_package.header.start + current_package.keyStrings)
+        key_sp_header = ARSCHeader(self.buff, expected_type=RES_STRING_POOL_TYPE)
+        mKeyStrings = StringBlock(self.buff, key_sp_header)
+
+        # Add them to the dict of read packages
+        self.packages[package_name].append(current_package)
+        self.packages[package_name].append(mTableStrings)
+        self.packages[package_name].append(mKeyStrings)
+
+        pc = PackageContext(current_package, self.stringpool_main, mTableStrings, mKeyStrings)
+        logger.debug("Constructed a PackageContext: %s", pc)
+
+        # skip to the first header in this table package chunk
+        # FIXME is this correct? We have already read the first two sections!
+        # self.buff.set_idx(res_header.start + res_header.header_size)
+        # this looks more like we want: (???)
+        # FIXME it looks like that the two string pools we have read might not be concatenated to each other,
+        # thus jumping to the sum of the sizes might not be correct...
+        next_idx = res_header.start + res_header.header_size + type_sp_header.size + key_sp_header.size
+
+        if next_idx != self.buff.tell():
+            # If this happens, we have a testfile ;)
+            logger.error("This looks like an odd resources.arsc file!")
+            logger.error("Please report this error including the file you have parsed!")
+            logger.error("next_idx = {}, current buffer position = {}".format(next_idx, self.buff.tell()))
+            logger.error("Please open a issue at https://github.com/androguard/androguard/issues")
+            logger.error("Thank you!")
+
+        self.buff.seek(next_idx)
+
+        # Read all other headers
+        while self.buff.tell() <= res_header.end - ARSCHeader.SIZE:
+            pkg_chunk_header = ARSCHeader(self.buff)
+            logger.debug("Found a header: {}".format(pkg_chunk_header))
+            if pkg_chunk_header.start + pkg_chunk_header.size > res_header.end:
+                # we are way off the package chunk; bail out
+                break
+
+            self.packages[package_name].append(pkg_chunk_header)
+
+            self._parse_package_chunk(pkg_chunk_header, pc, current_package, package_name)
+
+            # skip to the next chunk
+            self.buff.seek(pkg_chunk_header.end)
+
+    def _parse_package_chunk(self, pkg_chunk_header, pc, current_package, package_name):
+        if pkg_chunk_header.type == RES_TABLE_TYPE_SPEC_TYPE:
+            self.packages[package_name].append(ARSCResTypeSpec(self.buff, pc))
+
+        elif pkg_chunk_header.type == RES_TABLE_TYPE_TYPE:
+            # Parse a RES_TABLE_TYPE
+            # http://androidxref.com/9.0.0_r3/xref/frameworks/base/tools/aapt2/format/binary/BinaryResourceParser.cpp#311
+            a_res_type = ARSCResType(self.buff, pc)
+            self.packages[package_name].append(a_res_type)
+            self.resource_configs[package_name][a_res_type].add(a_res_type.config)
+
+            logger.debug("Config: {}".format(a_res_type.config))
+
+            entries = []
+            for i in range(0, a_res_type.entryCount):
+                current_package.mResId = current_package.mResId & 0xFFFF0000 | i
+                entries.append((unpack("<i", self.buff.read(4))[0], current_package.mResId))
+
+            self.packages[package_name].append(entries)
+
+            for entry, res_id in entries:
+                if entry != -1:
+                    ate = ARSCResTableEntry(self.buff, res_id, pc)
+                    self.packages[package_name].append(ate)
+                    if ate.is_weak():
+                        # FIXME we are not sure how to implement the FLAG_WEAK!
+                        # We saw the following: There is just a single Res_value after the ARSCResTableEntry
+                        # and then comes the next ARSCHeader.
+                        # Therefore we think this means all entries are somehow replicated?
+                        # So we do some kind of hack here. We set the idx to the entry again...
+                        # Now we will read all entries!
+                        # Not sure if this is a good solution though
+                        self.buff.seek(ate.start)
+        elif pkg_chunk_header.type == RES_TABLE_LIBRARY_TYPE:
+            logger.warning("RES_TABLE_LIBRARY_TYPE chunk is not supported")
+        else:
+            # Unknown / not-handled chunk type
+            logger.warning("Unknown chunk type encountered inside RES_TABLE_PACKAGE: %s", pkg_chunk_header)
 
     def _analyse(self):
         if self.analyzed:
@@ -2730,6 +2764,17 @@ class ARSCResTableConfig:
         """
         res = []
 
+        self._qualifier_mcc_mnc_locale(res)
+        self._qualifier_screen_layout(res)
+        self._qualifier_screen_config2(res)
+        self._qualifier_orientation_uimode(res)
+        self._qualifier_density_touchscreen(res)
+        self._qualifier_input(res)
+        self._qualifier_screen_size_version(res)
+
+        return "-".join(res)
+
+    def _qualifier_mcc_mnc_locale(self, res):
         mcc = self.imsi & 0xFFFF
         mnc = (self.imsi & 0xFFFF0000) >> 16
         if mcc != 0:
@@ -2740,6 +2785,7 @@ class ARSCResTableConfig:
         if self.locale != 0:
             res.append(self.get_language_and_region())
 
+    def _qualifier_screen_layout(self, res):
         screenLayout = self.screenConfig & 0xFF
         if (screenLayout & MASK_LAYOUTDIR) != 0:
             if screenLayout & MASK_LAYOUTDIR == LAYOUTDIR_LTR:
@@ -2779,6 +2825,7 @@ class ARSCResTableConfig:
             else:
                 res.append("screenLayoutLong_%d" % (screenLayout & MASK_SCREENLONG))
 
+    def _qualifier_screen_config2(self, res):
         screenLayout2 = self.screenConfig2 & 0xFF
         if (screenLayout2 & MASK_SCREENROUND) != 0:
             if screenLayout2 & MASK_SCREENROUND == SCREENROUND_NO:
@@ -2805,6 +2852,7 @@ class ARSCResTableConfig:
             else:
                 res.append("hdr_%d" % (colorMode & MASK_HDR))
 
+    def _qualifier_orientation_uimode(self, res):
         orientation = self.screenType & 0xFF
         if orientation != ORIENTATION_ANY:
             if orientation == ORIENTATION_PORT:
@@ -2842,6 +2890,7 @@ class ARSCResTableConfig:
             else:
                 res.append("uiModeNight_%d" % (uiMode & MASK_UI_MODE_NIGHT))
 
+    def _qualifier_density_touchscreen(self, res):
         density = (self.screenType & 0xFFFF0000) >> 16
         if density != DENSITY_DEFAULT:
             if density == DENSITY_LOW:
@@ -2876,6 +2925,7 @@ class ARSCResTableConfig:
             else:
                 res.append("touchscreen_%d" % touchscreen)
 
+    def _qualifier_input(self, res):
         keyboard = self.input & 0xFF
         navigation = (self.input & 0xFF00) >> 8
         inputFlags = (self.input & 0xFF0000) >> 16
@@ -2920,6 +2970,7 @@ class ARSCResTableConfig:
             else:
                 res.append("navigation_%d" % navigation)
 
+    def _qualifier_screen_size_version(self, res):
         screenSize = self.screenSize
         if screenSize != 0:
             screenWidth = self.screenSize & 0xFFFF
@@ -2933,8 +2984,6 @@ class ARSCResTableConfig:
             res.append("v%d" % sdkVersion)
             if minorVersion != 0:
                 res.append(".%d" % minorVersion)
-
-        return "-".join(res)
 
     def get_language(self):
         """Get language code from locale."""

@@ -156,94 +156,19 @@ class DotnetAnalysisModule(BaseAnalysisModule):
             # Set up decompile target directory
             self.decompile_target = get_parent_directory(context.unzip_path or os.getcwd())
 
-            dll_found = False
-            target_dll = ""
-            manifest_found = False
-            blob_files = []
-            used_assemblies = []
-
             self.logger.debug(f"Searching for .NET files with pattern: {dll_pattern}")
             self.logger.debug(f"Total files in APK: {len(file_names)}")
 
-            # Phase 1: Check for direct DLL files
-            for name in file_names:
-                if re.search(dll_pattern, name):
-                    dll_found = True
-                    target_dll = name
-                    self._collect_dlls(name, dll_pattern)
-                    self.logger.debug(f"Found direct DLL: {name}")
+            dll_found, target_dll, manifest_found, blob_files, used_assemblies = self._discover_dotnet_files(
+                context, file_names, dll_pattern, blob_pattern, assembly_manifest_pattern
+            )
 
-            # Phase 2: Check for blob files if no direct DLLs found
-            if not dll_found:
-                for name in file_names:
-                    if re.search(blob_pattern, name) or re.search(assembly_manifest_pattern, name):
-                        blob_files.append(name)
-
-                        if not os.path.exists(".blobs"):
-                            os.makedirs(".blobs", mode=0o766, exist_ok=True)
-
-                        # Handle assembly manifest
-                        if re.search(assembly_manifest_pattern, name):
-                            manifest_found = True
-                            self.logger.debug(f"Found assembly manifest: {name}")
-                            assembly_manifest_file = context.androguard_obj.androguard_apk.get_file(name)
-                            with open(f".blobs/{assembly_manifest_pattern}", "wb") as f:
-                                f.write(assembly_manifest_file)
-                            used_assemblies = self._filter_manifest()
-
-                        # Handle blob files
-                        else:
-                            self.logger.debug(f"Found blob file: {name}")
-                            blob_file = context.androguard_obj.androguard_apk.get_file(name)
-                            filename = name.split("/")[-1] if name != "assemblies.blob" else name
-                            with open(f".blobs/{filename}", "wb") as f:
-                                f.write(blob_file)
-
-            found_strings = []
-            extraction_method = ""
-
-            # Process based on what we found
-            if dll_found:
-                # Direct DLL processing
-                self.logger.info(f"Processing direct DLL files (count: {len(self.dlls_to_analyze)})")
-                extraction_method = "direct_dll"
-                self._decompile_dlls(context.unzip_path or "")
-                analysis_results = self._analyze_dlls(app_name)
-                found_strings = analysis_results.get("found_strings", [])
-                used_assemblies = [target_dll]
-
-            elif blob_files and manifest_found:
-                # Blob unpacking processing
-                self.logger.info(f"Processing blob files (count: {len(blob_files)})")
-                extraction_method = "blob_unpacking"
-
-                if self._unpack_blob():
-                    self._collect_dlls(".unpacked_blobs/", dll_pattern)
-                    self._decompile_dlls(context.unzip_path or "")
-                    analysis_results = self._analyze_dlls(app_name)
-                    found_strings = analysis_results.get("found_strings", [])
-                else:
-                    self.logger.error("Failed to unpack blob files")
-
-            elif blob_files and not manifest_found:
-                self.logger.warning("Found blob files but no assembly manifest - cannot unpack")
-                return DotnetAnalysisResult(
-                    module_name=self.name,
-                    status=AnalysisStatus.PARTIAL,
-                    execution_time=time.time() - start_time,
-                    blob_files_processed=blob_files,
-                    manifest_found=False,
-                    error_message="Assembly manifest not found - blob files cannot be unpacked",
-                )
-            else:
-                # No .NET files found
-                self.logger.info("No .NET files detected in APK")
-                return DotnetAnalysisResult(
-                    module_name=self.name,
-                    status=AnalysisStatus.SKIPPED,
-                    execution_time=time.time() - start_time,
-                    error_message="No .NET files found in APK",
-                )
+            found_strings, extraction_method, used_assemblies, early_result = self._process_dotnet_files(
+                context, app_name, dll_pattern, start_time, dll_found,
+                target_dll, manifest_found, blob_files, used_assemblies,
+            )
+            if early_result is not None:
+                return early_result
 
             execution_time = time.time() - start_time
 
@@ -280,6 +205,126 @@ class DotnetAnalysisModule(BaseAnalysisModule):
                 execution_time=execution_time,
                 error_message=str(e),
             )
+
+    def _discover_dotnet_files(self, context, file_names, dll_pattern, blob_pattern, assembly_manifest_pattern):
+        """Discover .NET DLLs, blob files, and assembly manifests within the APK files."""
+        dll_found = False
+        target_dll = ""
+        manifest_found = False
+        blob_files = []
+        used_assemblies = []
+
+        # Phase 1: Check for direct DLL files
+        for name in file_names:
+            if re.search(dll_pattern, name):
+                dll_found = True
+                target_dll = name
+                self._collect_dlls(name, dll_pattern)
+                self.logger.debug(f"Found direct DLL: {name}")
+
+        # Phase 2: Check for blob files if no direct DLLs found
+        if not dll_found:
+            for name in file_names:
+                if re.search(blob_pattern, name) or re.search(assembly_manifest_pattern, name):
+                    blob_files.append(name)
+
+                    if not os.path.exists(".blobs"):
+                        os.makedirs(".blobs", mode=0o766, exist_ok=True)
+
+                    # Handle assembly manifest
+                    if re.search(assembly_manifest_pattern, name):
+                        manifest_found = True
+                        self.logger.debug(f"Found assembly manifest: {name}")
+                        assembly_manifest_file = context.androguard_obj.androguard_apk.get_file(name)
+                        with open(f".blobs/{assembly_manifest_pattern}", "wb") as f:
+                            f.write(assembly_manifest_file)
+                        used_assemblies = self._filter_manifest()
+
+                    # Handle blob files
+                    else:
+                        self.logger.debug(f"Found blob file: {name}")
+                        blob_file = context.androguard_obj.androguard_apk.get_file(name)
+                        filename = name.split("/")[-1] if name != "assemblies.blob" else name
+                        with open(f".blobs/{filename}", "wb") as f:
+                            f.write(blob_file)
+
+        return dll_found, target_dll, manifest_found, blob_files, used_assemblies
+
+    def _process_dotnet_files(
+        self,
+        context,
+        app_name,
+        dll_pattern,
+        start_time,
+        dll_found,
+        target_dll,
+        manifest_found,
+        blob_files,
+        used_assemblies,
+    ):
+        """Process discovered .NET files and extract strings.
+
+        Returns a tuple of (found_strings, extraction_method, used_assemblies, early_result)
+        where early_result is a DotnetAnalysisResult that the caller should return directly,
+        or None when analysis should continue.
+        """
+        found_strings = []
+        extraction_method = ""
+
+        # Process based on what we found
+        if dll_found:
+            # Direct DLL processing
+            self.logger.info(f"Processing direct DLL files (count: {len(self.dlls_to_analyze)})")
+            extraction_method = "direct_dll"
+            self._decompile_dlls(context.unzip_path or "")
+            analysis_results = self._analyze_dlls(app_name)
+            found_strings = analysis_results.get("found_strings", [])
+            used_assemblies = [target_dll]
+
+        elif blob_files and manifest_found:
+            # Blob unpacking processing
+            self.logger.info(f"Processing blob files (count: {len(blob_files)})")
+            extraction_method = "blob_unpacking"
+
+            if self._unpack_blob():
+                self._collect_dlls(".unpacked_blobs/", dll_pattern)
+                self._decompile_dlls(context.unzip_path or "")
+                analysis_results = self._analyze_dlls(app_name)
+                found_strings = analysis_results.get("found_strings", [])
+            else:
+                self.logger.error("Failed to unpack blob files")
+
+        elif blob_files and not manifest_found:
+            self.logger.warning("Found blob files but no assembly manifest - cannot unpack")
+            return (
+                found_strings,
+                extraction_method,
+                used_assemblies,
+                DotnetAnalysisResult(
+                    module_name=self.name,
+                    status=AnalysisStatus.PARTIAL,
+                    execution_time=time.time() - start_time,
+                    blob_files_processed=blob_files,
+                    manifest_found=False,
+                    error_message="Assembly manifest not found - blob files cannot be unpacked",
+                ),
+            )
+        else:
+            # No .NET files found
+            self.logger.info("No .NET files detected in APK")
+            return (
+                found_strings,
+                extraction_method,
+                used_assemblies,
+                DotnetAnalysisResult(
+                    module_name=self.name,
+                    status=AnalysisStatus.SKIPPED,
+                    execution_time=time.time() - start_time,
+                    error_message="No .NET files found in APK",
+                ),
+            )
+
+        return found_strings, extraction_method, used_assemblies, None
 
     def _check_prerequisites(self) -> bool:
         """Check if required tools for .NET analysis are available."""

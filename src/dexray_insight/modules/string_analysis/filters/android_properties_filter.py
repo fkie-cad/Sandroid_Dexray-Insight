@@ -180,12 +180,12 @@ class AndroidPropertiesFilter:
 
         # Find pattern-based Android properties
         for string in strings:
-            if string not in found_properties:  # Don't double-process exact matches
-                if self._matches_android_property_pattern(string):
-                    # Generate description for pattern-matched property
-                    description = self._generate_property_description(string)
-                    found_properties[string] = description
-                    self.logger.debug(f"Found pattern-based Android property: {string}")
+            # Don't double-process exact matches
+            if string not in found_properties and self._matches_android_property_pattern(string):
+                # Generate description for pattern-matched property
+                description = self._generate_property_description(string)
+                found_properties[string] = description
+                self.logger.debug(f"Found pattern-based Android property: {string}")
 
         # Filter out found properties from remaining strings
         for string in strings:
@@ -209,10 +209,7 @@ class AndroidPropertiesFilter:
         """
         import re
 
-        for pattern in self.ANDROID_PROPERTY_PATTERNS:
-            if re.match(pattern, string):
-                return True
-        return False
+        return any(re.match(pattern, string) for pattern in self.ANDROID_PROPERTY_PATTERNS)
 
     def _generate_property_description(self, property_name: str) -> str:
         """

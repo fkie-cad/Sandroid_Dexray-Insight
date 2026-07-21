@@ -30,7 +30,6 @@ accurate version checking and analysis.
 
 import re
 from typing import NamedTuple
-from typing import Optional
 
 
 class LibraryMapping(NamedTuple):
@@ -67,8 +66,25 @@ class LibraryMappingRegistry:
 
     def _initialize_default_mappings(self):
         """Initialize default library mappings."""
-        # Google Play Services Libraries
-        play_services_mappings = {
+        all_mappings = {
+            **self._build_play_services_mappings(),
+            **self._build_firebase_mappings(),
+            **self._build_android_mappings(),
+            **self._build_thirdparty_mappings(),
+            **self._build_facebook_mappings(),
+        }
+        self._mappings.update(all_mappings)
+
+    def _build_play_services_mappings(self) -> dict[str, LibraryMapping]:
+        """Build Google Play Services library mappings."""
+        return {
+            **self._build_play_services_core_mappings(),
+            **self._build_play_services_extra_mappings(),
+        }
+
+    def _build_play_services_core_mappings(self) -> dict[str, LibraryMapping]:
+        """Build the core Google Play Services library mappings."""
+        return {
             "play-services-cast": LibraryMapping(
                 maven_group_id="com.google.android.gms",
                 maven_artifact_id="play-services-cast",
@@ -109,6 +125,11 @@ class LibraryMappingRegistry:
                 description="Base Google Play Services functionality",
                 official_url="https://developers.google.com/android/guides/setup",
             ),
+        }
+
+    def _build_play_services_extra_mappings(self) -> dict[str, LibraryMapping]:
+        """Build the additional Google Play Services library mappings."""
+        return {
             "play-services-basement": LibraryMapping(
                 maven_group_id="com.google.android.gms",
                 maven_artifact_id="play-services-basement",
@@ -151,8 +172,9 @@ class LibraryMappingRegistry:
             ),
         }
 
-        # Firebase Libraries
-        firebase_mappings = {
+    def _build_firebase_mappings(self) -> dict[str, LibraryMapping]:
+        """Build Firebase library mappings."""
+        return {
             "firebase-messaging": LibraryMapping(
                 maven_group_id="com.google.firebase",
                 maven_artifact_id="firebase-messaging",
@@ -203,8 +225,9 @@ class LibraryMappingRegistry:
             ),
         }
 
-        # Android/AndroidX Libraries
-        android_mappings = {
+    def _build_android_mappings(self) -> dict[str, LibraryMapping]:
+        """Build Android/AndroidX library mappings."""
+        return {
             "billing": LibraryMapping(
                 maven_group_id="com.android.billingclient",
                 maven_artifact_id="billing",
@@ -247,8 +270,9 @@ class LibraryMappingRegistry:
             ),
         }
 
-        # Popular Third-party Libraries
-        thirdparty_mappings = {
+    def _build_thirdparty_mappings(self) -> dict[str, LibraryMapping]:
+        """Build popular third-party library mappings."""
+        return {
             "gson": LibraryMapping(
                 maven_group_id="com.google.code.gson",
                 maven_artifact_id="gson",
@@ -283,8 +307,9 @@ class LibraryMappingRegistry:
             ),
         }
 
-        # Facebook-specific libraries
-        facebook_mappings = {
+    def _build_facebook_mappings(self) -> dict[str, LibraryMapping]:
+        """Build Facebook and Google identity library mappings."""
+        return {
             "core-facebook": LibraryMapping(
                 maven_group_id="com.facebook.android",
                 maven_artifact_id="facebook-core",
@@ -303,18 +328,7 @@ class LibraryMappingRegistry:
             ),
         }
 
-        # Combine all mappings
-        all_mappings = {
-            **play_services_mappings,
-            **firebase_mappings,
-            **android_mappings,
-            **thirdparty_mappings,
-            **facebook_mappings,
-        }
-
-        self._mappings.update(all_mappings)
-
-    def get_mapping(self, property_name: str) -> Optional[LibraryMapping]:
+    def get_mapping(self, property_name: str) -> LibraryMapping | None:
         """Get library mapping by property file name.
 
         Args:
@@ -385,7 +399,7 @@ class LibraryMappingRegistry:
         """Get all available mappings."""
         return self._mappings.copy()
 
-    def get_maven_coordinates(self, property_name: str) -> Optional[str]:
+    def get_maven_coordinates(self, property_name: str) -> str | None:
         """Get Maven coordinates for a library.
 
         Args:
@@ -404,7 +418,7 @@ class LibraryMappingRegistry:
 _registry = LibraryMappingRegistry()
 
 
-def get_library_mapping(property_name: str) -> Optional[LibraryMapping]:
+def get_library_mapping(property_name: str) -> LibraryMapping | None:
     """Get library mapping by property name.
 
     Args:
@@ -416,7 +430,7 @@ def get_library_mapping(property_name: str) -> Optional[LibraryMapping]:
     return _registry.get_mapping(property_name)
 
 
-def get_maven_coordinates(property_name: str) -> Optional[str]:
+def get_maven_coordinates(property_name: str) -> str | None:
     """Get Maven coordinates for a library.
 
     Args:

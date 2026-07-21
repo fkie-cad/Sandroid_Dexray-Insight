@@ -28,7 +28,6 @@ running services access, and installed applications enumeration.
 """
 
 import logging
-from typing import Optional
 
 from ..models.behavior_evidence import BehaviorEvidence
 
@@ -75,7 +74,7 @@ class SystemAnalyzer:
         r"GET_INSTALLED_PACKAGES",
     ]
 
-    def __init__(self, logger: Optional[logging.Logger] = None):
+    def __init__(self, logger: logging.Logger | None = None):
         """Initialize SystemAnalyzer with optional logger."""
         self.logger = logger or logging.getLogger(__name__)
 

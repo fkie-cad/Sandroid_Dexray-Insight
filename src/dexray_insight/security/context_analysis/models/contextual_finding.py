@@ -50,7 +50,6 @@ from dataclasses import dataclass
 from dataclasses import field
 from enum import Enum
 from typing import Any
-from typing import Optional
 
 
 class ContextConfidence(Enum):
@@ -101,8 +100,8 @@ class UsageContext:
     has_validation: bool = False
     access_pattern: str = ""
     surrounding_variables: list[str] = field(default_factory=list)
-    method_context: Optional[str] = None
-    class_context: Optional[str] = None
+    method_context: str | None = None
+    class_context: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary representation."""
@@ -133,7 +132,7 @@ class ContextMetadata:
     behavior_correlation: list[str] = field(default_factory=list)  # Related behavior analysis findings
     api_correlation: list[str] = field(default_factory=list)  # Related API usage findings
     context_analysis_version: str = "1.0"  # Version of context analysis used
-    analysis_timestamp: Optional[str] = None
+    analysis_timestamp: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary representation."""
@@ -171,7 +170,7 @@ class ContextualFinding:
     original_finding: dict[str, Any]
     usage_context: UsageContext = field(default_factory=UsageContext)
     context_metadata: ContextMetadata = field(default_factory=ContextMetadata)
-    adjusted_severity: Optional[str] = None
+    adjusted_severity: str | None = None
     adjusted_risk_level: RiskLevel = RiskLevel.MODERATE
     contextual_evidence: list[str] = field(default_factory=list)
     remediation_priority: int = 5  # 1-10 scale, 10 = highest priority

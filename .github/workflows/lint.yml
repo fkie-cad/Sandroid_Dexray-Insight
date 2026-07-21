@@ -24,7 +24,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install ruff
+          pip install ruff==0.15.8
 
       # 4 Run Ruff with GitHub‑annotations output
       - name: Run Ruff

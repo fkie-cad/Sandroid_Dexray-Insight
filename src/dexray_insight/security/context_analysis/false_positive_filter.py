@@ -245,11 +245,11 @@ class FalsePositiveFilter:
 
         # Check for placeholder-like patterns
         # All uppercase with underscores (configuration style placeholders)
-        if re.match(r"^[A-Z_][A-Z0-9_]*[A-Z_]$", value) and len(value) > 10:
-            if any(indicator in value_lower for indicator in ["key", "token", "secret", "api", "your", "here"]):
-                return True
-
-        return False
+        return bool(
+            re.match(r"^[A-Z_][A-Z0-9_]*[A-Z_]$", value)
+            and len(value) > 10
+            and any(indicator in value_lower for indicator in ["key", "token", "secret", "api", "your", "here"])
+        )
 
     def is_android_system_string(self, value: str) -> bool:
         """
@@ -341,11 +341,7 @@ class FalsePositiveFilter:
 
         # Check surrounding lines for test keywords
         test_keywords = ["@Test", "@Mock", "@Before", "@After", "@Spy", "junit", "mockito", "assert"]
-        for line in code_context.surrounding_lines:
-            if any(keyword in line for keyword in test_keywords):
-                return True
-
-        return False
+        return any(any(keyword in line for keyword in test_keywords) for line in code_context.surrounding_lines)
 
     def calculate_entropy(self, string: str) -> float:
         """
@@ -480,8 +476,32 @@ class FalsePositiveFilter:
         finding.get("location", "")
 
         # 1. Placeholder value detection
+        indicators.extend(self._build_placeholder_indicators(value))
+
+        # 2. Test context detection
+        indicators.extend(self._build_test_context_indicators(code_context))
+
+        # 3. Android system string detection
+        indicators.extend(self._build_android_system_indicators(value))
+
+        # 4. Low entropy check (for patterns that should have high entropy)
+        indicators.extend(self._build_entropy_indicators(value, finding_type))
+
+        # 5. Common false positive patterns
+        indicators.extend(self._build_pattern_indicators(value))
+
+        # 6. Context-specific indicators
+        indicators.extend(self._build_context_indicators(code_context))
+
+        # 7. Length-based indicators
+        indicators.extend(self._build_length_indicators(value))
+
+        return indicators
+
+    def _build_placeholder_indicators(self, value: str) -> list[FalsePositiveIndicator]:
+        """Build placeholder-value false positive indicators."""
         if self.is_placeholder_value(value):
-            indicators.append(
+            return [
                 FalsePositiveIndicator(
                     indicator_type="placeholder_value",
                     indicator_value=value[:50],
@@ -489,11 +509,13 @@ class FalsePositiveFilter:
                     description=f"Value appears to be a placeholder: {value[:50]}...",
                     source="pattern_matching",
                 )
-            )
+            ]
+        return []
 
-        # 2. Test context detection
+    def _build_test_context_indicators(self, code_context: CodeContext) -> list[FalsePositiveIndicator]:
+        """Build test-context false positive indicators."""
         if self.is_test_context(code_context):
-            indicators.append(
+            return [
                 FalsePositiveIndicator(
                     indicator_type="test_context",
                     indicator_value=code_context.file_path or "test context detected",
@@ -501,11 +523,13 @@ class FalsePositiveFilter:
                     description="Finding is in test code context",
                     source="code_analysis",
                 )
-            )
+            ]
+        return []
 
-        # 3. Android system string detection
+    def _build_android_system_indicators(self, value: str) -> list[FalsePositiveIndicator]:
+        """Build Android system string false positive indicators."""
         if self.is_android_system_string(value):
-            indicators.append(
+            return [
                 FalsePositiveIndicator(
                     indicator_type="android_system_string",
                     indicator_value=value[:50],
@@ -513,9 +537,11 @@ class FalsePositiveFilter:
                     description=f"Value appears to be Android system string: {value[:50]}...",
                     source="pattern_matching",
                 )
-            )
+            ]
+        return []
 
-        # 4. Low entropy check (for patterns that should have high entropy)
+    def _build_entropy_indicators(self, value: str, finding_type: str) -> list[FalsePositiveIndicator]:
+        """Build low-entropy false positive indicators."""
         should_have_high_entropy = any(
             keyword in finding_type.lower()
             for keyword in [
@@ -530,19 +556,20 @@ class FalsePositiveFilter:
             ]
         )
 
-        if should_have_high_entropy:
-            if not self.has_high_entropy(value):
-                indicators.append(
-                    FalsePositiveIndicator(
-                        indicator_type="low_entropy",
-                        indicator_value=f"entropy: {self.calculate_entropy(value):.2f}",
-                        confidence=0.7,
-                        description=f"Value has low entropy for claimed type: {self.calculate_entropy(value):.2f}",
-                        source="entropy_analysis",
-                    )
+        if should_have_high_entropy and not self.has_high_entropy(value):
+            return [
+                FalsePositiveIndicator(
+                    indicator_type="low_entropy",
+                    indicator_value=f"entropy: {self.calculate_entropy(value):.2f}",
+                    confidence=0.7,
+                    description=f"Value has low entropy for claimed type: {self.calculate_entropy(value):.2f}",
+                    source="entropy_analysis",
                 )
+            ]
+        return []
 
-        # 5. Common false positive patterns
+    def _build_pattern_indicators(self, value: str) -> list[FalsePositiveIndicator]:
+        """Build common false positive pattern indicators (first match only)."""
         false_positive_patterns = [
             (r"^\d+$", "numeric_only", 0.6, "Value is purely numeric"),
             (r"^[a-zA-Z]+$", "alphabetic_only", 0.5, "Value is purely alphabetic"),
@@ -554,7 +581,7 @@ class FalsePositiveFilter:
 
         for pattern, indicator_type, confidence, description in false_positive_patterns:
             if re.search(pattern, value, re.IGNORECASE):
-                indicators.append(
+                return [
                     FalsePositiveIndicator(
                         indicator_type=indicator_type,
                         indicator_value=value[:30],
@@ -562,10 +589,12 @@ class FalsePositiveFilter:
                         description=description,
                         source="pattern_matching",
                     )
-                )
-                break  # Only add the first matching pattern
+                ]  # Only add the first matching pattern
+        return []
 
-        # 6. Context-specific indicators
+    def _build_context_indicators(self, code_context: CodeContext) -> list[FalsePositiveIndicator]:
+        """Build context-specific false positive indicators."""
+        indicators = []
         if code_context.has_test_indicators():
             indicators.append(
                 FalsePositiveIndicator(
@@ -587,10 +616,12 @@ class FalsePositiveFilter:
                     source="code_analysis",
                 )
             )
+        return indicators
 
-        # 7. Length-based indicators
+    def _build_length_indicators(self, value: str) -> list[FalsePositiveIndicator]:
+        """Build length-based false positive indicators."""
         if len(value) < 8:
-            indicators.append(
+            return [
                 FalsePositiveIndicator(
                     indicator_type="too_short",
                     indicator_value=f"length: {len(value)}",
@@ -598,9 +629,9 @@ class FalsePositiveFilter:
                     description=f"Value is too short to be a meaningful secret: {len(value)} characters",
                     source="length_analysis",
                 )
-            )
+            ]
         elif len(value) > 200:
-            indicators.append(
+            return [
                 FalsePositiveIndicator(
                     indicator_type="too_long",
                     indicator_value=f"length: {len(value)}",
@@ -608,9 +639,8 @@ class FalsePositiveFilter:
                     description=f"Value is unusually long: {len(value)} characters",
                     source="length_analysis",
                 )
-            )
-
-        return indicators
+            ]
+        return []
 
     def calculate_false_positive_probability(self, indicators: list[FalsePositiveIndicator]) -> float:
         """

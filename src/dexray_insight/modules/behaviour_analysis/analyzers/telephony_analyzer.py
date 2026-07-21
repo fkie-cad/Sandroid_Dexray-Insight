@@ -28,7 +28,6 @@ such as IMEI, phone numbers, and SIM card details.
 """
 
 import logging
-from typing import Optional
 
 from ..models.behavior_evidence import BehaviorEvidence
 
@@ -53,7 +52,7 @@ class TelephonyAnalyzer:
         r"READ_PHONE_NUMBERS",
     ]
 
-    def __init__(self, logger: Optional[logging.Logger] = None):
+    def __init__(self, logger: logging.Logger | None = None):
         """Initialize TelephonyAnalyzer with optional logger."""
         self.logger = logger or logging.getLogger(__name__)
 

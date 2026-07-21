@@ -145,3 +145,27 @@ class TestConfiguration:
         # Should have both modules
         assert config.config["modules"]["signature_detection"]["enabled"] is True
         assert config.config["modules"]["string_analysis"]["enabled"] is True
+
+    @pytest.mark.unit
+    def test_instance_mutation_does_not_leak_into_default_config(self):
+        """Nested mutations on one instance must not pollute the shared DEFAULT_CONFIG.
+
+        Regression test: __init__ must deep-copy DEFAULT_CONFIG, otherwise nested
+        dicts are shared by reference and a merge/env override on one Configuration
+        would corrupt the class-level defaults for every subsequent instance.
+        """
+        import copy
+
+        default_snapshot = copy.deepcopy(Configuration.DEFAULT_CONFIG)
+
+        # Mutate a nested value on one instance via a deep merge.
+        first = Configuration(
+            config_dict={"modules": {"signature_detection": {"providers": {"virustotal": {"enabled": True}}}}}
+        )
+        assert first.config["modules"]["signature_detection"]["providers"]["virustotal"]["enabled"] is True
+
+        # The shared class-level default must be untouched...
+        assert default_snapshot == Configuration.DEFAULT_CONFIG
+        # ...and a fresh instance must still see the original default value.
+        second = Configuration()
+        assert second.config["modules"]["signature_detection"]["providers"]["virustotal"]["enabled"] is False

@@ -110,67 +110,64 @@ class TestLibraryDetectionVersionAnalysisIntegration(unittest.TestCase):
         mock_open.side_effect = open_side_effect
 
         # Mock library definitions loading
-        with patch.object(self.module.detection_coordinator.apktool_engine, "_load_library_definitions"):
-            # Mock library patterns existence check
-            with patch.object(self.module.detection_coordinator.apktool_engine, "_lib_dir_exists") as mock_lib_exists:
-                mock_lib_exists.return_value = True
+        # Mock library patterns existence check
+        with patch.object(self.module.detection_coordinator.apktool_engine, "_load_library_definitions"), patch.object(self.module.detection_coordinator.apktool_engine, "_lib_dir_exists") as mock_lib_exists:
+            mock_lib_exists.return_value = True
 
-                # Mock library definitions
-                mock_androidx_definitions = {
-                    "/androidx/activity": {"id": "/androidx/activity", "name": "AndroidX Activity", "type": "Utility"},
-                    "/androidx/appcompat": {"id": "/androidx/appcompat", "name": "AppCompat", "type": "Utility"},
-                    "/androidx/fragment": {"id": "/androidx/fragment", "name": "AndroidX Fragment", "type": "Utility"},
-                    "/androidx/recyclerview": {
-                        "id": "/androidx/recyclerview",
-                        "name": "RecyclerView",
-                        "type": "UI Component",
-                    },
-                    "/androidx/core": {"id": "/androidx/core", "name": "AndroidX Core", "type": "Utility"},
-                    "/androidx/lifecycle": {"id": "/androidx/lifecycle", "name": "Lifecycle", "type": "Utility"},
-                    "/androidx/constraintlayout": {
-                        "id": "/androidx/constraintlayout",
-                        "name": "Constraint Layout Library",
-                        "type": "Utility",
-                    },
-                    "/androidx/biometric": {"id": "/androidx/biometric", "name": "Biometric", "type": "Utility"},
-                    "/androidx/browser": {"id": "/androidx/browser", "name": "Browser", "type": "Utility"},
-                }
-                self.module.detection_coordinator.apktool_engine._libs_by_path = mock_androidx_definitions
+            # Mock library definitions
+            mock_androidx_definitions = {
+                "/androidx/activity": {"id": "/androidx/activity", "name": "AndroidX Activity", "type": "Utility"},
+                "/androidx/appcompat": {"id": "/androidx/appcompat", "name": "AppCompat", "type": "Utility"},
+                "/androidx/fragment": {"id": "/androidx/fragment", "name": "AndroidX Fragment", "type": "Utility"},
+                "/androidx/recyclerview": {
+                    "id": "/androidx/recyclerview",
+                    "name": "RecyclerView",
+                    "type": "UI Component",
+                },
+                "/androidx/core": {"id": "/androidx/core", "name": "AndroidX Core", "type": "Utility"},
+                "/androidx/lifecycle": {"id": "/androidx/lifecycle", "name": "Lifecycle", "type": "Utility"},
+                "/androidx/constraintlayout": {
+                    "id": "/androidx/constraintlayout",
+                    "name": "Constraint Layout Library",
+                    "type": "Utility",
+                },
+                "/androidx/biometric": {"id": "/androidx/biometric", "name": "Biometric", "type": "Utility"},
+                "/androidx/browser": {"id": "/androidx/browser", "name": "Browser", "type": "Utility"},
+            }
+            self.module.detection_coordinator.apktool_engine._libs_by_path = mock_androidx_definitions
 
-                # Run analysis
-                result = self.module.analyze(self.test_apk_path, context)
+            # Run analysis
+            result = self.module.analyze(self.test_apk_path, context)
 
-                # Verify results
-                self.assertEqual(result.status.name, "SUCCESS")
+            # Verify results
+            self.assertEqual(result.status.name, "SUCCESS")
 
-                # Count AndroidX libraries using CORRECTED filtering logic
-                def is_androidx_library(lib):
-                    # Use smali_path for reliable detection
-                    if hasattr(lib, "smali_path") and lib.smali_path and "androidx" in lib.smali_path:
-                        return True
-                    # Fallback to category
-                    if lib.category == LibraryCategory.ANDROIDX:
-                        return True
-                    # Fallback to name
-                    if "androidx" in lib.name.lower():
-                        return True
-                    return False
+            # Count AndroidX libraries using CORRECTED filtering logic
+            def is_androidx_library(lib):
+                # Use smali_path for reliable detection
+                if hasattr(lib, "smali_path") and lib.smali_path and "androidx" in lib.smali_path:
+                    return True
+                # Fallback to category
+                if lib.category == LibraryCategory.ANDROIDX:
+                    return True
+                # Fallback to name
+                return "androidx" in lib.name.lower()
 
-                androidx_libs = [lib for lib in result.detected_libraries if is_androidx_library(lib)]
+            androidx_libs = [lib for lib in result.detected_libraries if is_androidx_library(lib)]
 
-                # Should find multiple AndroidX libraries (not just 1 like the old logic)
-                self.assertGreater(
-                    len(androidx_libs), 5, f"Should find multiple AndroidX libraries, found {len(androidx_libs)}"
+            # Should find multiple AndroidX libraries (not just 1 like the old logic)
+            self.assertGreater(
+                len(androidx_libs), 5, f"Should find multiple AndroidX libraries, found {len(androidx_libs)}"
+            )
+
+            # Verify some expected AndroidX libraries are found
+            found_names = [lib.name for lib in androidx_libs]
+            expected_androidx = ["AndroidX Activity", "AppCompat", "AndroidX Fragment", "RecyclerView"]
+
+            for expected in expected_androidx:
+                self.assertIn(
+                    expected, found_names, f"Expected {expected} in found AndroidX libraries: {found_names}"
                 )
-
-                # Verify some expected AndroidX libraries are found
-                found_names = [lib.name for lib in androidx_libs]
-                expected_androidx = ["AndroidX Activity", "AppCompat", "AndroidX Fragment", "RecyclerView"]
-
-                for expected in expected_androidx:
-                    self.assertIn(
-                        expected, found_names, f"Expected {expected} in found AndroidX libraries: {found_names}"
-                    )
 
     @patch("src.dexray_insight.modules.library_detection.utils.version_analyzer.requests.get")
     def test_version_analysis_integration(self, mock_requests):
@@ -185,26 +182,25 @@ class TestLibraryDetectionVersionAnalysisIntegration(unittest.TestCase):
 
         context = self._create_mock_context_with_androidx_strings()
 
-        with patch.object(self.module.detection_coordinator.apktool_engine, "_load_library_definitions"):
-            with patch.object(self.module.detection_coordinator.apktool_engine, "_lib_dir_exists") as mock_lib_exists:
-                mock_lib_exists.return_value = False  # Focus on heuristic detection
+        with patch.object(self.module.detection_coordinator.apktool_engine, "_load_library_definitions"), patch.object(self.module.detection_coordinator.apktool_engine, "_lib_dir_exists") as mock_lib_exists:
+            mock_lib_exists.return_value = False  # Focus on heuristic detection
 
-                # Run analysis
-                result = self.module.analyze(self.test_apk_path, context)
+            # Run analysis
+            result = self.module.analyze(self.test_apk_path, context)
 
-                # Check for libraries with version analysis data
-                versioned_libs = [
-                    lib
-                    for lib in result.detected_libraries
-                    if hasattr(lib, "years_behind") and lib.years_behind is not None
-                ]
+            # Check for libraries with version analysis data
+            versioned_libs = [
+                lib
+                for lib in result.detected_libraries
+                if hasattr(lib, "years_behind") and lib.years_behind is not None
+            ]
 
-                if versioned_libs:
-                    # Verify version analysis fields are populated
-                    for lib in versioned_libs[:3]:  # Check first few
-                        self.assertIsNotNone(lib.years_behind)
-                        self.assertIsInstance(lib.years_behind, (int, float))
-                        self.assertGreaterEqual(lib.years_behind, 0)
+            if versioned_libs:
+                # Verify version analysis fields are populated
+                for lib in versioned_libs[:3]:  # Check first few
+                    self.assertIsNotNone(lib.years_behind)
+                    self.assertIsInstance(lib.years_behind, (int, float))
+                    self.assertGreaterEqual(lib.years_behind, 0)
 
     def test_version_analysis_display_order(self):
         """Test that version analysis output appears after library detection summary"""

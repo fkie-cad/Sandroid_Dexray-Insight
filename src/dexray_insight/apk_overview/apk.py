@@ -675,22 +675,28 @@ class APK_Overview:
             return None
 
         if app_icon.startswith("@"):
-            app_icon_id = app_icon[1:]
-            app_icon_id = app_icon_id.split(":")[-1]
-            res_id = int(app_icon_id, 16)
-            candidates = res_parser.get_resolved_res_configs(res_id)
+            app_icon = self._resolve_app_icon_by_dpi(res_parser, app_icon, max_dpi)
 
-            app_icon = None
-            current_dpi = -1
+        return app_icon
 
-            try:
-                for config, file_name in candidates:
-                    dpi = config.get_density()
-                    if current_dpi < dpi <= max_dpi:
-                        app_icon = file_name
-                        current_dpi = dpi
-            except Exception as e:
-                logger.warning("Exception selecting app icon: %s" % e)
+    def _resolve_app_icon_by_dpi(self, res_parser, app_icon, max_dpi):
+        """Resolve an "@"-prefixed icon reference to the best matching file name."""
+        app_icon_id = app_icon[1:]
+        app_icon_id = app_icon_id.split(":")[-1]
+        res_id = int(app_icon_id, 16)
+        candidates = res_parser.get_resolved_res_configs(res_id)
+
+        app_icon = None
+        current_dpi = -1
+
+        try:
+            for config, file_name in candidates:
+                dpi = config.get_density()
+                if current_dpi < dpi <= max_dpi:
+                    app_icon = file_name
+                    current_dpi = dpi
+        except Exception as e:
+            logger.warning("Exception selecting app icon: %s" % e)
 
         return app_icon
 
@@ -1702,21 +1708,8 @@ class APK_Overview:
 
         return digests
 
-    def parse_v2_v3_signature(self):
-        """Parse v2/v3 signature blocks from APK file."""
-        # Need to find an v2 Block in the APK.
-        # The Google Docs gives you the following rule:
-        # * go to the end of the ZIP File
-        # * search for the End of Central directory
-        # * then jump to the beginning of the central directory
-        # * Read now the magic of the signing block
-        # * before the magic there is the size_of_block, so we can jump to
-        # the beginning.
-        # * There should be again the size_of_block
-        # * Now we can read the Key-Values
-        # * IDs with an unknown value should be ignored.
-        f = io.BytesIO(self.get_raw())
-
+    def _find_central_dir_offset(self, f):
+        """Locate the End of Central Directory record and return the central dir offset."""
         size_central = None
         offset_central = None
 
@@ -1745,6 +1738,25 @@ class APK_Overview:
                     logger.warning("This is a multi disk ZIP! Attempting to process its signature anyway!")
                 break
             f.seek(-4, io.SEEK_CUR)
+
+        return offset_central
+
+    def parse_v2_v3_signature(self):
+        """Parse v2/v3 signature blocks from APK file."""
+        # Need to find an v2 Block in the APK.
+        # The Google Docs gives you the following rule:
+        # * go to the end of the ZIP File
+        # * search for the End of Central directory
+        # * then jump to the beginning of the central directory
+        # * Read now the magic of the signing block
+        # * before the magic there is the size_of_block, so we can jump to
+        # the beginning.
+        # * There should be again the size_of_block
+        # * Now we can read the Key-Values
+        # * IDs with an unknown value should be ignored.
+        f = io.BytesIO(self.get_raw())
+
+        offset_central = self._find_central_dir_offset(f)
 
         if not offset_central:
             return
@@ -1817,67 +1829,73 @@ class APK_Overview:
             raise BrokenAPKError("size of sequence and blocksize does not match")
 
         while block.tell() < len(block_bytes):
-            off_signer = block.tell()
-            size_signer = self.read_uint32_le(block)
-
-            # read whole signed data, since we might to parse
-            # content within the signed data, and mess up offset
-            len_signed_data = self.read_uint32_le(block)
-            signed_data_bytes = block.read(len_signed_data)
-            signed_data = io.BytesIO(signed_data_bytes)
-
-            # Digests
-            len_digests = self.read_uint32_le(signed_data)
-            raw_digests = signed_data.read(len_digests)
-            digests = self.parse_signatures_or_digests(raw_digests)
-
-            # Certs
-            certs = []
-            len_certs = self.read_uint32_le(signed_data)
-            start_certs = signed_data.tell()
-            while signed_data.tell() < start_certs + len_certs:
-                len_cert = self.read_uint32_le(signed_data)
-                cert = signed_data.read(len_cert)
-                certs.append(cert)
-
-            # versions
-            signed_data_min_sdk = self.read_uint32_le(signed_data)
-            signed_data_max_sdk = self.read_uint32_le(signed_data)
-
-            # Addional attributes
-            len_attr = self.read_uint32_le(signed_data)
-            attr = signed_data.read(len_attr)
-
-            signed_data_object = APKV3SignedData()
-            signed_data_object._bytes = signed_data_bytes
-            signed_data_object.digests = digests
-            signed_data_object.certificates = certs
-            signed_data_object.additional_attributes = attr
-            signed_data_object.minSDK = signed_data_min_sdk
-            signed_data_object.maxSDK = signed_data_max_sdk
-
-            # versions (should be the same as signed data's versions)
-            signer_min_sdk = self.read_uint32_le(block)
-            signer_max_sdk = self.read_uint32_le(block)
-
-            # Signatures
-            len_sigs = self.read_uint32_le(block)
-            raw_sigs = block.read(len_sigs)
-            sigs = self.parse_signatures_or_digests(raw_sigs)
-
-            # PublicKey
-            len_publickey = self.read_uint32_le(block)
-            publickey = block.read(len_publickey)
-
-            signer = APKV3Signer()
-            signer._bytes = view[off_signer : off_signer + size_signer]
-            signer.signed_data = signed_data_object
-            signer.signatures = sigs
-            signer.public_key = publickey
-            signer.minSDK = signer_min_sdk
-            signer.maxSDK = signer_max_sdk
+            signer = self._parse_v3_signer(block, view)
 
             self._v3_signing_data.append(signer)
+
+    def _parse_v3_signer(self, block, view):
+        """Parse a single V3 signer from the signing block and return it."""
+        off_signer = block.tell()
+        size_signer = self.read_uint32_le(block)
+
+        # read whole signed data, since we might to parse
+        # content within the signed data, and mess up offset
+        len_signed_data = self.read_uint32_le(block)
+        signed_data_bytes = block.read(len_signed_data)
+        signed_data = io.BytesIO(signed_data_bytes)
+
+        # Digests
+        len_digests = self.read_uint32_le(signed_data)
+        raw_digests = signed_data.read(len_digests)
+        digests = self.parse_signatures_or_digests(raw_digests)
+
+        # Certs
+        certs = []
+        len_certs = self.read_uint32_le(signed_data)
+        start_certs = signed_data.tell()
+        while signed_data.tell() < start_certs + len_certs:
+            len_cert = self.read_uint32_le(signed_data)
+            cert = signed_data.read(len_cert)
+            certs.append(cert)
+
+        # versions
+        signed_data_min_sdk = self.read_uint32_le(signed_data)
+        signed_data_max_sdk = self.read_uint32_le(signed_data)
+
+        # Addional attributes
+        len_attr = self.read_uint32_le(signed_data)
+        attr = signed_data.read(len_attr)
+
+        signed_data_object = APKV3SignedData()
+        signed_data_object._bytes = signed_data_bytes
+        signed_data_object.digests = digests
+        signed_data_object.certificates = certs
+        signed_data_object.additional_attributes = attr
+        signed_data_object.minSDK = signed_data_min_sdk
+        signed_data_object.maxSDK = signed_data_max_sdk
+
+        # versions (should be the same as signed data's versions)
+        signer_min_sdk = self.read_uint32_le(block)
+        signer_max_sdk = self.read_uint32_le(block)
+
+        # Signatures
+        len_sigs = self.read_uint32_le(block)
+        raw_sigs = block.read(len_sigs)
+        sigs = self.parse_signatures_or_digests(raw_sigs)
+
+        # PublicKey
+        len_publickey = self.read_uint32_le(block)
+        publickey = block.read(len_publickey)
+
+        signer = APKV3Signer()
+        signer._bytes = view[off_signer : off_signer + size_signer]
+        signer.signed_data = signed_data_object
+        signer.signatures = sigs
+        signer.public_key = publickey
+        signer.minSDK = signer_min_sdk
+        signer.maxSDK = signer_max_sdk
+
+        return signer
 
     def parse_v2_signing_block(self):
         """Parse the V2 signing block and extract all features."""
@@ -1908,55 +1926,61 @@ class APK_Overview:
             raise BrokenAPKError("size of sequence and blocksize does not match")
 
         while block.tell() < len(block_bytes):
-            off_signer = block.tell()
-            size_signer = self.read_uint32_le(block)
-
-            # read whole signed data, since we might to parse
-            # content within the signed data, and mess up offset
-            len_signed_data = self.read_uint32_le(block)
-            signed_data_bytes = block.read(len_signed_data)
-            signed_data = io.BytesIO(signed_data_bytes)
-
-            # Digests
-            len_digests = self.read_uint32_le(signed_data)
-            raw_digests = signed_data.read(len_digests)
-            digests = self.parse_signatures_or_digests(raw_digests)
-
-            # Certs
-            certs = []
-            len_certs = self.read_uint32_le(signed_data)
-            start_certs = signed_data.tell()
-            while signed_data.tell() < start_certs + len_certs:
-                len_cert = self.read_uint32_le(signed_data)
-                cert = signed_data.read(len_cert)
-                certs.append(cert)
-
-            # Additional attributes
-            len_attr = self.read_uint32_le(signed_data)
-            attributes = signed_data.read(len_attr)
-
-            signed_data_object = APKV2SignedData()
-            signed_data_object._bytes = signed_data_bytes
-            signed_data_object.digests = digests
-            signed_data_object.certificates = certs
-            signed_data_object.additional_attributes = attributes
-
-            # Signatures
-            len_sigs = self.read_uint32_le(block)
-            raw_sigs = block.read(len_sigs)
-            sigs = self.parse_signatures_or_digests(raw_sigs)
-
-            # PublicKey
-            len_publickey = self.read_uint32_le(block)
-            publickey = block.read(len_publickey)
-
-            signer = APKV2Signer()
-            signer._bytes = view[off_signer : off_signer + size_signer]
-            signer.signed_data = signed_data_object
-            signer.signatures = sigs
-            signer.public_key = publickey
+            signer = self._parse_v2_signer(block, view)
 
             self._v2_signing_data.append(signer)
+
+    def _parse_v2_signer(self, block, view):
+        """Parse a single V2 signer from the signing block and return it."""
+        off_signer = block.tell()
+        size_signer = self.read_uint32_le(block)
+
+        # read whole signed data, since we might to parse
+        # content within the signed data, and mess up offset
+        len_signed_data = self.read_uint32_le(block)
+        signed_data_bytes = block.read(len_signed_data)
+        signed_data = io.BytesIO(signed_data_bytes)
+
+        # Digests
+        len_digests = self.read_uint32_le(signed_data)
+        raw_digests = signed_data.read(len_digests)
+        digests = self.parse_signatures_or_digests(raw_digests)
+
+        # Certs
+        certs = []
+        len_certs = self.read_uint32_le(signed_data)
+        start_certs = signed_data.tell()
+        while signed_data.tell() < start_certs + len_certs:
+            len_cert = self.read_uint32_le(signed_data)
+            cert = signed_data.read(len_cert)
+            certs.append(cert)
+
+        # Additional attributes
+        len_attr = self.read_uint32_le(signed_data)
+        attributes = signed_data.read(len_attr)
+
+        signed_data_object = APKV2SignedData()
+        signed_data_object._bytes = signed_data_bytes
+        signed_data_object.digests = digests
+        signed_data_object.certificates = certs
+        signed_data_object.additional_attributes = attributes
+
+        # Signatures
+        len_sigs = self.read_uint32_le(block)
+        raw_sigs = block.read(len_sigs)
+        sigs = self.parse_signatures_or_digests(raw_sigs)
+
+        # PublicKey
+        len_publickey = self.read_uint32_le(block)
+        publickey = block.read(len_publickey)
+
+        signer = APKV2Signer()
+        signer._bytes = view[off_signer : off_signer + size_signer]
+        signer.signed_data = signed_data_object
+        signer.signatures = sigs
+        signer.public_key = publickey
+
+        return signer
 
     def get_public_keys_der_v3(self):
         """Return a list of DER coded X.509 public keys from the v3 signature block."""

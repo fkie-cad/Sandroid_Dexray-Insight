@@ -28,9 +28,9 @@ GitHub Advisory Database contains security advisories for open source projects.
 API Documentation: https://docs.github.com/en/rest/security-advisories
 """
 
+import contextlib
 from datetime import datetime
 from typing import Any
-from typing import Optional
 
 from ..models.vulnerability import AffectedLibrary
 from ..models.vulnerability import CVESeverity
@@ -73,7 +73,7 @@ class GitHubAdvisoryClient(BaseCVEClient):
         """Get the name of this CVE source."""
         return "github"
 
-    def search_vulnerabilities(self, library_name: str, version: Optional[str] = None) -> list[CVEVulnerability]:
+    def search_vulnerabilities(self, library_name: str, version: str | None = None) -> list[CVEVulnerability]:
         """Search for vulnerabilities in GitHub Advisory Database.
 
         Args:
@@ -116,7 +116,7 @@ class GitHubAdvisoryClient(BaseCVEClient):
             self.logger.error(f"Error searching GitHub Advisory for {library_name}: {e}")
             return []
 
-    def _detect_ecosystem(self, library_name: str) -> Optional[str]:
+    def _detect_ecosystem(self, library_name: str) -> str | None:
         """Detect ecosystem from library name."""
         # GitHub uses specific ecosystem names
         if ":" in library_name:
@@ -173,7 +173,7 @@ class GitHubAdvisoryClient(BaseCVEClient):
 
         return list(set(variants))  # Remove duplicates
 
-    def _search_by_package(self, package_name: str, ecosystem: Optional[str] = None) -> list[CVEVulnerability]:
+    def _search_by_package(self, package_name: str, ecosystem: str | None = None) -> list[CVEVulnerability]:
         """Search GitHub Advisory Database by package name."""
         vulnerabilities = []
 
@@ -240,7 +240,7 @@ class GitHubAdvisoryClient(BaseCVEClient):
 
         return False
 
-    def _parse_github_advisory(self, advisory: dict[str, Any]) -> Optional[CVEVulnerability]:
+    def _parse_github_advisory(self, advisory: dict[str, Any]) -> CVEVulnerability | None:
         """Parse GitHub advisory data into CVEVulnerability object."""
         try:
             # Extract basic information
@@ -273,16 +273,12 @@ class GitHubAdvisoryClient(BaseCVEClient):
             modified_date = None
 
             if "published_at" in advisory:
-                try:
+                with contextlib.suppress(ValueError, AttributeError):
                     published_date = datetime.fromisoformat(advisory["published_at"].replace("Z", "+00:00"))
-                except (ValueError, AttributeError):
-                    pass
 
             if "updated_at" in advisory:
-                try:
+                with contextlib.suppress(ValueError, AttributeError):
                     modified_date = datetime.fromisoformat(advisory["updated_at"].replace("Z", "+00:00"))
-                except (ValueError, AttributeError):
-                    pass
 
             # Parse affected libraries
             affected_libraries = []
@@ -320,7 +316,7 @@ class GitHubAdvisoryClient(BaseCVEClient):
             self.logger.warning(f"Error parsing GitHub advisory data: {e}")
             return None
 
-    def _parse_affected_package(self, vuln_data: dict[str, Any]) -> Optional[AffectedLibrary]:
+    def _parse_affected_package(self, vuln_data: dict[str, Any]) -> AffectedLibrary | None:
         """Parse affected package information from GitHub advisory."""
         try:
             package_info = vuln_data.get("package", {})
@@ -356,7 +352,7 @@ class GitHubAdvisoryClient(BaseCVEClient):
 
         return None
 
-    def _parse_version_range_string(self, range_str: str) -> Optional[VersionRange]:
+    def _parse_version_range_string(self, range_str: str) -> VersionRange | None:
         """Parse version range string like '< 1.0.0', '>= 1.2.0, < 2.0.0'."""
         try:
             version_range = VersionRange()
@@ -420,10 +416,7 @@ class GitHubAdvisoryClient(BaseCVEClient):
             if version_range.fixed and version >= version_range.fixed:
                 return False
 
-            if version_range.last_affected and version > version_range.last_affected:
-                return False
-
-            return True
+            return not (version_range.last_affected and version > version_range.last_affected)
 
         except Exception:
             # If version comparison fails, assume it might be affected

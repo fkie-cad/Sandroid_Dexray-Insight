@@ -50,7 +50,6 @@ from dataclasses import dataclass
 from dataclasses import field
 from enum import Enum
 from typing import Any
-from typing import Optional
 
 
 class CodeLocation(Enum):
@@ -92,8 +91,8 @@ class CodeContext:
     """
 
     location_type: CodeLocation = CodeLocation.UNKNOWN
-    file_path: Optional[str] = None
-    line_number: Optional[int] = None
+    file_path: str | None = None
+    line_number: int | None = None
     surrounding_lines: list[str] = field(default_factory=list)
     variable_names: set[str] = field(default_factory=set)
     method_signatures: list[str] = field(default_factory=list)
@@ -129,7 +128,7 @@ class CodeContext:
             if any(f"{indicator}." in path_lower or f"{indicator}_" in path_lower for indicator in test_indicators):
                 return True
             # Check for file names ending with Test
-            if path_lower.endswith("test.java") or path_lower.endswith("tests.java"):
+            if path_lower.endswith(("test.java", "tests.java")):
                 return True
 
         # Check class names
@@ -281,7 +280,7 @@ class RiskContext:
             base_score += 0.5
 
         # Apply risk multipliers
-        for factor, multiplier in self.risk_multipliers.items():
+        for _factor, multiplier in self.risk_multipliers.items():
             base_score *= multiplier
 
         # Ensure score stays within bounds

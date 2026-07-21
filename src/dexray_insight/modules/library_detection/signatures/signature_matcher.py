@@ -89,7 +89,7 @@ class SignatureMatcher:
                 matches = 0
                 total_methods = 0
 
-                for class_name, class_info in signatures.items():
+                for _class_name, class_info in signatures.items():
                     for method_info in class_info.get("methods", []):
                         total_methods += 1
                         method_name = method_info.get("name", "").lower()
@@ -178,10 +178,10 @@ class SignatureMatcher:
         matches = 0
         total_lib_methods = len(lib_methods)
 
-        for lib_method, lib_opcodes in lib_methods.items():
+        for _lib_method, lib_opcodes in lib_methods.items():
             best_match = 0.0
 
-            for app_method, app_opcodes in app_methods.items():
+            for _app_method, app_opcodes in app_methods.items():
                 if not lib_opcodes or not app_opcodes:
                     continue
 
@@ -208,8 +208,8 @@ class SignatureMatcher:
         matches = 0
         total_lib_chains = len(lib_chains)
 
-        for lib_method, lib_chain in lib_chains.items():
-            for app_method, app_chain in app_chains.items():
+        for _lib_method, lib_chain in lib_chains.items():
+            for _app_method, app_chain in app_chains.items():
                 # Look for common call patterns
                 common_calls = len(set(lib_chain) & set(app_chain))
                 if common_calls > 0 and len(lib_chain) > 0:
@@ -230,10 +230,10 @@ class SignatureMatcher:
         matches = 0
         total_lib_classes = len(lib_classes)
 
-        for lib_class, lib_info in lib_classes.items():
+        for _lib_class, lib_info in lib_classes.items():
             best_match = 0.0
 
-            for app_class, app_info in app_classes.items():
+            for _app_class, app_info in app_classes.items():
                 similarity = self._compare_class_structure(lib_info, app_info)
                 best_match = max(best_match, similarity)
 

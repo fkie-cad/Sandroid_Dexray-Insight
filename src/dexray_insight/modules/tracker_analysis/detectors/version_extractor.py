@@ -31,7 +31,6 @@ Phase 7 TDD Refactoring: Extracted from monolithic tracker_analysis.py
 
 import logging
 import re
-from typing import Optional
 
 
 class VersionExtractor:
@@ -53,7 +52,7 @@ class VersionExtractor:
             r"(\d+\.\d+)",  # Major.minor versioning
         ]
 
-    def extract_version(self, matches: list[str], version_patterns: list[str]) -> Optional[str]:
+    def extract_version(self, matches: list[str], version_patterns: list[str]) -> str | None:
         """
         Extract version information from matched strings.
 
@@ -73,7 +72,7 @@ class VersionExtractor:
         version = self._extract_with_patterns(matches, self.fallback_patterns)
         return version
 
-    def _extract_with_patterns(self, matches: list[str], patterns: list[str]) -> Optional[str]:
+    def _extract_with_patterns(self, matches: list[str], patterns: list[str]) -> str | None:
         """
         Extract version using a specific set of patterns.
 
@@ -99,7 +98,7 @@ class VersionExtractor:
 
         return None
 
-    def extract_version_from_filename(self, filename: str) -> Optional[str]:
+    def extract_version_from_filename(self, filename: str) -> str | None:
         """
         Extract version information from a filename.
 

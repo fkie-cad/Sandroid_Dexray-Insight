@@ -29,7 +29,6 @@ including the type, content, location, and context.
 
 from dataclasses import dataclass
 from typing import Any
-from typing import Optional
 
 
 @dataclass
@@ -42,16 +41,16 @@ class BehaviorEvidence:
     location: str = ""
 
     # Pattern matching information
-    pattern_matched: Optional[str] = None
+    pattern_matched: str | None = None
 
     # Code location information
-    class_name: Optional[str] = None
-    line_number: Optional[int] = None
-    dex_index: Optional[int] = None
+    class_name: str | None = None
+    line_number: int | None = None
+    dex_index: int | None = None
 
     # Additional context
     confidence: float = 1.0  # Confidence level 0.0-1.0
-    additional_data: Optional[dict[str, Any]] = None
+    additional_data: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert evidence to dictionary format for JSON serialization."""

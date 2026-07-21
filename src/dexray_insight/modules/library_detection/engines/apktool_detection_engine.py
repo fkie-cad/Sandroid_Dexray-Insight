@@ -37,7 +37,6 @@ import re
 import time
 from pathlib import Path
 from typing import Any
-from typing import Optional
 
 import requests
 
@@ -57,7 +56,7 @@ class ApktoolDetectionEngine:
     Integrates three detection approaches from detect_libs.py.
     """
 
-    def __init__(self, config: dict[str, Any], logger: Optional[logging.Logger] = None):
+    def __init__(self, config: dict[str, Any], logger: logging.Logger | None = None):
         """Initialize ApktoolDetectionEngine with configuration.
 
         Args:
@@ -88,8 +87,8 @@ class ApktoolDetectionEngine:
         self.libinfo_path = self.config.get("libinfo_path", "./libinfo.jsonl")
 
         # Cache for library definitions
-        self._libs_by_path: Optional[dict[str, dict]] = None
-        self._id_to_paths: Optional[dict[str, list[str]]] = None
+        self._libs_by_path: dict[str, dict] | None = None
+        self._id_to_paths: dict[str, list[str]] | None = None
 
         # Initialize version analyzer (will be updated with security context later)
         self.version_analyzer = get_version_analyzer(config)
@@ -366,51 +365,12 @@ class ApktoolDetectionEngine:
                 return detected_libraries
 
             # Count AndroidX patterns for debugging
-            androidx_patterns = [path for path in self._libs_by_path.keys() if "androidx" in path.lower()]
+            androidx_patterns = [path for path in self._libs_by_path if "androidx" in path.lower()]
             self.logger.debug(f"Total AndroidX patterns in libsmali.jsonl: {len(androidx_patterns)}")
 
             # Check each library pattern against smali directories
             for lib_path, definition in self._libs_by_path.items():
-                if self._lib_dir_exists(apktool_dir, lib_path):
-                    # Debug AndroidX finds
-                    if "androidx" in lib_path.lower():
-                        self.logger.debug(
-                            f"AndroidX pattern MATCHED: {lib_path} -> {definition.get('name', 'unknown')}"
-                        )
-
-                    library = self._create_detected_library_from_definition(
-                        definition, LibraryDetectionMethod.PATTERN_MATCHING, lib_path
-                    )
-                    if library:
-                        # Debug AndroidX library creation
-                        if "androidx" in lib_path.lower():
-                            self.logger.debug(
-                                f"AndroidX library CREATED: {library.name} (Category: {library.category.name})"
-                            )
-                        # Enhance library with version analysis if version is available
-                        if library.version:
-                            self._enhance_library_with_version_analysis(library)
-                        detected_libraries.append(library)
-                        # Debug AndroidX library addition to list
-                        if "androidx" in lib_path.lower():
-                            # Filter by smali_path containing androidx, not by name!
-                            current_androidx = [
-                                lib.name
-                                for lib in detected_libraries
-                                if hasattr(lib, "smali_path") and lib.smali_path and "androidx" in lib.smali_path
-                            ]
-                            self.logger.debug(
-                                f"AndroidX ADDED to list: {library.name} (List now has {len(current_androidx)} AndroidX libs: {current_androidx})"
-                            )
-                    else:
-                        # Debug failed library creation
-                        if "androidx" in lib_path.lower():
-                            self.logger.debug(
-                                f"AndroidX library CREATION FAILED for {lib_path} -> {definition.get('name', 'unknown')}"
-                            )
-                elif "androidx" in lib_path.lower():
-                    # Debug AndroidX misses
-                    self.logger.debug(f"AndroidX pattern NOT found: {lib_path}")
+                self._process_lib_pattern_match(apktool_dir, lib_path, definition, detected_libraries)
 
         except Exception as e:
             error_msg = f"Error in pattern-based library detection: {str(e)}"
@@ -426,6 +386,51 @@ class ApktoolDetectionEngine:
         self.logger.debug(f"FINAL RETURN: {len(detected_libraries)} total libraries, {len(final_androidx)} AndroidX")
 
         return detected_libraries
+
+    def _process_lib_pattern_match(
+        self, apktool_dir: Path, lib_path: str, definition: dict, detected_libraries: list[DetectedLibrary]
+    ):
+        """Process a single library pattern against smali directories and record matches."""
+        if self._lib_dir_exists(apktool_dir, lib_path):
+            # Debug AndroidX finds
+            if "androidx" in lib_path.lower():
+                self.logger.debug(
+                    f"AndroidX pattern MATCHED: {lib_path} -> {definition.get('name', 'unknown')}"
+                )
+
+            library = self._create_detected_library_from_definition(
+                definition, LibraryDetectionMethod.PATTERN_MATCHING, lib_path
+            )
+            if library:
+                # Debug AndroidX library creation
+                if "androidx" in lib_path.lower():
+                    self.logger.debug(
+                        f"AndroidX library CREATED: {library.name} (Category: {library.category.name})"
+                    )
+                # Enhance library with version analysis if version is available
+                if library.version:
+                    self._enhance_library_with_version_analysis(library)
+                detected_libraries.append(library)
+                # Debug AndroidX library addition to list
+                if "androidx" in lib_path.lower():
+                    # Filter by smali_path containing androidx, not by name!
+                    current_androidx = [
+                        lib.name
+                        for lib in detected_libraries
+                        if hasattr(lib, "smali_path") and lib.smali_path and "androidx" in lib.smali_path
+                    ]
+                    self.logger.debug(
+                        f"AndroidX ADDED to list: {library.name} (List now has {len(current_androidx)} AndroidX libs: {current_androidx})"
+                    )
+            else:
+                # Debug failed library creation
+                if "androidx" in lib_path.lower():
+                    self.logger.debug(
+                        f"AndroidX library CREATION FAILED for {lib_path} -> {definition.get('name', 'unknown')}"
+                    )
+        elif "androidx" in lib_path.lower():
+            # Debug AndroidX misses
+            self.logger.debug(f"AndroidX pattern NOT found: {lib_path}")
 
     def _scan_properties(self, apktool_dir: Path, errors: list[str]) -> list[DetectedLibrary]:
         """Scan for .properties files containing library version information."""
@@ -567,7 +572,7 @@ class ApktoolDetectionEngine:
 
         return detected_libraries
 
-    def _parse_smali_int(self, raw: str) -> Optional[str]:
+    def _parse_smali_int(self, raw: str) -> str | None:
         """Parse smali integer (decimal, hex, negative) and return as string."""
         if not raw:
             return None
@@ -583,7 +588,7 @@ class ApktoolDetectionEngine:
 
     def _create_detected_library_from_definition(
         self, definition: dict, method: LibraryDetectionMethod, lib_path: str
-    ) -> Optional[DetectedLibrary]:
+    ) -> DetectedLibrary | None:
         """Create DetectedLibrary object from JSONL definition."""
         try:
             lib_id = definition.get("id")

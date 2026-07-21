@@ -51,7 +51,7 @@ class TestIPAddressFalsePositiveFiltering:
 
     def test_valid_ips_still_detected(self):
         """Test that valid IP addresses are still correctly detected"""
-        valid_ips = ["127.0.0.1", "0.0.0.0", "192.168.1.1", "8.8.8.8", "255.255.255.255"]
+        valid_ips = ["127.0.0.1", "0.0.0.0", "192.168.1.1", "8.8.8.8", "255.255.255.255"]  # noqa: S104
 
         result = self.network_filter.filter_ip_addresses(set(valid_ips))
 
@@ -247,7 +247,7 @@ class TestURLFalsePositiveFiltering:
         """Test that concatenated URLs are properly split"""
         concatenated_url = "https://vid.applovin.com/,https://img.applovin.com/,https://d.applovin.com/"
 
-        result = self.network_filter.filter_urls(set([concatenated_url]))
+        result = self.network_filter.filter_urls({concatenated_url})
 
         # Should detect multiple URLs from the concatenated string
         expected_urls = ["https://vid.applovin.com/", "https://img.applovin.com/", "https://d.applovin.com/"]

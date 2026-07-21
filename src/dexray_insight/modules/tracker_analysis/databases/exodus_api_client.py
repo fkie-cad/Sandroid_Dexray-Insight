@@ -31,7 +31,6 @@ Phase 7 TDD Refactoring: Extracted from monolithic tracker_analysis.py
 
 import logging
 from typing import Any
-from typing import Optional
 from urllib.parse import urlparse
 
 import requests
@@ -51,7 +50,7 @@ class ExodusAPIClient:
         self.api_url = config.get("exodus_api_url", "https://reports.exodus-privacy.eu.org/api/trackers")
         self.timeout = config.get("api_timeout", 10)
         self.enabled = config.get("fetch_exodus_trackers", True)
-        self._cache: Optional[list[dict[str, Any]]] = None
+        self._cache: list[dict[str, Any]] | None = None
 
         # Validate API URL
         if not self._validate_api_url():
@@ -62,9 +61,7 @@ class ExodusAPIClient:
         """Validate the Exodus Privacy API URL format."""
         try:
             parsed = urlparse(self.api_url)
-            if not parsed.scheme or not parsed.netloc:
-                return False
-            return True
+            return not (not parsed.scheme or not parsed.netloc)
         except Exception:
             return False
 

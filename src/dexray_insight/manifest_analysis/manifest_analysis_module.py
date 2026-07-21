@@ -90,7 +90,7 @@ def get_receivers(apk):
     # List all receivers from manifest
     receivers = apk.get_receivers()
     logging.info("Receivers:")
-    for receiver in receivers:
+    for _receiver in receivers:
         logging.info("-", receivers)
 
     return receivers

@@ -83,7 +83,7 @@ def get_md5(data):
     """Calculate MD5 hash of data."""
     if isinstance(data, str):
         data = data.encode("utf-8")
-    return hashlib.md5(data).hexdigest()
+    return hashlib.md5(data, usedforsecurity=False).hexdigest()
 
 
 def find_between(s, first, last):
@@ -328,7 +328,7 @@ def is_a_magic(file_obj):
 
 def disable_print():
     """Disable stdout printing."""
-    sys.stdout = open(os.devnull, "w")
+    sys.stdout = open(os.devnull, "w")  # noqa: SIM115
 
 
 # Restore
@@ -405,7 +405,7 @@ def base64_decode(value):
     try:
         if is_base64(value) or value.startswith(commonb64s):
             decoded = base64.b64decode(value).decode("ISO-8859-1")
-    except Exception:
+    except Exception:  # noqa: S110
         pass
     if decoded:
         return f"{value}\n\nBase64 Decoded: {decoded}"
@@ -463,7 +463,7 @@ def get_android_src_dir(app_dir, typ):
 
 def id_generator(size=6, chars=string.ascii_uppercase + string.digits):
     """Generate random string."""
-    return "".join(random.choice(chars) for _ in range(size))
+    return "".join(random.choice(chars) for _ in range(size))  # noqa: S311
 
 
 def valid_host(host):
@@ -511,9 +511,7 @@ def valid_host(host):
         if domain.startswith(invalid_prefix):
             return False
         ip = socket.gethostbyname(domain)
-        if ip.startswith(invalid_prefix):
-            # Resolve dns to get IP
-            return False
-        return True
+        # Resolve dns to get IP
+        return not ip.startswith(invalid_prefix)
     except Exception:
         return False

@@ -216,7 +216,17 @@ class TrackerAnalysisModule(BaseAnalysisModule):
         if hasattr(string_analysis, "emails") and string_analysis.emails:
             all_strings.update(string_analysis.emails)
 
-        # Extract raw strings from androguard if available
+        # Extract raw strings from androguard if available and store their locations
+        context.string_locations = self._extract_raw_dex_strings(context, all_strings)
+
+        return all_strings
+
+    def _extract_raw_dex_strings(self, context: AnalysisContext, all_strings: set[str]) -> dict:
+        """Extract raw strings from androguard DEX objects with class/method context.
+
+        Adds discovered strings to all_strings and returns a mapping of string value
+        to the list of locations (method names or the DEX strings pool) where it was found.
+        """
         string_locations = {}
         if context.androguard_obj:
             try:
@@ -242,7 +252,7 @@ class TrackerAnalysisModule(BaseAnalysisModule):
                                                         if operand_value not in string_locations:
                                                             string_locations[operand_value] = []
                                                         string_locations[operand_value].append(method_full_name)
-                                except Exception:
+                                except Exception:  # noqa: S110
                                     pass  # Skip errors in instruction parsing
 
                         # Also get all strings from DEX (fallback)
@@ -263,13 +273,10 @@ class TrackerAnalysisModule(BaseAnalysisModule):
                                 string_value = str(string)
                                 all_strings.add(string_value)
                                 string_locations[string_value] = ["DEX strings pool"]
-                except Exception:
+                except Exception:  # noqa: S110
                     pass
 
-        # Store string locations in context for use in pattern matching
-        context.string_locations = string_locations
-
-        return all_strings
+        return string_locations
 
     def _detect_custom_trackers(self, strings: set[str], context: AnalysisContext) -> list[DetectedTracker]:
         """Detect trackers using built-in tracker database."""
@@ -310,7 +317,7 @@ class TrackerAnalysisModule(BaseAnalysisModule):
         # Log category breakdown
         if trackers:
             categories = self.deduplicator.group_by_category(trackers)
-            self.logger.debug(f"Trackers by category: {dict((k, len(v)) for k, v in categories.items())}")
+            self.logger.debug(f"Trackers by category: { {k: len(v) for k, v in categories.items()} }")
 
     def validate_config(self) -> bool:
         """Validate module configuration."""

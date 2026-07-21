@@ -31,7 +31,6 @@ import logging
 import time
 from dataclasses import dataclass
 from threading import Lock
-from typing import Optional
 
 
 @dataclass
@@ -39,16 +38,16 @@ class RateLimitConfig:
     """Configuration for rate limiting."""
 
     requests_per_minute: int = 30
-    requests_per_hour: Optional[int] = None
-    requests_per_day: Optional[int] = None
-    burst_limit: Optional[int] = None  # Maximum requests in burst
+    requests_per_hour: int | None = None
+    requests_per_day: int | None = None
+    burst_limit: int | None = None  # Maximum requests in burst
     burst_window_seconds: int = 60  # Time window for burst detection
 
 
 class APIRateLimiter:
     """Rate limiter for API requests to CVE databases."""
 
-    def __init__(self, config: Optional[RateLimitConfig] = None):
+    def __init__(self, config: RateLimitConfig | None = None):
         """Initialize rate limiter with configuration."""
         self.logger = logging.getLogger(__name__)
         self.config = config or RateLimitConfig()
@@ -60,7 +59,7 @@ class APIRateLimiter:
         self._lock = Lock()
 
         # Last request time for minimum delay enforcement
-        self.last_request_time: Optional[float] = None
+        self.last_request_time: float | None = None
 
         # Calculate minimum delay between requests
         self.min_delay = 60.0 / self.config.requests_per_minute if self.config.requests_per_minute > 0 else 0
@@ -88,10 +87,7 @@ class APIRateLimiter:
             if self.config.requests_per_day and not self._check_day_limit(current_time):
                 return False
 
-            if self.config.burst_limit and not self._check_burst_limit(current_time):
-                return False
-
-            return True
+            return not (self.config.burst_limit and not self._check_burst_limit(current_time))
 
     def wait_for_request(self) -> float:
         """

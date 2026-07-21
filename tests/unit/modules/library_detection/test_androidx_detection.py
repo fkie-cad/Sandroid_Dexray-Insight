@@ -124,9 +124,7 @@ class TestAndroidXDetection(unittest.TestCase):
             if lib.category == LibraryCategory.ANDROIDX:
                 return True
             # Fallback to name (for cases where smali_path is not available)
-            if "androidx" in lib.name.lower():
-                return True
-            return False
+            return "androidx" in lib.name.lower()
 
         androidx_comprehensive = [lib for lib in self.androidx_libraries if is_androidx_library(lib)]
 
@@ -159,9 +157,7 @@ class TestAndroidXDetection(unittest.TestCase):
             if lib.category == LibraryCategory.ANDROIDX:
                 return True
             # Fallback to name
-            if "androidx" in lib.name.lower():
-                return True
-            return False
+            return "androidx" in lib.name.lower()
 
         # Should still be detected by category
         self.assertTrue(robust_androidx_filter(lib_without_path))

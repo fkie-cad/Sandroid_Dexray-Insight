@@ -30,7 +30,7 @@ from .runtimes import dexSec
 from .runtimes import dotnetMonoSec
 
 
-class security_analysis:
+class SecurityAnalysis:
     """Runtime-specific security analysis coordinator."""
 
     def __init__(self, runtimes: set, file_path, dll_target_dir):
@@ -45,7 +45,7 @@ class security_analysis:
         self.runtimes = runtimes
         self.dll_target_dir = dll_target_dir
         self.results = SecurityAnalysisResults()
-        self.androguard_obj = androguardObjClass.Androguard_Obj(file_path)
+        self.androguard_obj = androguardObjClass.AndroguardObj(file_path)
         self._APP_NAME = self.androguard_obj.androguard_apk.get_app_name().replace(
             " ", ""
         )  # TODO: .replace(...) not very stable

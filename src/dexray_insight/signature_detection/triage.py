@@ -62,7 +62,7 @@ def triage_hashcheck(hash_value, config=None):
 
     headers = {"Authorization": f"Bearer {api_key}"}
 
-    respose = requests.get(url, headers=headers)
+    respose = requests.get(url, headers=headers, timeout=30)
     json_response = respose.json()
 
     if respose.status_code == 200:

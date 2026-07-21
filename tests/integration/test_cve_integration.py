@@ -195,6 +195,9 @@ class TestCVEAnalysisEngineIntegration:
                 "min_confidence": 0.8,
                 "cache_duration_hours": 1,
                 "max_libraries_per_source": 2,
+                # Java/Android libraries (from library_detection) must be opted in;
+                # native-only scanning is the default and would skip them entirely.
+                "include_java_libraries": True,
             },
         }
         config.config["modules"] = {"library_detection": {"enabled": True, "priority": 25}}
@@ -259,9 +262,15 @@ class TestCVEAnalysisEngineIntegration:
         # Should return empty findings when disabled
         assert len(findings) == 0
 
+    @mock.patch("src.dexray_insight.security.cve.clients.osv_client.OSVClient.health_check")
     @mock.patch("src.dexray_insight.security.cve.clients.osv_client.OSVClient.search_vulnerabilities_with_cache")
-    def test_cve_assessment_enabled_integration(self, mock_search, cve_enabled_config, mock_library_results):
+    def test_cve_assessment_enabled_integration(
+        self, mock_search, mock_health_check, cve_enabled_config, mock_library_results
+    ):
         """Test CVE assessment when enabled with mocked vulnerabilities"""
+
+        # Ensure the OSV client passes the health check so scanning proceeds
+        mock_health_check.return_value = True
 
         # Mock vulnerability responses - only return vulnerabilities for OkHttp
         def mock_search_vulnerabilities(library_name, version):
@@ -332,7 +341,7 @@ class TestCVEAnalysisEngineIntegration:
         config = create_configuration_from_args(MockArgs())
 
         # CVE should be enabled via CLI override
-        security_config = config.get("security", {})
+        security_config = config.get_security_config()
         cve_config = security_config.get("cve_scanning", {})
         assert cve_config.get("enabled") is True
 
@@ -371,6 +380,8 @@ class TestCVESecurityEngineIntegration:
                     "timeout_seconds": 5,
                     "min_confidence": 0.7,
                     "max_libraries_per_source": 3,
+                    # Opt in to scanning Java/Android libs (native-only is the default).
+                    "include_java_libraries": True,
                 },
                 "assessments": {"vulnerable_components": {"enabled": True}, "cve_scanning": {"enabled": True}},
             }
@@ -394,10 +405,16 @@ class TestCVESecurityEngineIntegration:
             "manifest_analysis": {"target_sdk_version": 28, "min_sdk_version": 21},
         }
 
+    @mock.patch("src.dexray_insight.security.cve.clients.osv_client.OSVClient.health_check")
     @mock.patch("src.dexray_insight.security.cve.clients.osv_client.OSVClient.search_vulnerabilities_with_cache")
-    def test_security_engine_cve_integration(self, mock_search, security_config, analysis_results_with_libraries):
+    def test_security_engine_cve_integration(
+        self, mock_search, mock_health_check, security_config, analysis_results_with_libraries
+    ):
         """Test CVE assessment integration with security engine"""
-        from src.dexray_insight.core.security_engine import SecurityEngine
+        from src.dexray_insight.core.security_engine import SecurityAssessmentEngine
+
+        # Ensure the OSV client passes the health check so scanning proceeds
+        mock_health_check.return_value = True
 
         # Mock CVE response
         mock_vulnerabilities = [
@@ -411,52 +428,59 @@ class TestCVESecurityEngineIntegration:
         ]
         mock_search.return_value = mock_vulnerabilities
 
-        # Run security assessment
-        security_engine = SecurityEngine(security_config)
-        results = security_engine.run_security_assessment(analysis_results_with_libraries)
+        # Run security assessment. SecurityAssessmentEngine expects a Configuration
+        # object and returns a SecurityAssessmentResults with a flat findings list.
+        config = Configuration()
+        config.config["security"] = security_config["security"]
+        security_engine = SecurityAssessmentEngine(config)
+        results = security_engine.assess(analysis_results_with_libraries)
 
-        # Should include CVE findings
-        assert "cve_scanning" in results
-        cve_findings = results["cve_scanning"]
+        # Should include CVE findings (category assigned by CVEAssessment)
+        cve_findings = [f for f in results.findings if f.category == "CVE Vulnerability Scanning"]
+        assert len(cve_findings) >= 1
 
         # Should have findings for critical vulnerabilities
         critical_findings = [f for f in cve_findings if f.severity.name == "CRITICAL"]
         assert len(critical_findings) >= 1
-        assert "CVE-2021-0001" in critical_findings[0].evidence[0]
+        evidence_text = " ".join(critical_findings[0].evidence)
+        assert "CVE-2021-0001" in evidence_text
 
     def test_security_engine_cve_disabled(self, analysis_results_with_libraries):
         """Test security engine when CVE scanning is disabled"""
-        from src.dexray_insight.core.security_engine import SecurityEngine
+        from src.dexray_insight.core.security_engine import SecurityAssessmentEngine
 
-        config = {"security": {"enable_owasp_assessment": True, "cve_scanning": {"enabled": False}}}
+        config = Configuration()
+        config.config["security"] = {"enable_owasp_assessment": True, "cve_scanning": {"enabled": False}}
 
-        security_engine = SecurityEngine(config)
-        results = security_engine.run_security_assessment(analysis_results_with_libraries)
+        security_engine = SecurityAssessmentEngine(config)
+        results = security_engine.assess(analysis_results_with_libraries)
 
-        # CVE assessment should not run when disabled
-        if "cve_scanning" in results:
-            assert len(results["cve_scanning"]) == 0
+        # CVE assessment should produce no findings when disabled
+        cve_findings = [f for f in results.findings if f.category == "CVE Vulnerability Scanning"]
+        assert len(cve_findings) == 0
 
+    @mock.patch(
+        "src.dexray_insight.security.cve_assessment.CVEAssessment._scan_libraries_for_cves",
+        return_value=[],
+    )
     def test_cve_assessment_coordination_with_vulnerable_components(
-        self, security_config, analysis_results_with_libraries
+        self, mock_scan, security_config, analysis_results_with_libraries
     ):
         """Test coordination between CVE assessment and vulnerable components assessment"""
-        from src.dexray_insight.core.security_engine import SecurityEngine
+        from src.dexray_insight.core.security_engine import SecurityAssessmentEngine
 
-        security_engine = SecurityEngine(security_config)
-        results = security_engine.run_security_assessment(analysis_results_with_libraries)
+        config = Configuration()
+        config.config["security"] = security_config["security"]
+        security_engine = SecurityAssessmentEngine(config)
+        results = security_engine.assess(analysis_results_with_libraries)
 
-        # Both assessments should run
-        assert "vulnerable_components" in results
-        assert "cve_scanning" in results
+        # Both assessments should have run (tracked in the results summary)
+        ran_assessments = results.summary["assessments"]
+        assert "vulnerable_components" in ran_assessments
+        assert "cve_scanning" in ran_assessments
 
-        # Both should analyze the same libraries but from different perspectives
-        vulnerable_findings = results["vulnerable_components"]
-        cve_findings = results["cve_scanning"]
-
-        # Both should be lists of findings
-        assert isinstance(vulnerable_findings, list)
-        assert isinstance(cve_findings, list)
+        # The engine aggregates findings from both perspectives into one list
+        assert isinstance(results.findings, list)
 
 
 @pytest.mark.integration
@@ -481,6 +505,8 @@ class TestCVEEndToEndIntegration:
                     "min_confidence": 0.8,
                     "cache_duration_hours": 1,
                     "max_libraries_per_source": 1,  # Limit for testing
+                    # Opt in to scanning Java/Android libs (native-only is the default).
+                    "include_java_libraries": True,
                 },
             },
             "modules": {

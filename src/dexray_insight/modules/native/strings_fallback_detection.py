@@ -31,7 +31,6 @@ import shutil
 import subprocess
 import time
 from typing import Any
-from typing import Optional
 
 from .base_native_module import BaseNativeModule
 from .base_native_module import NativeAnalysisResult
@@ -48,7 +47,7 @@ class StringsFallbackDetectionModule(BaseNativeModule):
     as the radare2-based detection.
     """
 
-    def __init__(self, config: dict[str, Any], logger: Optional[Any] = None):
+    def __init__(self, config: dict[str, Any], logger: Any | None = None):
         """Initialize StringsFallbackDetectionModule with configuration."""
         super().__init__(config, logger)
 
@@ -127,28 +126,7 @@ class StringsFallbackDetectionModule(BaseNativeModule):
                 f"Strings fallback found {len(final_detections)} library versions in {binary_info.file_name}"
             )
 
-            return NativeAnalysisResult(
-                binary_info=binary_info,
-                module_name=self.get_module_name(),
-                success=True,
-                execution_time=time.time() - start_time,
-                additional_data={
-                    "detected_libraries": [
-                        {
-                            "library_name": lib.library_name,
-                            "version": lib.version,
-                            "confidence": lib.confidence,
-                            "source_type": lib.source_type,
-                            "source_evidence": lib.source_evidence,
-                            "additional_info": {**lib.additional_info, "detection_method": "strings_fallback"},
-                        }
-                        for lib in final_detections
-                    ],
-                    "total_detections": len(final_detections),
-                    "method": "strings_fallback",
-                    "strings_extracted": len(extracted_strings),
-                },
-            )
+            return self._build_detection_result(binary_info, final_detections, extracted_strings, start_time)
 
         except Exception as e:
             self.logger.error(f"Strings fallback analysis failed for {binary_info.file_name}: {e}")
@@ -159,6 +137,31 @@ class StringsFallbackDetectionModule(BaseNativeModule):
                 error_message=str(e),
                 execution_time=time.time() - start_time,
             )
+
+    def _build_detection_result(self, binary_info, final_detections, extracted_strings, start_time):
+        """Build a successful NativeAnalysisResult from detected library versions."""
+        return NativeAnalysisResult(
+            binary_info=binary_info,
+            module_name=self.get_module_name(),
+            success=True,
+            execution_time=time.time() - start_time,
+            additional_data={
+                "detected_libraries": [
+                    {
+                        "library_name": lib.library_name,
+                        "version": lib.version,
+                        "confidence": lib.confidence,
+                        "source_type": lib.source_type,
+                        "source_evidence": lib.source_evidence,
+                        "additional_info": {**lib.additional_info, "detection_method": "strings_fallback"},
+                    }
+                    for lib in final_detections
+                ],
+                "total_detections": len(final_detections),
+                "method": "strings_fallback",
+                "strings_extracted": len(extracted_strings),
+            },
+        )
 
     def _extract_strings_with_command(self, binary_info: NativeBinaryInfo) -> list[str]:
         """Extract strings from binary using the strings command."""
@@ -360,7 +363,7 @@ class StringsFallbackDetectionModule(BaseNativeModule):
         final_detections = []
 
         # Process each library group
-        for library_name, group_detections in library_groups.items():
+        for _library_name, group_detections in library_groups.items():
             if len(group_detections) == 1:
                 # Single detection - use as is
                 final_detections.append(group_detections[0])

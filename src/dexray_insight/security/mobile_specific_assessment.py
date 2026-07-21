@@ -66,6 +66,14 @@ class MobileSpecificAssessment(BaseSecurityAssessment):
         self.logger = logging.getLogger(__name__)
         self.owasp_category = "OWASP Mobile Top 10"
 
+        self._initialize_platform_and_storage_patterns()
+        self._initialize_communication_and_auth_patterns()
+        self._initialize_crypto_and_authorization_patterns()
+        self._initialize_code_quality_and_tampering_patterns()
+        self._initialize_extraneous_functionality_patterns()
+
+    def _initialize_platform_and_storage_patterns(self):
+        """Initialize M1 (Improper Platform Usage) and M2 (Insecure Data Storage) patterns."""
         # M1: Improper Platform Usage patterns
         self.platform_misuse_patterns = {
             "permissions": [
@@ -103,6 +111,8 @@ class MobileSpecificAssessment(BaseSecurityAssessment):
             "database_issues": [r"SQLiteDatabase.*execSQL\(", r"rawQuery\(", r"SQLiteOpenHelper", r"ContentProvider"],
         }
 
+    def _initialize_communication_and_auth_patterns(self):
+        """Initialize M3 (Insecure Communication) and M4 (Insecure Authentication) patterns."""
         # M3: Insecure Communication patterns
         self.insecure_communication_patterns = {
             "ssl_issues": [
@@ -133,6 +143,8 @@ class MobileSpecificAssessment(BaseSecurityAssessment):
             "session_handling": [r"SessionManager", r"session.*timeout", r"remember.*login"],
         }
 
+    def _initialize_crypto_and_authorization_patterns(self):
+        """Initialize M5 (Insufficient Cryptography) and M6 (Insecure Authorization) patterns."""
         # M5: Insufficient Cryptography patterns
         self.crypto_patterns = {
             "weak_algorithms": [
@@ -171,6 +183,8 @@ class MobileSpecificAssessment(BaseSecurityAssessment):
             ],
         }
 
+    def _initialize_code_quality_and_tampering_patterns(self):
+        """Initialize M7 (Poor Code Quality), M8 (Code Tampering), and M9 (Reverse Engineering) patterns."""
         # M7: Poor Code Quality patterns
         self.code_quality_patterns = {
             "buffer_overflows": [r"strcpy\(", r"strcat\(", r"sprintf\(", r"gets\("],
@@ -200,6 +214,8 @@ class MobileSpecificAssessment(BaseSecurityAssessment):
             "ptrace",
         ]
 
+    def _initialize_extraneous_functionality_patterns(self):
+        """Initialize M10 (Extraneous Functionality) patterns."""
         # M10: Extraneous Functionality patterns
         self.extraneous_functionality_patterns = {
             "debug_features": [

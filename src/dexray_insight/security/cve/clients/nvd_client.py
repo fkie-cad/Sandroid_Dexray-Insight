@@ -29,9 +29,9 @@ NVD is the U.S. government repository of standards-based vulnerability managemen
 API Documentation: https://nvd.nist.gov/developers/vulnerabilities
 """
 
+import contextlib
 from datetime import datetime
 from typing import Any
-from typing import Optional
 
 from ..models.vulnerability import AffectedLibrary
 from ..models.vulnerability import CVESeverity
@@ -166,7 +166,7 @@ class NVDClient(BaseCVEClient):
         """Get the name of this CVE source."""
         return "nvd"
 
-    def search_vulnerabilities(self, library_name: str, version: Optional[str] = None) -> list[CVEVulnerability]:
+    def search_vulnerabilities(self, library_name: str, version: str | None = None) -> list[CVEVulnerability]:
         """
         Search for vulnerabilities in NVD database using CPE search approach.
 
@@ -188,70 +188,14 @@ class NVDClient(BaseCVEClient):
         )
 
         # Quick health check to ensure session is working
-        if "ffmpeg" in library_name.lower():
-            self.logger.info("🏥 Performing NVD session health check for FFmpeg...")
-            try:
-                import time
-
-                start_time = time.time()
-                test_response = self.session.get(self.CPE_URL, params={"keywordSearch": "test"}, timeout=10)
-                elapsed = time.time() - start_time
-                self.logger.info(f"Health check status: {test_response.status_code} (took {elapsed:.2f}s)")
-                self.logger.info(f"Health check URL: {test_response.url}")
-
-                if test_response.status_code != 200:
-                    self.logger.error(f"Health check failed with status {test_response.status_code}")
-                    self.logger.error(f"Response text: {test_response.text[:200]}")
-                else:
-                    # Try to parse JSON to make sure it's valid
-                    try:
-                        data = test_response.json()
-                        total_results = data.get("totalResults", 0)
-                        self.logger.info(f"Health check JSON valid, found {total_results} results for 'test'")
-                    except Exception as json_e:
-                        self.logger.error(f"Health check returned invalid JSON: {json_e}")
-
-            except Exception as e:
-                self.logger.error(f"Health check failed with exception: {e}")
-                # Additional diagnostics for connection issues
-                import traceback
-
-                self.logger.error(f"Health check traceback: {traceback.format_exc()}")
-
-                # Try a basic connection test
-                try:
-                    import socket
-
-                    host = "services.nvd.nist.gov"
-                    port = 443
-                    sock = socket.create_connection((host, port), timeout=5)
-                    sock.close()
-                    self.logger.info(f"✅ Basic TCP connection to {host}:{port} successful")
-                except Exception as conn_e:
-                    self.logger.error(f"❌ Basic TCP connection to {host}:{port} failed: {conn_e}")
+        self._ffmpeg_session_health_check(library_name)
 
         try:
             # Two-step version search approach as requested by user:
             # 1. First try: normalized version (e.g., "n4.1.3" -> "4.1.3")
             # 2. Only if no results: fallback to original version (e.g., "n4.1.3")
 
-            versions_to_try = []
-            if version:
-                normalized_version = self._normalize_version(version)
-                original_version = version
-
-                # If normalization actually changed the version, try normalized first
-                if normalized_version != original_version:
-                    versions_to_try.append(("normalized", normalized_version))
-                    versions_to_try.append(("original", original_version))
-                    self.logger.debug(
-                        f"Two-step version search: will try '{normalized_version}' first, then '{original_version}' if needed"
-                    )
-                else:
-                    versions_to_try.append(("original", original_version))
-                    self.logger.debug(f"Single version search: trying '{original_version}'")
-            else:
-                versions_to_try.append(("none", None))
+            versions_to_try = self._build_versions_to_try(version)
 
             # Try each version until we get results
             for attempt_type, version_to_try in versions_to_try:
@@ -308,33 +252,9 @@ class NVDClient(BaseCVEClient):
 
             # Special sanity check for FFmpeg - version 4.1.3 from 2018 should have vulnerabilities
             if "ffmpeg" in library_name.lower() and not unique_vulns:
-                self.logger.error(f"⚠️  ANOMALY: No vulnerabilities found for FFmpeg {version or ''}")
-                self.logger.error("This is unusual since FFmpeg 4.1.3 (2018) has known CVEs")
-                self.logger.error("Possible causes:")
-                self.logger.error("  1. NVD API connectivity issues")
-                self.logger.error("  2. FFmpeg CPE entries not found in database")
-                self.logger.error("  3. Version matching problems")
-                self.logger.error("  4. Rate limiting preventing results")
-
-                # Try one more fallback - search for just "ffmpeg" without version
-                if version:
-                    self.logger.info("Attempting fallback search for FFmpeg without version...")
-                    fallback_vulns = self._search_by_keyword("ffmpeg")
-                    if fallback_vulns:
-                        # Filter by version manually if needed
-                        relevant_vulns = [v for v in fallback_vulns if self._version_affects_ffmpeg(v, version)]
-                        if relevant_vulns:
-                            self.logger.info(
-                                f"Fallback search found {len(relevant_vulns)} relevant FFmpeg vulnerabilities"
-                            )
-                            return relevant_vulns
-
-                # Final fallback: return known CVEs for FFmpeg 4.1.3 if API is completely inaccessible
-                if "4.1.3" in version:
-                    self.logger.warning(
-                        "🚨 NVD API completely inaccessible - using known CVE database for FFmpeg 4.1.3"
-                    )
-                    return self._get_known_ffmpeg_cves_4_1_3()
+                fallback_result = self._handle_ffmpeg_no_results(library_name, version)
+                if fallback_result is not None:
+                    return fallback_result
 
             self.logger.info(f"Found {len(unique_vulns)} vulnerabilities for {library_name} in NVD")
             return unique_vulns
@@ -401,44 +321,9 @@ class NVDClient(BaseCVEClient):
                 self.logger.info(f"NVD keyword search URL: {self.BASE_URL} with minimal params: {params}")
 
             # Make initial request with better error handling
-            try:
-                response = self.session.get(self.BASE_URL, params=params, timeout=15)
-            except Exception as e:
-                # Check if this is an SSL error and try workaround
-                error_msg = str(e).lower()
-                is_ssl_error = any(
-                    ssl_term in error_msg
-                    for ssl_term in ["certificate", "ssl", "tls", "verify failed", "certificate_verify_failed"]
-                )
-
-                if is_ssl_error and self.session.verify:
-                    if is_ffmpeg_search:
-                        self.logger.warning(
-                            f"🔒 SSL error detected for FFmpeg keyword search, applying workaround: {e}"
-                        )
-                    try:
-                        # Apply SSL workaround and retry
-                        import urllib3
-
-                        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-                        old_verify = self.session.verify
-                        self.session.verify = False
-
-                        response = self.session.get(self.BASE_URL, params=params, timeout=15)
-                        if is_ffmpeg_search:
-                            self.logger.info("✅ SSL workaround successful for FFmpeg keyword search")
-                    except Exception as retry_e:
-                        # Restore original setting and fail
-                        self.session.verify = old_verify
-                        if is_ffmpeg_search:
-                            self.logger.error(f"SSL workaround failed for FFmpeg keyword search: {retry_e}")
-                        return []
-                else:
-                    if is_ffmpeg_search:
-                        self.logger.error(f"💥 Network error for FFmpeg keyword search '{keyword}': {e}")
-                    else:
-                        self.logger.debug(f"Network error for keyword search '{keyword}': {e}")
-                    return []
+            response = self._request_keyword_search(params, is_ffmpeg_search, keyword)
+            if response is None:
+                return []
 
             if is_ffmpeg_search:
                 self.logger.info(f"🌐 FFmpeg request status: {response.status_code}")
@@ -473,28 +358,10 @@ class NVDClient(BaseCVEClient):
             return vulnerabilities
 
         except Exception as e:
-            if is_ffmpeg_search:
-                self.logger.error(f"💥 Error searching NVD by keyword '{keyword}': {e}")
-                # Check if it's a 404 specifically
-                if hasattr(e, "response") and e.response is not None:
-                    self.logger.error(f"🔍 Response status: {e.response.status_code}")
-                    self.logger.error(f"🔗 Failed URL: {e.response.url}")
-                    self.logger.error(f"📄 Response text: {e.response.text[:500]}")
-
-                    # Try to understand why 404 when manual works
-                    if e.response.status_code == 404:
-                        self.logger.error("🤔 This is suspicious - manual test should work:")
-                        self.logger.error(f"   curl -H 'User-Agent: Mozilla/5.0...' '{e.response.url}'")
-                        self.logger.error("💡 Possible causes: User-Agent blocking, rate limiting, API changes")
-
-                import traceback
-
-                self.logger.debug(f"FFmpeg keyword search traceback: {traceback.format_exc()}")
-            else:
-                self.logger.debug(f"Error searching NVD by keyword '{keyword}': {e}")
+            self._log_keyword_search_exception(e, keyword, is_ffmpeg_search)
             return []
 
-    def _parse_nvd_vulnerability(self, nvd_data: dict[str, Any]) -> Optional[CVEVulnerability]:
+    def _parse_nvd_vulnerability(self, nvd_data: dict[str, Any]) -> CVEVulnerability | None:
         """Parse NVD vulnerability data into CVEVulnerability object."""
         try:
             cve_data = nvd_data.get("cve", {})
@@ -514,42 +381,19 @@ class NVDClient(BaseCVEClient):
             summary = description[:200] + "..." if len(description) > 200 else description
 
             # Parse CVSS metrics
-            severity = CVESeverity.UNKNOWN
-            cvss_score = None
-            cvss_vector = None
-
-            metrics = cve_data.get("metrics", {})
-            if "cvssMetricV31" in metrics and metrics["cvssMetricV31"]:
-                cvss_data = metrics["cvssMetricV31"][0]["cvssData"]
-                cvss_score = float(cvss_data.get("baseScore", 0))
-                cvss_vector = cvss_data.get("vectorString", "")
-                severity = CVEVulnerability.from_cvss_score(cvss_score)
-            elif "cvssMetricV30" in metrics and metrics["cvssMetricV30"]:
-                cvss_data = metrics["cvssMetricV30"][0]["cvssData"]
-                cvss_score = float(cvss_data.get("baseScore", 0))
-                cvss_vector = cvss_data.get("vectorString", "")
-                severity = CVEVulnerability.from_cvss_score(cvss_score)
-            elif "cvssMetricV2" in metrics and metrics["cvssMetricV2"]:
-                cvss_data = metrics["cvssMetricV2"][0]["cvssData"]
-                cvss_score = float(cvss_data.get("baseScore", 0))
-                cvss_vector = cvss_data.get("vectorString", "")
-                severity = CVEVulnerability.from_cvss_score(cvss_score)
+            severity, cvss_score, cvss_vector = self._extract_cvss_metrics(cve_data)
 
             # Parse dates
             published_date = None
             modified_date = None
 
             if "published" in cve_data:
-                try:
+                with contextlib.suppress(ValueError, AttributeError):
                     published_date = datetime.fromisoformat(cve_data["published"].replace("Z", "+00:00"))
-                except (ValueError, AttributeError):
-                    pass
 
             if "lastModified" in cve_data:
-                try:
+                with contextlib.suppress(ValueError, AttributeError):
                     modified_date = datetime.fromisoformat(cve_data["lastModified"].replace("Z", "+00:00"))
-                except (ValueError, AttributeError):
-                    pass
 
             # Parse references
             references = []
@@ -620,7 +464,7 @@ class NVDClient(BaseCVEClient):
 
         return affected_libraries
 
-    def _parse_cpe_name(self, cpe_name: str) -> Optional[AffectedLibrary]:
+    def _parse_cpe_name(self, cpe_name: str) -> AffectedLibrary | None:
         """Parse CPE name to extract library information."""
         try:
             # CPE format: cpe:2.3:part:vendor:product:version:update:edition:language:sw_edition:target_sw:target_hw:other
@@ -684,10 +528,7 @@ class NVDClient(BaseCVEClient):
                         and version >= version_range.introduced
                         and version_range.fixed
                         and version < version_range.fixed
-                    ):
-                        version_found = True
-                        break
-                    elif (
+                    ) or (
                         version_range.introduced
                         and version >= version_range.introduced
                         and version_range.last_affected
@@ -777,7 +618,7 @@ class NVDClient(BaseCVEClient):
 
         return normalized
 
-    def _search_cpes(self, library_name: str, version: Optional[str] = None) -> list[str]:
+    def _search_cpes(self, library_name: str, version: str | None = None) -> list[str]:
         """Search for CPEs (Common Platform Enumeration) entries with multiple search strategies."""
         cpes = []
 
@@ -786,49 +627,7 @@ class NVDClient(BaseCVEClient):
             normalized_name = self._normalize_library_name(library_name)
 
             # Generate multiple search queries to improve coverage
-            search_queries = []
-
-            # Strategy 1: Exact library name with version
-            if version:
-                normalized_version = self._normalize_version(version)
-                search_queries.append(f"{normalized_name} {normalized_version}")
-                # Also try without any version prefixes
-                clean_version = normalized_version.replace("v", "").replace("n", "")
-                if clean_version != normalized_version:
-                    search_queries.append(f"{normalized_name} {clean_version}")
-
-            # Strategy 2: Library name only
-            search_queries.append(normalized_name)
-
-            # Strategy 3: Special handling for FFmpeg which has many variants and project naming
-            if "ffmpeg" in normalized_name.lower():
-                ffmpeg_queries = [
-                    "ffmpeg",
-                    f"ffmpeg {version}" if version else None,
-                    "libav",  # Alternative name for FFmpeg
-                    f"libav {version}" if version else None,
-                    # Common NVD project naming patterns
-                    "ffmpeg_project ffmpeg",
-                    f"ffmpeg_project ffmpeg {version}" if version else None,
-                    "ffmpeg project",
-                    f"ffmpeg project {version}" if version else None,
-                    # Try just the version for broad search
-                    version if version else None,
-                ]
-                # Remove None values and add to queries
-                search_queries.extend([q for q in ffmpeg_queries if q])
-
-            # Strategy 4: Original library name as fallback
-            if library_name.lower() != normalized_name:
-                search_queries.append(library_name.lower())
-
-            # Remove duplicates while preserving order
-            seen = set()
-            unique_queries = []
-            for query in search_queries:
-                if query and query not in seen:
-                    seen.add(query)
-                    unique_queries.append(query)
+            unique_queries = self._build_cpe_search_queries(library_name, version, normalized_name)
 
             self.logger.debug(f"CPE search strategies for {library_name}: {unique_queries}")
 
@@ -857,40 +656,10 @@ class NVDClient(BaseCVEClient):
 
                 if response.status_code == 200:
                     data = response.json()
-                    products = data.get("products", [])
-
-                    query_cpes = []
-                    for product in products:
-                        cpe_data = product.get("cpe", {})
-                        cpe_name = cpe_data.get("cpeName", "")
-
-                        if cpe_name and cpe_name not in [cpe for cpe in cpes]:  # Avoid duplicates
-                            query_cpes.append(cpe_name)
-                            # Debug FFmpeg CPE entries specifically
-                            if "ffmpeg" in library_name.lower() and "ffmpeg" in cpe_name.lower():
-                                self.logger.info(f"Found FFmpeg CPE entry: {cpe_name}")
-
-                    self.logger.debug(f"Found {len(query_cpes)} CPE entries for query '{search_query}'")
-
-                    # Special debugging for FFmpeg
-                    if "ffmpeg" in library_name.lower():
-                        if query_cpes:
-                            self.logger.info(f"FFmpeg CPE search '{search_query}' found {len(query_cpes)} results")
-                            for cpe in query_cpes[:3]:  # Show first 3
-                                self.logger.info(f"  FFmpeg CPE: {cpe}")
-                        else:
-                            self.logger.warning(f"FFmpeg CPE search '{search_query}' found 0 results")
+                    query_cpes = self._collect_query_cpes(data, library_name, search_query, cpes)
 
                     # Prioritize results with version matches
-                    if version:
-                        version_matches = [
-                            cpe for cpe in query_cpes if version in cpe or self._normalize_version(version) in cpe
-                        ]
-                        other_matches = [cpe for cpe in query_cpes if cpe not in version_matches]
-                        cpes.extend(version_matches)
-                        cpes.extend(other_matches)
-                    else:
-                        cpes.extend(query_cpes)
+                    cpes.extend(self._prioritize_query_cpes(query_cpes, version))
 
                     # Stop if we found good matches with the first strategy
                     if query_cpes and search_query == unique_queries[0]:
@@ -909,44 +678,12 @@ class NVDClient(BaseCVEClient):
                     )
 
             # Remove duplicates while preserving order
-            unique_cpes = []
-            seen_cpes = set()
-            for cpe in cpes:
-                if cpe not in seen_cpes:
-                    seen_cpes.add(cpe)
-                    unique_cpes.append(cpe)
+            unique_cpes = self._dedupe_cpes(cpes)
 
             self.logger.debug(f"Total unique CPE entries found: {len(unique_cpes)}")
 
             # Special handling for FFmpeg - if no CPEs found, this is suspicious
-            if "ffmpeg" in library_name.lower():
-                if unique_cpes:
-                    self.logger.info(f"✅ FFmpeg CPE search successful: Found {len(unique_cpes)} total CPE entries")
-                    # Show first few FFmpeg CPEs for debugging
-                    for i, cpe in enumerate(unique_cpes[:3]):
-                        self.logger.info(f"  FFmpeg CPE {i+1}: {cpe}")
-                    if len(unique_cpes) > 3:
-                        self.logger.info(f"  ... and {len(unique_cpes) - 3} more CPE entries")
-                else:
-                    self.logger.error(
-                        f"❌ FFmpeg CPE search failed: No CPE entries found for {library_name} {version or ''}"
-                    )
-                    self.logger.error("This is unexpected since FFmpeg should have CPE entries in NVD")
-                    self.logger.error(f"Tried search strategies: {unique_queries}")
-                    # Try a simple diagnostic test
-                    self.logger.info("🔍 Running diagnostic test for FFmpeg CPE search...")
-                    try:
-                        test_params = {"keywordSearch": "ffmpeg"}
-                        test_response = self.session.get(self.CPE_URL, params=test_params, timeout=10)
-                        self.logger.info(f"Diagnostic test status: {test_response.status_code}")
-                        if test_response.status_code == 200:
-                            test_data = test_response.json()
-                            test_results = test_data.get("totalResults", 0)
-                            self.logger.info(f"Diagnostic test found {test_results} CPE entries for 'ffmpeg'")
-                        else:
-                            self.logger.error(f"Diagnostic test failed with status {test_response.status_code}")
-                    except Exception as e:
-                        self.logger.error(f"Diagnostic test failed with exception: {e}")
+            self._log_ffmpeg_cpe_search_result(library_name, version, unique_cpes, unique_queries)
 
             return unique_cpes[:15]  # Reasonable limit to avoid excessive CVE queries
 
@@ -968,40 +705,9 @@ class NVDClient(BaseCVEClient):
             if is_ffmpeg_cpe:
                 self.logger.info(f"Searching CVEs for FFmpeg CPE: {cpe_name}")
 
-            try:
-                response = self.session.get(self.BASE_URL, params=params, timeout=15)
-            except Exception as e:
-                # Check if this is an SSL error and try workaround
-                error_msg = str(e).lower()
-                is_ssl_error = any(
-                    ssl_term in error_msg
-                    for ssl_term in ["certificate", "ssl", "tls", "verify failed", "certificate_verify_failed"]
-                )
-
-                if is_ssl_error and self.session.verify:
-                    self.logger.warning(f"🔒 SSL error detected for CVE search, applying workaround: {e}")
-                    try:
-                        # Apply SSL workaround and retry
-                        import urllib3
-
-                        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-                        old_verify = self.session.verify
-                        self.session.verify = False
-
-                        response = self.session.get(self.BASE_URL, params=params, timeout=15)
-                        self.logger.info("✅ SSL workaround successful for CVE search")
-                    except Exception as retry_e:
-                        # Restore original setting and fail
-                        self.session.verify = old_verify
-                        if is_ffmpeg_cpe:
-                            self.logger.error(f"SSL workaround failed for FFmpeg CVE search: {retry_e}")
-                        return []
-                else:
-                    if is_ffmpeg_cpe:
-                        self.logger.error(f"Network error searching CVEs for FFmpeg CPE {cpe_name}: {e}")
-                    else:
-                        self.logger.debug(f"Network error searching CVEs for CPE {cpe_name}: {e}")
-                    return []
+            response = self._request_cves_by_cpe(params, is_ffmpeg_cpe, cpe_name)
+            if response is None:
+                return []
 
             if response.status_code == 200:
                 data = response.json()
@@ -1036,7 +742,7 @@ class NVDClient(BaseCVEClient):
 
         return vulnerabilities
 
-    def _try_alternative_cpe_search(self, library_name: str, version: Optional[str] = None) -> list[str]:
+    def _try_alternative_cpe_search(self, library_name: str, version: str | None = None) -> list[str]:
         """
         Alternative CPE search method when primary method fails.
 
@@ -1160,6 +866,357 @@ class NVDClient(BaseCVEClient):
         self.logger.warning(f"📚 Returning {len(vulnerabilities)} known CVEs for FFmpeg 4.1.3 (offline database)")
         self.logger.warning("⚠️  This is a fallback - actual NVD scanning would find more vulnerabilities")
         return vulnerabilities
+
+    def _ffmpeg_session_health_check(self, library_name: str):
+        """Perform an NVD session health check for FFmpeg searches."""
+        if "ffmpeg" not in library_name.lower():
+            return
+        self.logger.info("🏥 Performing NVD session health check for FFmpeg...")
+        try:
+            import time
+
+            start_time = time.time()
+            test_response = self.session.get(self.CPE_URL, params={"keywordSearch": "test"}, timeout=10)
+            elapsed = time.time() - start_time
+            self.logger.info(f"Health check status: {test_response.status_code} (took {elapsed:.2f}s)")
+            self.logger.info(f"Health check URL: {test_response.url}")
+
+            if test_response.status_code != 200:
+                self.logger.error(f"Health check failed with status {test_response.status_code}")
+                self.logger.error(f"Response text: {test_response.text[:200]}")
+            else:
+                # Try to parse JSON to make sure it's valid
+                try:
+                    data = test_response.json()
+                    total_results = data.get("totalResults", 0)
+                    self.logger.info(f"Health check JSON valid, found {total_results} results for 'test'")
+                except Exception as json_e:
+                    self.logger.error(f"Health check returned invalid JSON: {json_e}")
+
+        except Exception as e:
+            self.logger.error(f"Health check failed with exception: {e}")
+            # Additional diagnostics for connection issues
+            import traceback
+
+            self.logger.error(f"Health check traceback: {traceback.format_exc()}")
+
+            # Try a basic connection test
+            try:
+                import socket
+
+                host = "services.nvd.nist.gov"
+                port = 443
+                sock = socket.create_connection((host, port), timeout=5)
+                sock.close()
+                self.logger.info(f"✅ Basic TCP connection to {host}:{port} successful")
+            except Exception as conn_e:
+                self.logger.error(f"❌ Basic TCP connection to {host}:{port} failed: {conn_e}")
+
+    def _build_versions_to_try(self, version: str | None) -> list:
+        """Build the ordered list of (attempt_type, version) tuples to search."""
+        versions_to_try = []
+        if version:
+            normalized_version = self._normalize_version(version)
+            original_version = version
+
+            # If normalization actually changed the version, try normalized first
+            if normalized_version != original_version:
+                versions_to_try.append(("normalized", normalized_version))
+                versions_to_try.append(("original", original_version))
+                self.logger.debug(
+                    f"Two-step version search: will try '{normalized_version}' first, then '{original_version}' if needed"
+                )
+            else:
+                versions_to_try.append(("original", original_version))
+                self.logger.debug(f"Single version search: trying '{original_version}'")
+        else:
+            versions_to_try.append(("none", None))
+        return versions_to_try
+
+    def _handle_ffmpeg_no_results(self, library_name: str, version: str | None) -> list | None:
+        """Handle the FFmpeg no-results anomaly; return fallback vulns or None."""
+        self.logger.error(f"⚠️  ANOMALY: No vulnerabilities found for FFmpeg {version or ''}")
+        self.logger.error("This is unusual since FFmpeg 4.1.3 (2018) has known CVEs")
+        self.logger.error("Possible causes:")
+        self.logger.error("  1. NVD API connectivity issues")
+        self.logger.error("  2. FFmpeg CPE entries not found in database")
+        self.logger.error("  3. Version matching problems")
+        self.logger.error("  4. Rate limiting preventing results")
+
+        # Try one more fallback - search for just "ffmpeg" without version
+        if version:
+            self.logger.info("Attempting fallback search for FFmpeg without version...")
+            fallback_vulns = self._search_by_keyword("ffmpeg")
+            if fallback_vulns:
+                # Filter by version manually if needed
+                relevant_vulns = [v for v in fallback_vulns if self._version_affects_ffmpeg(v, version)]
+                if relevant_vulns:
+                    self.logger.info(
+                        f"Fallback search found {len(relevant_vulns)} relevant FFmpeg vulnerabilities"
+                    )
+                    return relevant_vulns
+
+        # Final fallback: return known CVEs for FFmpeg 4.1.3 if API is completely inaccessible
+        if "4.1.3" in version:
+            self.logger.warning(
+                "🚨 NVD API completely inaccessible - using known CVE database for FFmpeg 4.1.3"
+            )
+            return self._get_known_ffmpeg_cves_4_1_3()
+        return None
+
+    def _request_keyword_search(self, params: dict, is_ffmpeg_search: bool, keyword: str):
+        """Make a keyword search request with SSL workaround; return response or None on failure."""
+        try:
+            return self.session.get(self.BASE_URL, params=params, timeout=15)
+        except Exception as e:
+            # Check if this is an SSL error and try workaround
+            error_msg = str(e).lower()
+            is_ssl_error = any(
+                ssl_term in error_msg
+                for ssl_term in ["certificate", "ssl", "tls", "verify failed", "certificate_verify_failed"]
+            )
+
+            if is_ssl_error and self.session.verify:
+                if is_ffmpeg_search:
+                    self.logger.warning(
+                        f"🔒 SSL error detected for FFmpeg keyword search, applying workaround: {e}"
+                    )
+                try:
+                    # Apply SSL workaround and retry
+                    import urllib3
+
+                    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+                    old_verify = self.session.verify
+                    self.session.verify = False
+
+                    response = self.session.get(self.BASE_URL, params=params, timeout=15)
+                    if is_ffmpeg_search:
+                        self.logger.info("✅ SSL workaround successful for FFmpeg keyword search")
+                    return response
+                except Exception as retry_e:
+                    # Restore original setting and fail
+                    self.session.verify = old_verify
+                    if is_ffmpeg_search:
+                        self.logger.error(f"SSL workaround failed for FFmpeg keyword search: {retry_e}")
+                    return None
+            else:
+                if is_ffmpeg_search:
+                    self.logger.error(f"💥 Network error for FFmpeg keyword search '{keyword}': {e}")
+                else:
+                    self.logger.debug(f"Network error for keyword search '{keyword}': {e}")
+                return None
+
+    def _log_keyword_search_exception(self, e: Exception, keyword: str, is_ffmpeg_search: bool):
+        """Log details of an exception raised during keyword search."""
+        if is_ffmpeg_search:
+            self.logger.error(f"💥 Error searching NVD by keyword '{keyword}': {e}")
+            # Check if it's a 404 specifically
+            if hasattr(e, "response") and e.response is not None:
+                self.logger.error(f"🔍 Response status: {e.response.status_code}")
+                self.logger.error(f"🔗 Failed URL: {e.response.url}")
+                self.logger.error(f"📄 Response text: {e.response.text[:500]}")
+
+                # Try to understand why 404 when manual works
+                if e.response.status_code == 404:
+                    self.logger.error("🤔 This is suspicious - manual test should work:")
+                    self.logger.error(f"   curl -H 'User-Agent: Mozilla/5.0...' '{e.response.url}'")
+                    self.logger.error("💡 Possible causes: User-Agent blocking, rate limiting, API changes")
+
+            import traceback
+
+            self.logger.debug(f"FFmpeg keyword search traceback: {traceback.format_exc()}")
+        else:
+            self.logger.debug(f"Error searching NVD by keyword '{keyword}': {e}")
+
+    def _extract_cvss_metrics(self, cve_data: dict[str, Any]):
+        """Extract severity, CVSS score and vector from NVD metrics data."""
+        severity = CVESeverity.UNKNOWN
+        cvss_score = None
+        cvss_vector = None
+
+        metrics = cve_data.get("metrics", {})
+        if "cvssMetricV31" in metrics and metrics["cvssMetricV31"]:
+            cvss_data = metrics["cvssMetricV31"][0]["cvssData"]
+            cvss_score = float(cvss_data.get("baseScore", 0))
+            cvss_vector = cvss_data.get("vectorString", "")
+            severity = CVEVulnerability.from_cvss_score(cvss_score)
+        elif "cvssMetricV30" in metrics and metrics["cvssMetricV30"]:
+            cvss_data = metrics["cvssMetricV30"][0]["cvssData"]
+            cvss_score = float(cvss_data.get("baseScore", 0))
+            cvss_vector = cvss_data.get("vectorString", "")
+            severity = CVEVulnerability.from_cvss_score(cvss_score)
+        elif "cvssMetricV2" in metrics and metrics["cvssMetricV2"]:
+            cvss_data = metrics["cvssMetricV2"][0]["cvssData"]
+            cvss_score = float(cvss_data.get("baseScore", 0))
+            cvss_vector = cvss_data.get("vectorString", "")
+            severity = CVEVulnerability.from_cvss_score(cvss_score)
+        return severity, cvss_score, cvss_vector
+
+    def _build_cpe_search_queries(self, library_name: str, version: str | None, normalized_name: str) -> list:
+        """Generate multiple CPE search queries to improve coverage."""
+        search_queries = []
+
+        # Strategy 1: Exact library name with version
+        if version:
+            normalized_version = self._normalize_version(version)
+            search_queries.append(f"{normalized_name} {normalized_version}")
+            # Also try without any version prefixes
+            clean_version = normalized_version.replace("v", "").replace("n", "")
+            if clean_version != normalized_version:
+                search_queries.append(f"{normalized_name} {clean_version}")
+
+        # Strategy 2: Library name only
+        search_queries.append(normalized_name)
+
+        # Strategy 3: Special handling for FFmpeg which has many variants and project naming
+        if "ffmpeg" in normalized_name.lower():
+            ffmpeg_queries = [
+                "ffmpeg",
+                f"ffmpeg {version}" if version else None,
+                "libav",  # Alternative name for FFmpeg
+                f"libav {version}" if version else None,
+                # Common NVD project naming patterns
+                "ffmpeg_project ffmpeg",
+                f"ffmpeg_project ffmpeg {version}" if version else None,
+                "ffmpeg project",
+                f"ffmpeg project {version}" if version else None,
+                # Try just the version for broad search
+                version if version else None,
+            ]
+            # Remove None values and add to queries
+            search_queries.extend([q for q in ffmpeg_queries if q])
+
+        # Strategy 4: Original library name as fallback
+        if library_name.lower() != normalized_name:
+            search_queries.append(library_name.lower())
+
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_queries = []
+        for query in search_queries:
+            if query and query not in seen:
+                seen.add(query)
+                unique_queries.append(query)
+        return unique_queries
+
+    def _collect_query_cpes(self, data: dict, library_name: str, search_query: str, cpes: list) -> list:
+        """Extract CPE names from a CPE API response, with FFmpeg debug logging."""
+        products = data.get("products", [])
+
+        query_cpes = []
+        for product in products:
+            cpe_data = product.get("cpe", {})
+            cpe_name = cpe_data.get("cpeName", "")
+
+            if cpe_name and cpe_name not in list(cpes):  # Avoid duplicates
+                query_cpes.append(cpe_name)
+                # Debug FFmpeg CPE entries specifically
+                if "ffmpeg" in library_name.lower() and "ffmpeg" in cpe_name.lower():
+                    self.logger.info(f"Found FFmpeg CPE entry: {cpe_name}")
+
+        self.logger.debug(f"Found {len(query_cpes)} CPE entries for query '{search_query}'")
+
+        # Special debugging for FFmpeg
+        if "ffmpeg" in library_name.lower():
+            if query_cpes:
+                self.logger.info(f"FFmpeg CPE search '{search_query}' found {len(query_cpes)} results")
+                for cpe in query_cpes[:3]:  # Show first 3
+                    self.logger.info(f"  FFmpeg CPE: {cpe}")
+            else:
+                self.logger.warning(f"FFmpeg CPE search '{search_query}' found 0 results")
+        return query_cpes
+
+    def _prioritize_query_cpes(self, query_cpes: list, version: str | None) -> list:
+        """Order CPE results so version matches come first."""
+        if version:
+            version_matches = [
+                cpe for cpe in query_cpes if version in cpe or self._normalize_version(version) in cpe
+            ]
+            other_matches = [cpe for cpe in query_cpes if cpe not in version_matches]
+            return version_matches + other_matches
+        return query_cpes
+
+    def _dedupe_cpes(self, cpes: list) -> list:
+        """Remove duplicate CPE names while preserving order."""
+        unique_cpes = []
+        seen_cpes = set()
+        for cpe in cpes:
+            if cpe not in seen_cpes:
+                seen_cpes.add(cpe)
+                unique_cpes.append(cpe)
+        return unique_cpes
+
+    def _log_ffmpeg_cpe_search_result(
+        self, library_name: str, version: str | None, unique_cpes: list, unique_queries: list
+    ):
+        """Log FFmpeg-specific diagnostics about CPE search results."""
+        if "ffmpeg" not in library_name.lower():
+            return
+        if unique_cpes:
+            self.logger.info(f"✅ FFmpeg CPE search successful: Found {len(unique_cpes)} total CPE entries")
+            # Show first few FFmpeg CPEs for debugging
+            for i, cpe in enumerate(unique_cpes[:3]):
+                self.logger.info(f"  FFmpeg CPE {i+1}: {cpe}")
+            if len(unique_cpes) > 3:
+                self.logger.info(f"  ... and {len(unique_cpes) - 3} more CPE entries")
+        else:
+            self.logger.error(
+                f"❌ FFmpeg CPE search failed: No CPE entries found for {library_name} {version or ''}"
+            )
+            self.logger.error("This is unexpected since FFmpeg should have CPE entries in NVD")
+            self.logger.error(f"Tried search strategies: {unique_queries}")
+            # Try a simple diagnostic test
+            self.logger.info("🔍 Running diagnostic test for FFmpeg CPE search...")
+            try:
+                test_params = {"keywordSearch": "ffmpeg"}
+                test_response = self.session.get(self.CPE_URL, params=test_params, timeout=10)
+                self.logger.info(f"Diagnostic test status: {test_response.status_code}")
+                if test_response.status_code == 200:
+                    test_data = test_response.json()
+                    test_results = test_data.get("totalResults", 0)
+                    self.logger.info(f"Diagnostic test found {test_results} CPE entries for 'ffmpeg'")
+                else:
+                    self.logger.error(f"Diagnostic test failed with status {test_response.status_code}")
+            except Exception as e:
+                self.logger.error(f"Diagnostic test failed with exception: {e}")
+
+    def _request_cves_by_cpe(self, params: dict, is_ffmpeg_cpe: bool, cpe_name: str):
+        """Make a CVE-by-CPE request with SSL workaround; return response or None on failure."""
+        try:
+            return self.session.get(self.BASE_URL, params=params, timeout=15)
+        except Exception as e:
+            # Check if this is an SSL error and try workaround
+            error_msg = str(e).lower()
+            is_ssl_error = any(
+                ssl_term in error_msg
+                for ssl_term in ["certificate", "ssl", "tls", "verify failed", "certificate_verify_failed"]
+            )
+
+            if is_ssl_error and self.session.verify:
+                self.logger.warning(f"🔒 SSL error detected for CVE search, applying workaround: {e}")
+                try:
+                    # Apply SSL workaround and retry
+                    import urllib3
+
+                    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+                    old_verify = self.session.verify
+                    self.session.verify = False
+
+                    response = self.session.get(self.BASE_URL, params=params, timeout=15)
+                    self.logger.info("✅ SSL workaround successful for CVE search")
+                    return response
+                except Exception as retry_e:
+                    # Restore original setting and fail
+                    self.session.verify = old_verify
+                    if is_ffmpeg_cpe:
+                        self.logger.error(f"SSL workaround failed for FFmpeg CVE search: {retry_e}")
+                    return None
+            else:
+                if is_ffmpeg_cpe:
+                    self.logger.error(f"Network error searching CVEs for FFmpeg CPE {cpe_name}: {e}")
+                else:
+                    self.logger.debug(f"Network error searching CVEs for CPE {cpe_name}: {e}")
+                return None
 
     def health_check(self) -> bool:
         """Check if NVD API is available."""

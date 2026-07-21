@@ -108,10 +108,7 @@ class InjectionAssessment(BaseSecurityAssessment):
         findings = []
 
         string_results = analysis_results.get("string_analysis", {})
-        if hasattr(string_results, "to_dict"):
-            string_data = string_results.to_dict()
-        else:
-            string_data = string_results
+        string_data = string_results.to_dict() if hasattr(string_results, "to_dict") else string_results
 
         all_strings = string_data.get("all_strings", [])
         sql_risks = []
@@ -120,9 +117,10 @@ class InjectionAssessment(BaseSecurityAssessment):
         for string in all_strings:
             if isinstance(string, str):
                 # Check for dynamic SQL construction with user input
-                if any(sql_pattern in string.upper() for sql_pattern in self.sql_patterns):
-                    if any(user_input in string.lower() for user_input in ["user", "input", "+", "concat", "format"]):
-                        sql_risks.append(f"Potential SQL injection: {string[:80]}...")
+                if any(sql_pattern in string.upper() for sql_pattern in self.sql_patterns) and any(
+                    user_input in string.lower() for user_input in ["user", "input", "+", "concat", "format"]
+                ):
+                    sql_risks.append(f"Potential SQL injection: {string[:80]}...")
 
                 # Check for specific dangerous patterns
                 dangerous_patterns = [
@@ -173,15 +171,17 @@ class InjectionAssessment(BaseSecurityAssessment):
         for string in all_strings:
             if isinstance(string, str):
                 # Check for command execution with user input
-                if any(cmd_pattern in string.lower() for cmd_pattern in self.command_patterns):
-                    if any(user_input in string.lower() for user_input in ["user", "input", "param", "arg", "+"]):
-                        command_risks.append(f"Potential command injection: {string[:80]}...")
+                if any(cmd_pattern in string.lower() for cmd_pattern in self.command_patterns) and any(
+                    user_input in string.lower() for user_input in ["user", "input", "param", "arg", "+"]
+                ):
+                    command_risks.append(f"Potential command injection: {string[:80]}...")
 
                 # Check for dangerous shell operators
                 dangerous_operators = ["|", "&", ";", "`", "$", "(", ")", "{", "}", "<", ">"]
-                if any(op in string for op in dangerous_operators):
-                    if any(exec_term in string.lower() for exec_term in ["runtime", "exec", "system"]):
-                        command_risks.append(f"Shell injection risk: {string[:80]}...")
+                if any(op in string for op in dangerous_operators) and any(
+                    exec_term in string.lower() for exec_term in ["runtime", "exec", "system"]
+                ):
+                    command_risks.append(f"Shell injection risk: {string[:80]}...")
 
         if command_risks:
             findings.append(
@@ -217,18 +217,18 @@ class InjectionAssessment(BaseSecurityAssessment):
         for string in all_strings:
             if isinstance(string, str):
                 # Check for LDAP operations with user input
-                if any(ldap_pattern in string for ldap_pattern in self.ldap_patterns):
-                    if any(user_input in string.lower() for user_input in ["user", "input", "+", "concat"]):
-                        ldap_risks.append(f"Potential LDAP injection: {string[:80]}...")
+                if any(ldap_pattern in string for ldap_pattern in self.ldap_patterns) and any(
+                    user_input in string.lower() for user_input in ["user", "input", "+", "concat"]
+                ):
+                    ldap_risks.append(f"Potential LDAP injection: {string[:80]}...")
 
                 # Check for LDAP filter construction
                 if (
                     "(" in string
                     and "=" in string
                     and any(ldap_term in string.lower() for ldap_term in ["ldap", "directory", "search"])
-                ):
-                    if any(user_input in string.lower() for user_input in ["user", "input", "param"]):
-                        ldap_risks.append(f"LDAP filter injection risk: {string[:80]}...")
+                ) and any(user_input in string.lower() for user_input in ["user", "input", "param"]):
+                    ldap_risks.append(f"LDAP filter injection risk: {string[:80]}...")
 
         if ldap_risks:
             findings.append(
@@ -263,15 +263,15 @@ class InjectionAssessment(BaseSecurityAssessment):
         for string in all_strings:
             if isinstance(string, str):
                 # Check for NoSQL operators with user input
-                if any(nosql_pattern in string for nosql_pattern in self.nosql_patterns):
-                    if any(user_input in string.lower() for user_input in ["user", "input", "param", "json"]):
-                        nosql_risks.append(f"Potential NoSQL injection: {string[:80]}...")
+                if any(nosql_pattern in string for nosql_pattern in self.nosql_patterns) and any(
+                    user_input in string.lower() for user_input in ["user", "input", "param", "json"]
+                ):
+                    nosql_risks.append(f"Potential NoSQL injection: {string[:80]}...")
 
                 # Check for MongoDB-specific patterns
                 mongo_patterns = ["db.", "collection.", "find(", "update(", "insert(", "remove("]
-                if any(pattern in string for pattern in mongo_patterns):
-                    if "+" in string or "concat" in string.lower():
-                        nosql_risks.append(f"MongoDB injection risk: {string[:80]}...")
+                if any(pattern in string for pattern in mongo_patterns) and ("+" in string or "concat" in string.lower()):
+                    nosql_risks.append(f"MongoDB injection risk: {string[:80]}...")
 
         if nosql_risks:
             findings.append(

@@ -214,10 +214,7 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
 
         # Get string analysis results
         string_results = analysis_results.get("string_analysis", {})
-        if hasattr(string_results, "to_dict"):
-            string_data = string_results.to_dict()
-        else:
-            string_data = string_results
+        string_data = string_results.to_dict() if hasattr(string_results, "to_dict") else string_results
 
         all_strings = string_data.get("all_strings", [])
         if not isinstance(all_strings, list):
@@ -272,10 +269,7 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
 
         # Get manifest analysis to check for security controls
         manifest_results = analysis_results.get("manifest_analysis", {})
-        if hasattr(manifest_results, "to_dict"):
-            manifest_data = manifest_results.to_dict()
-        else:
-            manifest_data = manifest_results
+        manifest_data = manifest_results.to_dict() if hasattr(manifest_results, "to_dict") else manifest_results
 
         # Get behavior analysis for security features
         behavior_results = analysis_results.get("behaviour_analysis", {})
@@ -350,10 +344,7 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
 
         # Get API invocation results for crypto usage
         api_results = analysis_results.get("api_invocation", {})
-        if hasattr(api_results, "to_dict"):
-            api_data = api_results.to_dict()
-        else:
-            api_data = api_results
+        api_data = api_results.to_dict() if hasattr(api_results, "to_dict") else api_results
 
         crypto_usage = api_data.get("crypto_usage", [])
         if not isinstance(crypto_usage, list):
@@ -422,10 +413,7 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
 
         # Get manifest data for component analysis
         manifest_results = analysis_results.get("manifest_analysis", {})
-        if hasattr(manifest_results, "to_dict"):
-            manifest_data = manifest_results.to_dict()
-        else:
-            manifest_data = manifest_results
+        manifest_data = manifest_results.to_dict() if hasattr(manifest_results, "to_dict") else manifest_results
 
         string_results = analysis_results.get("string_analysis", {})
         string_data = string_results.to_dict() if hasattr(string_results, "to_dict") else string_results
@@ -463,29 +451,7 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
             )
 
         # Check intent filters for overly broad patterns
-        intent_filters = manifest_data.get("intent_filters", [])
-        if not isinstance(intent_filters, (list, tuple)):
-            intent_filters = []
-        for intent_filter in intent_filters:
-            if isinstance(intent_filter, dict):
-                filters = intent_filter.get("filters", [])
-                if not isinstance(filters, (list, tuple)):
-                    filters = []
-                # Ensure we're iterating over proper iterables
-                try:
-                    filter_items = (
-                        list(filters) if hasattr(filters, "__iter__") and not isinstance(filters, (str, bytes)) else []
-                    )
-                    if any(
-                        "*" in str(filter_item) or "ANY" in str(filter_item).upper() for filter_item in filter_items
-                    ):
-                        ipc_issues.append(
-                            f"Overly broad intent filter in {intent_filter.get('component_name', 'unknown component')}"
-                        )
-                except TypeError:
-                    # Skip if filters is not iterable or is a boolean/other non-iterable type
-                    self.logger.debug(f"Skipping non-iterable filters in intent_filter: {type(filters)}")
-                    continue
+        ipc_issues.extend(self._check_broad_intent_filters(manifest_data))
 
         if ipc_issues:
             findings.append(
@@ -506,6 +472,36 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
             )
 
         return findings
+
+    def _check_broad_intent_filters(self, manifest_data: dict[str, Any]) -> list:
+        """Check intent filters for overly broad patterns."""
+        issues = []
+
+        intent_filters = manifest_data.get("intent_filters", [])
+        if not isinstance(intent_filters, (list, tuple)):
+            intent_filters = []
+        for intent_filter in intent_filters:
+            if isinstance(intent_filter, dict):
+                filters = intent_filter.get("filters", [])
+                if not isinstance(filters, (list, tuple)):
+                    filters = []
+                # Ensure we're iterating over proper iterables
+                try:
+                    filter_items = (
+                        list(filters) if hasattr(filters, "__iter__") and not isinstance(filters, (str, bytes)) else []
+                    )
+                    if any(
+                        "*" in str(filter_item) or "ANY" in str(filter_item).upper() for filter_item in filter_items
+                    ):
+                        issues.append(
+                            f"Overly broad intent filter in {intent_filter.get('component_name', 'unknown component')}"
+                        )
+                except TypeError:
+                    # Skip if filters is not iterable or is a boolean/other non-iterable type
+                    self.logger.debug(f"Skipping non-iterable filters in intent_filter: {type(filters)}")
+                    continue
+
+        return issues
 
     def _assess_external_interfaces(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
         """Assess external interface security design."""

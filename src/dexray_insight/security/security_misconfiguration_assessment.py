@@ -222,10 +222,7 @@ class SecurityMisconfigurationAssessment(BaseSecurityAssessment):
 
         # Get manifest analysis for debug flags
         manifest_results = analysis_results.get("manifest_analysis", {})
-        if hasattr(manifest_results, "to_dict"):
-            manifest_data = manifest_results.to_dict()
-        else:
-            manifest_data = manifest_results
+        manifest_data = manifest_results.to_dict() if hasattr(manifest_results, "to_dict") else manifest_results
 
         debug_flags = manifest_data.get("debug_flags", {})
         debug_issues = []
@@ -246,37 +243,13 @@ class SecurityMisconfigurationAssessment(BaseSecurityAssessment):
         all_strings = string_data.get("all_strings", [])
 
         # Check for debug code patterns
-        debug_code_count = 0
-        debug_patterns = self.debug_checks["debug_code_patterns"]
-
-        for string in all_strings:
-            if isinstance(string, str):
-                for pattern in debug_patterns:
-                    import re
-
-                    if re.search(pattern, string, re.IGNORECASE):
-                        debug_code_count += 1
-                        break
+        debug_code_count = self._count_debug_code_patterns(all_strings)
 
         if debug_code_count > 10:  # Threshold for excessive debug code
             debug_issues.append(f"Excessive debug/logging code detected: {debug_code_count} instances")
 
         # Check for development endpoints
-        dev_endpoints = []
-        dev_patterns = self.debug_checks["development_endpoints"]
-
-        urls = string_data.get("urls", [])
-        domains = string_data.get("domains", [])
-        all_network_strings = urls + domains + all_strings
-
-        for string in all_network_strings:
-            if isinstance(string, str):
-                for pattern in dev_patterns:
-                    import re
-
-                    if re.search(pattern, string, re.IGNORECASE):
-                        dev_endpoints.append(string)
-                        break
+        dev_endpoints = self._detect_development_endpoints(string_data, all_strings)
 
         if dev_endpoints:
             debug_issues.extend([f"Development endpoint: {endpoint}" for endpoint in dev_endpoints[:5]])
@@ -302,6 +275,42 @@ class SecurityMisconfigurationAssessment(BaseSecurityAssessment):
             )
 
         return findings
+
+    def _count_debug_code_patterns(self, all_strings: list) -> int:
+        """Count strings matching known debug/logging code patterns."""
+        debug_code_count = 0
+        debug_patterns = self.debug_checks["debug_code_patterns"]
+
+        for string in all_strings:
+            if isinstance(string, str):
+                for pattern in debug_patterns:
+                    import re
+
+                    if re.search(pattern, string, re.IGNORECASE):
+                        debug_code_count += 1
+                        break
+
+        return debug_code_count
+
+    def _detect_development_endpoints(self, string_data: dict, all_strings: list) -> list:
+        """Detect development endpoints across URLs, domains and strings."""
+        dev_endpoints = []
+        dev_patterns = self.debug_checks["development_endpoints"]
+
+        urls = string_data.get("urls", [])
+        domains = string_data.get("domains", [])
+        all_network_strings = urls + domains + all_strings
+
+        for string in all_network_strings:
+            if isinstance(string, str):
+                for pattern in dev_patterns:
+                    import re
+
+                    if re.search(pattern, string, re.IGNORECASE):
+                        dev_endpoints.append(string)
+                        break
+
+        return dev_endpoints
 
     def _assess_network_security_config(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
         """Assess network security configurations."""
@@ -423,15 +432,7 @@ class SecurityMisconfigurationAssessment(BaseSecurityAssessment):
                         break
 
         # Check for external storage misuse
-        external_patterns = self.storage_permission_checks["external_storage_misuse"]
-        for string in all_strings:
-            if isinstance(string, str):
-                for pattern in external_patterns:
-                    import re
-
-                    if re.search(pattern, string, re.IGNORECASE):
-                        storage_issues.append(f"External storage misuse: {string[:80]}...")
-                        break
+        storage_issues.extend(self._detect_external_storage_misuse(all_strings))
 
         if storage_issues:
             findings.append(
@@ -452,6 +453,21 @@ class SecurityMisconfigurationAssessment(BaseSecurityAssessment):
             )
 
         return findings
+
+    def _detect_external_storage_misuse(self, all_strings: list) -> list:
+        """Detect external storage misuse patterns in strings."""
+        issues = []
+        external_patterns = self.storage_permission_checks["external_storage_misuse"]
+        for string in all_strings:
+            if isinstance(string, str):
+                for pattern in external_patterns:
+                    import re
+
+                    if re.search(pattern, string, re.IGNORECASE):
+                        issues.append(f"External storage misuse: {string[:80]}...")
+                        break
+
+        return issues
 
     def _assess_component_configurations(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
         """Assess component configuration security."""

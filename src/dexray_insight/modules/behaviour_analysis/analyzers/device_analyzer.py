@@ -28,7 +28,6 @@ such as device model, Android ID, and hardware identifiers.
 
 import logging
 import re
-from typing import Optional
 
 from ..models.behavior_evidence import BehaviorEvidence
 
@@ -44,7 +43,7 @@ class DeviceAnalyzer:
         r"android\.provider\.Settings\.Secure\.ANDROID_ID",
     ]
 
-    def __init__(self, logger: Optional[logging.Logger] = None):
+    def __init__(self, logger: logging.Logger | None = None):
         """Initialize DeviceAnalyzer with optional logger."""
         self.logger = logger or logging.getLogger(__name__)
 

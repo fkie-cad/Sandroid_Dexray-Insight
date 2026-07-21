@@ -26,7 +26,6 @@ import json
 from dataclasses import dataclass
 from dataclasses import field
 from typing import Any
-from typing import Optional
 
 from ..Utils.file_utils import CustomJSONEncoder
 
@@ -40,7 +39,7 @@ class SecurityAnalysisResults:
     dotnet_results: Results of the .NET security scanner
     """
 
-    dotnet_results: Optional[list[str]] = None
+    dotnet_results: list[str] | None = None
     dex_results: list[str] = None
 
     additional_data: dict[str, Any] = field(default_factory=dict)

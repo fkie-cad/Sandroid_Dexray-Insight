@@ -30,7 +30,7 @@ import logging
 
 def calculate_md5(file_path):
     """Calculate MD5 hash of file."""
-    hash_md5 = hashlib.md5()
+    hash_md5 = hashlib.md5(usedforsecurity=False)
     with open(file_path, "rb") as f:
         for chunk in iter(lambda: f.read(4096), b""):
             hash_md5.update(chunk)

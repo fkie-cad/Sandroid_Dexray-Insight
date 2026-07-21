@@ -28,7 +28,6 @@ to bypass security restrictions or obfuscate functionality.
 """
 
 import logging
-from typing import Optional
 
 from ..models.behavior_evidence import BehaviorEvidence
 
@@ -47,7 +46,7 @@ class ReflectionAnalyzer:
         r"getField\(",
     ]
 
-    def __init__(self, logger: Optional[logging.Logger] = None):
+    def __init__(self, logger: logging.Logger | None = None):
         """Initialize ReflectionAnalyzer with optional logger."""
         self.logger = logger or logging.getLogger(__name__)
 

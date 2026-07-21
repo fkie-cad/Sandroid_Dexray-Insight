@@ -28,12 +28,12 @@ It discovers native binaries in unzipped APKs, manages r2pipe connections, and
 coordinates the execution of native analysis modules.
 """
 
+import contextlib
 import shutil
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-from typing import Optional
 
 try:
     import r2pipe
@@ -110,7 +110,7 @@ class NativeAnalysisModuleResult(BaseResult):
                 "analysis_errors": self.analysis_errors,
                 "radare2_available": self.radare2_available,
                 "binaries_analyzed_count": len(self.analyzed_binaries),
-                "architectures_found": list(set(b.architecture for b in self.analyzed_binaries)),
+                "architectures_found": list({b.architecture for b in self.analyzed_binaries}),
             }
         )
         return base_dict
@@ -257,38 +257,12 @@ class NativeAnalysisLoader(BaseAnalysisModule):
             results = self._analyze_binaries(filtered_binaries)
 
             # Aggregate results and extract strings
-            all_strings = []
-            strings_by_source = {}
-            analysis_errors = []
-            detected_native_libraries = []
+            all_strings, strings_by_source, analysis_errors, detected_native_libraries = (
+                self._aggregate_binary_results(results)
+            )
 
-            for binary_results in results.values():
-                for result in binary_results:
-                    if result.strings_found:
-                        all_strings.extend(result.strings_found)
-                        source_key = result.binary_info.relative_path
-                        strings_by_source[source_key] = result.strings_found
-
-                    # Extract library version detection results
-                    if (
-                        result.module_name == "native_library_version"
-                        and result.additional_data
-                        and "detected_libraries" in result.additional_data
-                    ):
-                        detected_native_libraries.extend(result.additional_data["detected_libraries"])
-
-                    if result.error_message:
-                        analysis_errors.append(f"{result.binary_info.file_name}: {result.error_message}")
-
-            # Integrate native strings with context for other modules to use
-            if all_strings:
-                self._integrate_native_strings(context, all_strings)
-                self.logger.info(f"Extracted {len(all_strings)} strings from native binaries")
-
-            # Integrate native library detections with context for library detection module
-            if detected_native_libraries:
-                self._integrate_native_libraries(context, detected_native_libraries)
-                self.logger.info(f"Detected {len(detected_native_libraries)} native libraries with versions")
+            # Integrate native results with context for other modules to use
+            self._integrate_native_results(context, all_strings, detected_native_libraries)
 
             return NativeAnalysisModuleResult(
                 module_name="native_analysis",
@@ -311,6 +285,45 @@ class NativeAnalysisLoader(BaseAnalysisModule):
                 error_message=str(e),
                 radare2_available=r2pipe is not None,
             )
+
+    def _aggregate_binary_results(self, results):
+        """Aggregate per-binary analysis results into flat collections."""
+        all_strings = []
+        strings_by_source = {}
+        analysis_errors = []
+        detected_native_libraries = []
+
+        for binary_results in results.values():
+            for result in binary_results:
+                if result.strings_found:
+                    all_strings.extend(result.strings_found)
+                    source_key = result.binary_info.relative_path
+                    strings_by_source[source_key] = result.strings_found
+
+                # Extract library version detection results
+                if (
+                    result.module_name == "native_library_version"
+                    and result.additional_data
+                    and "detected_libraries" in result.additional_data
+                ):
+                    detected_native_libraries.extend(result.additional_data["detected_libraries"])
+
+                if result.error_message:
+                    analysis_errors.append(f"{result.binary_info.file_name}: {result.error_message}")
+
+        return all_strings, strings_by_source, analysis_errors, detected_native_libraries
+
+    def _integrate_native_results(self, context, all_strings, detected_native_libraries):
+        """Integrate aggregated native strings and libraries into the analysis context."""
+        # Integrate native strings with context for other modules to use
+        if all_strings:
+            self._integrate_native_strings(context, all_strings)
+            self.logger.info(f"Extracted {len(all_strings)} strings from native binaries")
+
+        # Integrate native library detections with context for library detection module
+        if detected_native_libraries:
+            self._integrate_native_libraries(context, detected_native_libraries)
+            self.logger.info(f"Detected {len(detected_native_libraries)} native libraries with versions")
 
     def _check_radare2_availability(self) -> bool:
         """Check if radare2 binary is available."""
@@ -465,18 +478,16 @@ class NativeAnalysisLoader(BaseAnalysisModule):
                         results[module_name].append(error_result)
 
                 # Close r2pipe connection
-                try:
-                    r2.quit()
-                except Exception:
+                with contextlib.suppress(Exception):
                     # Ignore r2pipe cleanup errors
-                    pass
+                    r2.quit()
 
             except Exception as e:
                 self.logger.error(f"Error analyzing binary {binary.file_name}: {e}")
 
         return results
 
-    def _open_r2pipe_connection(self, binary_path: Path, timeout: int) -> Optional[Any]:
+    def _open_r2pipe_connection(self, binary_path: Path, timeout: int) -> Any | None:
         """
         Open an r2pipe connection to a native binary.
 

@@ -21,11 +21,11 @@
 # # See the License for the specific language governing permissions and
 # # limitations under the License.
 
+import copy
 import json
 import os
 from pathlib import Path
 from typing import Any
-from typing import Optional
 
 
 class Configuration:
@@ -124,6 +124,8 @@ class Configuration:
             },
         },
         "tools": {
+            # apkid is optional: even when enabled here, it is only run if the
+            # `apkid` CLI is installed (detected via the tool's is_available()).
             "apkid": {"enabled": True, "timeout": 300, "options": []},
             "kavanoz": {"enabled": True, "timeout": 600, "output_dir": None},  # If None, uses temp directory
             "androguard": {"enabled": True, "logging_level": "WARNING"},
@@ -203,7 +205,7 @@ class Configuration:
         },
     }
 
-    def __init__(self, config_path: Optional[str] = None, config_dict: Optional[dict[str, Any]] = None):
+    def __init__(self, config_path: str | None = None, config_dict: dict[str, Any] | None = None):
         """
         Initialize configuration.
 
@@ -211,7 +213,9 @@ class Configuration:
             config_path: Path to configuration file (JSON or YAML)
             config_dict: Configuration dictionary (overrides file)
         """
-        self.config = self.DEFAULT_CONFIG.copy()
+        # Deep copy so that per-instance mutations (env overrides, merged file
+        # or dict config) never leak into the shared class-level DEFAULT_CONFIG.
+        self.config = copy.deepcopy(self.DEFAULT_CONFIG)
 
         # Try to load default config file first
         self._load_default_config()
@@ -262,13 +266,13 @@ class Configuration:
 
                         file_config = yaml.safe_load(f)
                     except ImportError:
-                        raise ValueError("YAML files require PyYAML to be installed")
+                        raise ValueError("YAML files require PyYAML to be installed") from None
                 else:
                     file_config = json.load(f)
 
             self._merge_config(file_config)
         except Exception as e:
-            raise ValueError(f"Failed to load configuration from {config_path}: {str(e)}")
+            raise ValueError(f"Failed to load configuration from {config_path}: {str(e)}") from e
 
     def _load_from_environment(self):
         """Load configuration from environment variables."""
@@ -365,7 +369,7 @@ class Configuration:
 
                     yaml.dump(self.config, f, default_flow_style=False, indent=2)
                 except ImportError:
-                    raise ValueError("YAML output requires PyYAML to be installed")
+                    raise ValueError("YAML output requires PyYAML to be installed") from None
             else:
                 json.dump(self.config, f, indent=2)
 

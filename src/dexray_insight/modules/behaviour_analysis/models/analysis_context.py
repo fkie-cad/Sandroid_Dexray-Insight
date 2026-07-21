@@ -28,7 +28,6 @@ data and analysis coordination information.
 
 from dataclasses import dataclass
 from typing import Any
-from typing import Optional
 
 from .behavior_evidence import BehaviorEvidence
 
@@ -42,22 +41,22 @@ class BehaviorAnalysisContext:
     deep_mode_enabled: bool = False
 
     # Androguard objects for analysis
-    apk_obj: Optional[Any] = None
-    dex_obj: Optional[Any] = None
-    dx_obj: Optional[Any] = None
+    apk_obj: Any | None = None
+    dex_obj: Any | None = None
+    dx_obj: Any | None = None
 
     # Analysis state tracking
     analyzed_behaviors: list[str] = None
     total_evidence_found: int = 0
-    analysis_start_time: Optional[float] = None
+    analysis_start_time: float | None = None
 
     # Configuration and settings
-    config: Optional[dict[str, Any]] = None
-    analyzer_settings: Optional[dict[str, Any]] = None
+    config: dict[str, Any] | None = None
+    analyzer_settings: dict[str, Any] | None = None
 
     # Results aggregation
-    evidence_by_type: Optional[dict[str, list[BehaviorEvidence]]] = None
-    high_confidence_evidence: Optional[list[BehaviorEvidence]] = None
+    evidence_by_type: dict[str, list[BehaviorEvidence]] | None = None
+    high_confidence_evidence: list[BehaviorEvidence] | None = None
 
     def __post_init__(self):
         """Initialize default values for optional fields."""

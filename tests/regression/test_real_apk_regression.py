@@ -19,6 +19,7 @@ Tests covered:
 
 import hashlib
 import json
+import os
 
 # Import analysis components
 import sys
@@ -26,7 +27,6 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-from typing import Optional
 
 import pytest
 
@@ -46,6 +46,14 @@ from dexray_insight.core.analysis_engine import AnalysisEngine
 from dexray_insight.core.configuration import Configuration
 from dexray_insight.Utils.file_utils import CustomJSONEncoder
 
+# Real-APK regression tests compare a live full-pipeline run against a committed
+# baseline generated in a specific local environment (external tools + samples),
+# which is not reproducible in GitHub Actions. Skip them in CI; run locally.
+pytestmark = pytest.mark.skipif(
+    os.getenv("GITHUB_ACTIONS") == "true",
+    reason="Real-APK regression baseline is not reproducible in CI",
+)
+
 
 @dataclass
 class RegressionTestResult:
@@ -55,9 +63,9 @@ class RegressionTestResult:
     passed: bool
     baseline_exists: bool
     current_result_hash: str
-    baseline_result_hash: Optional[str] = None
+    baseline_result_hash: str | None = None
     differences: list[str] = None
-    performance_delta: Optional[float] = None
+    performance_delta: float | None = None
     notes: str = ""
 
 
@@ -137,16 +145,15 @@ class RegressionAnalyzer:
                         trackers, key=lambda x: x.get("name", "") if isinstance(x, dict) else str(x)
                     )
 
-        elif module_name == "security_assessment":
+        elif module_name == "security_assessment" and "findings" in normalized:
             # Normalize security findings (order might vary)
-            if "findings" in normalized:
-                findings = normalized["findings"]
-                if isinstance(findings, list):
-                    # Sort findings by category and title for consistency
-                    normalized["findings"] = sorted(
-                        findings,
-                        key=lambda x: (x.get("category", ""), x.get("title", "")) if isinstance(x, dict) else str(x),
-                    )
+            findings = normalized["findings"]
+            if isinstance(findings, list):
+                # Sort findings by category and title for consistency
+                normalized["findings"] = sorted(
+                    findings,
+                    key=lambda x: (x.get("category", ""), x.get("title", "")) if isinstance(x, dict) else str(x),
+                )
 
         return normalized
 

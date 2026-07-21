@@ -29,7 +29,6 @@ analysis strategy based on configuration and available objects.
 
 import logging
 from typing import Any
-from typing import Optional
 
 from dexray_insight.core.base_classes import AnalysisContext
 
@@ -37,7 +36,7 @@ from dexray_insight.core.base_classes import AnalysisContext
 class ModeManager:
     """Manages behavior analysis modes and object availability."""
 
-    def __init__(self, config: dict[str, Any], logger: Optional[logging.Logger] = None):
+    def __init__(self, config: dict[str, Any], logger: logging.Logger | None = None):
         """Initialize ModeManager with configuration and optional logger."""
         self.config = config
         self.logger = logger or logging.getLogger(__name__)
@@ -92,7 +91,7 @@ class ModeManager:
             if is_deep_mode:
                 # Get DEX objects for deep analysis
                 dex_obj = context.androguard_obj.get_androguard_dex()
-                dx_obj = context.androguard_obj.get_androguard_analysisObj()
+                dx_obj = context.androguard_obj.get_androguard_analysis_obj()
 
                 analysis_objects.update({"dex_obj": dex_obj, "dx_obj": dx_obj, "mode": "deep"})
 

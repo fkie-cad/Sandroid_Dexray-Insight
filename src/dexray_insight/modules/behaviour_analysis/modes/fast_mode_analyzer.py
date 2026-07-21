@@ -28,7 +28,6 @@ without requiring full DEX analysis. Suitable for quick scans.
 """
 
 import logging
-from typing import Optional
 
 from ..models.behavior_evidence import BehaviorEvidence
 
@@ -36,7 +35,7 @@ from ..models.behavior_evidence import BehaviorEvidence
 class FastModeAnalyzer:
     """Basic analyzer for fast mode analysis using only APK object."""
 
-    def __init__(self, logger: Optional[logging.Logger] = None):
+    def __init__(self, logger: logging.Logger | None = None):
         """Initialize FastModeAnalyzer with optional logger."""
         self.logger = logger or logging.getLogger(__name__)
 
@@ -87,51 +86,9 @@ class FastModeAnalyzer:
             services = apk_obj.get_services()
             receivers = apk_obj.get_receivers()
 
-            exported_activities = []
-            exported_services = []
-            exported_receivers = []
-
-            # Check activities
-            for activity in activities:
-                try:
-                    if (
-                        apk_obj.get_element("activity", "android:name", activity)
-                        and apk_obj.get_element("activity", "android:exported", activity) == "true"
-                    ):
-                        exported_activities.append(activity)
-                        evidence.append(
-                            BehaviorEvidence(type="activity", content=activity, location="AndroidManifest.xml")
-                        )
-                except Exception:
-                    continue
-
-            # Check services
-            for service in services:
-                try:
-                    if (
-                        apk_obj.get_element("service", "android:name", service)
-                        and apk_obj.get_element("service", "android:exported", service) == "true"
-                    ):
-                        exported_services.append(service)
-                        evidence.append(
-                            BehaviorEvidence(type="service", content=service, location="AndroidManifest.xml")
-                        )
-                except Exception:
-                    continue
-
-            # Check receivers
-            for receiver in receivers:
-                try:
-                    if (
-                        apk_obj.get_element("receiver", "android:name", receiver)
-                        and apk_obj.get_element("receiver", "android:exported", receiver) == "true"
-                    ):
-                        exported_receivers.append(receiver)
-                        evidence.append(
-                            BehaviorEvidence(type="receiver", content=receiver, location="AndroidManifest.xml")
-                        )
-                except Exception:
-                    continue
+            exported_activities = self._collect_exported_components(apk_obj, "activity", activities, evidence)
+            exported_services = self._collect_exported_components(apk_obj, "service", services, evidence)
+            exported_receivers = self._collect_exported_components(apk_obj, "receiver", receivers, evidence)
 
             total_exported = len(exported_activities) + len(exported_services) + len(exported_receivers)
 
@@ -155,6 +112,26 @@ class FastModeAnalyzer:
         except Exception as e:
             self.logger.debug(f"Error in basic component analysis: {e}")
             return []
+
+    def _collect_exported_components(self, apk_obj, component_type, components, evidence) -> list:
+        """Collect exported components of a given type, appending evidence entries.
+
+        Returns the list of component names that are exported.
+        """
+        exported = []
+        for component in components:
+            try:
+                if (
+                    apk_obj.get_element(component_type, "android:name", component)
+                    and apk_obj.get_element(component_type, "android:exported", component) == "true"
+                ):
+                    exported.append(component)
+                    evidence.append(
+                        BehaviorEvidence(type=component_type, content=component, location="AndroidManifest.xml")
+                    )
+            except Exception:  # noqa: S112
+                continue
+        return exported
 
     def analyze_app_metadata(self, apk_obj, result) -> list[BehaviorEvidence]:
         """Fast mode: Basic app metadata analysis."""

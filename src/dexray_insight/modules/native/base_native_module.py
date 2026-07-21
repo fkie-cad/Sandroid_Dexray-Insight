@@ -33,7 +33,6 @@ from abc import abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-from typing import Optional
 
 try:
     import r2pipe
@@ -49,7 +48,7 @@ class NativeStringSource:
     source_type: str = "native"  # Always "native" for native binaries
     file_path: str = ""  # Path to the native binary (e.g., "lib/arm64-v8a/libexample.so")
     extraction_method: str = ""  # Method used to extract the string
-    offset: Optional[int] = None  # Offset in the binary where string was found
+    offset: int | None = None  # Offset in the binary where string was found
     encoding: str = "utf-8"  # Detected or assumed encoding
     confidence: float = 1.0  # Confidence in the extraction (0.0-1.0)
 
@@ -72,7 +71,7 @@ class NativeAnalysisResult:
     binary_info: NativeBinaryInfo
     module_name: str
     success: bool
-    error_message: Optional[str] = None
+    error_message: str | None = None
     execution_time: float = 0.0
     strings_found: list[NativeStringSource] = None
     additional_data: dict[str, Any] = None
@@ -93,7 +92,7 @@ class BaseNativeModule(ABC):
     to integrate with the native analysis framework.
     """
 
-    def __init__(self, config: dict[str, Any], logger: Optional[logging.Logger] = None):
+    def __init__(self, config: dict[str, Any], logger: logging.Logger | None = None):
         """
         Initialize the native analysis module.
 

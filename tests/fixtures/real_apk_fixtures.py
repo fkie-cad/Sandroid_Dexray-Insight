@@ -324,7 +324,7 @@ def androguard_obj_factory():
             from dexray_insight.Utils import androguardObjClass
             
             print(f"Creating Androguard object for: {apk_path}")
-            androguard_obj = androguardObjClass.Androguard_Obj(str(apk_path))
+            androguard_obj = androguardObjClass.AndroguardObj(str(apk_path))
             return androguard_obj
         except Exception as e:
             print(f"Failed to create Androguard object: {e}")

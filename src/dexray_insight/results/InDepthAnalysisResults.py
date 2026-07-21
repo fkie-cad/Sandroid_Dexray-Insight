@@ -27,7 +27,6 @@ from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import field
 from typing import Any
-from typing import Optional
 
 from ..Utils.file_utils import CustomJSONEncoder
 
@@ -45,7 +44,7 @@ class Results:
         strings_domain (list): List of domains found in the APK.
         strings_urls (list): List of URLs found in the APK.
         strings_emails (list): List of email addresses found in the APK.
-        dotnetMono_assemblies (list): List of .NET assemblies used in the APK
+        dotnet_mono_assemblies (list): List of .NET assemblies used in the APK
         strings_props (list): List of a dict of properties and its description in the APK
         signature_koodous (str): Koodous signature check result.
         signatures_vt (str): VirusTotal signature check result.
@@ -55,17 +54,14 @@ class Results:
 
     intents: list[str] = field(default_factory=list)
     filtered_permissions: list[str] = field(default_factory=list)
-    signatures: dict[str, Optional[Any]] = field(default_factory=lambda: {"koodous": None, "vt": None, "triage": None})
+    signatures: dict[str, Any | None] = field(default_factory=lambda: {"koodous": None, "vt": None, "triage": None})
     strings_ip: list[str] = field(default_factory=list)
     strings_domain: list[str] = field(default_factory=list)
     strings_props: list[str] = field(default_factory=list)
     strings_urls: list[str] = field(default_factory=list)
     strings_emails: list[str] = field(default_factory=list)
-    dotnetMono_assemblies: list[str] = field(default_factory=list)
+    dotnet_mono_assemblies: list[str] = field(default_factory=list)
     apk_name: str = ""
-    additional_data: dict[str, Any] = field(default_factory=dict)
-
-    # Combined results
     additional_data: dict[str, Any] = field(default_factory=dict)
 
     def to_json(self) -> str:

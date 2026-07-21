@@ -180,7 +180,7 @@ def unzip_apk(app_name: str, apk_path: str) -> str:
         print(f"ZIP Error Details: {exc_value}")  # Often reveals the real issue
         raise ValueError(f"Invalid APK structure: {str(exc_value)}") from e
     except Exception as e:
-        raise RuntimeError(f"Failed to unzip APK: {str(e)}")
+        raise RuntimeError(f"Failed to unzip APK: {str(e)}") from e
 
 
 def split_path_file_extension(file_path):

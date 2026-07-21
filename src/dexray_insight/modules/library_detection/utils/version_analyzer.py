@@ -267,101 +267,122 @@ class VersionAnalyzer:
     def _check_maven_central(self, library_name: str, package_name: str | None = None) -> VersionInfo | None:
         """Check Maven Central for latest version using improved mapping."""
         try:
-            # Import library mappings
-            from .library_mappings import get_maven_coordinates
+            coords = self._resolve_maven_coordinates(library_name, package_name)
+            if coords is None:
+                return None
 
-            # Try to get proper Maven coordinates from mapping
-            maven_coords = get_maven_coordinates(library_name)
-
-            if maven_coords:
-                group_id, artifact_id = maven_coords.split(":", 1)
-                self.logger.debug(f"Using Maven coordinates from mapping: {group_id}:{artifact_id}")
-            elif package_name:
-                # Fallback to package_name parsing
-                if "." in package_name:
-                    parts = package_name.split(".")
-                    group_id = ".".join(parts[:-1])
-                    artifact_id = parts[-1]
-                else:
-                    group_id = package_name
-                    artifact_id = library_name.lower().replace(" ", "-")
-                self.logger.debug(f"Using fallback Maven coordinates: {group_id}:{artifact_id}")
-            else:
-                # Last resort: try common patterns
-                if library_name.startswith("play-services-"):
-                    group_id = "com.google.android.gms"
-                    artifact_id = library_name
-                elif library_name.startswith("firebase-"):
-                    group_id = "com.google.firebase"
-                    artifact_id = library_name
-                elif library_name in ["billing"]:
-                    group_id = "com.android.billingclient"
-                    artifact_id = library_name
-                else:
-                    self.logger.debug(f"No Maven mapping found for {library_name}")
-                    return None
-
-            # Maven Central API with multiple search strategies
-            strategies = [
-                # Strategy 1: Exact group and artifact match
-                f'g:"{group_id}" AND a:"{artifact_id}"',
-                # Strategy 2: Group wildcard - fixed syntax
-                f"g:{group_id}* AND a:{artifact_id}",
-                # Strategy 3: Artifact name only
-                f'a:"{artifact_id}"',
-            ]
-
-            for i, query in enumerate(strategies):
-                self.logger.debug(f"Maven Central strategy {i+1}: {query}")
-
-                url = "https://search.maven.org/solrsearch/select"
-                params = {
-                    "q": query,
-                    "rows": 5,  # Get more results for better matching
-                    "wt": "json",
-                    "sort": "timestamp desc",  # Get most recent first
-                }
-
-                response = requests.get(url, params=params, timeout=self.api_timeout)
-                response.raise_for_status()
-
-                data = response.json()
-                docs = data.get("response", {}).get("docs", [])
-
-                if docs:
-                    # Find best match (prefer exact group match)
-                    best_doc = None
-                    for doc in docs:
-                        doc_group = doc.get("g", "")
-                        doc_artifact = doc.get("a", "")
-
-                        # Exact match is best
-                        if doc_group == group_id and doc_artifact == artifact_id:
-                            best_doc = doc
-                            break
-                        # Partial group match is acceptable
-                        elif group_id in doc_group and doc_artifact == artifact_id:
-                            if not best_doc:
-                                best_doc = doc
-
-                    if not best_doc:
-                        best_doc = docs[0]  # Use first result as fallback
-
-                    latest_version = best_doc.get("latestVersion")
-                    timestamp = best_doc.get("timestamp")
-
-                    release_date = None
-                    if timestamp:
-                        release_date = datetime.fromtimestamp(timestamp / 1000)
-
-                    self.logger.debug(f"Maven Central found: {best_doc.get('g')}:{best_doc.get('a')}:{latest_version}")
-
-                    return VersionInfo(version=latest_version, release_date=release_date, is_latest=True)
+            group_id, artifact_id = coords
+            return self._query_maven_central_strategies(group_id, artifact_id)
 
         except Exception as e:
             self.logger.debug(f"Maven Central API failed: {e}")
 
         return None
+
+    def _resolve_maven_coordinates(
+        self, library_name: str, package_name: str | None = None
+    ) -> tuple[str, str] | None:
+        """Resolve Maven group and artifact IDs for a library."""
+        # Import library mappings
+        from .library_mappings import get_maven_coordinates
+
+        # Try to get proper Maven coordinates from mapping
+        maven_coords = get_maven_coordinates(library_name)
+
+        if maven_coords:
+            group_id, artifact_id = maven_coords.split(":", 1)
+            self.logger.debug(f"Using Maven coordinates from mapping: {group_id}:{artifact_id}")
+        elif package_name:
+            # Fallback to package_name parsing
+            if "." in package_name:
+                parts = package_name.split(".")
+                group_id = ".".join(parts[:-1])
+                artifact_id = parts[-1]
+            else:
+                group_id = package_name
+                artifact_id = library_name.lower().replace(" ", "-")
+            self.logger.debug(f"Using fallback Maven coordinates: {group_id}:{artifact_id}")
+        else:
+            # Last resort: try common patterns
+            if library_name.startswith("play-services-"):
+                group_id = "com.google.android.gms"
+                artifact_id = library_name
+            elif library_name.startswith("firebase-"):
+                group_id = "com.google.firebase"
+                artifact_id = library_name
+            elif library_name in ["billing"]:
+                group_id = "com.android.billingclient"
+                artifact_id = library_name
+            else:
+                self.logger.debug(f"No Maven mapping found for {library_name}")
+                return None
+
+        return group_id, artifact_id
+
+    def _query_maven_central_strategies(self, group_id: str, artifact_id: str) -> VersionInfo | None:
+        """Query Maven Central using multiple search strategies."""
+        # Maven Central API with multiple search strategies
+        strategies = [
+            # Strategy 1: Exact group and artifact match
+            f'g:"{group_id}" AND a:"{artifact_id}"',
+            # Strategy 2: Group wildcard - fixed syntax
+            f"g:{group_id}* AND a:{artifact_id}",
+            # Strategy 3: Artifact name only
+            f'a:"{artifact_id}"',
+        ]
+
+        for i, query in enumerate(strategies):
+            self.logger.debug(f"Maven Central strategy {i+1}: {query}")
+
+            url = "https://search.maven.org/solrsearch/select"
+            params = {
+                "q": query,
+                "rows": 5,  # Get more results for better matching
+                "wt": "json",
+                "sort": "timestamp desc",  # Get most recent first
+            }
+
+            response = requests.get(url, params=params, timeout=self.api_timeout)
+            response.raise_for_status()
+
+            data = response.json()
+            docs = data.get("response", {}).get("docs", [])
+
+            if docs:
+                return self._parse_maven_central_docs(docs, group_id, artifact_id)
+
+        return None
+
+    def _parse_maven_central_docs(self, docs: list, group_id: str, artifact_id: str) -> VersionInfo | None:
+        """Select the best matching doc and build VersionInfo from Maven Central results."""
+        # Find best match (prefer exact group match)
+        best_doc = None
+        for doc in docs:
+            doc_group = doc.get("g", "")
+            doc_artifact = doc.get("a", "")
+
+            # Exact match is best
+            if doc_group == group_id and doc_artifact == artifact_id:
+                best_doc = doc
+                break
+            # Partial group match is acceptable
+            elif group_id in doc_group and doc_artifact == artifact_id:
+                if not best_doc:
+                    best_doc = doc
+
+        if not best_doc:
+            best_doc = docs[0]  # Use first result as fallback
+
+        latest_version = best_doc.get("latestVersion")
+        timestamp = best_doc.get("timestamp")
+
+        release_date = None
+        if timestamp:
+            release_date = datetime.fromtimestamp(timestamp / 1000)
+
+        self.logger.debug(f"Maven Central found: {best_doc.get('g')}:{best_doc.get('a')}:{latest_version}")
+
+        return VersionInfo(version=latest_version, release_date=release_date, is_latest=True)
 
     def _check_npm_registry(self, library_name: str, package_name: str | None = None) -> VersionInfo | None:
         """Check npm registry for JavaScript libraries."""
@@ -443,25 +464,10 @@ class VersionAnalyzer:
         self.logger.debug(f"Google Maven: Called with library_name='{library_name}', package_name='{package_name}'")
 
         try:
-            from .library_mappings import get_library_mapping
-
             # Get proper Maven coordinates
-            mapping = get_library_mapping(library_name)
-            if not mapping:
-                self.logger.debug(f"Google Maven: No mapping found for '{library_name}' (exact name)")
-
-                # Try alternative names if available
-                if package_name:
-                    self.logger.debug(f"Google Maven: Trying package_name '{package_name}' as library name")
-                    mapping = get_library_mapping(package_name)
-                    if mapping:
-                        self.logger.debug(f"Google Maven: Found mapping using package_name '{package_name}'")
-
-                if not mapping:
-                    self.logger.debug(
-                        f"Google Maven: No mapping found for library_name='{library_name}' or package_name='{package_name}'"
-                    )
-                    return None
+            mapping = self._resolve_google_maven_mapping(library_name, package_name)
+            if mapping is None:
+                return None
 
             group_id = mapping.maven_group_id
             artifact_id = mapping.maven_artifact_id
@@ -491,44 +497,77 @@ class VersionAnalyzer:
             # Google Maven uses a different structure - try their group listing
             group_path = group_id.replace(".", "/")
 
-            try:
-                # Try to get the artifact listing from Google Maven
-                url = f"https://maven.google.com/{group_path}/{artifact_id}/maven-metadata.xml"
-                response = requests.get(url, timeout=self.api_timeout)
-
-                if response.status_code == 200:
-                    # Parse XML to get latest version (secure parsing of external XML)
-                    import xml.etree.ElementTree as ET
-
-                    # Create secure parser to prevent XXE attacks on external XML
-                    parser = ET.XMLParser()
-                    parser.entity = {}  # Disable entity processing for security
-                    root = ET.fromstring(response.text, parser=parser)
-                    versioning = root.find("versioning")
-
-                    if versioning is not None:
-                        latest = versioning.find("latest")
-                        release = versioning.find("release")
-
-                        # Prefer 'release' over 'latest' (release excludes snapshots/betas)
-                        latest_version = None
-                        if release is not None and release.text:
-                            latest_version = release.text
-                        elif latest is not None and latest.text:
-                            latest_version = latest.text
-
-                        if latest_version:
-                            self.logger.debug(f"Google Maven found: {group_id}:{artifact_id} -> {latest_version}")
-                            return VersionInfo(version=latest_version, is_latest=True)
-
-            except Exception as inner_e:
-                self.logger.debug(f"Google Maven XML API failed: {inner_e}")
+            result = self._fetch_google_maven_metadata(group_id, artifact_id, group_path)
+            if result:
+                return result
 
             # Fallback: Try to use known version patterns for major Google libraries
             return self._get_known_google_versions(group_id, artifact_id)
 
         except Exception as e:
             self.logger.debug(f"Google Maven API failed: {e}")
+
+        return None
+
+    def _resolve_google_maven_mapping(self, library_name: str, package_name: str | None = None):
+        """Resolve library mapping for Google Maven, trying package_name as fallback."""
+        from .library_mappings import get_library_mapping
+
+        mapping = get_library_mapping(library_name)
+        if not mapping:
+            self.logger.debug(f"Google Maven: No mapping found for '{library_name}' (exact name)")
+
+            # Try alternative names if available
+            if package_name:
+                self.logger.debug(f"Google Maven: Trying package_name '{package_name}' as library name")
+                mapping = get_library_mapping(package_name)
+                if mapping:
+                    self.logger.debug(f"Google Maven: Found mapping using package_name '{package_name}'")
+
+            if not mapping:
+                self.logger.debug(
+                    f"Google Maven: No mapping found for library_name='{library_name}' or package_name='{package_name}'"
+                )
+                return None
+
+        return mapping
+
+    def _fetch_google_maven_metadata(
+        self, group_id: str, artifact_id: str, group_path: str
+    ) -> VersionInfo | None:
+        """Fetch and parse maven-metadata.xml from Google Maven for the latest version."""
+        try:
+            # Try to get the artifact listing from Google Maven
+            url = f"https://maven.google.com/{group_path}/{artifact_id}/maven-metadata.xml"
+            response = requests.get(url, timeout=self.api_timeout)
+
+            if response.status_code == 200:
+                # Parse XML to get latest version (secure parsing of external XML)
+                import xml.etree.ElementTree as ET
+
+                # Create secure parser to prevent XXE attacks on external XML
+                parser = ET.XMLParser()
+                parser.entity = {}  # Disable entity processing for security
+                root = ET.fromstring(response.text, parser=parser)
+                versioning = root.find("versioning")
+
+                if versioning is not None:
+                    latest = versioning.find("latest")
+                    release = versioning.find("release")
+
+                    # Prefer 'release' over 'latest' (release excludes snapshots/betas)
+                    latest_version = None
+                    if release is not None and release.text:
+                        latest_version = release.text
+                    elif latest is not None and latest.text:
+                        latest_version = latest.text
+
+                    if latest_version:
+                        self.logger.debug(f"Google Maven found: {group_id}:{artifact_id} -> {latest_version}")
+                        return VersionInfo(version=latest_version, is_latest=True)
+
+        except Exception as inner_e:
+            self.logger.debug(f"Google Maven XML API failed: {inner_e}")
 
         return None
 

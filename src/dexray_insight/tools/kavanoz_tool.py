@@ -43,6 +43,7 @@ Provides static unpacking capabilities through external Kavanoz tool.
 # # See the License for the specific language governing permissions and
 # # limitations under the License.
 
+import contextlib
 import json
 import logging
 import os
@@ -50,7 +51,6 @@ import platform
 import tempfile
 from pathlib import Path
 from typing import Any
-from typing import Optional
 
 from ..core.base_classes import BaseExternalTool
 from ..core.base_classes import register_tool
@@ -69,7 +69,7 @@ class KavanozTool(BaseExternalTool):
         self.output_dir = config.get("output_dir")
         self.create_temp_dir = config.get("create_temp_dir", True)
 
-    def execute(self, apk_path: str, output_dir: Optional[str] = None) -> dict[str, Any]:
+    def execute(self, apk_path: str, output_dir: str | None = None) -> dict[str, Any]:
         """
         Execute Kavanoz on the APK file.
 
@@ -126,36 +126,12 @@ class KavanozTool(BaseExternalTool):
             KavanozResults object
         """
         try:
-            # Import Kavanoz - handle potential import errors
-            try:
-                # Try to install setuptools as a fallback for distutils
-                try:
-                    # import distutils
-                    pass
-                except ImportError:
-                    try:
-                        # import setuptools  # setuptools provides distutils compatibility
-                        # import distutils
-                        pass
-                    except ImportError:
-                        self.logger.warning(
-                            "Neither distutils nor setuptools available. Installing setuptools might help."
-                        )
-
-                from kavanoz.core import Kavanoz
-                from loguru import logger as loguru_logger
-            except ImportError as e:
-                error_msg = f"Kavanoz library not available: {str(e)}"
-                if "distutils" in str(e).lower():
-                    error_msg += ". Try installing setuptools: pip install setuptools"
-                raise ImportError(error_msg)
+            Kavanoz, loguru_logger = self._import_kavanoz()  # noqa: N806
 
             # Disable Kavanoz logging to avoid conflicts
             logging.getLogger("kavanoz").disabled = True
-            try:
-                loguru_logger.remove()
-            except Exception:
-                pass  # Ignore if no handlers are present
+            with contextlib.suppress(Exception):
+                loguru_logger.remove()  # Ignore if no handlers are present
 
             # Initialize Kavanoz
             k = Kavanoz(apk_path=apk_path, output_dir=output_dir)
@@ -198,6 +174,37 @@ class KavanozTool(BaseExternalTool):
             return KavanozResults(
                 is_packed=False, unpacked=False, packing_procedure=f"Analysis error: {str(e)}", unpacked_file_path=""
             )
+
+    def _import_kavanoz(self):
+        """
+        Import the Kavanoz library, raising a helpful ImportError if unavailable.
+
+        Returns:
+            Tuple of (Kavanoz class, loguru logger)
+        """
+        try:
+            # Try to install setuptools as a fallback for distutils
+            try:
+                # import distutils
+                pass
+            except ImportError:
+                try:
+                    # import setuptools  # setuptools provides distutils compatibility
+                    # import distutils
+                    pass
+                except ImportError:
+                    self.logger.warning(
+                        "Neither distutils nor setuptools available. Installing setuptools might help."
+                    )
+
+            from kavanoz.core import Kavanoz
+            from loguru import logger as loguru_logger
+        except ImportError as e:
+            error_msg = f"Kavanoz library not available: {str(e)}"
+            if "distutils" in str(e).lower():
+                error_msg += ". Try installing setuptools: pip install setuptools"
+            raise ImportError(error_msg) from e
+        return Kavanoz, loguru_logger
 
     def _parse_results(self, raw_json: str) -> KavanozResults:
         """
@@ -256,7 +263,7 @@ class KavanozTool(BaseExternalTool):
             self.logger.debug(f"Kavanoz not available: {str(e)}")
             return False
 
-    def get_version(self) -> Optional[str]:
+    def get_version(self) -> str | None:
         """
         Get Kavanoz version.
 

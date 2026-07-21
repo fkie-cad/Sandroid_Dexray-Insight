@@ -325,7 +325,7 @@ def network_security_analysis(checksum, app_dir, config, is_debuggable, src_type
 
         msg = "Parsing Network Security config"
         logger.info(msg)
-        parsed = minidom.parseString(netsec_conf)
+        parsed = minidom.parseString(netsec_conf)  # noqa: S318
         finds = []
         summary = {HIGH: 0, WARNING: 0, INFO: 0, SECURE: 0}
 

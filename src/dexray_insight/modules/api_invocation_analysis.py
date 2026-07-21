@@ -126,7 +126,7 @@ class APIInvocationAnalysisModule(BaseAnalysisModule):
                 raise ValueError("Androguard object not available in context")
 
             # Get analysis objects
-            dx = context.androguard_obj.get_androguard_analysisObj()
+            dx = context.androguard_obj.get_androguard_analysis_obj()
 
             api_calls = []
             reflection_usage = []
@@ -200,9 +200,7 @@ class APIInvocationAnalysisModule(BaseAnalysisModule):
 
                         # Check if this is an external API call
                         if (
-                            called_class.startswith("Landroid/")
-                            or called_class.startswith("Ljava/")
-                            or called_class.startswith("Ljavax/")
+                            called_class.startswith(("Landroid/", "Ljava/", "Ljavax/"))
                         ):
                             api_calls.append(
                                 {

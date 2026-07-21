@@ -324,11 +324,8 @@ def detect_framework(all_files: list[str], native_libs: list[str]) -> str:
     return "Native Android (Java/Kotlin) or Unknown Framework"
 
 
-def analyze_apk(apk_path, apk_overview, app_dic, permissions_details=False):
-    """Perform comprehensive APK analysis."""
-    if apk_overview is None:
-        apk_overview = parse_apk(apk_path)
-
+def _build_general_info(apk_overview, apk_path):
+    """Collect general APK information into a structured dictionary."""
     # General APK information
     file_name = os.path.basename(apk_path)
     file_size = os.path.getsize(apk_path)  # in bytes
@@ -345,16 +342,25 @@ def analyze_apk(apk_path, apk_overview, app_dic, permissions_details=False):
     android_version_name = apk_overview.get_androidversion_name()
     android_version_code = apk_overview.get_androidversion_code()
 
-    # App components
-    activities = apk_overview.get_activities()
-    services = apk_overview.get_services()
-    receivers = apk_overview.get_receivers()
-    providers = apk_overview.get_providers()
+    return {
+        "file_name": file_name,
+        "file_size": file_size,
+        "md5": md5_sum,
+        "sha1": sha1_sum,
+        "sha256": sha256_sum,
+        "app_name": app_name,
+        "package_name": package_name,
+        "main_activity": main_activity,
+        "target_sdk": target_sdk,
+        "min_sdk": min_sdk,
+        "max_sdk": max_sdk,
+        "android_version_name": android_version_name,
+        "android_version_code": android_version_code,
+    }
 
-    # Directory listing inside the APK
-    directory_listing = apk_overview.get_files()
-    native_libs = apk_overview.get_libraries()
 
+def _resolve_native_libs(apk_path, native_libs):
+    """Resolve native libraries, extracting .so files from lib/ if needed."""
     # Check if native_libs contains actual .so files or just framework library names
     has_actual_so_files = any(lib.endswith(".so") for lib in native_libs)
 
@@ -380,6 +386,48 @@ def analyze_apk(apk_path, apk_overview, app_dic, permissions_details=False):
                 # Extract just the library names without duplicates
                 native_libs = list({os.path.basename(f) for f in so_files})
 
+    return native_libs
+
+
+def _add_certificates_and_permissions_details(apk_analysis, apk_overview, man_data, permissions_details):
+    """Add certificate information and optional in-depth permission analysis."""
+    # Add certificates
+    if apk_overview.is_signed_v1():
+        apk_analysis["certificates"]["v1"] = [
+            show_Certificate(apk_overview.get_certificate(c), only_json=True)
+            for c in apk_overview.get_signature_names()
+        ]
+    if apk_overview.is_signed_v2():
+        apk_analysis["certificates"]["v2"] = [
+            show_Certificate(c, only_json=True) for c in apk_overview.get_certificates_v2()
+        ]
+
+    # Add in-depth analysis if requested
+    if permissions_details:
+        apk_analysis["permissions_details"] = analyze_permissions_in_depth(man_data, to_json=True)
+
+
+def analyze_apk(apk_path, apk_overview, app_dic, permissions_details=False):
+    """Perform comprehensive APK analysis."""
+    if apk_overview is None:
+        apk_overview = parse_apk(apk_path)
+
+    # General APK information
+    general_info = _build_general_info(apk_overview, apk_path)
+    md5_sum = general_info["md5"]
+
+    # App components
+    activities = apk_overview.get_activities()
+    services = apk_overview.get_services()
+    receivers = apk_overview.get_receivers()
+    providers = apk_overview.get_providers()
+
+    # Directory listing inside the APK
+    directory_listing = apk_overview.get_files()
+    native_libs = apk_overview.get_libraries()
+
+    native_libs = _resolve_native_libs(apk_path, native_libs)
+
     is_cross_platform = is_crossplatform(native_libs, directory_listing)
     cross_platform_framework = detect_framework(native_libs, directory_listing)
 
@@ -392,21 +440,7 @@ def analyze_apk(apk_path, apk_overview, app_dic, permissions_details=False):
 
     # Prepare JSON dictionary
     apk_analysis = {
-        "general_info": {
-            "file_name": file_name,
-            "file_size": file_size,
-            "md5": md5_sum,
-            "sha1": sha1_sum,
-            "sha256": sha256_sum,
-            "app_name": app_name,
-            "package_name": package_name,
-            "main_activity": main_activity,
-            "target_sdk": target_sdk,
-            "min_sdk": min_sdk,
-            "max_sdk": max_sdk,
-            "android_version_name": android_version_name,
-            "android_version_code": android_version_code,
-        },
+        "general_info": general_info,
         "components": {
             "activities": activities,
             "exported_activities": man_analysis["exported_act"]
@@ -436,20 +470,7 @@ def analyze_apk(apk_path, apk_overview, app_dic, permissions_details=False):
         "cross_platform_framework": cross_platform_framework,
     }
 
-    # Add certificates
-    if apk_overview.is_signed_v1():
-        apk_analysis["certificates"]["v1"] = [
-            show_Certificate(apk_overview.get_certificate(c), only_json=True)
-            for c in apk_overview.get_signature_names()
-        ]
-    if apk_overview.is_signed_v2():
-        apk_analysis["certificates"]["v2"] = [
-            show_Certificate(c, only_json=True) for c in apk_overview.get_certificates_v2()
-        ]
-
-    # Add in-depth analysis if requested
-    if permissions_details:
-        apk_analysis["permissions_details"] = analyze_permissions_in_depth(man_data, to_json=True)
+    _add_certificates_and_permissions_details(apk_analysis, apk_overview, man_data, permissions_details)
 
     # Return or save result
     return apk_analysis

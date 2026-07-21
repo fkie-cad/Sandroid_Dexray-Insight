@@ -341,6 +341,16 @@ class CentralDirectory:
         """
         self.entries = entries
 
+    @staticmethod
+    def _seek_to_central_directory(apk_file, eocd):
+        """Resolve the EOCD record if missing and seek to the central directory start."""
+        if not eocd:
+            eocd = EndOfCentralDirectoryRecord.parse(apk_file)
+        apk_file.seek(eocd.offset_of_start_of_central_directory)
+        if apk_file.tell() != eocd.offset_of_start_of_central_directory:
+            raise ValueError(f"Failed to find the offset for the central directory within the file!")
+        return eocd
+
     @classmethod
     def parse(cls, apk_file, eocd: EndOfCentralDirectoryRecord = None):
         """
@@ -356,11 +366,7 @@ class CentralDirectory:
         :return: Returns a dictionary with all the entries discovered. The filename of each entry is used as the key. Besides the fields defined by the specification, each entry has an additional field named 'Offset in the central directory header', which includes the offset of the entry in the central directory itself.
         :rtype: CentralDirectory
         """
-        if not eocd:
-            eocd = EndOfCentralDirectoryRecord.parse(apk_file)
-        apk_file.seek(eocd.offset_of_start_of_central_directory)
-        if apk_file.tell() != eocd.offset_of_start_of_central_directory:
-            raise ValueError(f"Failed to find the offset for the central directory within the file!")
+        eocd = cls._seek_to_central_directory(apk_file, eocd)
 
         central_directory_entries = {}
         while True:

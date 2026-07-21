@@ -28,7 +28,6 @@ It identifies vulnerable, outdated, or unsupported components and dependencies.
 
 import logging
 from typing import Any
-from typing import Optional
 
 from ..core.base_classes import AnalysisContext
 from ..core.base_classes import AnalysisSeverity
@@ -208,13 +207,26 @@ class VulnerableComponentsAssessment(BaseSecurityAssessment):
 
         # Get library detection results
         library_results = analysis_results.get("library_detection", {})
-        if hasattr(library_results, "to_dict"):
-            library_data = library_results.to_dict()
-        else:
-            library_data = library_results
+        library_data = library_results.to_dict() if hasattr(library_results, "to_dict") else library_results
 
         detected_libraries = library_data.get("detected_libraries", [])
 
+        critical_vulnerabilities, high_vulnerabilities, medium_vulnerabilities = (
+            self._categorize_library_vulnerabilities(detected_libraries)
+        )
+
+        findings.extend(
+            self._build_library_vulnerability_findings(
+                critical_vulnerabilities, high_vulnerabilities, medium_vulnerabilities
+            )
+        )
+
+        return findings
+
+    def _categorize_library_vulnerabilities(
+        self, detected_libraries: list
+    ) -> tuple[list, list, list]:
+        """Categorize detected libraries by vulnerability severity."""
         critical_vulnerabilities = []
         high_vulnerabilities = []
         medium_vulnerabilities = []
@@ -247,6 +259,17 @@ class VulnerableComponentsAssessment(BaseSecurityAssessment):
                         high_vulnerabilities.append(vuln_entry)
                     else:
                         medium_vulnerabilities.append(vuln_entry)
+
+        return critical_vulnerabilities, high_vulnerabilities, medium_vulnerabilities
+
+    def _build_library_vulnerability_findings(
+        self,
+        critical_vulnerabilities: list,
+        high_vulnerabilities: list,
+        medium_vulnerabilities: list,
+    ) -> list[SecurityFinding]:
+        """Build security findings for categorized library vulnerabilities."""
+        findings = []
 
         # Create findings for each severity level
         if critical_vulnerabilities:
@@ -319,10 +342,7 @@ class VulnerableComponentsAssessment(BaseSecurityAssessment):
 
         # Get native analysis results
         native_results = analysis_results.get("native_analysis", {})
-        if hasattr(native_results, "to_dict"):
-            native_data = native_results.to_dict()
-        else:
-            native_data = native_results
+        native_data = native_results.to_dict() if hasattr(native_results, "to_dict") else native_results
 
         native_libraries = native_data.get("native_libraries", [])
 
@@ -336,9 +356,10 @@ class VulnerableComponentsAssessment(BaseSecurityAssessment):
 
                 # Check against known native vulnerabilities
                 for db_category, vulns in self.vulnerability_databases["native_vulnerabilities"].items():
-                    if db_category.lower() in lib_name.lower():
-                        if lib_version in vulns["vulnerable_versions"] or vulnerabilities:
-                            vulnerable_natives.append(
+                    if db_category.lower() in lib_name.lower() and (
+                        lib_version in vulns["vulnerable_versions"] or vulnerabilities
+                    ):
+                        vulnerable_natives.append(
                                 {
                                     "library": lib_name,
                                     "version": lib_version,
@@ -379,6 +400,14 @@ class VulnerableComponentsAssessment(BaseSecurityAssessment):
         library_data = library_results.to_dict() if hasattr(library_results, "to_dict") else library_results
         detected_libraries = library_data.get("detected_libraries", [])
 
+        severely_outdated, moderately_outdated = self._categorize_outdated_components(detected_libraries)
+
+        findings.extend(self._build_outdated_component_findings(severely_outdated, moderately_outdated))
+
+        return findings
+
+    def _categorize_outdated_components(self, detected_libraries: list) -> tuple[list, list]:
+        """Categorize detected libraries by how outdated their versions are."""
         severely_outdated = []  # > 3 years behind
         moderately_outdated = []  # 1-3 years behind
 
@@ -415,6 +444,14 @@ class VulnerableComponentsAssessment(BaseSecurityAssessment):
                             "category": category,
                         }
                     )
+
+        return severely_outdated, moderately_outdated
+
+    def _build_outdated_component_findings(
+        self, severely_outdated: list, moderately_outdated: list
+    ) -> list[SecurityFinding]:
+        """Build security findings for categorized outdated components."""
+        findings = []
 
         if severely_outdated:
             findings.append(
@@ -643,18 +680,16 @@ class VulnerableComponentsAssessment(BaseSecurityAssessment):
 
         return findings
 
-    def _check_vulnerability_database(self, library_name: str, library_version: str) -> Optional[dict[str, Any]]:
+    def _check_vulnerability_database(self, library_name: str, library_version: str) -> dict[str, Any] | None:
         """Check if a library version has known vulnerabilities."""
         # Check critical CVE database
         for db_name, vuln_info in self.vulnerability_databases["critical_cves"].items():
-            if db_name.lower() in library_name.lower():
-                if library_version in vuln_info["vulnerable_versions"]:
-                    return vuln_info
+            if db_name.lower() in library_name.lower() and library_version in vuln_info["vulnerable_versions"]:
+                return vuln_info
 
         # Check Android framework vulnerabilities
         for db_name, vuln_info in self.vulnerability_databases["android_framework_vulnerabilities"].items():
-            if db_name.lower() in library_name.lower():
-                if library_version in vuln_info["vulnerable_versions"]:
-                    return vuln_info
+            if db_name.lower() in library_name.lower() and library_version in vuln_info["vulnerable_versions"]:
+                return vuln_info
 
         return None

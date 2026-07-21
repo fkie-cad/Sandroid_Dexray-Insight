@@ -68,46 +68,13 @@ class SSRFAssessment(BaseSecurityAssessment):
 
         try:
             string_results = analysis_results.get("string_analysis", {})
-            if hasattr(string_results, "to_dict"):
-                string_data = string_results.to_dict()
-            else:
-                string_data = string_results
+            string_data = string_results.to_dict() if hasattr(string_results, "to_dict") else string_results
 
             all_strings = string_data.get("all_strings", [])
             urls = string_data.get("urls", [])
 
             # Check for potential SSRF vulnerabilities
-            ssrf_risks = []
-            internal_access = []
-
-            import re
-
-            for string in all_strings:
-                if isinstance(string, str):
-                    # Check for user-controlled URL patterns
-                    for pattern in self.url_validation_patterns:
-                        if re.search(pattern, string, re.IGNORECASE):
-                            ssrf_risks.append(f"User-controlled URL: {string[:80]}...")
-                            break
-
-                    # Check for internal service access patterns
-                    for pattern in self.internal_service_patterns:
-                        if re.search(pattern, string, re.IGNORECASE):
-                            internal_access.append(f"Internal service access: {string[:80]}...")
-                            break
-
-            # Check URLs for SSRF indicators
-            for url in urls:
-                if isinstance(url, str):
-                    # Check for localhost, private IPs, or internal domains
-                    if any(
-                        indicator in url.lower() for indicator in ["localhost", "127.0.0.1", "10.0.2.2", ".internal"]
-                    ):
-                        internal_access.append(f"Internal URL detected: {url}")
-
-                    # Check for dynamic URL construction
-                    if any(dynamic_indicator in url for dynamic_indicator in ["{", "}", "$", "%s", "%d"]):
-                        ssrf_risks.append(f"Dynamic URL construction: {url}")
+            ssrf_risks, internal_access = self._detect_ssrf_risks(all_strings, urls)
 
             # Create findings based on detected risks
             if ssrf_risks:
@@ -149,14 +116,7 @@ class SSRFAssessment(BaseSecurityAssessment):
                 )
 
             # Check for WebView-related SSRF risks
-            webview_ssrf = []
-            for string in all_strings:
-                if isinstance(string, str):
-                    if "webview" in string.lower() and any(
-                        url_part in string.lower() for url_part in ["loadurl", "loaddatawithbaseurl"]
-                    ):
-                        if any(user_input in string.lower() for user_input in ["user", "input", "param", "query"]):
-                            webview_ssrf.append(f"WebView SSRF risk: {string[:70]}...")
+            webview_ssrf = self._detect_webview_ssrf(all_strings)
 
             if webview_ssrf:
                 findings.append(
@@ -190,3 +150,49 @@ class SSRFAssessment(BaseSecurityAssessment):
             )
 
         return findings
+
+    def _detect_ssrf_risks(self, all_strings: list, urls: list) -> tuple[list, list]:
+        """Detect SSRF risks and internal service access in strings and URLs."""
+        ssrf_risks = []
+        internal_access = []
+
+        import re
+
+        for string in all_strings:
+            if isinstance(string, str):
+                # Check for user-controlled URL patterns
+                for pattern in self.url_validation_patterns:
+                    if re.search(pattern, string, re.IGNORECASE):
+                        ssrf_risks.append(f"User-controlled URL: {string[:80]}...")
+                        break
+
+                # Check for internal service access patterns
+                for pattern in self.internal_service_patterns:
+                    if re.search(pattern, string, re.IGNORECASE):
+                        internal_access.append(f"Internal service access: {string[:80]}...")
+                        break
+
+        # Check URLs for SSRF indicators
+        for url in urls:
+            if isinstance(url, str):
+                # Check for localhost, private IPs, or internal domains
+                if any(
+                    indicator in url.lower() for indicator in ["localhost", "127.0.0.1", "10.0.2.2", ".internal"]
+                ):
+                    internal_access.append(f"Internal URL detected: {url}")
+
+                # Check for dynamic URL construction
+                if any(dynamic_indicator in url for dynamic_indicator in ["{", "}", "$", "%s", "%d"]):
+                    ssrf_risks.append(f"Dynamic URL construction: {url}")
+
+        return ssrf_risks, internal_access
+
+    def _detect_webview_ssrf(self, all_strings: list) -> list:
+        """Detect WebView-related SSRF risks in strings."""
+        webview_ssrf = []
+        for string in all_strings:
+            if isinstance(string, str) and "webview" in string.lower() and any(
+                url_part in string.lower() for url_part in ["loadurl", "loaddatawithbaseurl"]
+            ) and any(user_input in string.lower() for user_input in ["user", "input", "param", "query"]):
+                webview_ssrf.append(f"WebView SSRF risk: {string[:70]}...")
+        return webview_ssrf

@@ -225,7 +225,7 @@ class NetworkFilter:
         parts = ip.split(".")
 
         # Allow known valid IP addresses
-        if ip in ["127.0.0.1", "0.0.0.0", "255.255.255.255", "192.168.1.1", "8.8.8.8", "1.1.1.1"]:
+        if ip in ["127.0.0.1", "0.0.0.0", "255.255.255.255", "192.168.1.1", "8.8.8.8", "1.1.1.1"]:  # noqa: S104
             return False
 
         # Allow common private IP ranges (these are valid IPs)
@@ -326,10 +326,7 @@ class NetworkFilter:
                 return False
 
             # Netloc should contain at least one dot (domain)
-            if "." not in parsed.netloc:
-                return False
-
-            return True
+            return "." in parsed.netloc
 
         except Exception as e:
             self.logger.debug(f"URL validation error for '{url}': {str(e)}")
@@ -360,11 +357,7 @@ class NetworkFilter:
             "fake.com",
         ]
 
-        for domain in placeholder_domains:
-            if domain in url_lower:
-                return True
-
-        return False
+        return any(domain in url_lower for domain in placeholder_domains)
 
     def _is_xml_namespace(self, url: str) -> bool:
         """
@@ -390,11 +383,7 @@ class NetworkFilter:
             "ns.adobe.com",
         ]
 
-        for pattern in xml_namespace_patterns:
-            if pattern in url_lower:
-                return True
-
-        return False
+        return any(pattern in url_lower for pattern in xml_namespace_patterns)
 
     def classify_ip_addresses(self, ip_addresses: list[str]) -> dict[str, list[str]]:
         """
@@ -477,7 +466,7 @@ class NetworkFilter:
             except Exception as e:
                 self.logger.warning(f"Could not extract domain from URL '{url}': {str(e)}")
 
-        return sorted(list(domains))
+        return sorted(domains)
 
     def categorize_urls_by_protocol(self, urls: list[str]) -> dict[str, list[str]]:
         """

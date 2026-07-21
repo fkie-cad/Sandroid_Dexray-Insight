@@ -225,7 +225,7 @@ class TestLibraryVersionAnalysisFixes:
         # This is acceptable as it means the method doesn't crash
         if cve_by_library:
             # If CVEs are found, verify structure
-            for library_name, cves in cve_by_library.items():
+            for _library_name, cves in cve_by_library.items():
                 assert isinstance(cves, list)
                 for cve in cves:
                     assert "cve_id" in cve

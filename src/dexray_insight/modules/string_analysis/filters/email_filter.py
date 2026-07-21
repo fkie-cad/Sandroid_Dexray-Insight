@@ -99,10 +99,7 @@ class EmailFilter:
             return False
 
         # Validate domain part (after @)
-        if not self._is_valid_domain_part(domain):
-            return False
-
-        return True
+        return self._is_valid_domain_part(domain)
 
     def _is_valid_local_part(self, local: str) -> bool:
         """
@@ -122,10 +119,7 @@ class EmailFilter:
             return False
 
         # Check for consecutive dots
-        if ".." in local:
-            return False
-
-        return True
+        return ".." not in local
 
     def _is_valid_domain_part(self, domain: str) -> bool:
         """
@@ -162,10 +156,7 @@ class EmailFilter:
 
         # TLD should be at least 2 characters and alphabetic
         tld = parts[-1]
-        if len(tld) < 2 or not tld.isalpha():
-            return False
-
-        return True
+        return not (len(tld) < 2 or not tld.isalpha())
 
     def get_email_domains(self, emails: list[str]) -> list[str]:
         """
@@ -186,7 +177,7 @@ class EmailFilter:
             except (IndexError, AttributeError):
                 self.logger.warning(f"Could not extract domain from email: {email}")
 
-        return sorted(list(domains))
+        return sorted(domains)
 
     def categorize_by_domain(self, emails: list[str]) -> dict:
         """

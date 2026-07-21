@@ -51,7 +51,7 @@ from androguard.misc import AnalyzeAPK
 from loguru import logger
 
 
-class Androguard_Obj:
+class AndroguardObj:
     """Wrapper class for Androguard APK analysis objects."""
 
     def __init__(self, apk_path):
@@ -106,6 +106,6 @@ class Androguard_Obj:
         """Get the Androguard DEX objects list."""
         return self.androguard_dex
 
-    def get_androguard_analysisObj(self):
+    def get_androguard_analysis_obj(self):
         """Get the Androguard analysis object."""
         return self.androguard_analysisObj

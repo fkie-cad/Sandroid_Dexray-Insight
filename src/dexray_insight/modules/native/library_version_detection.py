@@ -38,7 +38,6 @@ import re
 import time
 from dataclasses import dataclass
 from typing import Any
-from typing import Optional
 
 from .base_native_module import BaseNativeModule
 from .base_native_module import NativeAnalysisResult
@@ -74,7 +73,7 @@ class NativeLibraryVersionModule(BaseNativeModule):
     4. Cross-references multiple sources for confidence scoring
     """
 
-    def __init__(self, config: dict[str, Any], logger: Optional[Any] = None):
+    def __init__(self, config: dict[str, Any], logger: Any | None = None):
         """Initialize NativeLibraryVersionModule with configuration."""
         super().__init__(config, logger)
 
@@ -417,7 +416,7 @@ class NativeLibraryVersionModule(BaseNativeModule):
         final_detections = []
 
         # Process each library group
-        for library_name, group_detections in library_groups.items():
+        for _library_name, group_detections in library_groups.items():
             if len(group_detections) == 1:
                 # Single detection - use as is
                 final_detections.append(group_detections[0])

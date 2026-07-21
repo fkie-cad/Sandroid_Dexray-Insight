@@ -31,7 +31,6 @@ import logging
 import re
 from dataclasses import dataclass
 from typing import Any
-from typing import Optional
 
 from dexray_insight.core.base_classes import AnalysisContext
 from dexray_insight.core.base_classes import BaseAnalysisModule
@@ -261,10 +260,9 @@ class LibraryDetectionModule(BaseAnalysisModule):
         package_pattern = re.compile(r"^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+$")
 
         for string in strings:
-            if isinstance(string, str) and package_pattern.match(string):
-                # Exclude very common Android packages to reduce noise
-                if not string.startswith(("android.", "java.", "javax.", "org.w3c.", "org.xml.")):
-                    package_names.add(string)
+            # Exclude very common Android packages to reduce noise
+            if isinstance(string, str) and package_pattern.match(string) and not string.startswith(("android.", "java.", "javax.", "org.w3c.", "org.xml.")):
+                package_names.add(string)
 
         return package_names
 
@@ -292,7 +290,7 @@ class LibraryDetectionModule(BaseAnalysisModule):
         package_names: set[str],
         class_names: set[str],
         manifest_results: Any,
-    ) -> Optional[DetectedLibrary]:
+    ) -> DetectedLibrary | None:
         """Check if a library pattern matches the detected packages and classes."""
         # This method contains the original pattern matching logic
         # Keeping it here for backward compatibility with existing detection logic
@@ -379,7 +377,7 @@ class LibraryDetectionModule(BaseAnalysisModule):
                         lib_data = apk.get_file(lib_file)
                         if lib_data:
                             lib_groups[lib_name]["size"] += len(lib_data)
-                    except Exception:
+                    except Exception:  # noqa: S110
                         pass
 
             # Create DetectedLibrary objects for each native library

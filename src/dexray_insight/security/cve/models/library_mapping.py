@@ -30,7 +30,6 @@ naming conventions.
 
 import re
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
@@ -39,7 +38,7 @@ class LibraryMapping:
 
     detected_name: str
     cve_names: dict[str, str]  # CVE source -> name in that source
-    ecosystem: Optional[str] = None  # Maven, npm, PyPI, etc.
+    ecosystem: str | None = None  # Maven, npm, PyPI, etc.
     aliases: list[str] = None  # Alternative names
 
     def __post_init__(self):
@@ -158,7 +157,7 @@ class LibraryNameMapper:
             "PyPI": [r"[a-z\-_]+$"],  # Lowercase with hyphens/underscores
         }
 
-    def get_cve_names(self, detected_name: str, version: Optional[str] = None) -> dict[str, str]:
+    def get_cve_names(self, detected_name: str, version: str | None = None) -> dict[str, str]:
         """Get CVE database names for a detected library name."""
         normalized = self._normalize_name(detected_name)
 
@@ -168,7 +167,7 @@ class LibraryNameMapper:
         # If no exact mapping found, try to generate reasonable names
         return self._generate_cve_names(detected_name)
 
-    def get_ecosystem(self, detected_name: str) -> Optional[str]:
+    def get_ecosystem(self, detected_name: str) -> str | None:
         """Determine the ecosystem for a library."""
         normalized = self._normalize_name(detected_name)
 

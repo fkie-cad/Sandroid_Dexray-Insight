@@ -31,7 +31,6 @@ pattern matching, tracker detection, and security analysis.
 import re
 import time
 from typing import Any
-from typing import Optional
 
 from .base_native_module import BaseNativeModule
 from .base_native_module import NativeAnalysisResult
@@ -47,7 +46,7 @@ class NativeStringExtractionModule(BaseNativeModule):
     strings in native binaries and makes them available for further analysis.
     """
 
-    def __init__(self, config: dict[str, Any], logger: Optional[Any] = None):
+    def __init__(self, config: dict[str, Any], logger: Any | None = None):
         """Initialize NativeStringExtractionModule with configuration."""
         super().__init__(config, logger)
 

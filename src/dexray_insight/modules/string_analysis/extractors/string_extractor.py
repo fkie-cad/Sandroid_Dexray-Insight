@@ -225,56 +225,16 @@ class StringExtractor:
             self.logger.debug(f"Found {len(xml_files)} XML files in APK for string extraction")
 
             # Extract from strings.xml and other string resource files
-            for xml_file in xml_files:
-                try:
-                    # Focus on string resource files
-                    if "strings.xml" in xml_file or "res/values" in xml_file:
-                        self.logger.debug(f"Processing XML resource file: {xml_file}")
-
-                        # Get XML content
-                        xml_content = apk_obj.get_file(xml_file)
-                        if xml_content:
-                            # Parse XML and extract string values
-                            xml_strings = self._parse_xml_for_strings(xml_content, xml_file)
-                            total_raw_strings += len(xml_strings)
-
-                            for string_val in xml_strings:
-                                # Apply length filter
-                                if len(string_val) < self.min_string_length:
-                                    filtered_by_length += 1
-                                    continue
-
-                                # Apply exclude patterns filter
-                                if self._should_exclude_string(string_val):
-                                    filtered_by_exclude += 1
-                                    continue
-
-                                strings_set.add(string_val)
-
-                except Exception as e:
-                    self.logger.warning(f"Error processing XML file {xml_file}: {str(e)}")
-                    continue
+            raw, by_length, by_exclude = self._process_xml_resource_files(apk_obj, xml_files, strings_set)
+            total_raw_strings += raw
+            filtered_by_length += by_length
+            filtered_by_exclude += by_exclude
 
             # Also extract from the Android manifest and other APK resources
-            try:
-                manifest_strings = self._extract_manifest_strings(apk_obj)
-                total_raw_strings += len(manifest_strings)
-
-                for string_val in manifest_strings:
-                    # Apply length filter
-                    if len(string_val) < self.min_string_length:
-                        filtered_by_length += 1
-                        continue
-
-                    # Apply exclude patterns filter
-                    if self._should_exclude_string(string_val):
-                        filtered_by_exclude += 1
-                        continue
-
-                    strings_set.add(string_val)
-
-            except Exception as e:
-                self.logger.warning(f"Error extracting manifest strings: {str(e)}")
+            raw, by_length, by_exclude = self._process_manifest_strings(apk_obj, strings_set)
+            total_raw_strings += raw
+            filtered_by_length += by_length
+            filtered_by_exclude += by_exclude
 
             # Log comprehensive statistics
             self._log_extraction_stats(total_raw_strings, filtered_by_length, filtered_by_exclude, len(strings_set))
@@ -286,6 +246,83 @@ class StringExtractor:
             self.logger.debug(f"Full traceback: {traceback.format_exc()}")
 
         return strings_set
+
+    def _process_xml_resource_files(self, apk_obj, xml_files, strings_set: set[str]) -> tuple[int, int, int]:
+        """Process XML resource files, adding filtered strings to strings_set.
+
+        Returns a tuple of (total_raw_strings, filtered_by_length, filtered_by_exclude).
+        """
+        total_raw_strings = 0
+        filtered_by_length = 0
+        filtered_by_exclude = 0
+
+        for xml_file in xml_files:
+            try:
+                # Focus on string resource files
+                if "strings.xml" in xml_file or "res/values" in xml_file:
+                    self.logger.debug(f"Processing XML resource file: {xml_file}")
+
+                    # Get XML content
+                    xml_content = apk_obj.get_file(xml_file)
+                    if xml_content:
+                        # Parse XML and extract string values
+                        xml_strings = self._parse_xml_for_strings(xml_content, xml_file)
+                        total_raw_strings += len(xml_strings)
+
+                        by_length, by_exclude = self._filter_and_collect_strings(xml_strings, strings_set)
+                        filtered_by_length += by_length
+                        filtered_by_exclude += by_exclude
+
+            except Exception as e:
+                self.logger.warning(f"Error processing XML file {xml_file}: {str(e)}")
+                continue
+
+        return total_raw_strings, filtered_by_length, filtered_by_exclude
+
+    def _process_manifest_strings(self, apk_obj, strings_set: set[str]) -> tuple[int, int, int]:
+        """Extract and filter Android manifest strings, adding them to strings_set.
+
+        Returns a tuple of (total_raw_strings, filtered_by_length, filtered_by_exclude).
+        """
+        total_raw_strings = 0
+        filtered_by_length = 0
+        filtered_by_exclude = 0
+
+        try:
+            manifest_strings = self._extract_manifest_strings(apk_obj)
+            total_raw_strings += len(manifest_strings)
+
+            by_length, by_exclude = self._filter_and_collect_strings(manifest_strings, strings_set)
+            filtered_by_length += by_length
+            filtered_by_exclude += by_exclude
+
+        except Exception as e:
+            self.logger.warning(f"Error extracting manifest strings: {str(e)}")
+
+        return total_raw_strings, filtered_by_length, filtered_by_exclude
+
+    def _filter_and_collect_strings(self, candidate_strings, strings_set: set[str]) -> tuple[int, int]:
+        """Apply length and exclude filters, adding valid strings to strings_set.
+
+        Returns a tuple of (filtered_by_length, filtered_by_exclude).
+        """
+        filtered_by_length = 0
+        filtered_by_exclude = 0
+
+        for string_val in candidate_strings:
+            # Apply length filter
+            if len(string_val) < self.min_string_length:
+                filtered_by_length += 1
+                continue
+
+            # Apply exclude patterns filter
+            if self._should_exclude_string(string_val):
+                filtered_by_exclude += 1
+                continue
+
+            strings_set.add(string_val)
+
+        return filtered_by_length, filtered_by_exclude
 
     def _parse_xml_for_strings(self, xml_content: bytes, xml_file: str) -> set[str]:
         """Parse XML content to extract string values.

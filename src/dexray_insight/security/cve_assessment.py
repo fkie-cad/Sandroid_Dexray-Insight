@@ -291,28 +291,7 @@ class CVEAssessment(BaseSecurityAssessment):
 
             if not scannable_libraries:
                 self.logger.warning("No libraries with versions found for CVE scanning")
-                # Provide diagnostic information
-                library_results = analysis_results.get("library_detection", {})
-                if hasattr(library_results, "export_to_dict"):
-                    library_data = library_results.export_to_dict()
-                elif hasattr(library_results, "to_dict"):
-                    library_data = library_results.to_dict()
-                else:
-                    library_data = library_results
-
-                all_libs = library_data.get("detected_libraries", []) if isinstance(library_data, dict) else []
-                if all_libs:
-                    with_versions = sum(1 for lib in all_libs if isinstance(lib, dict) and lib.get("version"))
-                    high_confidence = sum(
-                        1
-                        for lib in all_libs
-                        if isinstance(lib, dict) and lib.get("confidence", 0) >= self.scan_config["min_confidence"]
-                    )
-                    self.logger.warning(
-                        f"CVE Scanner: {len(all_libs)} total libraries detected, {with_versions} with versions, {high_confidence} with sufficient confidence"
-                    )
-                else:
-                    self.logger.warning("CVE Scanner: No libraries detected by library_detection module")
+                self._log_no_scannable_libraries_diagnostics(analysis_results)
                 return findings
 
             self.logger.info(f"Starting CVE scan for {len(scannable_libraries)} libraries")
@@ -348,23 +327,7 @@ class CVEAssessment(BaseSecurityAssessment):
                 self.logger.info("No CVE vulnerabilities found")
 
                 # Create informational finding about successful scan
-                findings.append(
-                    SecurityFinding(
-                        category=self.owasp_category,
-                        severity=AnalysisSeverity.LOW,
-                        title="CVE Vulnerability Scan Completed",
-                        description=f"Successfully scanned {len(scannable_libraries)} libraries against CVE databases. No known vulnerabilities found.",
-                        evidence=[
-                            f"Scanned library: {lib['name']} {lib['version']}" for lib in scannable_libraries[:10]
-                        ],
-                        recommendations=[
-                            "Continue monitoring libraries for new vulnerabilities",
-                            "Keep libraries updated to latest versions",
-                            "Consider automated dependency scanning in CI/CD",
-                            "Subscribe to security advisories for critical libraries",
-                        ],
-                    )
-                )
+                findings.append(self._create_scan_completed_finding(scannable_libraries))
 
         except Exception as e:
             self.logger.error(f"CVE assessment failed: {str(e)}")
@@ -388,6 +351,49 @@ class CVEAssessment(BaseSecurityAssessment):
 
         return findings
 
+    def _log_no_scannable_libraries_diagnostics(self, analysis_results: dict[str, Any]) -> None:
+        """Log diagnostic information when no scannable libraries are found."""
+        # Provide diagnostic information
+        library_results = analysis_results.get("library_detection", {})
+        if hasattr(library_results, "export_to_dict"):
+            library_data = library_results.export_to_dict()
+        elif hasattr(library_results, "to_dict"):
+            library_data = library_results.to_dict()
+        else:
+            library_data = library_results
+
+        all_libs = library_data.get("detected_libraries", []) if isinstance(library_data, dict) else []
+        if all_libs:
+            with_versions = sum(1 for lib in all_libs if isinstance(lib, dict) and lib.get("version"))
+            high_confidence = sum(
+                1
+                for lib in all_libs
+                if isinstance(lib, dict) and lib.get("confidence", 0) >= self.scan_config["min_confidence"]
+            )
+            self.logger.warning(
+                f"CVE Scanner: {len(all_libs)} total libraries detected, {with_versions} with versions, {high_confidence} with sufficient confidence"
+            )
+        else:
+            self.logger.warning("CVE Scanner: No libraries detected by library_detection module")
+
+    def _create_scan_completed_finding(self, scannable_libraries: list[dict[str, Any]]) -> SecurityFinding:
+        """Create informational finding for a successful scan with no vulnerabilities."""
+        return SecurityFinding(
+            category=self.owasp_category,
+            severity=AnalysisSeverity.LOW,
+            title="CVE Vulnerability Scan Completed",
+            description=f"Successfully scanned {len(scannable_libraries)} libraries against CVE databases. No known vulnerabilities found.",
+            evidence=[
+                f"Scanned library: {lib['name']} {lib['version']}" for lib in scannable_libraries[:10]
+            ],
+            recommendations=[
+                "Continue monitoring libraries for new vulnerabilities",
+                "Keep libraries updated to latest versions",
+                "Consider automated dependency scanning in CI/CD",
+                "Subscribe to security advisories for critical libraries",
+            ],
+        )
+
     def _extract_scannable_libraries(self, analysis_results: dict[str, Any]) -> list[dict[str, Any]]:
         """Extract libraries with versions that can be scanned for CVEs (native and/or regular libraries based on config)."""
         scannable_libraries = []
@@ -402,43 +408,68 @@ class CVEAssessment(BaseSecurityAssessment):
 
         # Extract regular Java/Android libraries from library_detection if configured to do so
         if not scan_native_only or include_java_libraries:
-            library_results = analysis_results.get("library_detection", {})
-            if hasattr(library_results, "export_to_dict"):
-                library_data = library_results.export_to_dict()
-            elif hasattr(library_results, "to_dict"):
-                library_data = library_results.to_dict()
-            else:
-                library_data = library_results
-
-            detected_regular_libs = library_data.get("detected_libraries", []) if isinstance(library_data, dict) else []
-            self.logger.info(
-                f"CVE Scanner: Found {len(detected_regular_libs)} regular libraries from library_detection"
-            )
-
-            # Add regular libraries to scannable list
-            for library in detected_regular_libs:
-                if isinstance(library, dict):
-                    library_name = library.get("library_name", library.get("name", ""))
-                    library_version = library.get("version", "")
-                    confidence = library.get("confidence", 1.0)
-
-                    if library_name and library_version:
-                        scannable_libraries.append(
-                            {
-                                "name": library_name,
-                                "version": library_version,
-                                "confidence": confidence,
-                                "detection_method": "library_detection",
-                                "source": "library_detection",
-                                "file_path": "",
-                                "category": "java_library",
-                            }
-                        )
-                        self.logger.debug(
-                            f"CVE Scanner: Added regular library: {library_name} v{library_version} (confidence: {confidence:.2f})"
-                        )
+            self._extract_java_libraries(analysis_results, scannable_libraries)
 
         # CRITICAL FIX: Get native libraries from analysis context where they're actually stored
+        detected_native_libs, context = self._gather_detected_native_libraries(analysis_results)
+
+        self._log_detected_native_libraries(detected_native_libs, context)
+
+        # Group libraries by name and select highest confidence version (as requested)
+        library_groups = self._group_native_libraries_by_name(detected_native_libs)
+
+        self._select_scannable_native_libraries(
+            library_groups, detected_native_libs, analysis_results, scannable_libraries
+        )
+
+        self._log_scannable_library_summary(scannable_libraries, detected_native_libs)
+
+        scannable_libraries = self._limit_scannable_libraries(scannable_libraries)
+
+        return scannable_libraries
+
+    def _extract_java_libraries(
+        self, analysis_results: dict[str, Any], scannable_libraries: list[dict[str, Any]]
+    ) -> None:
+        """Extract regular Java/Android libraries from library_detection into scannable_libraries."""
+        library_results = analysis_results.get("library_detection", {})
+        if hasattr(library_results, "export_to_dict"):
+            library_data = library_results.export_to_dict()
+        elif hasattr(library_results, "to_dict"):
+            library_data = library_results.to_dict()
+        else:
+            library_data = library_results
+
+        detected_regular_libs = library_data.get("detected_libraries", []) if isinstance(library_data, dict) else []
+        self.logger.info(
+            f"CVE Scanner: Found {len(detected_regular_libs)} regular libraries from library_detection"
+        )
+
+        # Add regular libraries to scannable list
+        for library in detected_regular_libs:
+            if isinstance(library, dict):
+                library_name = library.get("library_name", library.get("name", ""))
+                library_version = library.get("version", "")
+                confidence = library.get("confidence", 1.0)
+
+                if library_name and library_version:
+                    scannable_libraries.append(
+                        {
+                            "name": library_name,
+                            "version": library_version,
+                            "confidence": confidence,
+                            "detection_method": "library_detection",
+                            "source": "library_detection",
+                            "file_path": "",
+                            "category": "java_library",
+                        }
+                    )
+                    self.logger.debug(
+                        f"CVE Scanner: Added regular library: {library_name} v{library_version} (confidence: {confidence:.2f})"
+                    )
+
+    def _gather_detected_native_libraries(self, analysis_results: dict[str, Any]) -> tuple[list, Any]:
+        """Gather native libraries from analysis context or native analysis module."""
         # Native libraries are integrated into the context during native analysis
         context = analysis_results.get("_analysis_context", {})
 
@@ -478,7 +509,10 @@ class CVEAssessment(BaseSecurityAssessment):
                                 )
 
         self.logger.info(f"CVE Scanner: Found {len(detected_native_libs)} native libraries for CVE scanning evaluation")
+        return detected_native_libs, context
 
+    def _log_detected_native_libraries(self, detected_native_libs: list, context: Any) -> None:
+        """Log detailed listing of detected native libraries for troubleshooting."""
         # DEBUG: Print all detected native libraries with versions for troubleshooting
         if detected_native_libs:
             self.logger.debug("=== ALL DETECTED NATIVE LIBRARIES WITH VERSIONS ===")
@@ -501,7 +535,8 @@ class CVEAssessment(BaseSecurityAssessment):
             else:
                 self.logger.debug("No analysis context found in results")
 
-        # Group libraries by name and select highest confidence version (as requested)
+    def _group_native_libraries_by_name(self, detected_native_libs: list) -> dict:
+        """Group native libraries by name to handle duplicate detections."""
         library_groups = {}
 
         for library in detected_native_libs:
@@ -535,6 +570,16 @@ class CVEAssessment(BaseSecurityAssessment):
                     }
                 )
 
+        return library_groups
+
+    def _select_scannable_native_libraries(
+        self,
+        library_groups: dict,
+        detected_native_libs: list,
+        analysis_results: dict[str, Any],
+        scannable_libraries: list[dict[str, Any]],
+    ) -> None:
+        """Select highest-confidence version of each native library for CVE scanning."""
         # Select highest confidence version for each library and prepare for CVE scanning
         scannable_libraries_count = 0
         native_libs_with_versions = len([lib for lib in detected_native_libs if lib.get("version")])
@@ -585,6 +630,10 @@ class CVEAssessment(BaseSecurityAssessment):
         self.logger.info(f"CVE Scanner: Native libraries with versions: {native_libs_with_versions}")
         self.logger.info(f"CVE Scanner: Native libraries passed filtering: {scannable_libraries_count}")
 
+    def _log_scannable_library_summary(
+        self, scannable_libraries: list[dict[str, Any]], detected_native_libs: list
+    ) -> None:
+        """Log summary information about the libraries selected for scanning."""
         # Log all scannable libraries with their .so file paths
         for lib in scannable_libraries:
             self.logger.info(f"CVE Scanner: Will scan {lib['name']} v{lib['version']} from {lib['file_path']}")
@@ -642,6 +691,8 @@ class CVEAssessment(BaseSecurityAssessment):
         if not ffmpeg_scannable:
             self.logger.warning("CVE Scanner: No FFmpeg libraries passed confidence threshold for scanning")
 
+    def _limit_scannable_libraries(self, scannable_libraries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Limit the number of libraries scanned per source using a priority score."""
         # Limit number of libraries to scan per source to avoid excessive API usage
         max_libs = self.scan_config["max_libraries_per_source"]
         if len(scannable_libraries) > max_libs:
@@ -683,6 +734,21 @@ class CVEAssessment(BaseSecurityAssessment):
         """Scan libraries for CVE vulnerabilities using multiple sources with improved timeout handling."""
         all_vulnerabilities = []
 
+        healthy_clients = self._get_healthy_cve_clients()
+
+        if not healthy_clients:
+            self.logger.error("No healthy CVE clients available")
+            return all_vulnerabilities
+
+        all_vulnerabilities = self._execute_parallel_cve_scan(libraries, healthy_clients)
+
+        # Remove duplicates based on CVE ID
+        unique_vulnerabilities = self._deduplicate_vulnerabilities(all_vulnerabilities)
+
+        return unique_vulnerabilities
+
+    def _get_healthy_cve_clients(self) -> dict:
+        """Run health checks on enabled CVE clients and return the healthy ones."""
         # Perform health checks ONLY on enabled clients
         healthy_clients = {}
 
@@ -728,9 +794,13 @@ class CVEAssessment(BaseSecurityAssessment):
             f"CVE Scanner: Health check results: {len(healthy_clients)}/{len(clients_to_check)} enabled clients healthy"
         )
 
-        if not healthy_clients:
-            self.logger.error("No healthy CVE clients available")
-            return all_vulnerabilities
+        return healthy_clients
+
+    def _execute_parallel_cve_scan(
+        self, libraries: list[dict[str, Any]], healthy_clients: dict
+    ) -> list[CVEVulnerability]:
+        """Scan libraries against healthy clients in parallel with timeout handling."""
+        all_vulnerabilities = []
 
         # Calculate total futures and set realistic timeouts
         total_futures = len(libraries) * len(healthy_clients)
@@ -798,10 +868,7 @@ class CVEAssessment(BaseSecurityAssessment):
             f"CVE Scanner: Completed {completed_count}/{total_futures} scans successfully, {failed_count} failed"
         )
 
-        # Remove duplicates based on CVE ID
-        unique_vulnerabilities = self._deduplicate_vulnerabilities(all_vulnerabilities)
-
-        return unique_vulnerabilities
+        return all_vulnerabilities
 
     def _scan_single_library_with_retry(
         self, client, source: str, library_name: str, version: str
@@ -921,6 +988,37 @@ class CVEAssessment(BaseSecurityAssessment):
         low_vulns = [v for v in vulnerabilities if v.severity == CVESeverity.LOW]
 
         # Create findings for each severity level with library attribution and file locations
+        self._append_severity_findings(
+            findings, critical_vulns, high_vulns, medium_vulns, low_vulns, library_lookup, cve_library_mapping, context
+        )
+
+        # Add enhanced summary finding with detailed CVE mapping
+        self._append_cve_summary_finding(
+            findings,
+            vulnerabilities,
+            libraries,
+            library_lookup,
+            cve_library_mapping,
+            critical_vulns,
+            high_vulns,
+            medium_vulns,
+            low_vulns,
+        )
+
+        return findings
+
+    def _append_severity_findings(
+        self,
+        findings: list[SecurityFinding],
+        critical_vulns: list[CVEVulnerability],
+        high_vulns: list[CVEVulnerability],
+        medium_vulns: list[CVEVulnerability],
+        low_vulns: list[CVEVulnerability],
+        library_lookup: dict[str, dict[str, Any]],
+        cve_library_mapping: dict[str, Any],
+        context: Any | None,
+    ) -> None:
+        """Append per-severity CVE findings to the findings list."""
         if critical_vulns:
             findings.append(
                 self._create_enhanced_severity_finding(
@@ -973,7 +1071,19 @@ class CVEAssessment(BaseSecurityAssessment):
                 )
             )
 
-        # Add enhanced summary finding with detailed CVE mapping
+    def _append_cve_summary_finding(
+        self,
+        findings: list[SecurityFinding],
+        vulnerabilities: list[CVEVulnerability],
+        libraries: list[dict[str, Any]],
+        library_lookup: dict[str, dict[str, Any]],
+        cve_library_mapping: dict[str, Any],
+        critical_vulns: list[CVEVulnerability],
+        high_vulns: list[CVEVulnerability],
+        medium_vulns: list[CVEVulnerability],
+        low_vulns: list[CVEVulnerability],
+    ) -> None:
+        """Append an enhanced summary finding with detailed CVE mapping."""
         if vulnerabilities:
             total_vulns = len(vulnerabilities)
             scanned_libs = len(libraries)
@@ -1005,20 +1115,15 @@ class CVEAssessment(BaseSecurityAssessment):
                     summary_evidence.append(f"  • {lib_name} (v{lib_version}): {total_lib_cves} CVEs")
 
             # Store complete CVE mapping in summary finding for JSON export
-            summary_additional_data = {
-                "complete_cve_mapping": cve_library_mapping,
-                "scan_metadata": {
-                    "libraries_scanned": scanned_libs,
-                    "libraries_with_vulnerabilities": affected_libraries,
-                    "vulnerability_distribution": {
-                        "critical": len(critical_vulns),
-                        "high": len(high_vulns),
-                        "medium": len(medium_vulns),
-                        "low": len(low_vulns),
-                    },
-                    "cve_sources": list(self.clients.keys()),
-                },
-            }
+            summary_additional_data = self._build_summary_additional_data(
+                cve_library_mapping,
+                scanned_libs,
+                affected_libraries,
+                critical_vulns,
+                high_vulns,
+                medium_vulns,
+                low_vulns,
+            )
 
             findings.append(
                 SecurityFinding(
@@ -1038,7 +1143,31 @@ class CVEAssessment(BaseSecurityAssessment):
                 )
             )
 
-        return findings
+    def _build_summary_additional_data(
+        self,
+        cve_library_mapping: dict[str, Any],
+        scanned_libs: int,
+        affected_libraries: int,
+        critical_vulns: list[CVEVulnerability],
+        high_vulns: list[CVEVulnerability],
+        medium_vulns: list[CVEVulnerability],
+        low_vulns: list[CVEVulnerability],
+    ) -> dict[str, Any]:
+        """Build the additional_data payload for the CVE summary finding."""
+        return {
+            "complete_cve_mapping": cve_library_mapping,
+            "scan_metadata": {
+                "libraries_scanned": scanned_libs,
+                "libraries_with_vulnerabilities": affected_libraries,
+                "vulnerability_distribution": {
+                    "critical": len(critical_vulns),
+                    "high": len(high_vulns),
+                    "medium": len(medium_vulns),
+                    "low": len(low_vulns),
+                },
+                "cve_sources": list(self.clients.keys()),
+            },
+        }
 
     def _get_temporal_directory(self, analysis_results: dict[str, Any]) -> str:
         """Get temporal directory path from analysis results."""
@@ -1073,7 +1202,17 @@ class CVEAssessment(BaseSecurityAssessment):
         library_names = {lib["name"].lower() for lib in scannable_libraries}
 
         # Keywords that indicate clearly irrelevant CVEs for mobile apps
-        irrelevant_keywords = [
+        irrelevant_keywords = self._get_irrelevant_cve_keywords()
+
+        for vuln in vulnerabilities:
+            if self._is_cve_relevant(vuln, library_names, irrelevant_keywords):
+                relevant_cves.append(vuln)
+
+        return relevant_cves
+
+    def _get_irrelevant_cve_keywords(self) -> list[str]:
+        """Return keywords that indicate CVEs clearly irrelevant to mobile apps."""
+        return [
             # Network hardware
             "3com",
             "cisco",
@@ -1108,76 +1247,69 @@ class CVEAssessment(BaseSecurityAssessment):
             "palo alto",
         ]
 
-        for vuln in vulnerabilities:
-            is_relevant = True
+    def _is_cve_relevant(self, vuln: CVEVulnerability, library_names: set, irrelevant_keywords: list[str]) -> bool:
+        """Determine whether a CVE is relevant to the scanned libraries."""
+        # Check CVE summary and description for irrelevant keywords
+        summary_lower = vuln.summary.lower() if vuln.summary else ""
+        description_lower = (vuln.description or "").lower()
 
-            # Check CVE summary and description for irrelevant keywords
-            summary_lower = vuln.summary.lower() if vuln.summary else ""
-            description_lower = (vuln.description or "").lower()
+        # Filter out clearly irrelevant CVEs
+        for keyword in irrelevant_keywords:
+            if keyword in summary_lower or keyword in description_lower:
+                self.logger.debug(f"CVE Scanner: Filtering out irrelevant CVE {vuln.cve_id} (keyword: {keyword})")
+                return False
 
-            # Filter out clearly irrelevant CVEs
-            for keyword in irrelevant_keywords:
-                if keyword in summary_lower or keyword in description_lower:
-                    self.logger.debug(f"CVE Scanner: Filtering out irrelevant CVE {vuln.cve_id} (keyword: {keyword})")
-                    is_relevant = False
+        # CRITICAL FIX: For targeted library searches, be more permissive
+        # Since we're scanning specific libraries by name/version, CVEs returned
+        # from those targeted searches are by definition relevant to those libraries
+        library_match = False
+
+        # Check if CVE source library matches our scanned libraries (most reliable)
+        if hasattr(vuln, "source_library") and vuln.source_library:
+            source_lib_normalized = self._normalize_library_name(vuln.source_library)
+            for detected_lib_name in library_names:
+                detected_normalized = self._normalize_library_name(detected_lib_name)
+                if source_lib_normalized == detected_normalized:
+                    library_match = True
+                    self.logger.debug(
+                        f"CVE Scanner: Including CVE {vuln.cve_id} - source library match: {vuln.source_library}"
+                    )
                     break
 
-            if not is_relevant:
-                continue
+        # Fallback: Check affected_libraries field
+        if not library_match and vuln.affected_libraries:
+            for affected_lib in vuln.affected_libraries:
+                lib_name_normalized = self._normalize_library_name(affected_lib.name)
 
-            # CRITICAL FIX: For targeted library searches, be more permissive
-            # Since we're scanning specific libraries by name/version, CVEs returned
-            # from those targeted searches are by definition relevant to those libraries
-            library_match = False
-
-            # Check if CVE source library matches our scanned libraries (most reliable)
-            if hasattr(vuln, "source_library") and vuln.source_library:
-                source_lib_normalized = self._normalize_library_name(vuln.source_library)
+                # Check if this matches any of our detected native libraries
                 for detected_lib_name in library_names:
                     detected_normalized = self._normalize_library_name(detected_lib_name)
-                    if source_lib_normalized == detected_normalized:
+                    if lib_name_normalized == detected_normalized:
                         library_match = True
                         self.logger.debug(
-                            f"CVE Scanner: Including CVE {vuln.cve_id} - source library match: {vuln.source_library}"
+                            f"CVE Scanner: Including CVE {vuln.cve_id} - affected library match: {affected_lib.name}"
                         )
                         break
 
-            # Fallback: Check affected_libraries field
-            if not library_match and vuln.affected_libraries:
-                for affected_lib in vuln.affected_libraries:
-                    lib_name_normalized = self._normalize_library_name(affected_lib.name)
+                if library_match:
+                    break
 
-                    # Check if this matches any of our detected native libraries
-                    for detected_lib_name in library_names:
-                        detected_normalized = self._normalize_library_name(detected_lib_name)
-                        if lib_name_normalized == detected_normalized:
-                            library_match = True
-                            self.logger.debug(
-                                f"CVE Scanner: Including CVE {vuln.cve_id} - affected library match: {affected_lib.name}"
-                            )
-                            break
+        # IMPORTANT: If we can't match by library name but the CVE mentions
+        # the library name in summary/description, and we searched for that library, include it
+        if not library_match:
+            for detected_lib_name in library_names:
+                if detected_lib_name in summary_lower or detected_lib_name in description_lower:
+                    library_match = True
+                    self.logger.debug(
+                        f"CVE Scanner: Including CVE {vuln.cve_id} - library mentioned in text: {detected_lib_name}"
+                    )
+                    break
 
-                    if library_match:
-                        break
-
-            # IMPORTANT: If we can't match by library name but the CVE mentions
-            # the library name in summary/description, and we searched for that library, include it
-            if not library_match:
-                for detected_lib_name in library_names:
-                    if detected_lib_name in summary_lower or detected_lib_name in description_lower:
-                        library_match = True
-                        self.logger.debug(
-                            f"CVE Scanner: Including CVE {vuln.cve_id} - library mentioned in text: {detected_lib_name}"
-                        )
-                        break
-
-            # Include CVEs that match our detected libraries
-            if library_match:
-                relevant_cves.append(vuln)
-            else:
-                self.logger.debug(f"CVE Scanner: Filtering out CVE {vuln.cve_id} - no library match found")
-
-        return relevant_cves
+        # Include CVEs that match our detected libraries
+        if library_match:
+            return True
+        self.logger.debug(f"CVE Scanner: Filtering out CVE {vuln.cve_id} - no library match found")
+        return False
 
     def _normalize_library_name(self, name: str) -> str:
         """Normalize library name for comparison."""
@@ -1252,10 +1384,44 @@ class CVEAssessment(BaseSecurityAssessment):
         context: Any | None = None,
     ) -> SecurityFinding:
         """Create enhanced security finding with CVE-to-library attribution."""
-        evidence = []
-        cve_references = []
-
         # Group CVEs by affected library for better organization
+        library_cves, unattributed_cves = self._group_cves_by_library(vulnerabilities, cve_mapping)
+
+        evidence, cve_references = self._build_cve_evidence(
+            vulnerabilities, library_cves, unattributed_cves, library_lookup
+        )
+
+        recommendations = self._build_cve_recommendations(library_cves, severity)
+
+        # Store detailed CVE data in additional_data for JSON export
+        additional_data = {
+            "cve_library_mapping": {lib: [vuln.cve_id for vuln in vulns] for lib, vulns in library_cves.items()},
+            "detailed_cves": [vuln.to_dict() for vuln in vulnerabilities],
+            "affected_libraries": list(library_cves.keys()),
+            "severity_counts": {
+                "total": len(vulnerabilities),
+                "by_library": {lib: len(vulns) for lib, vulns in library_cves.items()},
+            },
+        }
+
+        file_location = self._create_cve_file_location(context, library_cves, library_lookup)
+
+        return SecurityFinding(
+            category=self.owasp_category,
+            severity=severity,
+            title=title,
+            description=description,
+            evidence=evidence,
+            recommendations=recommendations,
+            cve_references=cve_references,
+            additional_data=additional_data,
+            file_location=file_location,
+        )
+
+    def _group_cves_by_library(
+        self, vulnerabilities: list[CVEVulnerability], cve_mapping: dict[str, Any]
+    ) -> tuple[dict, list]:
+        """Group the first CVEs by affected library, returning attributed and unattributed groups."""
         library_cves = {}
         unattributed_cves = []
 
@@ -1272,6 +1438,19 @@ class CVEAssessment(BaseSecurityAssessment):
                 library_cves[affected_library].append(vuln)
             else:
                 unattributed_cves.append(vuln)
+
+        return library_cves, unattributed_cves
+
+    def _build_cve_evidence(
+        self,
+        vulnerabilities: list[CVEVulnerability],
+        library_cves: dict,
+        unattributed_cves: list,
+        library_lookup: dict[str, dict[str, Any]],
+    ) -> tuple[list, list]:
+        """Build evidence lines and CVE reference list with library attribution."""
+        evidence = []
+        cve_references = []
 
         # Create evidence with library attribution INCLUDING all .so file paths (as requested)
         for library_name, library_vulns in library_cves.items():
@@ -1321,6 +1500,10 @@ class CVEAssessment(BaseSecurityAssessment):
         if len(vulnerabilities) > 10:
             evidence.append(f"... and {len(vulnerabilities) - 10} more vulnerabilities")
 
+        return evidence, cve_references
+
+    def _build_cve_recommendations(self, library_cves: dict, severity: AnalysisSeverity) -> list[str]:
+        """Build enhanced recommendations with library-specific guidance."""
         # Enhanced recommendations with library-specific guidance
         recommendations = [
             "Update affected libraries to patched versions immediately",
@@ -1334,17 +1517,12 @@ class CVEAssessment(BaseSecurityAssessment):
             recommendations.insert(0, "🚨 URGENT: Address critical vulnerabilities immediately")
             recommendations.append("Consider temporarily disabling affected features if necessary")
 
-        # Store detailed CVE data in additional_data for JSON export
-        additional_data = {
-            "cve_library_mapping": {lib: [vuln.cve_id for vuln in vulns] for lib, vulns in library_cves.items()},
-            "detailed_cves": [vuln.to_dict() for vuln in vulnerabilities],
-            "affected_libraries": list(library_cves.keys()),
-            "severity_counts": {
-                "total": len(vulnerabilities),
-                "by_library": {lib: len(vulns) for lib, vulns in library_cves.items()},
-            },
-        }
+        return recommendations
 
+    def _create_cve_file_location(
+        self, context: Any | None, library_cves: dict, library_lookup: dict[str, dict[str, Any]]
+    ) -> Any:
+        """Create a file location for the primary affected native library if available."""
         # Create file location for the primary affected native library if available
         file_location = None
         if context and library_cves:
@@ -1363,17 +1541,7 @@ class CVEAssessment(BaseSecurityAssessment):
             except Exception as e:
                 self.logger.warning(f"Could not create file location for CVE finding: {e}")
 
-        return SecurityFinding(
-            category=self.owasp_category,
-            severity=severity,
-            title=title,
-            description=description,
-            evidence=evidence,
-            recommendations=recommendations,
-            cve_references=cve_references,
-            additional_data=additional_data,
-            file_location=file_location,
-        )
+        return file_location
 
     def _create_severity_finding(
         self, vulnerabilities: list[CVEVulnerability], severity: AnalysisSeverity, title: str, description: str
@@ -1442,13 +1610,34 @@ class CVEAssessment(BaseSecurityAssessment):
             return True
 
         # Check against native library patterns from config
+        if self._matches_native_config_patterns(library_name, library_name_lower):
+            return True
+
+        # Additional heuristics for native libraries
+        if self._matches_native_indicators(library_name, library_name_lower):
+            return True
+
+        # Check force-include and exclude patterns
+        forced = self._check_forced_library_classification(library_name, library_name_lower)
+        if forced is not None:
+            return forced
+
+        # Default behavior: be more inclusive for CVE scanning
+        return self._classify_by_scan_native_only(library_name, library_name_lower)
+
+    def _matches_native_config_patterns(self, library_name: str, library_name_lower: str) -> bool:
+        """Check the library name against the configured native library patterns."""
+        # Check against native library patterns from config
         patterns = self.scan_config.get("native_library_patterns", [])
         for pattern in patterns:
             pattern_lower = pattern.lower().replace("*", "")
             if pattern_lower in library_name_lower:
                 self.logger.debug(f"CVE Scanner: {library_name} matches native pattern: {pattern}")
                 return True
+        return False
 
+    def _matches_native_indicators(self, library_name: str, library_name_lower: str) -> bool:
+        """Check the library name against native library heuristic indicators."""
         # Additional heuristics for native libraries
         native_indicators = [
             ".so",  # Shared object files
@@ -1467,7 +1656,10 @@ class CVEAssessment(BaseSecurityAssessment):
             if indicator in library_name_lower:
                 self.logger.debug(f"CVE Scanner: {library_name} identified as native (indicator: {indicator})")
                 return True
+        return False
 
+    def _check_forced_library_classification(self, library_name: str, library_name_lower: str) -> bool | None:
+        """Apply force-include and exclude pattern lists; return bool if matched, else None."""
         # Libraries that should be excluded from CVE scanning (very unlikely to have relevant CVEs)
         # Note: Reduced list to be less aggressive - many Java libraries can have CVEs
         definitely_exclude_patterns = [
@@ -1508,7 +1700,10 @@ class CVEAssessment(BaseSecurityAssessment):
                 self.logger.debug(f"CVE Scanner: {library_name} excluded from scanning (pattern: {pattern})")
                 return False
 
-        # Default behavior: be more inclusive for CVE scanning
+        return None
+
+    def _classify_by_scan_native_only(self, library_name: str, library_name_lower: str) -> bool:
+        """Apply the scan_native_only default classification behavior."""
         # If scan_native_only is enabled, be more liberal about what counts as "native"
         if self.scan_config.get("scan_native_only", True):
             # Check if it looks like a substantial third-party library worth scanning

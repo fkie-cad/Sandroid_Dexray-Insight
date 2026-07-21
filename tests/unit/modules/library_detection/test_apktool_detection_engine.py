@@ -19,6 +19,8 @@ from pathlib import Path
 from unittest.mock import Mock
 from unittest.mock import patch
 
+import requests
+
 # Import the class under test
 from dexray_insight.modules.library_detection.engines.apktool_detection_engine import ApktoolDetectionEngine
 from dexray_insight.results.LibraryDetectionResults import DetectedLibrary
@@ -389,13 +391,13 @@ description=Test library
         engine = ApktoolDetectionEngine({}, self.mock_logger)
 
         # Mock failed response
-        mock_get.side_effect = Exception("Network error")
+        mock_get.side_effect = requests.exceptions.RequestException("Network error")
 
         with tempfile.TemporaryDirectory() as temp_dir:
             test_file = Path(temp_dir) / "test.jsonl"
 
             # Should raise exception
-            with self.assertRaises(Exception):
+            with self.assertRaises(requests.exceptions.RequestException):
                 engine._download_file("https://example.com/test.jsonl", str(test_file))
 
     @patch("os.path.getmtime")

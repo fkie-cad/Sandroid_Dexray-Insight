@@ -44,6 +44,15 @@ def get_known_library_signatures() -> dict[str, dict[str, Any]]:
         Dictionary of library signatures with method patterns, call chains, and class info
     """
     return {
+        **_build_http_and_image_signatures(),
+        **_build_reactive_and_di_signatures(),
+        **_build_ui_and_logging_signatures(),
+    }
+
+
+def _build_http_and_image_signatures() -> dict[str, dict[str, Any]]:
+    """Build signatures for HTTP client and image loading libraries."""
+    return {
         "OkHttp3": {
             "methods": {
                 "okhttp3.OkHttpClient.newCall": ["invoke-virtual", "move-result-object"],
@@ -82,6 +91,12 @@ def get_known_library_signatures() -> dict[str, dict[str, Any]]:
                 "com.bumptech.glide.RequestManager": {"methods": 18, "fields": 4},
             },
         },
+    }
+
+
+def _build_reactive_and_di_signatures() -> dict[str, dict[str, Any]]:
+    """Build signatures for reactive, dependency injection and serialization libraries."""
+    return {
         "RxJava2": {
             "methods": {
                 "io.reactivex.Observable.subscribe": ["invoke-virtual", "move-result-object"],
@@ -117,6 +132,12 @@ def get_known_library_signatures() -> dict[str, dict[str, Any]]:
                 "com.google.gson.GsonBuilder": {"methods": 15, "fields": 8},
             },
         },
+    }
+
+
+def _build_ui_and_logging_signatures() -> dict[str, dict[str, Any]]:
+    """Build signatures for UI binding, event bus, image and logging libraries."""
+    return {
         "Butterknife": {
             "methods": {"butterknife.ButterKnife.bind": ["invoke-static"], "butterknife.OnClick": ["invoke-interface"]},
             "call_chains": {"butterknife.ButterKnife.bind": ["butterknife.ButterKnife.findAndBind"]},

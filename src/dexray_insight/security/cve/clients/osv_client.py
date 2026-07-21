@@ -29,9 +29,9 @@ OSV is Google's vulnerability database for open source projects.
 API Documentation: https://osv.dev/
 """
 
+import contextlib
 from datetime import datetime
 from typing import Any
-from typing import Optional
 
 from ..models.vulnerability import AffectedLibrary
 from ..models.vulnerability import CVESeverity
@@ -69,7 +69,7 @@ class OSVClient(BaseCVEClient):
         """Get the name of this CVE source."""
         return "osv"
 
-    def search_vulnerabilities(self, library_name: str, version: Optional[str] = None) -> list[CVEVulnerability]:
+    def search_vulnerabilities(self, library_name: str, version: str | None = None) -> list[CVEVulnerability]:
         """
         Search for vulnerabilities in OSV database.
 
@@ -87,12 +87,8 @@ class OSVClient(BaseCVEClient):
             query_variants = self._generate_query_variants(library_name)
 
             for query_name in query_variants:
-                if version:
-                    # Query for specific version
-                    vulns = self._query_by_version(query_name, version)
-                else:
-                    # Query for all vulnerabilities affecting the package
-                    vulns = self._query_by_package(query_name)
+                # Query for specific version, or all vulnerabilities affecting the package
+                vulns = self._query_by_version(query_name, version) if version else self._query_by_package(query_name)
 
                 vulnerabilities.extend(vulns)
 
@@ -193,7 +189,7 @@ class OSVClient(BaseCVEClient):
             self.logger.debug(f"Error querying OSV by package for {package_name}: {e}")
             return []
 
-    def _detect_ecosystem(self, package_name: str) -> Optional[str]:
+    def _detect_ecosystem(self, package_name: str) -> str | None:
         """Detect ecosystem from package name."""
         if package_name.startswith("Maven:"):
             return "Maven"
@@ -209,7 +205,7 @@ class OSVClient(BaseCVEClient):
         else:
             return None
 
-    def _parse_osv_vulnerability(self, osv_data: dict[str, Any]) -> Optional[CVEVulnerability]:
+    def _parse_osv_vulnerability(self, osv_data: dict[str, Any]) -> CVEVulnerability | None:
         """Parse OSV vulnerability data into CVEVulnerability object."""
         try:
             # Extract basic information
@@ -236,16 +232,12 @@ class OSVClient(BaseCVEClient):
             modified_date = None
 
             if "published" in osv_data:
-                try:
+                with contextlib.suppress(ValueError, AttributeError):
                     published_date = datetime.fromisoformat(osv_data["published"].replace("Z", "+00:00"))
-                except (ValueError, AttributeError):
-                    pass
 
             if "modified" in osv_data:
-                try:
+                with contextlib.suppress(ValueError, AttributeError):
                     modified_date = datetime.fromisoformat(osv_data["modified"].replace("Z", "+00:00"))
-                except (ValueError, AttributeError):
-                    pass
 
             # Parse affected libraries
             affected_libraries = []
@@ -286,7 +278,7 @@ class OSVClient(BaseCVEClient):
             self.logger.warning(f"Error parsing OSV vulnerability data: {e}")
             return None
 
-    def _parse_affected_library(self, affected_data: dict[str, Any]) -> Optional[AffectedLibrary]:
+    def _parse_affected_library(self, affected_data: dict[str, Any]) -> AffectedLibrary | None:
         """Parse affected library information from OSV data."""
         try:
             package_info = affected_data.get("package", {})
@@ -315,7 +307,7 @@ class OSVClient(BaseCVEClient):
 
         return None
 
-    def _parse_version_range(self, range_data: dict[str, Any]) -> Optional[VersionRange]:
+    def _parse_version_range(self, range_data: dict[str, Any]) -> VersionRange | None:
         """Parse version range from OSV range data."""
         try:
             version_range = VersionRange()

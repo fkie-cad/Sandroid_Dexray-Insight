@@ -116,87 +116,113 @@ class BrokenAccessControlAssessment(BaseSecurityAssessment):
                 "content_providers": manifest_data.get("content_providers", []),
             }
 
-            # Check for exported activities
-            activities = components.get("activities", [])
-            for activity in activities:
-                if activity.get("exported", False):
-                    if not activity.get("permission"):  # No permission protection
-                        findings.append(
-                            SecurityFinding(
-                                title="Unprotected Exported Activity",
-                                category=self.owasp_category,
-                                severity=AnalysisSeverity.MEDIUM,
-                                description=(
-                                    f"Activity '{activity['name']}' is exported but not protected with permissions. "
-                                    "This could allow unauthorized access by other applications."
-                                ),
-                                evidence=[f"Exported activity: {activity['name']}", "No permission protection found"],
-                            )
-                        )
-
-            # Check for exported services
-            services = components.get("services", [])
-            for service in services:
-                if service.get("exported", False):
-                    if not service.get("permission"):
-                        severity = (
-                            AnalysisSeverity.HIGH
-                            if "bind" in service.get("name", "").lower()
-                            else AnalysisSeverity.MEDIUM
-                        )
-                        findings.append(
-                            SecurityFinding(
-                                title="Unprotected Exported Service",
-                                category=self.owasp_category,
-                                severity=severity,
-                                description=(
-                                    f"Service '{service['name']}' is exported but not protected with permissions. "
-                                    "This could allow unauthorized binding or interaction by malicious applications."
-                                ),
-                                evidence=[f"Exported service: {service['name']}", "No permission protection found"],
-                            )
-                        )
-
-            # Check for exported receivers
-            receivers = components.get("receivers", [])
-            for receiver in receivers:
-                if receiver.get("exported", False):
-                    if not receiver.get("permission"):
-                        findings.append(
-                            SecurityFinding(
-                                title="Unprotected Exported Broadcast Receiver",
-                                category=self.owasp_category,
-                                severity=AnalysisSeverity.MEDIUM,
-                                description=(
-                                    f"Broadcast receiver '{receiver['name']}' is exported but not protected. "
-                                    "This could allow unauthorized broadcast injection."
-                                ),
-                                evidence=[f"Exported receiver: {receiver['name']}", "No permission protection found"],
-                            )
-                        )
-
-            # Look for potentially exported components without explicit export declaration
-            potentially_exported = self._find_potentially_exported_components(components)
-            for component_type, component_list in potentially_exported.items():
-                for component in component_list:
-                    findings.append(
-                        SecurityFinding(
-                            title=f"Potentially Exported {component_type.capitalize()[:-1]}",
-                            category=self.owasp_category,
-                            severity=AnalysisSeverity.LOW,
-                            description=(
-                                f"{component_type.capitalize()[:-1]} '{component['name']}' may be implicitly exported "
-                                "due to intent filters without explicit export control."
-                            ),
-                            evidence=[
-                                f"Component: {component['name']}",
-                                f"Intent filters present: {len(component.get('intent_filters', []))}",
-                            ],
-                        )
-                    )
+            findings.extend(self._assess_exported_activities(components))
+            findings.extend(self._assess_exported_services(components))
+            findings.extend(self._assess_exported_receivers(components))
+            findings.extend(self._assess_potentially_exported_components(components))
 
         except Exception as e:
             self.logger.error(f"Error assessing exported components: {e}")
+
+        return findings
+
+    def _assess_exported_activities(self, components: dict[str, list]) -> list[SecurityFinding]:
+        """Assess exported activities for missing permission protection."""
+        findings = []
+
+        # Check for exported activities
+        activities = components.get("activities", [])
+        for activity in activities:
+            if activity.get("exported", False) and not activity.get("permission"):  # No permission protection
+                findings.append(
+                        SecurityFinding(
+                            title="Unprotected Exported Activity",
+                            category=self.owasp_category,
+                            severity=AnalysisSeverity.MEDIUM,
+                            description=(
+                                f"Activity '{activity['name']}' is exported but not protected with permissions. "
+                                "This could allow unauthorized access by other applications."
+                            ),
+                            evidence=[f"Exported activity: {activity['name']}", "No permission protection found"],
+                        )
+                    )
+
+        return findings
+
+    def _assess_exported_services(self, components: dict[str, list]) -> list[SecurityFinding]:
+        """Assess exported services for missing permission protection."""
+        findings = []
+
+        # Check for exported services
+        services = components.get("services", [])
+        for service in services:
+            if service.get("exported", False) and not service.get("permission"):
+                severity = (
+                    AnalysisSeverity.HIGH
+                    if "bind" in service.get("name", "").lower()
+                    else AnalysisSeverity.MEDIUM
+                )
+                findings.append(
+                    SecurityFinding(
+                        title="Unprotected Exported Service",
+                        category=self.owasp_category,
+                        severity=severity,
+                        description=(
+                            f"Service '{service['name']}' is exported but not protected with permissions. "
+                            "This could allow unauthorized binding or interaction by malicious applications."
+                        ),
+                        evidence=[f"Exported service: {service['name']}", "No permission protection found"],
+                    )
+                )
+
+        return findings
+
+    def _assess_exported_receivers(self, components: dict[str, list]) -> list[SecurityFinding]:
+        """Assess exported broadcast receivers for missing permission protection."""
+        findings = []
+
+        # Check for exported receivers
+        receivers = components.get("receivers", [])
+        for receiver in receivers:
+            if receiver.get("exported", False) and not receiver.get("permission"):
+                findings.append(
+                    SecurityFinding(
+                        title="Unprotected Exported Broadcast Receiver",
+                        category=self.owasp_category,
+                        severity=AnalysisSeverity.MEDIUM,
+                        description=(
+                            f"Broadcast receiver '{receiver['name']}' is exported but not protected. "
+                            "This could allow unauthorized broadcast injection."
+                        ),
+                        evidence=[f"Exported receiver: {receiver['name']}", "No permission protection found"],
+                    )
+                )
+
+        return findings
+
+    def _assess_potentially_exported_components(self, components: dict[str, list]) -> list[SecurityFinding]:
+        """Assess components potentially exported via intent filters without explicit declaration."""
+        findings = []
+
+        # Look for potentially exported components without explicit export declaration
+        potentially_exported = self._find_potentially_exported_components(components)
+        for component_type, component_list in potentially_exported.items():
+            for component in component_list:
+                findings.append(
+                    SecurityFinding(
+                        title=f"Potentially Exported {component_type.capitalize()[:-1]}",
+                        category=self.owasp_category,
+                        severity=AnalysisSeverity.LOW,
+                        description=(
+                            f"{component_type.capitalize()[:-1]} '{component['name']}' may be implicitly exported "
+                            "due to intent filters without explicit export control."
+                        ),
+                        evidence=[
+                            f"Component: {component['name']}",
+                            f"Intent filters present: {len(component.get('intent_filters', []))}",
+                        ],
+                    )
+                )
 
         return findings
 
@@ -204,11 +230,14 @@ class BrokenAccessControlAssessment(BaseSecurityAssessment):
         """Find components that might be implicitly exported due to intent filters."""
         potentially_exported = {"activities": [], "services": [], "receivers": []}
 
-        for component_type in potentially_exported.keys():
+        for component_type in potentially_exported:
             for component in components.get(component_type, []):
-                if not component.get("exported", False):  # Not explicitly exported
-                    if component.get("intent_filters") and len(component["intent_filters"]) > 0:
-                        potentially_exported[component_type].append(component)
+                if (
+                    not component.get("exported", False)  # Not explicitly exported
+                    and component.get("intent_filters")
+                    and len(component["intent_filters"]) > 0
+                ):
+                    potentially_exported[component_type].append(component)
 
         return potentially_exported
 
@@ -321,7 +350,7 @@ class BrokenAccessControlAssessment(BaseSecurityAssessment):
             "android.intent.action.PICK",
         ]
 
-        risky_categories = [
+        _risky_categories = [
             "android.intent.category.DEFAULT",
             "android.intent.category.BROWSABLE",
         ]
@@ -339,7 +368,4 @@ class BrokenAccessControlAssessment(BaseSecurityAssessment):
             return True
 
         # Also risky: default handlers for sensitive actions
-        if has_default_category and has_risky_action:
-            return True
-
-        return False
+        return bool(has_default_category and has_risky_action)

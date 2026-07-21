@@ -27,11 +27,11 @@ This module provides the abstract base class for CVE database clients.
 All specific CVE clients should inherit from this base class.
 """
 
+import contextlib
 import logging
 from abc import ABC
 from abc import abstractmethod
 from typing import Any
-from typing import Optional
 
 import requests
 
@@ -46,10 +46,10 @@ class BaseCVEClient(ABC):
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
+        api_key: str | None = None,
         timeout: int = 10,
-        rate_limiter: Optional[APIRateLimiter] = None,
-        cache_manager: Optional[CVECacheManager] = None,
+        rate_limiter: APIRateLimiter | None = None,
+        cache_manager: CVECacheManager | None = None,
     ):
         """
         Initialize CVE client.
@@ -98,7 +98,7 @@ class BaseCVEClient(ABC):
         """Get the name of this CVE source."""
 
     @abstractmethod
-    def search_vulnerabilities(self, library_name: str, version: Optional[str] = None) -> list[CVEVulnerability]:
+    def search_vulnerabilities(self, library_name: str, version: str | None = None) -> list[CVEVulnerability]:
         """
         Search for vulnerabilities affecting a library.
 
@@ -111,7 +111,7 @@ class BaseCVEClient(ABC):
         """
 
     def search_vulnerabilities_with_cache(
-        self, library_name: str, version: Optional[str] = None
+        self, library_name: str, version: str | None = None
     ) -> list[CVEVulnerability]:
         """
         Search for vulnerabilities with caching support.
@@ -153,7 +153,7 @@ class BaseCVEClient(ABC):
             self.logger.error(f"Error searching vulnerabilities for {library_name}: {e}")
             return []
 
-    def _make_request(self, url: str, params: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    def _make_request(self, url: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
         """
         Make HTTP request with error handling.
 
@@ -203,17 +203,13 @@ class BaseCVEClient(ABC):
 
         severity = CVESeverity.UNKNOWN
         if "severity" in vuln_dict:
-            try:
+            with contextlib.suppress(ValueError):
                 severity = CVESeverity(vuln_dict["severity"])
-            except ValueError:
-                pass
 
         published_date = None
         if "published_date" in vuln_dict and vuln_dict["published_date"]:
-            try:
+            with contextlib.suppress(ValueError, AttributeError):
                 published_date = datetime.fromisoformat(vuln_dict["published_date"].replace("Z", "+00:00"))
-            except (ValueError, AttributeError):
-                pass
 
         return CVEVulnerability(
             cve_id=vuln_dict.get("cve_id", ""),

@@ -167,10 +167,7 @@ class PermissionAnalysisModule(BaseAnalysisModule):
                     with open(path) as f:
                         content = f.read().strip()
                         # Support both line-separated and comma-separated formats
-                        if "," in content:
-                            permissions = [p.strip() for p in content.split(",")]
-                        else:
-                            permissions = content.split()
+                        permissions = [p.strip() for p in content.split(",")] if "," in content else content.split()
                         self.logger.info(
                             f"Loaded {len(permissions)} critical permissions from {self.critical_permissions_file}"
                         )

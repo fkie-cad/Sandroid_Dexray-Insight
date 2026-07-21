@@ -27,7 +27,6 @@ and other media-related functionality.
 """
 
 import logging
-from typing import Optional
 
 from ..models.behavior_evidence import BehaviorEvidence
 
@@ -37,7 +36,7 @@ class MediaAnalyzer:
 
     CAMERA_PATTERNS = [r"Camera\.open\(", r"camera2\.CameraManager", r"SurfaceView", r"MediaRecorder", r"CAMERA"]
 
-    def __init__(self, logger: Optional[logging.Logger] = None):
+    def __init__(self, logger: logging.Logger | None = None):
         """Initialize MediaAnalyzer with optional logger."""
         self.logger = logger or logging.getLogger(__name__)
 

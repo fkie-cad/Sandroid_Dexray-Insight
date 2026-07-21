@@ -281,24 +281,7 @@ class AnalysisEngine:
             context = self._setup_analysis_context(apk_path, androguard_obj, timestamp)
 
             # Process APK with external tools if temporal analysis is enabled
-            tool_results = {}
-            if context.temporal_paths:
-                temporal_manager = TemporalDirectoryManager(self.config, self.logger)
-                # Process APK with external tools (unzip, JADX, apktool)
-                self.logger.info("Processing APK with external tools...")
-                external_tool_results = temporal_manager.process_apk_with_tools(apk_path, context.temporal_paths)
-
-                # Log tool execution results
-                for tool_name, success in external_tool_results.items():
-                    if success:
-                        self.logger.info(f"✓ {tool_name.upper()} completed successfully")
-                    else:
-                        self.logger.warning(f"✗ {tool_name.upper()} failed or was skipped")
-
-                tool_results["temporal_processing"] = {
-                    "temporal_directory": str(context.temporal_paths.base_dir),
-                    "tools_executed": external_tool_results,
-                }
+            tool_results = self._process_temporal_external_tools(apk_path, context)
 
             # Execute analysis pipeline (refactored)
             module_results = self._execute_analysis_pipeline(context, requested_modules)
@@ -330,18 +313,57 @@ class AnalysisEngine:
             return results
 
         except Exception as e:
-            self.logger.error(f"Analysis failed: {str(e)}")
-
-            # Handle temporal directory cleanup on error (refactored)
-            if context is not None and hasattr(context, "temporal_paths") and context.temporal_paths:
-                preserve_on_error = self.config.get_temporal_analysis_config().get("preserve_on_error", True)
-                self._handle_analysis_cleanup(context.temporal_paths, preserve_on_error)
-
-            # Log the full traceback for debugging
-            import traceback
-
-            self.logger.debug(f"Full traceback:\n{traceback.format_exc()}")
+            self._handle_analysis_error(e, context)
             raise
+
+    def _process_temporal_external_tools(self, apk_path: str, context: AnalysisContext) -> dict:
+        """Process APK with external tools when temporal analysis is enabled.
+
+        Args:
+            apk_path: Path to the APK file
+            context: Analysis context containing temporal paths
+
+        Returns:
+            Dictionary of tool results, including temporal processing metadata
+        """
+        tool_results = {}
+        if context.temporal_paths:
+            temporal_manager = TemporalDirectoryManager(self.config, self.logger)
+            # Process APK with external tools (unzip, JADX, apktool)
+            self.logger.info("Processing APK with external tools...")
+            external_tool_results = temporal_manager.process_apk_with_tools(apk_path, context.temporal_paths)
+
+            # Log tool execution results
+            for tool_name, success in external_tool_results.items():
+                if success:
+                    self.logger.info(f"✓ {tool_name.upper()} completed successfully")
+                else:
+                    self.logger.warning(f"✗ {tool_name.upper()} failed or was skipped")
+
+            tool_results["temporal_processing"] = {
+                "temporal_directory": str(context.temporal_paths.base_dir),
+                "tools_executed": external_tool_results,
+            }
+        return tool_results
+
+    def _handle_analysis_error(self, e: Exception, context: Any | None) -> None:
+        """Handle analysis errors with logging and temporal cleanup.
+
+        Args:
+            e: The exception that was raised during analysis
+            context: Analysis context (may be None if setup failed)
+        """
+        self.logger.error(f"Analysis failed: {str(e)}")
+
+        # Handle temporal directory cleanup on error (refactored)
+        if context is not None and hasattr(context, "temporal_paths") and context.temporal_paths:
+            preserve_on_error = self.config.get_temporal_analysis_config().get("preserve_on_error", True)
+            self._handle_analysis_cleanup(context.temporal_paths, preserve_on_error)
+
+        # Log the full traceback for debugging
+        import traceback
+
+        self.logger.debug(f"Full traceback:\n{traceback.format_exc()}")
 
     def _setup_analysis_context(
         self, apk_path: str, androguard_obj: Any | None = None, timestamp: str | None = None
@@ -874,7 +896,10 @@ class AnalysisEngine:
                 tool = tool_class(tool_config)
 
                 if not tool.is_available():
-                    self.logger.warning(f"Tool {tool_name} is not available on system")
+                    # Optional external tools (e.g. apkid) are only applied when
+                    # they are actually installed. A missing optional tool is
+                    # expected, so log at info level rather than warning.
+                    self.logger.info(f"Tool {tool_name} is not available on system, skipping")
                     continue
 
                 self.logger.info(f"Executing tool: {tool_name}")

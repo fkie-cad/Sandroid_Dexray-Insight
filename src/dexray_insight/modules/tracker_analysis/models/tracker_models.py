@@ -30,7 +30,6 @@ Phase 7 TDD Refactoring: Extracted from monolithic tracker_analysis.py
 
 from dataclasses import dataclass
 from typing import Any
-from typing import Optional
 
 
 @dataclass
@@ -38,7 +37,7 @@ class DetectedTracker:
     """Container for a detected tracker with metadata."""
 
     name: str
-    version: Optional[str] = None
+    version: str | None = None
     description: str = ""
     category: str = ""
     website: str = ""

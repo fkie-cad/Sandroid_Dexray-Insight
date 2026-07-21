@@ -186,10 +186,8 @@ class TestXMLStringExtraction:
         context, apk_obj = self.create_mock_context_with_strings_xml()
 
         # Mock other extraction methods to return empty sets
-        with patch.object(string_extractor, "_extract_dotnet_strings", return_value=set()):
-            with patch.object(string_extractor, "_extract_native_strings", return_value=set()):
-                with patch.object(string_extractor, "_extract_dex_strings", return_value=set()):
-                    result = string_extractor.extract_all_strings(context)
+        with patch.object(string_extractor, "_extract_dotnet_strings", return_value=set()), patch.object(string_extractor, "_extract_native_strings", return_value=set()), patch.object(string_extractor, "_extract_dex_strings", return_value=set()):
+            result = string_extractor.extract_all_strings(context)
 
         # Should include the Google API key from XML
         assert "AIzaSyCFtats4tiOdzDfhlDfWSjcGOcCk3MxJAI" in result
@@ -203,10 +201,8 @@ class TestXMLStringExtraction:
         def mock_dex_strings(context):
             return {"AIzaSyDRKQ9d6kfsoZT2lUnZcZnBYvH69HExNPE", "other_dex_string"}
 
-        with patch.object(string_extractor, "_extract_dex_strings", side_effect=mock_dex_strings):
-            with patch.object(string_extractor, "_extract_dotnet_strings", return_value=set()):
-                with patch.object(string_extractor, "_extract_native_strings", return_value=set()):
-                    result = string_extractor.extract_all_strings(context)
+        with patch.object(string_extractor, "_extract_dex_strings", side_effect=mock_dex_strings), patch.object(string_extractor, "_extract_dotnet_strings", return_value=set()), patch.object(string_extractor, "_extract_native_strings", return_value=set()):
+            result = string_extractor.extract_all_strings(context)
 
         # Should contain both Google API keys
         assert "AIzaSyCFtats4tiOdzDfhlDfWSjcGOcCk3MxJAI" in result  # From XML

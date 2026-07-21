@@ -313,9 +313,10 @@ class CodeContextAnalyzer:
 
             # Check for code patterns that might reference our target
             # Look for variable assignments, method calls, etc.
-            if any(keyword in string_lower for keyword in ["string ", "final ", "static ", "=", "(", ")"]):
-                if any(keyword in string_lower for keyword in ["key", "token", "secret", "api", "auth"]):
-                    related_strings.append(string_val)
+            if any(keyword in string_lower for keyword in ["string ", "final ", "static ", "=", "(", ")"]) and any(
+                keyword in string_lower for keyword in ["key", "token", "secret", "api", "auth"]
+            ):
+                related_strings.append(string_val)
 
         # Analyze related strings for context
         for related_string in related_strings[:20]:  # Limit to avoid performance issues
@@ -343,12 +344,28 @@ class CodeContextAnalyzer:
             context.surrounding_lines.append(code_line)
 
         # Parse different types of Java constructs
+        if self._parse_early_return_constructs(code_line, context):
+            return context
 
+        self._parse_method_signatures(code_line, context)
+        self._parse_variable_declarations(code_line, context)
+        self._parse_string_literals(code_line, context)
+        self._parse_buildconfig(code_line, context)
+
+        return context
+
+    def _parse_early_return_constructs(self, code_line: str, context: CodeContext) -> bool:
+        """
+        Parse constructs that fully consume a code line.
+
+        Returns:
+            True if the line was handled (parsing should stop), otherwise False.
+        """
         # 1. Package declarations
         package_match = re.match(r"package\s+([\w.]+)\s*;", code_line)
         if package_match:
             context.package_names.add(package_match.group(1))
-            return context
+            return True
 
         # 2. Import statements
         import_match = re.match(r"import\s+(?:static\s+)?([\w.*]+)\s*;", code_line)
@@ -359,22 +376,19 @@ class CodeContextAnalyzer:
             if "." in import_name and not import_name.endswith("*"):
                 class_name = import_name.split(".")[-1]
                 context.class_names.add(class_name)
-            return context
+            return True
 
         # 3. Annotations
         if code_line.startswith("@"):
             context.annotations.append(code_line)
-            return context
+            return True
 
         # 4. Comments (single-line and multi-line)
         if (
-            code_line.startswith("//")
-            or code_line.startswith("/*")
-            or code_line.startswith("*")
-            or code_line.endswith("*/")
+            code_line.startswith(("//", "/*", "*")) or code_line.endswith("*/")
         ):
             context.comments.append(code_line)
-            return context
+            return True
 
         # 5. Class declarations
         class_match = re.search(
@@ -385,8 +399,12 @@ class CodeContextAnalyzer:
             context.class_names.add(class_match.group(1))
             if class_match.group(2):  # extends clause
                 context.class_names.add(class_match.group(2))
-            return context
+            return True
 
+        return False
+
+    def _parse_method_signatures(self, code_line: str, context: CodeContext) -> None:
+        """Parse method declarations/calls into the context."""
         # 6. Method declarations/calls
         method_match = re.search(r"(\w+)\s*\([^)]*\)", code_line)
         if method_match:
@@ -396,6 +414,8 @@ class CodeContextAnalyzer:
             if method_sig not in context.method_signatures and len(context.method_signatures) < 20:
                 context.method_signatures.append(method_sig)
 
+    def _parse_variable_declarations(self, code_line: str, context: CodeContext) -> None:
+        """Parse variable declarations and assignments into the context."""
         # 7. Variable declarations and assignments
         # Look for patterns like: Type varName = value; or String API_KEY = "...";
         var_patterns = [
@@ -419,6 +439,8 @@ class CodeContextAnalyzer:
                     # Single capture group
                     context.variable_names.add(match)
 
+    def _parse_string_literals(self, code_line: str, context: CodeContext) -> None:
+        """Parse security-relevant string literals into the context."""
         # 8. String literals and constants
         string_literals = re.findall(r'"([^"]+)"', code_line)
         for literal in string_literals:
@@ -426,6 +448,8 @@ class CodeContextAnalyzer:
             if any(keyword in literal.lower() for keyword in self.security_keywords["secret_related"]):
                 context.variable_names.add(literal[:30])  # Truncate long literals
 
+    def _parse_buildconfig(self, code_line: str, context: CodeContext) -> None:
+        """Parse BuildConfig usage (indicates build-time injection)."""
         # 9. BuildConfig usage (indicates build-time injection)
         if "BuildConfig." in code_line:
             context.class_names.add("BuildConfig")
@@ -433,8 +457,6 @@ class CodeContextAnalyzer:
             if buildconfig_match:
                 context.variable_names.add(buildconfig_match.group(1))
                 context.protection_level = ProtectionLevel.BUILD_TIME_INJECTION
-
-        return context
 
     def _detect_protection_level(self, context: CodeContext) -> ProtectionLevel:
         """

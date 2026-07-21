@@ -51,7 +51,6 @@ import zipfile
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 from .configuration import Configuration
 
@@ -83,12 +82,12 @@ class TemporalDirectoryManager:
     - Tool execution logs
     """
 
-    def __init__(self, config: Configuration, logger: Optional[logging.Logger] = None):
+    def __init__(self, config: Configuration, logger: logging.Logger | None = None):
         """Initialize temporal directory manager with configuration."""
         self.config = config
         self.logger = logger or logging.getLogger(__name__)
         self.temporal_config = config.get_temporal_analysis_config()
-        self.current_paths: Optional[TemporalDirectoryPaths] = None
+        self.current_paths: TemporalDirectoryPaths | None = None
 
         # Validate configuration on initialization
         self._validate_configuration()
@@ -157,7 +156,7 @@ class TemporalDirectoryManager:
         if not isinstance(timeout, (int, float)) or timeout <= 0:
             self.logger.warning(f"Invalid timeout configuration for {tool_name}: {timeout}")
 
-    def create_temporal_directory(self, apk_path: str, timestamp: Optional[str] = None) -> TemporalDirectoryPaths:
+    def create_temporal_directory(self, apk_path: str, timestamp: str | None = None) -> TemporalDirectoryPaths:
         """
         Create temporal directory structure for APK analysis.
 
@@ -279,22 +278,7 @@ class TemporalDirectoryManager:
                 log_file.parent.mkdir(exist_ok=True)
 
             # Set up environment - preserve existing environment but fix JAVA_HOME if needed
-            env = os.environ.copy()
-
-            # Fix JAVA_HOME if it's invalid
-            java_home = env.get("JAVA_HOME", "")
-            if java_home and not Path(java_home).exists():
-                self.logger.debug(f"Invalid JAVA_HOME detected: {java_home}")
-                # Try to find Java executable and derive JAVA_HOME
-                try:
-                    java_exec = shutil.which("java")
-                    if java_exec:
-                        # For system Java, unset JAVA_HOME to use system default
-                        if java_exec == "/usr/bin/java":
-                            env.pop("JAVA_HOME", None)
-                            self.logger.debug("Using system Java, removed JAVA_HOME")
-                except Exception as e:
-                    self.logger.debug(f"Java environment detection failed: {e}")
+            env = self._build_java_env()
 
             with open(log_file, "w") if log_file else open(os.devnull, "w") as log_f:
                 result = subprocess.run(
@@ -307,21 +291,7 @@ class TemporalDirectoryManager:
                     env=env,  # Use updated environment
                 )
 
-            # Check success by looking at output directory contents, not just return code
-            java_files = list(output_dir.rglob("*.java"))
-            java_count = len(java_files)
-
-            if java_count > 0:
-                self.logger.info(f"JADX decompilation completed successfully ({java_count} Java files generated)")
-                return True
-            elif result.returncode == 0:
-                self.logger.warning("JADX completed with return code 0 but no Java files were generated")
-                return False
-            else:
-                self.logger.error(f"JADX failed with return code {result.returncode}")
-                if log_file and log_file.exists():
-                    self.logger.debug(f"Check JADX log for details: {log_file}")
-                return False
+            return self._evaluate_jadx_result(output_dir, result, log_file)
 
         except subprocess.TimeoutExpired:
             self.logger.error(f"JADX execution timed out after {jadx_config.get('timeout', 900)} seconds")
@@ -375,20 +345,7 @@ class TemporalDirectoryManager:
                 log_file.parent.mkdir(exist_ok=True)
 
             # Set up environment - fix JAVA_HOME if needed for Java tools
-            env = os.environ.copy()
-
-            # Fix JAVA_HOME if it's invalid
-            java_home = env.get("JAVA_HOME", "")
-            if java_home and not Path(java_home).exists():
-                self.logger.debug(f"Invalid JAVA_HOME detected: {java_home}")
-                # For system Java, unset JAVA_HOME to use system default
-                try:
-                    java_exec = shutil.which("java")
-                    if java_exec == "/usr/bin/java":
-                        env.pop("JAVA_HOME", None)
-                        self.logger.debug("Using system Java, removed JAVA_HOME")
-                except Exception as e:
-                    self.logger.debug(f"Java environment detection failed: {e}")
+            env = self._build_java_env()
 
             with open(log_file, "w") if log_file else open(os.devnull, "w") as log_f:
                 result = subprocess.run(
@@ -401,29 +358,69 @@ class TemporalDirectoryManager:
                     env=env,
                 )
 
-            # Check success by looking at output directory contents, not just return code
-            # Apktool should create AndroidManifest.xml and other key files
-            expected_files = ["AndroidManifest.xml", "apktool.yml"]
-            found_files = [f for f in expected_files if (output_dir / f).exists()]
-
-            if len(found_files) >= 1:  # At least one expected file should exist
-                files_count = len(list(output_dir.rglob("*")))
-                self.logger.info(f"Apktool analysis completed successfully ({files_count} files generated)")
-                return True
-            elif result.returncode == 0:
-                self.logger.warning("Apktool completed with return code 0 but expected files were not generated")
-                return False
-            else:
-                self.logger.error(f"Apktool failed with return code {result.returncode}")
-                if log_file and log_file.exists():
-                    self.logger.debug(f"Check Apktool log for details: {log_file}")
-                return False
+            return self._evaluate_apktool_result(output_dir, result, log_file)
 
         except subprocess.TimeoutExpired:
             self.logger.error(f"Apktool execution timed out after {apktool_config.get('timeout', 600)} seconds")
             return False
         except Exception as e:
             self.logger.error(f"Failed to run Apktool: {e}")
+            return False
+
+    def _build_java_env(self) -> dict:
+        """Build subprocess environment, fixing an invalid JAVA_HOME for Java tools."""
+        env = os.environ.copy()
+
+        # Fix JAVA_HOME if it's invalid
+        java_home = env.get("JAVA_HOME", "")
+        if java_home and not Path(java_home).exists():
+            self.logger.debug(f"Invalid JAVA_HOME detected: {java_home}")
+            # For system Java, unset JAVA_HOME to use system default
+            try:
+                java_exec = shutil.which("java")
+                if java_exec == "/usr/bin/java":
+                    env.pop("JAVA_HOME", None)
+                    self.logger.debug("Using system Java, removed JAVA_HOME")
+            except Exception as e:
+                self.logger.debug(f"Java environment detection failed: {e}")
+        return env
+
+    def _evaluate_jadx_result(self, output_dir: Path, result, log_file) -> bool:
+        """Evaluate JADX outcome from output directory contents and return code."""
+        # Check success by looking at output directory contents, not just return code
+        java_files = list(output_dir.rglob("*.java"))
+        java_count = len(java_files)
+
+        if java_count > 0:
+            self.logger.info(f"JADX decompilation completed successfully ({java_count} Java files generated)")
+            return True
+        elif result.returncode == 0:
+            self.logger.warning("JADX completed with return code 0 but no Java files were generated")
+            return False
+        else:
+            self.logger.error(f"JADX failed with return code {result.returncode}")
+            if log_file and log_file.exists():
+                self.logger.debug(f"Check JADX log for details: {log_file}")
+            return False
+
+    def _evaluate_apktool_result(self, output_dir: Path, result, log_file) -> bool:
+        """Evaluate apktool outcome from output directory contents and return code."""
+        # Check success by looking at output directory contents, not just return code
+        # Apktool should create AndroidManifest.xml and other key files
+        expected_files = ["AndroidManifest.xml", "apktool.yml"]
+        found_files = [f for f in expected_files if (output_dir / f).exists()]
+
+        if len(found_files) >= 1:  # At least one expected file should exist
+            files_count = len(list(output_dir.rglob("*")))
+            self.logger.info(f"Apktool analysis completed successfully ({files_count} files generated)")
+            return True
+        elif result.returncode == 0:
+            self.logger.warning("Apktool completed with return code 0 but expected files were not generated")
+            return False
+        else:
+            self.logger.error(f"Apktool failed with return code {result.returncode}")
+            if log_file and log_file.exists():
+                self.logger.debug(f"Check Apktool log for details: {log_file}")
             return False
 
     def check_tool_availability(self, tool_name: str) -> bool:
@@ -482,7 +479,7 @@ class TemporalDirectoryManager:
 
         return results
 
-    def cleanup_temporal_directory(self, paths: Optional[TemporalDirectoryPaths] = None, force: bool = False) -> bool:
+    def cleanup_temporal_directory(self, paths: TemporalDirectoryPaths | None = None, force: bool = False) -> bool:
         """
         Cleanup temporal directory after analysis.
 
@@ -518,7 +515,7 @@ class TemporalDirectoryManager:
             self.logger.error(f"Failed to cleanup temporal directory {paths.base_dir}: {e}")
             return False
 
-    def get_current_paths(self) -> Optional[TemporalDirectoryPaths]:
+    def get_current_paths(self) -> TemporalDirectoryPaths | None:
         """Get current temporal directory paths."""
         return self.current_paths
 

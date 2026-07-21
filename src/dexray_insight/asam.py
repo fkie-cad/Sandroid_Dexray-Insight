@@ -258,6 +258,25 @@ def _build_configuration_updates(args) -> dict:
     return config_updates
 
 
+def _print_analysis_results_to_terminal(results, verbose: bool):
+    """Print analysis results to the terminal using the appropriate format."""
+    # Use analyst-friendly summary by default, full JSON if verbose is enabled
+    if verbose:
+        # Verbose mode: show full JSON output
+        if hasattr(results, "print_results"):
+            results.print_results()
+        else:
+            print(results.to_json() if hasattr(results, "to_json") else str(results))
+    else:
+        # Default mode: show analyst-friendly summary
+        if hasattr(results, "print_analyst_summary"):
+            results.print_analyst_summary()
+        elif hasattr(results, "print_results"):
+            results.print_results()
+        else:
+            print(results.to_json() if hasattr(results, "to_json") else str(results))
+
+
 def start_apk_static_analysis_new(
     apk_file_path: str, config: Configuration, print_results_to_terminal: bool = False, verbose: bool = False
 ):
@@ -277,7 +296,7 @@ def start_apk_static_analysis_new(
         print("[*] Initializing Androguard analysis...")
         androguard_obj = None
         try:
-            androguard_obj = androguardObjClass.Androguard_Obj(apk_file_path)
+            androguard_obj = androguardObjClass.AndroguardObj(apk_file_path)
         except Exception as e:
             print(f"\033[93m[W] Androguard initialization failed: {str(e)}\033[0m")
             print("\033[93m[W] Analysis will continue with limited functionality\033[0m")
@@ -295,21 +314,7 @@ def start_apk_static_analysis_new(
         results = engine.analyze_apk(apk_file_path, androguard_obj=androguard_obj, timestamp=timestamp)
 
         if print_results_to_terminal:
-            # Use analyst-friendly summary by default, full JSON if verbose is enabled
-            if verbose:
-                # Verbose mode: show full JSON output
-                if hasattr(results, "print_results"):
-                    results.print_results()
-                else:
-                    print(results.to_json() if hasattr(results, "to_json") else str(results))
-            else:
-                # Default mode: show analyst-friendly summary
-                if hasattr(results, "print_analyst_summary"):
-                    results.print_analyst_summary()
-                elif hasattr(results, "print_results"):
-                    results.print_results()
-                else:
-                    print(results.to_json() if hasattr(results, "to_json") else str(results))
+            _print_analysis_results_to_terminal(results, verbose)
 
         # Save results to file
         base_dir, name, file_ext = split_path_file_extension(apk_file_path)
@@ -348,11 +353,7 @@ def dump_results_as_json_file(results, filename: str, timestamp: str = None) -> 
     safe_filename = f"dexray_{base_filename}_{timestamp}.json"
 
     # Convert results to dict
-    if hasattr(results, "to_dict"):
-        # Never include security assessment results in main JSON file - they go to separate security file
-        results_dict = results.to_dict(include_security=False)
-    else:
-        results_dict = {"results": str(results)}
+    results_dict = results.to_dict(include_security=False) if hasattr(results, "to_dict") else {"results": str(results)}
 
     dump_json(safe_filename, results_dict)
     return safe_filename
@@ -573,6 +574,48 @@ def parse_arguments():
     return parser.parse_args()
 
 
+def _load_or_create_configuration(parsed_args):
+    """Load configuration from file if provided, otherwise create it from CLI args.
+
+    Returns:
+        Tuple of (configuration, error_code). error_code is non-zero on failure.
+    """
+    config = None
+    if hasattr(parsed_args, "config") and parsed_args.config:
+        try:
+            config = Configuration(config_path=parsed_args.config)
+            print(f"[*] Loaded configuration from: {parsed_args.config}")
+        except Exception as e:
+            print(f"[-] Failed to load configuration file: {str(e)}", file=sys.stderr)
+            return None, 1
+
+    if config is None:
+        config = create_configuration_from_args(parsed_args)
+
+    return config, 0
+
+
+def _print_analysis_completion(results, total_time, result_file_name, security_result_file_name):
+    """Print the analysis completion summary and return the process exit code."""
+    if results:
+        print(f"\n{'='*60}")
+        print("ANALYSIS COMPLETE")
+        print(f"{'='*60}")
+        print(f"Analysis completed in {total_time:.2f} seconds")
+        print(f"Results saved to: {result_file_name}")
+
+        if security_result_file_name:
+            print(f"Security analysis results saved to: {security_result_file_name}")
+
+        print("\nThank you for using Dexray Insight!")
+        print("Visit https://github.com/fkie-cad/Sandroid_Dexray-Insight for more information.")
+
+        return 0
+    else:
+        print("[-] Analysis failed", file=sys.stderr)
+        return 1
+
+
 def main():
     """Execute the main entry point for the application."""
     try:
@@ -582,17 +625,9 @@ def main():
         print_logo()
 
         # Create configuration first so we can pass it to set_logger
-        config = None
-        if hasattr(parsed_args, "config") and parsed_args.config:
-            try:
-                config = Configuration(config_path=parsed_args.config)
-                print(f"[*] Loaded configuration from: {parsed_args.config}")
-            except Exception as e:
-                print(f"[-] Failed to load configuration file: {str(e)}", file=sys.stderr)
-                return 1
-
-        if config is None:
-            config = create_configuration_from_args(parsed_args)
+        config, config_error = _load_or_create_configuration(parsed_args)
+        if config_error:
+            return config_error
 
         # Set up logging with configuration
         set_logger(parsed_args, config)
@@ -642,23 +677,7 @@ def main():
 
         total_time = time.time() - start_time
 
-        if results:
-            print(f"\n{'='*60}")
-            print("ANALYSIS COMPLETE")
-            print(f"{'='*60}")
-            print(f"Analysis completed in {total_time:.2f} seconds")
-            print(f"Results saved to: {result_file_name}")
-
-            if security_result_file_name:
-                print(f"Security analysis results saved to: {security_result_file_name}")
-
-            print("\nThank you for using Dexray Insight!")
-            print("Visit https://github.com/fkie-cad/Sandroid_Dexray-Insight for more information.")
-
-            return 0
-        else:
-            print("[-] Analysis failed", file=sys.stderr)
-            return 1
+        return _print_analysis_completion(results, total_time, result_file_name, security_result_file_name)
 
     except KeyboardInterrupt:
         print("\n[-] Analysis interrupted by user", file=sys.stderr)

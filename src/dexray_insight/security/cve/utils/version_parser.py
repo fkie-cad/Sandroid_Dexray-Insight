@@ -29,7 +29,6 @@ software version strings in the context of CVE vulnerability checking.
 
 import logging
 import re
-from typing import Optional
 
 
 class VersionParser:
@@ -53,7 +52,7 @@ class VersionParser:
             r"^(\d{4})\.?(\d{2})\.?(\d{2})(?:\.(\d+))?$",
         ]
 
-    def parse_version(self, version_str: str) -> Optional[tuple]:
+    def parse_version(self, version_str: str) -> tuple | None:
         """
         Parse a version string into components.
 
@@ -89,7 +88,7 @@ class VersionParser:
 
         # Remove common suffixes that don't affect version comparison
         cleaned = re.sub(r"\s*\(.*\)$", "", cleaned)  # Remove parenthetical notes
-        cleaned = re.sub(r"\s*-SNAPSHOT$", "", cleaned, re.IGNORECASE)  # Remove Maven SNAPSHOT
+        cleaned = re.sub(r"\s*-SNAPSHOT$", "", cleaned, flags=re.IGNORECASE)  # Remove Maven SNAPSHOT
 
         return cleaned
 
@@ -184,8 +183,8 @@ class VersionParser:
     def is_version_in_range(
         self,
         version: str,
-        min_version: Optional[str] = None,
-        max_version: Optional[str] = None,
+        min_version: str | None = None,
+        max_version: str | None = None,
         max_inclusive: bool = False,
     ) -> bool:
         """
@@ -200,15 +199,12 @@ class VersionParser:
         Returns:
             True if version is in range
         """
-        if min_version:
-            if self.compare_versions(version, min_version) < 0:
-                return False
+        if min_version and self.compare_versions(version, min_version) < 0:
+            return False
 
         if max_version:
             comparison = self.compare_versions(version, max_version)
-            if max_inclusive and comparison > 0:
-                return False
-            elif not max_inclusive and comparison >= 0:
+            if max_inclusive and comparison > 0 or not max_inclusive and comparison >= 0:
                 return False
 
         return True
@@ -238,7 +234,7 @@ class VersionParser:
 
         return ".".join(numeric_parts[:4])  # Limit to 4 parts max
 
-    def extract_version_from_string(self, text: str) -> Optional[str]:
+    def extract_version_from_string(self, text: str) -> str | None:
         """
         Extract version string from text that may contain additional information.
 

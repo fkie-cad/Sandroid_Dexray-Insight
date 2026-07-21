@@ -64,7 +64,7 @@ class ClassSignatureExtractor:
                     class_name = cls.get_name()
 
                     # Skip Android framework classes to focus on third-party libraries
-                    if class_name.startswith("Landroid/") or class_name.startswith("Ljava/"):
+                    if class_name.startswith(("Landroid/", "Ljava/")):
                         continue
 
                     # Extract method signatures and opcodes
@@ -76,7 +76,7 @@ class ClassSignatureExtractor:
                             if method.get_code():
                                 for instruction in method.get_code().get_bc().get_instructions():
                                     opcodes.append(instruction.get_name())
-                        except Exception:
+                        except Exception:  # noqa: S110
                             pass
 
                         method_signatures.append(
@@ -112,7 +112,7 @@ class ClassSignatureExtractor:
                     class_name = cls.get_name()
 
                     # Skip framework classes
-                    if class_name.startswith("Landroid/") or class_name.startswith("Ljava/"):
+                    if class_name.startswith(("Landroid/", "Ljava/")):
                         continue
 
                     dependencies = set()
@@ -136,11 +136,11 @@ class ClassSignatureExtractor:
                                                     and not dep_class.startswith("Ljava/")
                                                 ):
                                                     dependencies.add(dep_class)
-                        except Exception:
+                        except Exception:  # noqa: S110
                             pass
 
                     # Analyze fields
-                    for field in cls.get_fields():
+                    for _field in cls.get_fields():
                         field_count += 1
 
                     dependency_graph[class_name] = {
@@ -186,7 +186,7 @@ class ClassSignatureExtractor:
                                 # Only store if method has meaningful opcodes
                                 if len(opcodes) > 3:  # Filter out trivial methods
                                     method_patterns[method_key] = opcodes
-                        except Exception:
+                        except Exception:  # noqa: S110
                             pass
 
         except Exception as e:
@@ -220,9 +220,8 @@ class ClassSignatureExtractor:
                             if method.get_code():
                                 for instruction in method.get_code().get_bc().get_instructions():
                                     # Look for method invocations
-                                    if "invoke" in instruction.get_name():
-                                        if hasattr(instruction, "get_operands"):
-                                            for operand in instruction.get_operands():
+                                    if "invoke" in instruction.get_name() and hasattr(instruction, "get_operands"):
+                                        for operand in instruction.get_operands():
                                                 if hasattr(operand, "get_name"):
                                                     target_method = operand.get_name()
                                                     if (
@@ -234,7 +233,7 @@ class ClassSignatureExtractor:
 
                                 if chains:
                                     call_chains[method_key] = chains
-                        except Exception:
+                        except Exception:  # noqa: S110
                             pass
 
         except Exception as e:

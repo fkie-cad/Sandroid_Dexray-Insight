@@ -220,7 +220,7 @@ class TestSensitiveDataAssessmentPIIPatterns:
         # Verify patterns are valid regex
         import re
 
-        for pattern_name, pattern in assessment.pii_regex_patterns.items():
+        for _pattern_name, pattern in assessment.pii_regex_patterns.items():
             assert isinstance(pattern, str)
             re.compile(pattern)  # Should not raise exception
 

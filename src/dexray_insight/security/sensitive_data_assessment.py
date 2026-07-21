@@ -230,6 +230,16 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
 
         Single Responsibility: Define high and medium severity patterns only.
         """
+        if not hasattr(self, "key_detection_patterns"):
+            self.key_detection_patterns = {}
+        self._setup_high_severity_patterns()
+        self._setup_medium_severity_patterns()
+
+    def _setup_high_severity_patterns(self):
+        """Set up HIGH severity security detection patterns.
+
+        Single Responsibility: Define high severity patterns only.
+        """
         # HIGH SEVERITY PATTERNS
         high_patterns = {
             # Generic Password/API Key Patterns - Enhanced with context
@@ -350,7 +360,13 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
                 "severity": "HIGH",
             },
         }
+        self.key_detection_patterns.update(high_patterns)
 
+    def _setup_medium_severity_patterns(self):
+        """Set up MEDIUM severity security detection patterns.
+
+        Single Responsibility: Define medium severity patterns only.
+        """
         # MEDIUM SEVERITY PATTERNS
         medium_patterns = {
             "slack_token_legacy": {
@@ -421,11 +437,6 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
                 "severity": "LOW",  # Just a reference, not the actual key
             },
         }
-
-        # Add to existing patterns - initialize if doesn't exist
-        if not hasattr(self, "key_detection_patterns"):
-            self.key_detection_patterns = {}
-        self.key_detection_patterns.update(high_patterns)
         self.key_detection_patterns.update(medium_patterns)
 
     def _setup_low_severity_context_patterns(self):
@@ -576,10 +587,7 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
 
         # Check API calls for weak crypto usage
         api_results = analysis_results.get("api_invocation", {})
-        if hasattr(api_results, "to_dict"):
-            api_data = api_results.to_dict()
-        else:
-            api_data = api_results
+        api_data = api_results.to_dict() if hasattr(api_results, "to_dict") else api_results
 
         if not isinstance(api_data, dict):
             return findings
@@ -641,10 +649,7 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
 
         # Get permission analysis results
         permission_results = analysis_results.get("permission_analysis", {})
-        if hasattr(permission_results, "to_dict"):
-            permission_data = permission_results.to_dict()
-        else:
-            permission_data = permission_results
+        permission_data = permission_results.to_dict() if hasattr(permission_results, "to_dict") else permission_results
 
         if not isinstance(permission_data, dict):
             return findings
@@ -684,10 +689,7 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
 
         # Get string analysis results
         string_results = analysis_results.get("string_analysis", {})
-        if hasattr(string_results, "to_dict"):
-            string_data = string_results.to_dict()
-        else:
-            string_data = string_results
+        string_data = string_results.to_dict() if hasattr(string_results, "to_dict") else string_results
 
         if not isinstance(string_data, dict):
             return findings
@@ -708,9 +710,8 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
                 matches = []
 
                 for string in all_strings:
-                    if isinstance(string, str):
-                        if re.search(pattern, string):
-                            matches.append(string[:50] + "..." if len(string) > 50 else string)
+                    if isinstance(string, str) and re.search(pattern, string):
+                        matches.append(string[:50] + "..." if len(string) > 50 else string)
 
                 if matches:
                     pii_found[pii_type] = matches
@@ -820,38 +821,49 @@ class StringCollectionStrategy:
         """
         all_strings_with_location = []
 
-        # Get string analysis results - check both direct and in_depth_analysis locations
-        string_results = analysis_results.get("string_analysis", {})
-        if hasattr(string_results, "to_dict"):
-            string_data = string_results.to_dict()
-        elif string_results:
-            string_data = string_results
-        else:
-            # Fallback: check in_depth_analysis for string data
-            in_depth = analysis_results.get("in_depth_analysis", {})
-            if hasattr(in_depth, "to_dict"):
-                in_depth_data = in_depth.to_dict()
-            else:
-                in_depth_data = in_depth
-
-            # Map in_depth_analysis string fields to expected format
-            string_data = {
-                "emails": in_depth_data.get("strings_emails", []),
-                "ip_addresses": in_depth_data.get("strings_ip", []),
-                "urls": in_depth_data.get("strings_urls", []),
-                "domains": in_depth_data.get("strings_domain", []),
-            }
+        string_data = self._resolve_string_data(analysis_results)
 
         if not isinstance(string_data, dict):
             return all_strings_with_location
 
+        all_strings_with_location.extend(self._collect_category_location_strings(string_data))
+        all_strings_with_location.extend(self._collect_all_strings_field(string_data))
+        all_strings_with_location.extend(self._collect_module_all_strings(analysis_results))
+        all_strings_with_location.extend(self._collect_android_property_strings(string_data))
+        all_strings_with_location.extend(self._collect_raw_strings(string_data))
+
+        return all_strings_with_location
+
+    def _resolve_string_data(self, analysis_results: dict[str, Any]) -> Any:
+        """Resolve string analysis data from direct or in_depth_analysis locations."""
+        # Get string analysis results - check both direct and in_depth_analysis locations
+        string_results = analysis_results.get("string_analysis", {})
+        if hasattr(string_results, "to_dict"):
+            return string_results.to_dict()
+        elif string_results:
+            return string_results
+        # Fallback: check in_depth_analysis for string data
+        in_depth = analysis_results.get("in_depth_analysis", {})
+        in_depth_data = in_depth.to_dict() if hasattr(in_depth, "to_dict") else in_depth
+
+        # Map in_depth_analysis string fields to expected format
+        return {
+            "emails": in_depth_data.get("strings_emails", []),
+            "ip_addresses": in_depth_data.get("strings_ip", []),
+            "urls": in_depth_data.get("strings_urls", []),
+            "domains": in_depth_data.get("strings_domain", []),
+        }
+
+    def _collect_category_location_strings(self, string_data: dict[str, Any]) -> list[dict[str, Any]]:
+        """Collect strings from all standard string analysis categories."""
+        collected = []
         # From string analysis results - include ALL string categories
         string_categories = ["emails", "urls", "domains", "ip_addresses", "interesting_strings", "filtered_strings"]
         for key in string_categories:
             strings = string_data.get(key, [])
             if isinstance(strings, list):
                 for string in strings:
-                    all_strings_with_location.append(
+                    collected.append(
                         {
                             "value": string,
                             "location": f"String analysis ({key})",
@@ -859,14 +871,18 @@ class StringCollectionStrategy:
                             "line_number": None,
                         }
                     )
+        return collected
 
+    def _collect_all_strings_field(self, string_data: dict[str, Any]) -> list[dict[str, Any]]:
+        """Collect strings from the all_strings field of string data."""
+        collected = []
         # CRITICAL: Also get ALL strings from string analysis module for secret detection
         # This ensures we include XML-extracted strings that may contain API keys
         if "all_strings" in string_data:
             all_strings_list = string_data.get("all_strings", [])
             if isinstance(all_strings_list, list):
                 for string in all_strings_list:
-                    all_strings_with_location.append(
+                    collected.append(
                         {
                             "value": str(string),
                             "location": "All extracted strings (including XML)",
@@ -875,14 +891,18 @@ class StringCollectionStrategy:
                         }
                     )
                 self.logger.debug(f"Added {len(all_strings_list)} strings from all_strings field")
+        return collected
 
+    def _collect_module_all_strings(self, analysis_results: dict[str, Any]) -> list[dict[str, Any]]:
+        """Collect all_strings from the string analysis module result if available."""
+        collected = []
         # Fallback: If string_analysis module result is available directly, get all_strings from it
         string_module_result = analysis_results.get("string_analysis")
         if string_module_result and hasattr(string_module_result, "all_strings"):
             all_strings_from_module = getattr(string_module_result, "all_strings", [])
             if isinstance(all_strings_from_module, list):
                 for string in all_strings_from_module:
-                    all_strings_with_location.append(
+                    collected.append(
                         {
                             "value": str(string),
                             "location": "String analysis module (all_strings)",
@@ -891,28 +911,35 @@ class StringCollectionStrategy:
                         }
                     )
                 self.logger.debug(f"Added {len(all_strings_from_module)} strings from string module all_strings")
+        return collected
 
+    def _collect_android_property_strings(self, string_data: dict[str, Any]) -> list[dict[str, Any]]:
+        """Collect strings from Android properties keys and values."""
+        collected = []
         # From Android properties
         android_props = string_data.get("android_properties", {})
         if isinstance(android_props, dict):
             for prop_key, prop_value in android_props.items():
-                all_strings_with_location.append(
+                collected.append(
                     {"value": prop_key, "location": "Android properties", "file_path": None, "line_number": None}
                 )
                 if isinstance(prop_value, str):
-                    all_strings_with_location.append(
+                    collected.append(
                         {"value": prop_value, "location": "Android properties", "file_path": None, "line_number": None}
                     )
+        return collected
 
+    def _collect_raw_strings(self, string_data: dict[str, Any]) -> list[dict[str, Any]]:
+        """Collect raw strings from the string analysis all_strings field."""
+        collected = []
         # Get raw strings from the string analysis if available
         raw_strings = string_data.get("all_strings", [])
         if isinstance(raw_strings, list):
             for string in raw_strings:
-                all_strings_with_location.append(
+                collected.append(
                     {"value": string, "location": "Raw strings", "file_path": None, "line_number": None}
                 )
-
-        return all_strings_with_location
+        return collected
 
 
 class DeepAnalysisStrategy:
@@ -1384,78 +1411,86 @@ class FindingGenerationStrategy:
 
         # Create findings based on severity levels with secret-finder style messaging
         if classified_findings["critical"]:
-            findings.append(
-                SecurityFinding(
-                    category=self.owasp_category,
-                    severity=AnalysisSeverity.CRITICAL,
-                    title=f"🔴 CRITICAL: {len(classified_findings['critical'])} Hard-coded Secrets Found",
-                    description=f"Found {len(classified_findings['critical'])} critical severity secrets that pose immediate security risks. These include private keys, AWS credentials, and other highly sensitive data that could lead to complete system compromise.",
-                    evidence=classified_findings["critical"][:10],
-                    recommendations=[
-                        "🚨 IMMEDIATE ACTION REQUIRED: Remove all hard-coded secrets and use secure secret management solutions like environment variables, HashiCorp Vault, or cloud-native secret stores. Rotate any exposed credentials immediately.",
-                        "1. Remove hard-coded secrets from source code immediately",
-                        "2. Rotate any exposed credentials (API keys, passwords, tokens)",
-                        "3. Implement environment variables or secure secret management",
-                        "4. Add secrets scanning to CI/CD pipeline to prevent future issues",
-                        "5. Audit access logs for any unauthorized usage of exposed credentials",
-                    ],
-                )
-            )
+            findings.append(self._build_critical_severity_finding(classified_findings))
 
         if classified_findings["high"]:
-            findings.append(
-                SecurityFinding(
-                    category=self.owasp_category,
-                    severity=AnalysisSeverity.HIGH,
-                    title=f"🟠 HIGH: {len(classified_findings['high'])} Potential Secrets Found",
-                    description=f"Found {len(classified_findings['high'])} high severity potential secrets including API keys, tokens, and service credentials that could provide unauthorized access to systems and data.",
-                    evidence=classified_findings["high"][:10],
-                    recommendations=[
-                        "⚠️ HIGH PRIORITY: Review and remove suspected secrets. Implement proper secret management practices.",
-                        "1. Review each detected string to confirm if it's a legitimate secret",
-                        "2. Remove confirmed secrets and replace with secure alternatives",
-                        "3. Consider using build-time secret injection for legitimate secrets",
-                        "4. Implement automated secret scanning in development workflow",
-                    ],
-                )
-            )
+            findings.append(self._build_high_severity_finding(classified_findings))
 
         if classified_findings["medium"]:
-            findings.append(
-                SecurityFinding(
-                    category=self.owasp_category,
-                    severity=AnalysisSeverity.MEDIUM,
-                    title=f"🟡 MEDIUM: {len(classified_findings['medium'])} Suspicious Strings Found",
-                    description=f"Found {len(classified_findings['medium'])} medium severity suspicious strings that may contain sensitive information like database URLs, SSH keys, or encoded secrets.",
-                    evidence=classified_findings["medium"][:15],
-                    recommendations=[
-                        "⚠️ Review suspicious strings for potential sensitive data exposure. Consider if these should be externalized.",
-                        "1. Review each suspicious string for sensitive content",
-                        "2. Consider externalizing configuration data to secure stores",
-                        "3. Validate that exposed information doesn't aid attackers",
-                        "4. Apply principle of least privilege to any exposed connection strings",
-                    ],
-                )
-            )
+            findings.append(self._build_medium_severity_finding(classified_findings))
 
         if classified_findings["low"]:
-            findings.append(
-                SecurityFinding(
-                    category=self.owasp_category,
-                    severity=AnalysisSeverity.LOW,
-                    title=f"🔵 LOW: {len(classified_findings['low'])} Potential Information Leakage",
-                    description=f"Found {len(classified_findings['low'])} low severity strings that may leak information about system configuration, third-party services, or internal infrastructure.",
-                    evidence=classified_findings["low"][:20],
-                    recommendations=[
-                        "ℹ️ Review for information disclosure. Consider if exposed details provide unnecessary information to potential attackers.",
-                        "1. Review exposed service URLs and tokens for necessity",
-                        "2. Consider using generic identifiers where possible",
-                        "3. Validate that exposed information follows security by design principles",
-                    ],
-                )
-            )
+            findings.append(self._build_low_severity_finding(classified_findings))
 
         return findings
+
+    def _build_critical_severity_finding(self, classified_findings: dict[str, Any]) -> SecurityFinding:
+        """Build the CRITICAL severity SecurityFinding from classified findings."""
+        return SecurityFinding(
+            category=self.owasp_category,
+            severity=AnalysisSeverity.CRITICAL,
+            title=f"🔴 CRITICAL: {len(classified_findings['critical'])} Hard-coded Secrets Found",
+            description=f"Found {len(classified_findings['critical'])} critical severity secrets that pose immediate security risks. These include private keys, AWS credentials, and other highly sensitive data that could lead to complete system compromise.",
+            evidence=classified_findings["critical"][:10],
+            recommendations=[
+                "🚨 IMMEDIATE ACTION REQUIRED: Remove all hard-coded secrets and use secure secret management solutions like environment variables, HashiCorp Vault, or cloud-native secret stores. Rotate any exposed credentials immediately.",
+                "1. Remove hard-coded secrets from source code immediately",
+                "2. Rotate any exposed credentials (API keys, passwords, tokens)",
+                "3. Implement environment variables or secure secret management",
+                "4. Add secrets scanning to CI/CD pipeline to prevent future issues",
+                "5. Audit access logs for any unauthorized usage of exposed credentials",
+            ],
+        )
+
+    def _build_high_severity_finding(self, classified_findings: dict[str, Any]) -> SecurityFinding:
+        """Build the HIGH severity SecurityFinding from classified findings."""
+        return SecurityFinding(
+            category=self.owasp_category,
+            severity=AnalysisSeverity.HIGH,
+            title=f"🟠 HIGH: {len(classified_findings['high'])} Potential Secrets Found",
+            description=f"Found {len(classified_findings['high'])} high severity potential secrets including API keys, tokens, and service credentials that could provide unauthorized access to systems and data.",
+            evidence=classified_findings["high"][:10],
+            recommendations=[
+                "⚠️ HIGH PRIORITY: Review and remove suspected secrets. Implement proper secret management practices.",
+                "1. Review each detected string to confirm if it's a legitimate secret",
+                "2. Remove confirmed secrets and replace with secure alternatives",
+                "3. Consider using build-time secret injection for legitimate secrets",
+                "4. Implement automated secret scanning in development workflow",
+            ],
+        )
+
+    def _build_medium_severity_finding(self, classified_findings: dict[str, Any]) -> SecurityFinding:
+        """Build the MEDIUM severity SecurityFinding from classified findings."""
+        return SecurityFinding(
+            category=self.owasp_category,
+            severity=AnalysisSeverity.MEDIUM,
+            title=f"🟡 MEDIUM: {len(classified_findings['medium'])} Suspicious Strings Found",
+            description=f"Found {len(classified_findings['medium'])} medium severity suspicious strings that may contain sensitive information like database URLs, SSH keys, or encoded secrets.",
+            evidence=classified_findings["medium"][:15],
+            recommendations=[
+                "⚠️ Review suspicious strings for potential sensitive data exposure. Consider if these should be externalized.",
+                "1. Review each suspicious string for sensitive content",
+                "2. Consider externalizing configuration data to secure stores",
+                "3. Validate that exposed information doesn't aid attackers",
+                "4. Apply principle of least privilege to any exposed connection strings",
+            ],
+        )
+
+    def _build_low_severity_finding(self, classified_findings: dict[str, Any]) -> SecurityFinding:
+        """Build the LOW severity SecurityFinding from classified findings."""
+        return SecurityFinding(
+            category=self.owasp_category,
+            severity=AnalysisSeverity.LOW,
+            title=f"🔵 LOW: {len(classified_findings['low'])} Potential Information Leakage",
+            description=f"Found {len(classified_findings['low'])} low severity strings that may leak information about system configuration, third-party services, or internal infrastructure.",
+            evidence=classified_findings["low"][:20],
+            recommendations=[
+                "ℹ️ Review for information disclosure. Consider if exposed details provide unnecessary information to potential attackers.",
+                "1. Review exposed service URLs and tokens for necessity",
+                "2. Consider using generic identifiers where possible",
+                "3. Validate that exposed information follows security by design principles",
+            ],
+        )
 
     def _detect_hardcoded_keys_with_location(self, strings_with_location: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Detect hardcoded keys using comprehensive pattern matching with location information."""
@@ -1600,19 +1635,15 @@ class FindingGenerationStrategy:
 
         # Check if context is required (if context detection is enabled)
         context_required = pattern_config.get("context_required", [])
-        if context_required and self.context_detection_enabled:
-            if not self._has_required_context(string, context_required):
-                # In strict mode, require context for all matches with context_required
-                if self.context_strict_mode:
-                    return False
-                # In non-strict mode, just log a warning but allow the detection
-                self.logger.debug(f"Key detected without required context: {key_type}")
+        if context_required and self.context_detection_enabled and not self._has_required_context(string, context_required):
+            # In strict mode, require context for all matches with context_required
+            if self.context_strict_mode:
+                return False
+            # In non-strict mode, just log a warning but allow the detection
+            self.logger.debug(f"Key detected without required context: {key_type}")
 
         # Skip common false positives
-        if self._is_false_positive(string):
-            return False
-
-        return True
+        return not self._is_false_positive(string)
 
     def _extract_from_xml_files(self, apk_obj, all_strings_with_location: list[dict[str, Any]]) -> dict[str, int]:
         """
@@ -1646,102 +1677,9 @@ class FindingGenerationStrategy:
                         # Get XML content
                         xml_data = apk_obj.get_file(xml_file)
                         if xml_data:
-                            # Try to decode as XML
-                            try:
-                                from xml.etree import ElementTree as ET
-
-                                # Parse XML content (secure: parsing trusted APK-extracted content)
-                                parser = ET.XMLParser()
-                                parser.entity = {}  # Disable entity processing for security
-                                root = ET.fromstring(xml_data, parser=parser)
-
-                                # Extract strings from XML elements and attributes
-                                for elem in root.iter():
-                                    # Check element text content
-                                    if elem.text and elem.text.strip():
-                                        text_content = elem.text.strip()
-                                        if len(text_content) > 8:  # Skip very short strings
-                                            all_strings_with_location.append(
-                                                {
-                                                    "value": text_content,
-                                                    "location": "XML element text",
-                                                    "file_path": xml_file,
-                                                    "line_number": None,
-                                                }
-                                            )
-                                            strings_extracted += 1
-
-                                    # Check attributes for potential API keys
-                                    for attr_name, attr_value in elem.attrib.items():
-                                        if attr_value and len(attr_value) > 8:
-                                            # Special handling for common API key attribute names
-                                            if any(
-                                                key_hint in attr_name.lower()
-                                                for key_hint in ["key", "token", "secret", "api", "auth"]
-                                            ):
-                                                all_strings_with_location.append(
-                                                    {
-                                                        "value": attr_value,
-                                                        "location": f"XML attribute ({attr_name})",
-                                                        "file_path": xml_file,
-                                                        "line_number": None,
-                                                    }
-                                                )
-                                                strings_extracted += 1
-                                            # Also extract attribute names that might be keys themselves
-                                            elif len(attr_name) > 16:
-                                                all_strings_with_location.append(
-                                                    {
-                                                        "value": attr_name,
-                                                        "location": "XML attribute name",
-                                                        "file_path": xml_file,
-                                                        "line_number": None,
-                                                    }
-                                                )
-                                                strings_extracted += 1
-
-                                        # Look for specific patterns like <string name="google_api_key">AIzaSy...</string>
-                                        if elem.tag == "string" and "name" in elem.attrib:
-                                            string_name = elem.attrib["name"]
-                                            if any(
-                                                key_hint in string_name.lower()
-                                                for key_hint in ["key", "token", "secret", "api", "auth", "password"]
-                                            ):
-                                                if elem.text and elem.text.strip() and len(elem.text.strip()) > 8:
-                                                    all_strings_with_location.append(
-                                                        {
-                                                            "value": elem.text.strip(),
-                                                            "location": f"XML string resource ({string_name})",
-                                                            "file_path": xml_file,
-                                                            "line_number": None,
-                                                        }
-                                                    )
-                                                    strings_extracted += 1
-
-                                self.logger.debug(f"Extracted {strings_extracted} strings from {xml_file}")
-
-                            except ET.ParseError:
-                                # Try as plain text if XML parsing fails
-                                try:
-                                    text_content = xml_data.decode("utf-8", errors="ignore")
-                                    # Look for key-value patterns in the text
-                                    lines = text_content.split("\n")
-                                    for line_no, line in enumerate(lines, 1):
-                                        line = line.strip()
-                                        if len(line) > 16 and any(
-                                            keyword in line.lower() for keyword in ["key", "token", "secret", "api"]
-                                        ):
-                                            all_strings_with_location.append(
-                                                {
-                                                    "value": line,
-                                                    "location": "XML file content",
-                                                    "file_path": xml_file,
-                                                    "line_number": line_no,
-                                                }
-                                            )
-                                            strings_extracted += 1
-                                except UnicodeDecodeError:
-                                    self.logger.debug(f"Could not decode {xml_file} as text")
+                            strings_extracted = self._extract_strings_from_single_xml(
+                                xml_data, xml_file, strings_extracted, all_strings_with_location
+                            )
 
                 except Exception as e:
                     self.logger.debug(f"Error processing XML file {xml_file}: {e}")
@@ -1753,6 +1691,125 @@ class FindingGenerationStrategy:
             f"XML analysis complete: {files_analyzed} files analyzed, {strings_extracted} strings extracted"
         )
         return {"files_analyzed": files_analyzed, "strings_extracted": strings_extracted}
+
+    def _extract_strings_from_single_xml(
+        self, xml_data, xml_file: str, strings_extracted: int, all_strings_with_location: list[dict[str, Any]]
+    ) -> int:
+        """Extract strings from a single XML file, falling back to text parsing on error."""
+        # Try to decode as XML
+        try:
+            from xml.etree import ElementTree as ET
+
+            # Parse XML content (secure: parsing trusted APK-extracted content)
+            parser = ET.XMLParser()
+            parser.entity = {}  # Disable entity processing for security
+            root = ET.fromstring(xml_data, parser=parser)
+
+            strings_extracted = self._extract_strings_from_xml_elements(
+                root, xml_file, strings_extracted, all_strings_with_location
+            )
+
+            self.logger.debug(f"Extracted {strings_extracted} strings from {xml_file}")
+
+        except ET.ParseError:
+            # Try as plain text if XML parsing fails
+            strings_extracted = self._extract_strings_from_xml_text(
+                xml_data, xml_file, strings_extracted, all_strings_with_location
+            )
+        return strings_extracted
+
+    def _extract_strings_from_xml_elements(
+        self, root, xml_file: str, strings_extracted: int, all_strings_with_location: list[dict[str, Any]]
+    ) -> int:
+        """Extract strings from XML element text, attributes, and string resources."""
+        # Extract strings from XML elements and attributes
+        for elem in root.iter():
+            # Check element text content
+            if elem.text and elem.text.strip():
+                text_content = elem.text.strip()
+                if len(text_content) > 8:  # Skip very short strings
+                    all_strings_with_location.append(
+                        {
+                            "value": text_content,
+                            "location": "XML element text",
+                            "file_path": xml_file,
+                            "line_number": None,
+                        }
+                    )
+                    strings_extracted += 1
+
+            # Check attributes for potential API keys
+            for attr_name, attr_value in elem.attrib.items():
+                if attr_value and len(attr_value) > 8:
+                    # Special handling for common API key attribute names
+                    if any(
+                        key_hint in attr_name.lower()
+                        for key_hint in ["key", "token", "secret", "api", "auth"]
+                    ):
+                        all_strings_with_location.append(
+                            {
+                                "value": attr_value,
+                                "location": f"XML attribute ({attr_name})",
+                                "file_path": xml_file,
+                                "line_number": None,
+                            }
+                        )
+                        strings_extracted += 1
+                    # Also extract attribute names that might be keys themselves
+                    elif len(attr_name) > 16:
+                        all_strings_with_location.append(
+                            {
+                                "value": attr_name,
+                                "location": "XML attribute name",
+                                "file_path": xml_file,
+                                "line_number": None,
+                            }
+                        )
+                        strings_extracted += 1
+
+                # Look for specific patterns like <string name="google_api_key">AIzaSy...</string>
+                if elem.tag == "string" and "name" in elem.attrib:
+                    string_name = elem.attrib["name"]
+                    if any(
+                        key_hint in string_name.lower()
+                        for key_hint in ["key", "token", "secret", "api", "auth", "password"]
+                    ) and elem.text and elem.text.strip() and len(elem.text.strip()) > 8:
+                        all_strings_with_location.append(
+                            {
+                                "value": elem.text.strip(),
+                                "location": f"XML string resource ({string_name})",
+                                "file_path": xml_file,
+                                "line_number": None,
+                            }
+                        )
+                        strings_extracted += 1
+        return strings_extracted
+
+    def _extract_strings_from_xml_text(
+        self, xml_data, xml_file: str, strings_extracted: int, all_strings_with_location: list[dict[str, Any]]
+    ) -> int:
+        """Extract key-value strings from XML content parsed as plain text."""
+        try:
+            text_content = xml_data.decode("utf-8", errors="ignore")
+            # Look for key-value patterns in the text
+            lines = text_content.split("\n")
+            for line_no, line in enumerate(lines, 1):
+                line = line.strip()
+                if len(line) > 16 and any(
+                    keyword in line.lower() for keyword in ["key", "token", "secret", "api"]
+                ):
+                    all_strings_with_location.append(
+                        {
+                            "value": line,
+                            "location": "XML file content",
+                            "file_path": xml_file,
+                            "line_number": line_no,
+                        }
+                    )
+                    strings_extracted += 1
+        except UnicodeDecodeError:
+            self.logger.debug(f"Could not decode {xml_file} as text")
+        return strings_extracted
 
     def _extract_from_smali_files(self, apk_obj, all_strings_with_location: list[dict[str, Any]]) -> dict[str, int]:
         """
@@ -1787,64 +1844,7 @@ class FindingGenerationStrategy:
                         # Parse DEX file
                         dex_vm = dvm.DalvikVMFormat(dex)
 
-                        # Iterate through classes
-                        for class_def in dex_vm.get_classes():
-                            class_name = class_def.get_name()
-
-                            # Skip system classes to focus on app code
-                            if class_name.startswith("Landroid/") or class_name.startswith("Ljava/"):
-                                continue
-
-                            try:
-                                # Get methods in the class
-                                for method in class_def.get_methods():
-                                    method_name = method.get_name()
-
-                                    # Get method bytecode
-                                    if method.get_code():
-                                        bytecode = method.get_code()
-
-                                        # Look for const-string instructions in the bytecode
-                                        for instruction in bytecode.get_bc().get():
-                                            if instruction.get_name() == "const-string":
-                                                # Extract the string value from const-string instruction
-                                                try:
-                                                    string_idx = instruction.get_ref_off_size()[0]
-                                                    string_value = dex_vm.get_string(string_idx)
-
-                                                    if string_value and len(string_value) > 8:
-                                                        # Check if this looks like a potential secret
-                                                        if (
-                                                            any(
-                                                                keyword in string_value.lower()
-                                                                for keyword in [
-                                                                    "key",
-                                                                    "token",
-                                                                    "secret",
-                                                                    "api",
-                                                                    "auth",
-                                                                    "password",
-                                                                ]
-                                                            )
-                                                            or len(string_value) > 20
-                                                        ):
-                                                            all_strings_with_location.append(
-                                                                {
-                                                                    "value": string_value,
-                                                                    "location": f"Smali const-string in {method_name}",
-                                                                    "file_path": f"{class_name}.smali",
-                                                                    "line_number": None,
-                                                                }
-                                                            )
-                                                            strings_extracted += 1
-
-                                                except (IndexError, AttributeError):
-                                                    # Handle cases where string extraction fails
-                                                    continue
-
-                            except Exception as e:
-                                self.logger.debug(f"Error analyzing method {method_name} in {class_name}: {e}")
-                                continue
+                        strings_extracted += self._extract_const_strings_from_dex(dex_vm, all_strings_with_location)
 
                 except Exception as e:
                     self.logger.debug(f"Error processing DEX {dex_name}: {e}")
@@ -1857,6 +1857,87 @@ class FindingGenerationStrategy:
             f"Smali analysis complete: {files_analyzed} DEX files analyzed, {strings_extracted} const-string patterns extracted"
         )
         return {"files_analyzed": files_analyzed, "strings_extracted": strings_extracted}
+
+    def _extract_const_strings_from_dex(self, dex_vm, all_strings_with_location: list[dict[str, Any]]) -> int:
+        """Extract const-string secrets from all app classes in a parsed DEX object."""
+        strings_extracted = 0
+        # Iterate through classes
+        for class_def in dex_vm.get_classes():
+            class_name = class_def.get_name()
+
+            # Skip system classes to focus on app code
+            if class_name.startswith(("Landroid/", "Ljava/")):
+                continue
+
+            strings_extracted += self._extract_const_strings_from_class(
+                dex_vm, class_def, class_name, all_strings_with_location
+            )
+        return strings_extracted
+
+    def _extract_const_strings_from_class(
+        self, dex_vm, class_def, class_name: str, all_strings_with_location: list[dict[str, Any]]
+    ) -> int:
+        """Extract const-string secrets from all methods of a single class."""
+        strings_extracted = 0
+        try:
+            # Get methods in the class
+            for method in class_def.get_methods():
+                method_name = method.get_name()
+
+                # Get method bytecode
+                if method.get_code():
+                    bytecode = method.get_code()
+
+                    strings_extracted += self._extract_const_strings_from_method(
+                        dex_vm, bytecode, method_name, class_name, all_strings_with_location
+                    )
+
+        except Exception as e:
+            self.logger.debug(f"Error analyzing method {method_name} in {class_name}: {e}")
+        return strings_extracted
+
+    def _extract_const_strings_from_method(
+        self, dex_vm, bytecode, method_name: str, class_name: str, all_strings_with_location: list[dict[str, Any]]
+    ) -> int:
+        """Extract const-string secrets from the bytecode of a single method."""
+        strings_extracted = 0
+        # Look for const-string instructions in the bytecode
+        for instruction in bytecode.get_bc().get():
+            if instruction.get_name() == "const-string":
+                # Extract the string value from const-string instruction
+                try:
+                    string_idx = instruction.get_ref_off_size()[0]
+                    string_value = dex_vm.get_string(string_idx)
+
+                    # Check if this looks like a potential secret
+                    if string_value and len(string_value) > 8 and (
+                        any(
+                            keyword in string_value.lower()
+                            for keyword in [
+                                "key",
+                                "token",
+                                "secret",
+                                "api",
+                                "auth",
+                                "password",
+                            ]
+                        )
+                        or len(string_value) > 20
+                    ):
+                        all_strings_with_location.append(
+                            {
+                                "value": string_value,
+                                "location": f"Smali const-string in {method_name}",
+                                "file_path": f"{class_name}.smali",
+                                "line_number": None,
+                            }
+                        )
+                        strings_extracted += 1
+
+                except (IndexError, AttributeError):
+                    # Handle cases where string extraction fails
+                    continue
+        return strings_extracted
 
     def _calculate_entropy(self, string: str) -> float:
         """Calculate Shannon entropy of a string."""
@@ -1884,18 +1965,34 @@ class FindingGenerationStrategy:
         string_lower = string.lower()
 
         # Simple context check - look for keywords in the string itself
-        for keyword in required_keywords:
-            if keyword.lower() in string_lower:
-                return True
-
-        return False
+        return any(keyword.lower() in string_lower for keyword in required_keywords)
 
     def _is_false_positive(self, string: str) -> bool:
         """Check for common false positives - enhanced to reduce noise from expanded patterns."""
         string_lower = string.lower()
 
-        # Common false positive patterns
-        false_positives = [
+        false_positives = self._build_false_positive_patterns(string, string_lower)
+
+        for pattern in false_positives:
+            if pattern and re.search(pattern, string_lower):
+                return True
+
+        # Additional heuristic checks
+        # Skip very short strings for high-entropy patterns
+        if len(string) < 16 and any(x in string_lower for x in ["entropy", "random", "base64"]):
+            return True
+
+        # Skip strings that are mostly numbers
+        if len(string) > 8 and sum(c.isdigit() for c in string) / len(string) > 0.8:
+            return True
+
+        # Skip strings with too many special characters (likely encoded data, not keys)
+        special_chars = sum(1 for c in string if not c.isalnum())
+        return bool(len(string) > 20 and special_chars / len(string) > 0.3)
+
+    def _build_false_positive_patterns(self, string: str, string_lower: str) -> list:
+        """Build the list of common false-positive regex patterns."""
+        return [
             # Android/Java class names and packages
             r"^(com|android|java|javax|kotlin|androidx)\.",
             r"\.class$",
@@ -1968,23 +2065,3 @@ class FindingGenerationStrategy:
             r"^SDK_INT",
             r"^BUILD_",
         ]
-
-        for pattern in false_positives:
-            if pattern and re.search(pattern, string_lower):
-                return True
-
-        # Additional heuristic checks
-        # Skip very short strings for high-entropy patterns
-        if len(string) < 16 and any(x in string_lower for x in ["entropy", "random", "base64"]):
-            return True
-
-        # Skip strings that are mostly numbers
-        if len(string) > 8 and sum(c.isdigit() for c in string) / len(string) > 0.8:
-            return True
-
-        # Skip strings with too many special characters (likely encoded data, not keys)
-        special_chars = sum(1 for c in string if not c.isalnum())
-        if len(string) > 20 and special_chars / len(string) > 0.3:
-            return True
-
-        return False

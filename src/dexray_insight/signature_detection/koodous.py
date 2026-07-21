@@ -47,8 +47,8 @@ def koodous_hash_check(apk_hash, config=None):
         enabled = koodous_config.get("enabled", True)
 
     # Check if provider is disabled or using placeholder API key
-    if not enabled or not api_token or api_token == "YOUR_KOODOUS_API_KEY":
-        if api_token == "YOUR_KOODOUS_API_KEY":
+    if not enabled or not api_token or api_token == "YOUR_KOODOUS_API_KEY":  # noqa: S105
+        if api_token == "YOUR_KOODOUS_API_KEY":  # noqa: S105
             logging.debug("Koodous API key is using placeholder value, skipping")
         elif not enabled:
             logging.debug("Koodous provider is disabled, skipping")
@@ -61,7 +61,7 @@ def koodous_hash_check(apk_hash, config=None):
     }
 
     logging.debug(f"sending request to koodous: https://api.koodous.com/apks/{apk_hash}")
-    response = requests.get(f"https://developer.koodous.com/apks/{apk_hash}", headers=headers)
+    response = requests.get(f"https://developer.koodous.com/apks/{apk_hash}", headers=headers, timeout=30)
 
     if response.status_code == 200:
         json_response = response.json()

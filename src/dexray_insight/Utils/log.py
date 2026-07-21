@@ -47,7 +47,6 @@ file logging capabilities, and APK-specific debug logging functionality.
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 
 class NullHandler(logging.Handler):
@@ -83,9 +82,7 @@ class LogFilter(logging.Filter):
 
     def filter(self, record: logging.LogRecord) -> bool:
         """Filter log record based on filename."""
-        if record.filename in self.files:
-            return True
-        return False
+        return record.filename in self.files
 
 
 class FileFormatter(logging.Formatter):
@@ -144,7 +141,7 @@ def set_logger(args, config=None):
             logger.addHandler(file_handler)
 
 
-def _create_debug_file_handler(args, config=None) -> Optional[logging.FileHandler]:
+def _create_debug_file_handler(args, config=None) -> logging.FileHandler | None:
     """
     Create a file handler for debug logging based on temporal_analysis configuration.
 
@@ -178,7 +175,7 @@ def _create_debug_file_handler(args, config=None) -> Optional[logging.FileHandle
         return None
 
 
-def _get_debug_log_file_path(config=None) -> Optional[Path]:
+def _get_debug_log_file_path(config=None) -> Path | None:
     """
     Determine the debug log file path based on configuration.
 
