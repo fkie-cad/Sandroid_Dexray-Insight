@@ -56,7 +56,7 @@ class TelephonyAnalyzer:
         """Initialize TelephonyAnalyzer with optional logger."""
         self.logger = logger or logging.getLogger(__name__)
 
-    def analyze_imei_access(self, apk_obj, dex_obj, dx_obj, result) -> list[BehaviorEvidence]:
+    def analyze_imei_access(self, apk_obj, dex_obj, dx_obj, result, search_engine=None) -> list[BehaviorEvidence]:
         """Check if app tries to access IMEI."""
         evidence = []
 
@@ -71,9 +71,10 @@ class TelephonyAnalyzer:
                 )
 
             # Search in strings and code
-            from ..engines.pattern_search_engine import PatternSearchEngine
+            if search_engine is None:
+                from ..engines.pattern_search_engine import PatternSearchEngine
 
-            search_engine = PatternSearchEngine(self.logger)
+                search_engine = PatternSearchEngine(self.logger)
             pattern_evidence = search_engine.search_patterns_in_apk(
                 apk_obj, dex_obj, dx_obj, self.IMEI_PATTERNS, "IMEI access"
             )
@@ -92,7 +93,9 @@ class TelephonyAnalyzer:
             self.logger.error(f"IMEI analysis failed: {e}")
             return []
 
-    def analyze_phone_number_access(self, apk_obj, dex_obj, dx_obj, result) -> list[BehaviorEvidence]:
+    def analyze_phone_number_access(
+        self, apk_obj, dex_obj, dx_obj, result, search_engine=None
+    ) -> list[BehaviorEvidence]:
         """Check if app tries to get phone number."""
         evidence = []
 
@@ -110,9 +113,10 @@ class TelephonyAnalyzer:
                     evidence.append(BehaviorEvidence(type="permission", content=perm, location="AndroidManifest.xml"))
 
             # Search in strings and code
-            from ..engines.pattern_search_engine import PatternSearchEngine
+            if search_engine is None:
+                from ..engines.pattern_search_engine import PatternSearchEngine
 
-            search_engine = PatternSearchEngine(self.logger)
+                search_engine = PatternSearchEngine(self.logger)
             pattern_evidence = search_engine.search_patterns_in_apk(
                 apk_obj, dex_obj, dx_obj, self.PHONE_NUMBER_PATTERNS, "phone number access"
             )

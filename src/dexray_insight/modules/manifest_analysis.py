@@ -86,7 +86,6 @@ class ManifestAnalysisResult(BaseResult):
         )
         return base_dict
 
-
 @register_module("manifest_analysis")
 class ManifestAnalysisModule(BaseAnalysisModule):
     """Manifest analysis module for extracting AndroidManifest.xml information."""

@@ -134,7 +134,7 @@ class BehaviourAnalysisModule(BaseAnalysisModule):
 
             # Perform analysis based on mode
             if is_deep_mode:
-                self._perform_deep_analysis(analysis_objects, result)
+                self._perform_deep_analysis(analysis_objects, result, context)
             else:
                 self._perform_fast_analysis(analysis_objects, result)
 
@@ -162,33 +162,46 @@ class BehaviourAnalysisModule(BaseAnalysisModule):
                 execution_time=execution_time,
             )
 
-    def _perform_deep_analysis(self, analysis_objects: dict[str, Any], result: BehaviourAnalysisResults) -> None:
-        """Perform deep analysis using all available analyzers."""
+    def _perform_deep_analysis(
+        self, analysis_objects: dict[str, Any], result: BehaviourAnalysisResults, context: AnalysisContext
+    ) -> None:
+        """Perform deep analysis using all available analyzers.
+
+        A single PatternSearchEngine is created here and shared across every
+        analyzer call so the DEX string pool and the (expensive) decompiled
+        smali source corpus are built once per analysis and reused, rather than
+        being re-scanned on each of the ~10 behaviour searches.
+        """
         apk_obj = analysis_objects["apk_obj"]
         dex_obj = analysis_objects["dex_obj"]
         dx_obj = analysis_objects["dx_obj"]
 
+        # Import here to avoid circular imports
+        from .engines.pattern_search_engine import PatternSearchEngine
+
+        search_engine = PatternSearchEngine(self.logger, context=context)
+
         try:
             # Device information analysis
-            self.device_analyzer.analyze_device_model_access(apk_obj, dex_obj, dx_obj, result)
-            self.device_analyzer.analyze_android_version_access(apk_obj, dex_obj, dx_obj, result)
+            self.device_analyzer.analyze_device_model_access(apk_obj, dex_obj, dx_obj, result, search_engine)
+            self.device_analyzer.analyze_android_version_access(apk_obj, dex_obj, dx_obj, result, search_engine)
 
             # Telephony analysis
-            self.telephony_analyzer.analyze_imei_access(apk_obj, dex_obj, dx_obj, result)
-            self.telephony_analyzer.analyze_phone_number_access(apk_obj, dex_obj, dx_obj, result)
+            self.telephony_analyzer.analyze_imei_access(apk_obj, dex_obj, dx_obj, result, search_engine)
+            self.telephony_analyzer.analyze_phone_number_access(apk_obj, dex_obj, dx_obj, result, search_engine)
 
             # System analysis
-            self.system_analyzer.analyze_clipboard_usage(apk_obj, dex_obj, dx_obj, result)
-            self.system_analyzer.analyze_dynamic_receivers(apk_obj, dex_obj, dx_obj, result)
-            self.system_analyzer.analyze_running_services_access(apk_obj, dex_obj, dx_obj, result)
-            self.system_analyzer.analyze_installed_applications(apk_obj, dex_obj, dx_obj, result)
-            self.system_analyzer.analyze_installed_packages(apk_obj, dex_obj, dx_obj, result)
+            self.system_analyzer.analyze_clipboard_usage(apk_obj, dex_obj, dx_obj, result, search_engine)
+            self.system_analyzer.analyze_dynamic_receivers(apk_obj, dex_obj, dx_obj, result, search_engine)
+            self.system_analyzer.analyze_running_services_access(apk_obj, dex_obj, dx_obj, result, search_engine)
+            self.system_analyzer.analyze_installed_applications(apk_obj, dex_obj, dx_obj, result, search_engine)
+            self.system_analyzer.analyze_installed_packages(apk_obj, dex_obj, dx_obj, result, search_engine)
 
             # Media analysis
-            self.media_analyzer.analyze_camera_access(apk_obj, dex_obj, dx_obj, result)
+            self.media_analyzer.analyze_camera_access(apk_obj, dex_obj, dx_obj, result, search_engine)
 
             # Reflection analysis
-            self.reflection_analyzer.analyze_reflection_usage(apk_obj, dex_obj, dx_obj, result)
+            self.reflection_analyzer.analyze_reflection_usage(apk_obj, dex_obj, dx_obj, result, search_engine)
 
         except Exception as e:
             self.logger.error(f"Deep analysis failed: {e}")

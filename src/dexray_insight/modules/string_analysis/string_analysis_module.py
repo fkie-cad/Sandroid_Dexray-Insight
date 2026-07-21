@@ -93,7 +93,6 @@ class StringAnalysisResult(BaseResult):
         )
         return base_dict
 
-
 @register_module("string_analysis")
 class StringAnalysisModule(BaseAnalysisModule):
     """

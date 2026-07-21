@@ -230,15 +230,40 @@ class LibraryDetectionModule(BaseAnalysisModule):
                 self.logger.warning("No DEX objects available for similarity analysis")
                 return detected_libraries
 
-            self.logger.debug("Building class dependency graph and extracting signatures...")
+            # Cache manager / APK hash may be absent (older contexts) or None.
+            cache_manager = getattr(context, "cache_manager", None)
+            apk_md5 = getattr(context, "apk_md5", None)
 
-            # Extract comprehensive class features using signature extractor
-            _ = self.signature_extractor.build_class_dependency_graph(dex_objects)
-            _ = self.signature_extractor.extract_method_opcode_patterns(dex_objects)
-            _ = self.signature_extractor.extract_call_chain_patterns(dex_objects)
+            # Stage 2a: obtain class signatures, preferring a cached copy.
+            # Only extract_class_signatures feeds the matcher; the former
+            # dependency-graph / opcode-pattern / call-chain passes produced
+            # results that were discarded, so they are not recomputed here.
+            class_signatures = None
+            if cache_manager is not None and apk_md5:
+                try:
+                    cached = cache_manager.get_library_signatures(apk_md5)
+                    if isinstance(cached, dict) and "class_signatures" in cached:
+                        class_signatures = cached["class_signatures"]
+                        self.logger.debug("Reusing cached library similarity signatures")
+                except Exception as cache_error:  # noqa: BLE001 - cache errors must never break detection
+                    self.logger.debug(f"Library signature cache read failed, rebuilding: {cache_error}")
 
-            # Perform LibScan-style similarity matching using signature matcher
-            class_signatures = self.signature_extractor.extract_class_signatures(dex_objects)
+            if class_signatures is None:
+                self.logger.debug("Extracting class signatures for similarity detection...")
+                class_signatures = self.signature_extractor.extract_class_signatures(dex_objects)
+
+                # Write-through so subsequent runs of the same APK skip extraction.
+                if cache_manager is not None and apk_md5:
+                    try:
+                        cache_manager.set_library_signatures(
+                            apk_md5,
+                            {"class_signatures": self._json_safe_class_signatures(class_signatures)},
+                        )
+                    except Exception as cache_error:  # noqa: BLE001 - cache errors must never break detection
+                        self.logger.debug(f"Library signature cache write failed: {cache_error}")
+
+            # Stage 2b: matching always runs live so signature-DB / indicator
+            # changes take effect regardless of the signature cache.
             similarity_libraries = self.signature_matcher.match_class_signatures(class_signatures, existing_libraries)
 
             detected_libraries.extend(similarity_libraries)
@@ -251,6 +276,34 @@ class LibraryDetectionModule(BaseAnalysisModule):
             errors.append(error_msg)
 
         return detected_libraries
+
+    @staticmethod
+    def _json_safe_class_signatures(class_signatures: dict[str, Any]) -> dict[str, Any]:
+        """Coerce class signatures into a JSON-serializable structure before caching.
+
+        The only field not guaranteed to be a plain JSON type is ``interfaces``
+        (from androguard's ``cls.get_interfaces()``, normally ``list[str]``).
+        It is defensively coerced to a list of strings so ``json.dump`` cannot
+        fail on an exotic androguard return type. All other fields (methods,
+        superclass) are already JSON-native.
+        """
+        safe = {}
+        for class_name, class_info in class_signatures.items():
+            if not isinstance(class_info, dict):
+                safe[class_name] = class_info
+                continue
+
+            entry = dict(class_info)
+            interfaces = entry.get("interfaces")
+            if interfaces is None:
+                entry["interfaces"] = []
+            elif isinstance(interfaces, (list, tuple, set)):
+                entry["interfaces"] = [str(i) for i in interfaces]
+            else:
+                entry["interfaces"] = [str(interfaces)]
+            safe[class_name] = entry
+
+        return safe
 
     def _extract_package_names(self, strings: list[str]) -> set[str]:
         """Extract package names from string data."""

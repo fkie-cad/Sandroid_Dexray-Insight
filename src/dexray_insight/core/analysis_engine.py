@@ -252,6 +252,11 @@ class AnalysisEngine:
         self.logger = logging.getLogger(__name__)
         # Single shared cache manager (thread-safe) reused across modules.
         self.cache_manager = self._build_cache_manager()
+        # Per-path MD5 memo (the APK can be 100s of MB — hash it at most once)
+        # and per-run config-hash memo (config is immutable for the engine).
+        self._apk_md5_cache: dict[str, str | None] = {}
+        self._config_hash_cache: dict[str, str] = {}
+        self._tier3_map: dict | None = None  # lazily built module→result-class map
 
     def _build_cache_manager(self):
         """Create the shared analysis cache manager from configuration."""
@@ -268,19 +273,216 @@ class AnalysisEngine:
             self.logger.warning(f"Could not initialize analysis cache (continuing without it): {e}")
             return None
 
-    @staticmethod
-    def _compute_apk_md5(apk_path: str) -> str | None:
-        """Compute the APK file's MD5 content hash (cache key). None on error."""
-        try:
-            import hashlib
+    def _compute_apk_md5(self, apk_path: str) -> str | None:
+        """Compute the APK file's MD5 content hash (cache key), memoized per path.
 
-            digest = hashlib.md5(usedforsecurity=False)
-            with open(apk_path, "rb") as f:
-                for chunk in iter(lambda: f.read(1024 * 1024), b""):
-                    digest.update(chunk)
-            return digest.hexdigest()
+        Reuses the shared ``calculate_md5_file_hash`` helper and caches the result
+        so the (potentially very large) APK is read/hashed at most once per run,
+        even though both the full-hit gate and context setup request it.
+        """
+        if apk_path in self._apk_md5_cache:
+            return self._apk_md5_cache[apk_path]
+        try:
+            from ..Utils.file_utils import calculate_md5_file_hash
+
+            md5 = calculate_md5_file_hash(apk_path)
         except Exception:
+            md5 = None
+        self._apk_md5_cache[apk_path] = md5
+        return md5
+
+    # ------------------------------------------------------------------ #
+    # Full-hit cache gate
+    # ------------------------------------------------------------------ #
+    def _tier_enabled(self, tier: str, *extra_flags: str) -> bool:
+        """True if caching + the given tier (+ any extra config flags) are enabled.
+
+        A cheap pre-check so the engine can skip MD5/hash work before touching the
+        cache manager (which independently no-ops on a disabled tier).
+        """
+        cfg = self.config.get_caching_config()
+        return bool(
+            self.cache_manager is not None
+            and cfg.get("enabled", True)
+            and cfg.get("tiers", {}).get(tier, True)
+            and all(cfg.get(flag, True) for flag in extra_flags)
+        )
+
+    def _full_hit_enabled(self) -> bool:
+        """True if the full-hit gate is enabled by configuration."""
+        return self._tier_enabled("full_result", "full_hit_gate")
+
+    def _full_hit_config_hash(self, requested_modules: list[str]) -> str:
+        """Hash the full effective config + requested module set (memoized per run)."""
+        from .cache_manager import hash_config
+
+        key = "full_hit:" + ",".join(sorted(requested_modules))
+        if key not in self._config_hash_cache:
+            self._config_hash_cache[key] = hash_config(
+                {"config": self.config.to_dict(), "modules": sorted(requested_modules)}
+            )
+        return self._config_hash_cache[key]
+
+    def _is_deep_mode(self) -> bool:
+        """True if deep behaviour analysis is enabled (excluded from full-hit caching)."""
+        cfg = self.config.to_dict()
+        beh = cfg.get("modules", {}).get("behaviour_analysis", {}) or {}
+        top = cfg.get("behaviour_analysis", {}) or {}
+        return bool(beh.get("deep_mode") or top.get("deep_mode"))
+
+    def _maybe_cache_full_result(self, context, module_results, security_results, results, requested_modules):
+        """Persist the assembled report for the full-hit gate when the run is cacheable.
+
+        Cacheable = caching+gate enabled, md5 known, NOT deep mode, and every module
+        succeeded (skipped/failed runs are never cached so a later fix is picked up).
+        External tools and temporal artifacts are excluded from the payload and
+        always re-run live on a hit (avoids the stale-skip trap).
+        """
+        if not self._full_hit_enabled():
+            return
+        md5 = getattr(context, "apk_md5", None)
+        if not md5 or self._is_deep_mode():
+            return
+        try:
+            from .base_classes import AnalysisStatus
+
+            # Only a genuine module FAILURE blocks caching. SKIPPED (config-disabled,
+            # covered by the config hash; or an absent optional tool) and PARTIAL are
+            # stable states and are cached. External tools are excluded from the
+            # payload and re-run live on a hit, so their skip state is never frozen.
+            for name, res in (module_results or {}).items():
+                if getattr(res, "status", None) == AnalysisStatus.FAILURE:
+                    self.logger.debug(f"Full-hit cache skipped: module '{name}' FAILED")
+                    return
+            if self.security_engine and security_results is None:
+                self.logger.debug("Full-hit cache skipped: security assessment did not complete")
+                return
+
+            main = results.to_dict(include_security=False)
+            # Tools + temporal are always regenerated fresh on a hit.
+            main["apkid_analysis"] = None
+            main["kavanoz_analysis"] = None
+            main.pop("temporal_processing", None)
+            security = results.get_security_results_dict() if hasattr(results, "get_security_results_dict") else None
+            cfg_hash = self._full_hit_config_hash(requested_modules)
+            self.cache_manager.set_full_result(md5, cfg_hash, {"main": main, "security": security})
+        except Exception as e:
+            self.logger.warning(f"Could not write full-hit cache: {e}")
+
+    # ------------------------------------------------------------------ #
+    # Tier-3 per-module result cache
+    # ------------------------------------------------------------------ #
+    def _tier3_enabled(self) -> bool:
+        return self._tier_enabled("module_results")
+
+    def _tier3_result_class(self, module_name: str):
+        """Return the result class for a Tier-3-cacheable module, else None.
+
+        Only clean-superset, deterministic modules are cached. Network-dependent
+        (signature_detection), file-path-bearing (native_analysis), lossy
+        (tracker/behaviour) and nested (library_detection) modules are excluded
+        and always re-run.
+        """
+        mapping = self._tier3_map
+        if mapping is None:
+            mapping = {}
+            try:
+                from ..modules.apk_overview_analysis import APKOverviewResult
+                from ..modules.dotnet_analysis import DotnetAnalysisResult
+                from ..modules.manifest_analysis import ManifestAnalysisResult
+                from ..modules.permission_analysis import PermissionAnalysisResult
+                from ..modules.string_analysis.string_analysis_module import StringAnalysisResult
+
+                mapping = {
+                    "string_analysis": StringAnalysisResult,
+                    "manifest_analysis": ManifestAnalysisResult,
+                    "permission_analysis": PermissionAnalysisResult,
+                    "apk_overview": APKOverviewResult,
+                    "dotnet_analysis": DotnetAnalysisResult,
+                }
+            except Exception as e:
+                self.logger.debug(f"Tier-3 cache map unavailable: {e}")
+                mapping = {}
+            self._tier3_map = mapping
+        return mapping.get(module_name)
+
+    def _module_cache_key_hash(self) -> str:
+        """Hash the full effective config for per-module cache keying (memoized)."""
+        from .cache_manager import hash_config
+
+        if "module" not in self._config_hash_cache:
+            self._config_hash_cache["module"] = hash_config(self.config.to_dict())
+        return self._config_hash_cache["module"]
+
+    def _tier3_cache_read(self, module_name: str, context) -> "BaseResult | None":
+        """Return a reconstructed cached result for the module, or None on miss."""
+        if not self._tier3_enabled():
             return None
+        md5 = getattr(context, "apk_md5", None)
+        result_cls = self._tier3_result_class(module_name)
+        if not md5 or result_cls is None:
+            return None
+        try:
+            cached = self.cache_manager.get_module_result(md5, module_name, self._module_cache_key_hash())
+            if cached is None:
+                return None
+            result = result_cls.from_dict(cached)
+            result.execution_time = 0.0
+            return result
+        except Exception as e:
+            self.logger.debug(f"Tier-3 cache read failed for {module_name}: {e}")
+            return None
+
+    def _tier3_cache_write(self, module_name: str, context, result) -> None:
+        """Persist a successful module result to the Tier-3 cache (best-effort)."""
+        if not self._tier3_enabled():
+            return
+        md5 = getattr(context, "apk_md5", None)
+        result_cls = self._tier3_result_class(module_name)
+        if not md5 or result_cls is None:
+            return
+        try:
+            from .base_classes import AnalysisStatus
+
+            if getattr(result, "status", None) != AnalysisStatus.SUCCESS:
+                return
+            self.cache_manager.set_module_result(
+                md5, module_name, self._module_cache_key_hash(), result.to_dict()
+            )
+        except Exception as e:
+            self.logger.debug(f"Tier-3 cache write failed for {module_name}: {e}")
+
+    def try_full_hit(self, apk_path: str, requested_modules: list[str] | None = None) -> dict | None:
+        """Attempt to satisfy the entire analysis from the full-hit cache.
+
+        On a valid hit this skips building the Androguard object and re-running all
+        modules. Cheap external tools (apkid/kavanoz) are re-run live so their
+        results stay fresh. Returns ``{"main": dict, "security": dict|None}`` or
+        None when there is no usable cache entry.
+        """
+        if not self._full_hit_enabled():
+            return None
+        md5 = self._compute_apk_md5(apk_path)
+        if not md5:
+            return None
+        if requested_modules is None:
+            requested_modules = self._get_enabled_modules()
+        cfg_hash = self._full_hit_config_hash(requested_modules)
+        payload = self.cache_manager.get_full_result(md5, cfg_hash)
+        if not payload or not isinstance(payload.get("main"), dict):
+            return None
+
+        main = payload["main"]
+        # Re-run cheap external tools live (fresh; no androguard needed) so a
+        # repaired tool environment is reflected instead of a frozen skip.
+        try:
+            tool_results = self._execute_external_tools(apk_path)
+            apkid_results, kavanoz_results = self._build_tool_results(tool_results)
+            main["apkid_analysis"] = apkid_results.to_dict() if hasattr(apkid_results, "to_dict") else None
+            main["kavanoz_analysis"] = kavanoz_results.to_dict() if hasattr(kavanoz_results, "to_dict") else None
+        except Exception as e:
+            self.logger.debug(f"Live external-tool re-run on cache hit failed: {e}")
+        return {"main": main, "security": payload.get("security")}
 
     def analyze_apk(
         self,
@@ -332,6 +534,9 @@ class AnalysisEngine:
 
             total_time = time.time() - start_time
             self.logger.info(f"Analysis completed in {total_time:.2f} seconds")
+
+            # Persist the assembled report for the full-hit cache (clean runs only).
+            self._maybe_cache_full_result(context, module_results, security_results, results, requested_modules)
 
             # Handle cleanup based on configuration (refactored)
             if context.temporal_paths and self.config.get_temporal_analysis_config().get(
@@ -554,11 +759,21 @@ class AnalysisEngine:
                 result = BaseResult(module_name=module_name, status=AnalysisStatus.SKIPPED, execution_time=0)
                 return result
 
+            # Tier-3 per-module result cache (read). Only safe, deterministic,
+            # non-network, non-file-path modules participate; others always run.
+            cached = self._tier3_cache_read(module_name, context)
+            if cached is not None:
+                self.logger.info(f"Module {module_name} loaded from cache")
+                return cached
+
             self.logger.info(f"Executing module: {module_name}")
             result = module.analyze(context.apk_path, context)
             result.execution_time = time.time() - start_time
 
             self.logger.info(f"Module {module_name} completed in {result.execution_time:.2f}s")
+
+            # Tier-3 per-module result cache (write; SUCCESS only).
+            self._tier3_cache_write(module_name, context, result)
             return result
 
         except Exception as e:

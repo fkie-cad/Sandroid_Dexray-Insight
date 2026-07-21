@@ -68,7 +68,6 @@ class APKOverviewResult(BaseResult):
         )
         return base_dict
 
-
 @register_module("apk_overview")
 class APKOverviewModule(BaseAnalysisModule):
     """Module for comprehensive APK overview analysis."""

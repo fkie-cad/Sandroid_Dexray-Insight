@@ -50,12 +50,13 @@ class ReflectionAnalyzer:
         """Initialize ReflectionAnalyzer with optional logger."""
         self.logger = logger or logging.getLogger(__name__)
 
-    def analyze_reflection_usage(self, apk_obj, dex_obj, dx_obj, result) -> list[BehaviorEvidence]:
+    def analyze_reflection_usage(self, apk_obj, dex_obj, dx_obj, result, search_engine=None) -> list[BehaviorEvidence]:
         """Check if app uses reflection."""
         try:
-            from ..engines.pattern_search_engine import PatternSearchEngine
+            if search_engine is None:
+                from ..engines.pattern_search_engine import PatternSearchEngine
 
-            search_engine = PatternSearchEngine(self.logger)
+                search_engine = PatternSearchEngine(self.logger)
             evidence = search_engine.search_patterns_in_apk(
                 apk_obj, dex_obj, dx_obj, self.REFLECTION_PATTERNS, "reflection usage"
             )

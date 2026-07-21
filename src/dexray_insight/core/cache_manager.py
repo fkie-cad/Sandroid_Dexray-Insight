@@ -52,6 +52,7 @@ Disk layout::
         full_result.json                    # full-hit assembled report
 """
 
+import contextlib
 import hashlib
 import json
 import logging
@@ -138,6 +139,12 @@ class AnalysisCacheManager:
         # Guards metadata read-modify-write across parallel module threads.
         self._metadata_lock = threading.Lock()
 
+        # In-process memo of APK md5s whose on-disk manifest fingerprint has been
+        # validated this run. The fingerprint (schema/tool/androguard version) is
+        # constant for the process, so this avoids re-reading manifest.json on
+        # every tier get (~15-20 tiny reads per analysis).
+        self._validated_fingerprints: set[str] = set()
+
         if self.enabled:
             try:
                 self.cache_dir.mkdir(parents=True, exist_ok=True)
@@ -186,12 +193,27 @@ class AnalysisCacheManager:
 
     @staticmethod
     def _atomic_write_json(path: Path, data: Any):
-        """Write JSON to ``path`` atomically (temp file + os.replace)."""
+        """Write JSON to ``path`` atomically (temp file + os.replace).
+
+        Uses the project's ``CustomJSONEncoder`` (same as the main output path) so
+        result dicts containing bytes/sets/dataclasses serialize identically. On
+        any failure the temp file is removed so no partial/dangling file is left.
+        """
+        from ..Utils.file_utils import CustomJSONEncoder
+
         path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = path.with_suffix(path.suffix + f".tmp.{os.getpid()}")
-        with open(tmp, "w") as f:
-            json.dump(data, f)
-        os.replace(tmp, path)
+        # Include thread id so concurrent module writers (same PID under the
+        # ThreadPoolExecutor) never share a temp file for the same target.
+        tmp = path.with_suffix(path.suffix + f".tmp.{os.getpid()}.{threading.get_ident()}")
+        try:
+            with open(tmp, "w") as f:
+                json.dump(data, f, cls=CustomJSONEncoder)
+            os.replace(tmp, path)
+        except Exception:
+            with contextlib.suppress(Exception):
+                if tmp.exists():
+                    tmp.unlink()
+            raise
 
     def _fingerprint(self) -> dict[str, Any]:
         return {
@@ -202,6 +224,8 @@ class AnalysisCacheManager:
 
     def _fingerprint_valid(self, md5: str) -> bool:
         """Check the per-APK manifest fingerprint against the running environment."""
+        if md5 in self._validated_fingerprints:
+            return True
         manifest_path = self._apk_dir(md5) / "manifest.json"
         if not manifest_path.exists():
             return False
@@ -211,7 +235,10 @@ class AnalysisCacheManager:
         except Exception:
             return False
         fp = self._fingerprint()
-        return all(manifest.get(k) == v for k, v in fp.items())
+        valid = all(manifest.get(k) == v for k, v in fp.items())
+        if valid:
+            self._validated_fingerprints.add(md5)
+        return valid
 
     def _ensure_manifest(self, md5: str):
         """Write the fingerprint manifest for an APK if absent/stale."""
@@ -219,6 +246,7 @@ class AnalysisCacheManager:
             return
         try:
             self._atomic_write_json(self._apk_dir(md5) / "manifest.json", self._fingerprint())
+            self._validated_fingerprints.add(md5)
             self._touch_apk(md5)
             self._save_metadata()
         except Exception as e:
@@ -260,6 +288,77 @@ class AnalysisCacheManager:
             self.logger.debug(f"Analysis cache STORE (dex_strings) for {md5}")
         except Exception as e:
             self.logger.warning(f"Could not cache dex_strings for {md5}: {e}")
+
+    # ------------------------------------------------------------------ #
+    # Tier 2: library similarity signatures (deterministic; fingerprint-only)
+    # ------------------------------------------------------------------ #
+    def get_library_signatures(self, md5: str) -> dict | None:
+        """Return cached library similarity signatures, or None on miss/invalid."""
+        if not self.enabled or not self.tiers.get("library_signatures", True) or not md5:
+            return None
+        if not self._fingerprint_valid(md5):
+            return None
+        try:
+            with open(self._apk_dir(md5) / "library_signatures.json") as f:
+                data = json.load(f)
+            sigs = data.get("signatures")
+            if isinstance(sigs, dict):
+                self.logger.debug(f"Analysis cache HIT (library_signatures) for {md5}")
+                return sigs
+        except FileNotFoundError:
+            return None
+        except Exception as e:
+            self.logger.debug(f"library_signatures cache read failed for {md5}: {e}")
+        return None
+
+    def set_library_signatures(self, md5: str, signatures: dict):
+        """Persist library similarity signatures (best-effort)."""
+        if not self.enabled or not self.tiers.get("library_signatures", True) or not md5:
+            return
+        try:
+            self._ensure_manifest(md5)
+            self._atomic_write_json(self._apk_dir(md5) / "library_signatures.json", {"signatures": signatures})
+            self.logger.debug(f"Analysis cache STORE (library_signatures) for {md5}")
+        except Exception as e:
+            self.logger.warning(f"Could not cache library_signatures for {md5}: {e}")
+
+    # ------------------------------------------------------------------ #
+    # Full-hit: assembled full-run report (keyed by md5 + effective config)
+    # ------------------------------------------------------------------ #
+    def get_full_result(self, md5: str, config_hash: str) -> dict | None:
+        """Return the cached assembled report payload, or None on miss/invalid.
+
+        The payload is a dict ``{"main": <FullAnalysisResults.to_dict(
+        include_security=False)>, "security": <security dict|None>}``. Used by the
+        full-hit gate to skip the whole analysis for an identical re-run.
+        """
+        if not self.enabled or not self.tiers.get("full_result", True) or not md5:
+            return None
+        if not self._fingerprint_valid(md5):
+            return None
+        try:
+            with open(self._apk_dir(md5) / f"full_result__{config_hash}.json") as f:
+                return json.load(f)
+        except FileNotFoundError:
+            return None
+        except Exception as e:
+            self.logger.debug(f"full_result cache read failed for {md5}: {e}")
+            return None
+
+    def set_full_result(self, md5: str, config_hash: str, payload: dict):
+        """Persist the assembled report payload (best-effort).
+
+        Callers must only pass fully-successful, cacheable runs (no skipped/failed
+        modules or tools) — see the engine's full-hit write guard.
+        """
+        if not self.enabled or not self.tiers.get("full_result", True) or not md5:
+            return
+        try:
+            self._ensure_manifest(md5)
+            self._atomic_write_json(self._apk_dir(md5) / f"full_result__{config_hash}.json", payload)
+            self.logger.debug(f"Analysis cache STORE (full_result) for {md5}")
+        except Exception as e:
+            self.logger.warning(f"Could not cache full_result for {md5}: {e}")
 
     # ------------------------------------------------------------------ #
     # Tier 3: per-module result dicts (keyed by module + effective-config hash)
@@ -309,6 +408,7 @@ class AnalysisCacheManager:
             apk_dir = self._apk_dir(md5)
             if apk_dir.exists():
                 shutil.rmtree(apk_dir, ignore_errors=True)
+            self._validated_fingerprints.discard(md5)
             with self._metadata_lock:
                 self.metadata.get("apks", {}).pop(md5, None)
             self._save_metadata()
@@ -325,6 +425,7 @@ class AnalysisCacheManager:
                 if child.is_dir():
                     shutil.rmtree(child, ignore_errors=True)
                     removed += 1
+            self._validated_fingerprints.clear()
             self.metadata = {"schema_version": CACHE_SCHEMA_VERSION, "apks": {}}
             self._save_metadata()
         except FileNotFoundError:

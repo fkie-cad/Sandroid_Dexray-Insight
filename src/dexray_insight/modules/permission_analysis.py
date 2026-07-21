@@ -68,7 +68,6 @@ class PermissionAnalysisResult(BaseResult):
         )
         return base_dict
 
-
 @register_module("permission_analysis")
 class PermissionAnalysisModule(BaseAnalysisModule):
     """Permission analysis module for detecting critical Android permissions."""

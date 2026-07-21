@@ -78,12 +78,13 @@ class SystemAnalyzer:
         """Initialize SystemAnalyzer with optional logger."""
         self.logger = logger or logging.getLogger(__name__)
 
-    def analyze_clipboard_usage(self, apk_obj, dex_obj, dx_obj, result) -> list[BehaviorEvidence]:
+    def analyze_clipboard_usage(self, apk_obj, dex_obj, dx_obj, result, search_engine=None) -> list[BehaviorEvidence]:
         """Check if app uses clipboard."""
         try:
-            from ..engines.pattern_search_engine import PatternSearchEngine
+            if search_engine is None:
+                from ..engines.pattern_search_engine import PatternSearchEngine
 
-            search_engine = PatternSearchEngine(self.logger)
+                search_engine = PatternSearchEngine(self.logger)
             evidence = search_engine.search_patterns_in_apk(
                 apk_obj, dex_obj, dx_obj, self.CLIPBOARD_PATTERNS, "clipboard usage"
             )
@@ -101,12 +102,13 @@ class SystemAnalyzer:
             self.logger.error(f"Clipboard analysis failed: {e}")
             return []
 
-    def analyze_dynamic_receivers(self, apk_obj, dex_obj, dx_obj, result) -> list[BehaviorEvidence]:
+    def analyze_dynamic_receivers(self, apk_obj, dex_obj, dx_obj, result, search_engine=None) -> list[BehaviorEvidence]:
         """Check for dynamically registered broadcast receivers."""
         try:
-            from ..engines.pattern_search_engine import PatternSearchEngine
+            if search_engine is None:
+                from ..engines.pattern_search_engine import PatternSearchEngine
 
-            search_engine = PatternSearchEngine(self.logger)
+                search_engine = PatternSearchEngine(self.logger)
             evidence = search_engine.search_patterns_in_apk(
                 apk_obj, dex_obj, dx_obj, self.DYNAMIC_RECEIVER_PATTERNS, "dynamic broadcast receivers"
             )
@@ -124,12 +126,15 @@ class SystemAnalyzer:
             self.logger.error(f"Dynamic receivers analysis failed: {e}")
             return []
 
-    def analyze_running_services_access(self, apk_obj, dex_obj, dx_obj, result) -> list[BehaviorEvidence]:
+    def analyze_running_services_access(
+        self, apk_obj, dex_obj, dx_obj, result, search_engine=None
+    ) -> list[BehaviorEvidence]:
         """Check if app tries to get running services."""
         try:
-            from ..engines.pattern_search_engine import PatternSearchEngine
+            if search_engine is None:
+                from ..engines.pattern_search_engine import PatternSearchEngine
 
-            search_engine = PatternSearchEngine(self.logger)
+                search_engine = PatternSearchEngine(self.logger)
             evidence = search_engine.search_patterns_in_apk(
                 apk_obj, dex_obj, dx_obj, self.RUNNING_SERVICES_PATTERNS, "running services access"
             )
@@ -147,7 +152,9 @@ class SystemAnalyzer:
             self.logger.error(f"Running services analysis failed: {e}")
             return []
 
-    def analyze_installed_applications(self, apk_obj, dex_obj, dx_obj, result) -> list[BehaviorEvidence]:
+    def analyze_installed_applications(
+        self, apk_obj, dex_obj, dx_obj, result, search_engine=None
+    ) -> list[BehaviorEvidence]:
         """Check if app gets installed applications."""
         evidence = []
 
@@ -164,9 +171,10 @@ class SystemAnalyzer:
                 )
 
             # Search patterns
-            from ..engines.pattern_search_engine import PatternSearchEngine
+            if search_engine is None:
+                from ..engines.pattern_search_engine import PatternSearchEngine
 
-            search_engine = PatternSearchEngine(self.logger)
+                search_engine = PatternSearchEngine(self.logger)
             pattern_evidence = search_engine.search_patterns_in_apk(
                 apk_obj, dex_obj, dx_obj, self.INSTALLED_APPS_PATTERNS, "installed applications access"
             )
@@ -185,12 +193,15 @@ class SystemAnalyzer:
             self.logger.error(f"Installed applications analysis failed: {e}")
             return []
 
-    def analyze_installed_packages(self, apk_obj, dex_obj, dx_obj, result) -> list[BehaviorEvidence]:
+    def analyze_installed_packages(
+        self, apk_obj, dex_obj, dx_obj, result, search_engine=None
+    ) -> list[BehaviorEvidence]:
         """Check if app gets installed packages."""
         try:
-            from ..engines.pattern_search_engine import PatternSearchEngine
+            if search_engine is None:
+                from ..engines.pattern_search_engine import PatternSearchEngine
 
-            search_engine = PatternSearchEngine(self.logger)
+                search_engine = PatternSearchEngine(self.logger)
             evidence = search_engine.search_patterns_in_apk(
                 apk_obj, dex_obj, dx_obj, self.INSTALLED_PACKAGES_PATTERNS, "installed packages access"
             )

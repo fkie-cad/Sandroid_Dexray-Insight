@@ -296,6 +296,38 @@ def start_apk_static_analysis_new(
         Tuple of (results, result_file_name, security_result_file_name)
     """
     try:
+        # Create analysis engine first (needed for the full-hit cache gate)
+        engine = AnalysisEngine(config)
+
+        # Generate timestamp for consistent naming across temporal directory and output files
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+        base_dir, name, file_ext = split_path_file_extension(apk_file_path)
+
+        # Full-hit cache gate: satisfy an identical re-run entirely from cache
+        # BEFORE building the (expensive) Androguard object. External tools are
+        # re-run live inside try_full_hit so their results stay fresh.
+        cached_payload = None
+        try:
+            cached_payload = engine.try_full_hit(apk_file_path)
+        except Exception as e:
+            logging.debug(f"Full-hit cache check failed, running full analysis: {e}")
+
+        if cached_payload is not None:
+            print("[*] Full-hit cache: reusing prior analysis (use --no-cache to force re-analysis)")
+            main_dict = cached_payload.get("main", {})
+            security_dict = cached_payload.get("security")
+
+            result_file_name = dump_results_as_json_file(main_dict, name, timestamp)
+            security_result_file_name = ""
+            if security_dict:
+                security_result_file_name = dump_security_results_as_json_file(security_dict, name, timestamp)
+
+            if print_results_to_terminal:
+                _print_cached_summary(main_dict, security_dict)
+
+            return cached_payload, result_file_name, security_result_file_name
+
         # Create androguard object first
         print("[*] Initializing Androguard analysis...")
         androguard_obj = None
@@ -306,13 +338,7 @@ def start_apk_static_analysis_new(
             print("\033[93m[W] Analysis will continue with limited functionality\033[0m")
             logging.warning(f"Androguard initialization failed: {str(e)}")
 
-        # Create analysis engine
-        engine = AnalysisEngine(config)
-
         print("[*] Starting comprehensive APK analysis...")
-
-        # Generate timestamp for consistent naming across temporal directory and output files
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
         # Run analysis with androguard object (may be None if initialization failed)
         results = engine.analyze_apk(apk_file_path, androguard_obj=androguard_obj, timestamp=timestamp)
@@ -321,7 +347,6 @@ def start_apk_static_analysis_new(
             _print_analysis_results_to_terminal(results, verbose)
 
         # Save results to file
-        base_dir, name, file_ext = split_path_file_extension(apk_file_path)
         result_file_name = dump_results_as_json_file(results, name, timestamp)
 
         security_result_file_name = ""
@@ -356,8 +381,14 @@ def dump_results_as_json_file(results, filename: str, timestamp: str = None) -> 
     base_filename = filename.replace(" ", "_")
     safe_filename = f"dexray_{base_filename}_{timestamp}.json"
 
-    # Convert results to dict
-    results_dict = results.to_dict(include_security=False) if hasattr(results, "to_dict") else {"results": str(results)}
+    # Convert results to dict. A plain dict (e.g. a full-hit cache re-emit) is
+    # written as-is; a result object is serialized via to_dict.
+    if isinstance(results, dict):
+        results_dict = results
+    elif hasattr(results, "to_dict"):
+        results_dict = results.to_dict(include_security=False)
+    else:
+        results_dict = {"results": str(results)}
 
     dump_json(safe_filename, results_dict)
     return safe_filename
@@ -388,6 +419,32 @@ def dump_security_results_as_json_file(results, filename: str, timestamp: str = 
         dump_json(safe_filename, security_dict)
         return safe_filename
     return ""
+
+
+def _print_cached_summary(main_dict: dict, security_dict: dict | None):
+    """Print a concise summary for a full-hit cache re-emit.
+
+    A cache hit does not reconstruct the rich typed result object, so this prints
+    the key facts directly from the cached dicts. Full detail is in the JSON files.
+    """
+    try:
+        overview = main_dict.get("apk_overview", {}) or {}
+        general = overview.get("general_info", {}) or {}
+        print(f"{'='*60}")
+        print("📱 DEXRAY INSIGHT ANALYSIS SUMMARY (from cache)")
+        print(f"{'='*60}")
+        app_name = general.get("app_name") or general.get("package_name")
+        if app_name:
+            print(f"App: {app_name}")
+        if general.get("package_name"):
+            print(f"Package: {general.get('package_name')}")
+        if security_dict:
+            findings = security_dict.get("findings", security_dict.get("security_findings", []))
+            if isinstance(findings, list):
+                print(f"Security Findings: {len(findings)}")
+        print("💡 Full details saved to the JSON output file(s).")
+    except Exception as e:
+        logging.debug(f"Could not print cached summary: {e}")
 
 
 class ArgParser(argparse.ArgumentParser):

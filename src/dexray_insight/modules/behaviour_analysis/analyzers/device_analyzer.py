@@ -27,7 +27,6 @@ such as device model, Android ID, and hardware identifiers.
 """
 
 import logging
-import re
 
 from ..models.behavior_evidence import BehaviorEvidence
 
@@ -47,56 +46,25 @@ class DeviceAnalyzer:
         """Initialize DeviceAnalyzer with optional logger."""
         self.logger = logger or logging.getLogger(__name__)
 
-    def analyze_device_model_access(self, apk_obj, dex_obj, dx_obj, result) -> list[BehaviorEvidence]:
+    def analyze_device_model_access(
+        self, apk_obj, dex_obj, dx_obj, result, search_engine=None
+    ) -> list[BehaviorEvidence]:
         """Check if app accesses device model information."""
         evidence = []
 
         try:
-            # Search in DEX strings
-            if dex_obj:
-                for i, dex in enumerate(dex_obj):
-                    try:
-                        dex_strings = dex.get_strings()
-                        for string in dex_strings:
-                            string_val = str(string)
-                            for pattern in self.DEVICE_PATTERNS:
-                                if re.search(pattern, string_val, re.IGNORECASE):
-                                    evidence.append(
-                                        BehaviorEvidence(
-                                            type="string",
-                                            content=string_val,
-                                            pattern_matched=pattern,
-                                            location=f"DEX {i+1} strings",
-                                            dex_index=i,
-                                        )
-                                    )
-                    except Exception as e:
-                        self.logger.debug(f"Error analyzing device model access in DEX {i}: {e}")
+            # Search in DEX strings and smali code via the shared engine so the
+            # string pool / smali corpus are built once and reused. Semantics
+            # (and BehaviorEvidence provenance) are identical to the previous
+            # inline scan.
+            if search_engine is None:
+                from ..engines.pattern_search_engine import PatternSearchEngine
 
-            # Search in smali code
-            if dex_obj:
-                for i, dex in enumerate(dex_obj):
-                    try:
-                        for cls in dex.get_classes():
-                            class_source = cls.get_source()
-                            if class_source:
-                                for pattern in self.DEVICE_PATTERNS:
-                                    matches = re.finditer(pattern, class_source, re.IGNORECASE)
-                                    for match in matches:
-                                        # Get line number context
-                                        lines = class_source[: match.start()].count("\n")
-                                        evidence.append(
-                                            BehaviorEvidence(
-                                                type="code",
-                                                content=match.group(),
-                                                pattern_matched=pattern,
-                                                class_name=cls.get_name(),
-                                                line_number=lines + 1,
-                                                dex_index=i,
-                                            )
-                                        )
-                    except Exception as e:
-                        self.logger.debug(f"Error analyzing device model access in smali DEX {i}: {e}")
+                search_engine = PatternSearchEngine(self.logger)
+
+            evidence = search_engine.search_patterns_in_apk(
+                apk_obj, dex_obj, dx_obj, self.DEVICE_PATTERNS, "device model access"
+            )
 
             # Add finding to result
             result.add_finding(
@@ -112,7 +80,9 @@ class DeviceAnalyzer:
             self.logger.error(f"Device model analysis failed: {e}")
             return []
 
-    def analyze_android_version_access(self, apk_obj, dex_obj, dx_obj, result) -> list[BehaviorEvidence]:
+    def analyze_android_version_access(
+        self, apk_obj, dex_obj, dx_obj, result, search_engine=None
+    ) -> list[BehaviorEvidence]:
         """Check if app accesses Android version information."""
         evidence = []
         patterns = [
@@ -125,9 +95,10 @@ class DeviceAnalyzer:
 
         try:
             # Import here to avoid circular imports
-            from ..engines.pattern_search_engine import PatternSearchEngine
+            if search_engine is None:
+                from ..engines.pattern_search_engine import PatternSearchEngine
 
-            search_engine = PatternSearchEngine(self.logger)
+                search_engine = PatternSearchEngine(self.logger)
 
             evidence = search_engine.search_patterns_in_apk(
                 apk_obj, dex_obj, dx_obj, patterns, "Android version access"

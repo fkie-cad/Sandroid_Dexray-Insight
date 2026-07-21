@@ -80,7 +80,6 @@ class DotnetAnalysisResult(BaseResult):
         )
         return base_dict
 
-
 @register_module("dotnet_analysis")
 class DotnetAnalysisModule(BaseAnalysisModule):
     """

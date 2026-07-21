@@ -40,7 +40,7 @@ class MediaAnalyzer:
         """Initialize MediaAnalyzer with optional logger."""
         self.logger = logger or logging.getLogger(__name__)
 
-    def analyze_camera_access(self, apk_obj, dex_obj, dx_obj, result) -> list[BehaviorEvidence]:
+    def analyze_camera_access(self, apk_obj, dex_obj, dx_obj, result, search_engine=None) -> list[BehaviorEvidence]:
         """Check if app tries to access camera."""
         evidence = []
 
@@ -54,9 +54,10 @@ class MediaAnalyzer:
                     evidence.append(BehaviorEvidence(type="permission", content=perm, location="AndroidManifest.xml"))
 
             # Search patterns
-            from ..engines.pattern_search_engine import PatternSearchEngine
+            if search_engine is None:
+                from ..engines.pattern_search_engine import PatternSearchEngine
 
-            search_engine = PatternSearchEngine(self.logger)
+                search_engine = PatternSearchEngine(self.logger)
             pattern_evidence = search_engine.search_patterns_in_apk(
                 apk_obj, dex_obj, dx_obj, self.CAMERA_PATTERNS, "camera access"
             )

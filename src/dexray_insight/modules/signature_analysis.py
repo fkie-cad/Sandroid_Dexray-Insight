@@ -59,7 +59,6 @@ class SignatureAnalysisResult(BaseResult):
         )
         return base_dict
 
-
 @register_module("signature_detection")
 class SignatureAnalysisModule(BaseAnalysisModule):
     """Signature detection and hash-based analysis module."""

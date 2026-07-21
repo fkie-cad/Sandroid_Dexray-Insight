@@ -30,6 +30,7 @@ from abc import ABC
 from abc import abstractmethod
 from dataclasses import dataclass
 from dataclasses import field
+from dataclasses import fields as dataclass_fields
 from enum import Enum
 from typing import Any
 from typing import Optional
@@ -117,7 +118,6 @@ class AnalysisContext:
     # (potentially huge) string lists don't bloat logging or comparisons.
     _dex_strings_by_index: list[list[str]] | None = field(default=None, repr=False, compare=False)
     _dex_strings_flat: list[str] | None = field(default=None, repr=False, compare=False)
-    _dex_strings_set: frozenset | None = field(default=None, repr=False, compare=False)
 
     def __post_init__(self):
         """Initialize module results dictionary after dataclass creation."""
@@ -150,7 +150,9 @@ class AnalysisContext:
             try:
                 cached = self.cache_manager.get_dex_strings(self.apk_md5)
                 if cached is not None:
-                    by_index = [list(group) for group in cached]
+                    # The parsed JSON is a fresh, private structure — no defensive
+                    # copy needed (avoids duplicating ~174k string refs).
+                    by_index = cached
             except Exception:
                 by_index = None
 
@@ -179,8 +181,7 @@ class AnalysisContext:
 
         Order is deterministic (DEX 0 strings, then DEX 1, ...) and duplicate
         occurrences are preserved so consumers that count occurrences or need
-        insertion order behave as before. Consumers wanting uniqueness should use
-        :meth:`get_dex_strings_set`.
+        insertion order behave as before.
         """
         if self._dex_strings_flat is None:
             flat: list[str] = []
@@ -188,12 +189,6 @@ class AnalysisContext:
                 flat.extend(group)
             self._dex_strings_flat = flat
         return self._dex_strings_flat
-
-    def get_dex_strings_set(self) -> frozenset:
-        """Return unique DEX strings as a frozenset for O(1) membership checks."""
-        if self._dex_strings_set is None:
-            self._dex_strings_set = frozenset(self.get_dex_strings())
-        return self._dex_strings_set
 
     def add_result(self, module_name: str, result: Any):
         """Add a module result to the context for use by dependent modules.
@@ -355,6 +350,27 @@ class BaseResult:
             "execution_time": self.execution_time,
             "error_message": self.error_message,
         }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "BaseResult":
+        """Reconstruct a result instance from a serialized dictionary.
+
+        Works for any ``BaseResult`` dataclass subclass by introspecting its
+        fields: only keys that correspond to real constructor fields are used,
+        so derived/computed keys emitted by ``to_dict`` (e.g. a manifest's
+        ``components_summary``) are dropped automatically and unknown keys are
+        ignored. Missing keys fall back to each field's dataclass default so a
+        partial dictionary never raises. The ``status`` value is mapped back to
+        an ``AnalysisStatus`` enum (accepting either an enum or its string).
+        """
+        field_names = {f.name for f in dataclass_fields(cls)}
+        kwargs = {k: v for k, v in data.items() if k in field_names}
+        status = kwargs.get("status", AnalysisStatus.SUCCESS)
+        if isinstance(status, str):
+            status = AnalysisStatus(status)
+        kwargs["status"] = status
+        kwargs.setdefault("module_name", data.get("module_name", ""))
+        return cls(**kwargs)
 
     def to_json(self) -> str:
         """Convert result to JSON string."""
