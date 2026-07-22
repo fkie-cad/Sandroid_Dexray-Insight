@@ -37,10 +37,38 @@ from ..core.base_classes import BaseSecurityAssessment
 from ..core.base_classes import SecurityFinding
 from ..core.base_classes import VerificationStatus
 from ..core.base_classes import register_assessment
+from .evidence import classify_component
 from .evidence import collect_weak_crypto_evidence
 from .evidence import list_sink_calls
 from .evidence import looks_like_type_descriptor
 from .evidence import matches_algorithm_token
+
+# Well-known documentation / XML-namespace / schema hosts. A cleartext ``http://``
+# URL under one of these is a namespace identifier or a documentation anchor
+# (e.g. ``http://xmlpull.org/v1/doc/features.html#process-docdecl`` is the XML
+# pull-parser feature namespace), NOT a network endpoint. Such URIs must not be
+# reported as insecure cleartext traffic. This is a DROP of non-endpoint noise,
+# never a suppression of a real endpoint: first-party hosts (kik.com,
+# piranhakik.com, ...) are not on this list and are always kept.
+_NON_ENDPOINT_HOSTS: tuple[str, ...] = (
+    "xmlpull.org",
+    "www.w3.org",
+    "w3.org",
+    "schemas.android.com",
+    "schemas.xmlsoap.org",
+    "java.sun.com",
+    "apache.org",
+    "xml.org",
+    "xml.apache.org",
+    "ns.adobe.com",
+    "purl.org",
+    "iptc.org",
+    "www.iso.org",
+    "iso.org",
+    "example.com",
+    "example.org",
+    "goo.gl",
+)
 
 
 @register_assessment("mobile_specific")
@@ -70,6 +98,14 @@ class MobileSpecificAssessment(BaseSecurityAssessment):
         super().__init__(config)
         self.logger = logging.getLogger(__name__)
         self.owasp_category = "OWASP Mobile Top 10"
+
+        # First-party package prefixes let weak-TLS references be treated as
+        # first-party (genuine config) rather than library-shipped constants.
+        # Read defensively from this assessment's own config (accepts either key).
+        configured_prefixes = config.get("first_party_prefixes") or config.get("first_party_packages") or []
+        self.first_party_prefixes = (
+            [str(p) for p in configured_prefixes if p] if isinstance(configured_prefixes, (list, tuple)) else []
+        )
 
         self._initialize_platform_and_storage_patterns()
         self._initialize_communication_and_auth_patterns()
@@ -566,8 +602,46 @@ class MobileSpecificAssessment(BaseSecurityAssessment):
 
         return findings
 
+    @staticmethod
+    def _http_url_host(url: str) -> str:
+        """Extract the lower-cased host from an ``http://`` URL (no port/userinfo)."""
+        rest = url[len("http://"):]
+        rest = rest.split("/")[0].split("?")[0].split("#")[0]
+        rest = rest.split("@")[-1]  # strip userinfo
+        rest = rest.split(":")[0]  # strip port
+        return rest.strip().lower()
+
+    @classmethod
+    def _is_non_endpoint_url(cls, url: str) -> bool:
+        """True for documentation / XML-namespace / schema URIs (not endpoints).
+
+        These are namespace identifiers, not network destinations, so they must
+        be dropped from cleartext-traffic evidence. First-party hosts never match
+        this list, so a real cleartext endpoint is never suppressed here.
+        """
+        host = cls._http_url_host(url)
+        if not host:
+            return False
+        return any(host == h or host.endswith("." + h) for h in _NON_ENDPOINT_HOSTS)
+
     def _assess_insecure_communication(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """M3: Assess insecure communication."""
+        """M3: Assess insecure communication.
+
+        Cleartext ``http://`` endpoints are the real signal here and, per the
+        ground-truth analysis (A2), warrant a MEDIUM finding — not HIGH. Two
+        precision fixes are applied:
+
+        (a) Documentation / XML-namespace / schema URIs (xmlpull.org, w3.org,
+            schemas.android.com, java.sun.com, apache.org, ...) are filtered out
+            of the cleartext evidence — they are namespace identifiers, not
+            endpoints. Genuine first-party cleartext (kik.com, piranhakik.com)
+            is always kept.
+        (b) Weak-TLS protocol references (SSLv3 / TLSv1.0 / TLSv1.1) are almost
+            always library-shipped constants, not first-party TLS configuration.
+            They are only counted as confirmed evidence when the bearing string
+            classifies as first-party (via package_allowlist); otherwise they are
+            down-ranked into the review queue and never drive the severity.
+        """
         findings = []
 
         string_results = analysis_results.get("string_analysis", {})
@@ -580,50 +654,83 @@ class MobileSpecificAssessment(BaseSecurityAssessment):
         if not isinstance(urls, list):
             urls = []
 
-        communication_issues = []
-
-        # Check for cleartext HTTP URLs (real evidence from extracted URLs).
+        # (a) Cleartext HTTP endpoints, excluding local/dev hosts and well-known
+        # documentation / XML-namespace URIs (which are not network endpoints).
         cleartext_urls = [
             url
             for url in urls
             if isinstance(url, str)
             and url.startswith("http://")
             and not any(local in url for local in ["localhost", "127.0.0.1", "10.0.2.2"])
+            and not self._is_non_endpoint_url(url)
         ]
-        if cleartext_urls:
-            communication_issues.extend([f"Cleartext URL: {url}" for url in cleartext_urls[:3]])
 
-        # Only genuinely dangerous TLS patterns count. Bare "HttpURLConnection" /
-        # "DefaultHttpClient" substrings are present in most apps and are dropped;
-        # weak-protocol names are matched as whole-word tokens, not substrings.
+        confirmed_issues = [f"Cleartext URL: {url}" for url in cleartext_urls[:3]]
+
+        # SSL/TLS trust-bypass code patterns are genuine when present.
         trust_bypass_patterns = self.insecure_communication_patterns["ssl_issues"]
+        # (b) Weak-protocol references require first-party context to be confirmed;
+        # otherwise they are down-ranked (library-shipped constants).
         weak_protocol_tokens = ("SSLv3", "TLSv1.0", "TLSv1.1")
+        downranked_weak_tls: list[str] = []
         for string in all_strings:
             if not isinstance(string, str) or looks_like_type_descriptor(string):
                 continue
             for pattern in trust_bypass_patterns:
                 if re.search(pattern, string, re.IGNORECASE):
-                    communication_issues.append(f"SSL/TLS trust bypass: {string[:60]}")
+                    confirmed_issues.append(f"SSL/TLS trust bypass: {string[:60]}")
                     break
             for token in weak_protocol_tokens:
                 if matches_algorithm_token(string, token):
-                    communication_issues.append(f"Weak TLS protocol reference: {string[:60]}")
+                    classification = classify_component(string, first_party_prefixes=self.first_party_prefixes)
+                    if classification == "first_party":
+                        confirmed_issues.append(f"Weak TLS protocol reference (first-party): {string[:60]}")
+                    else:
+                        downranked_weak_tls.append(f"Weak TLS protocol reference: {string[:60]}")
                     break
 
-        if communication_issues:
+        if confirmed_issues:
+            # Real insecure communication (cleartext endpoints / trust bypass /
+            # first-party weak TLS). Per ground-truth A2 this is a MEDIUM risk.
+            evidence = confirmed_issues[:8]
+            if downranked_weak_tls:
+                evidence = (confirmed_issues + downranked_weak_tls)[:8]
             findings.append(
                 SecurityFinding(
                     category=f"{self.owasp_category} - M3",
-                    severity=AnalysisSeverity.HIGH,
+                    severity=AnalysisSeverity.MEDIUM,
                     title="Insecure Communication",
                     description="Application uses insecure communication channels or improperly implements SSL/TLS security.",
-                    evidence=communication_issues[:8],
+                    evidence=evidence,
                     confidence=0.7,
                     recommendations=[
                         "Use HTTPS for all network communications",
                         "Implement certificate pinning for critical connections",
                         "Use strong SSL/TLS configurations and avoid weak protocols",
                         "Validate SSL certificates properly without bypassing checks",
+                        "Set network security config to block cleartext traffic",
+                    ],
+                )
+            )
+        elif downranked_weak_tls:
+            # Only library-shipped weak-TLS constants were seen: down-rank to a
+            # LOW review-queue lead rather than a confirmed insecure-comms finding.
+            findings.append(
+                SecurityFinding(
+                    category=f"{self.owasp_category} - M3",
+                    severity=AnalysisSeverity.LOW,
+                    title="Insecure Communication",
+                    description=(
+                        "Weak TLS protocol constants were seen in the string pool but could not be "
+                        "attributed to first-party code. These are most likely library-shipped "
+                        "constants rather than the app's own TLS configuration; a human should confirm."
+                    ),
+                    evidence=downranked_weak_tls[:8],
+                    confidence=0.3,
+                    verification_status=VerificationStatus.NEEDS_REVIEW,
+                    recommendations=[
+                        "Confirm whether weak TLS protocols are actually selected by first-party code",
+                        "Use strong SSL/TLS configurations and avoid weak protocols",
                         "Set network security config to block cleartext traffic",
                     ],
                 )

@@ -52,12 +52,31 @@ def _paths_bytes(entries: str) -> bytes:
     return f"<paths>{entries}</paths>".encode("utf-8")
 
 
-class _StubAndroguardObj:
-    """Minimal stand-in exposing the two androguard entry points we use."""
+class _StubResources:
+    """Minimal androguard resource-table stub for numeric-id resolution.
 
-    def __init__(self, manifest, files):
+    ``resolved`` maps an integer resource id -> the ``res/xml/NAME.xml`` file
+    path, mirroring the first element of ``get_resolved_res_configs`` entries.
+    """
+
+    def __init__(self, resolved):
+        self._resolved = resolved
+
+    def get_resolved_res_configs(self, res_id):
+        path = self._resolved.get(res_id)
+        if path is None:
+            return []
+        # androguard returns a list of (ARSCResTableConfig, value) tuples.
+        return [(object(), path)]
+
+
+class _StubAndroguardObj:
+    """Minimal stand-in exposing the androguard entry points we use."""
+
+    def __init__(self, manifest, files, resources=None):
         self._manifest = manifest
         self._files = files
+        self._resources = resources
 
     def get_androguard_apk(self):
         return self
@@ -68,6 +87,9 @@ class _StubAndroguardObj:
     def get_file(self, path):
         return self._files.get(path)
 
+    def get_android_resources(self):
+        return self._resources
+
 
 class _StubContext:
     """Minimal AnalysisContext stub carrying only androguard_obj."""
@@ -76,9 +98,9 @@ class _StubContext:
         self.androguard_obj = androguard_obj
 
 
-def _run(manifest, files=None, analysis_results=None):
+def _run(manifest, files=None, analysis_results=None, resources=None):
     """Instantiate the assessment and run it against synthetic inputs."""
-    ctx = _StubContext(_StubAndroguardObj(manifest, files or {}))
+    ctx = _StubContext(_StubAndroguardObj(manifest, files or {}, resources))
     assessment = ProviderPathsAssessment({})
     return assessment.assess(analysis_results or {}, ctx)
 
@@ -231,6 +253,80 @@ class TestProviderPathsAssessment:
         findings = _run(manifest, analysis_results=analysis_results)
 
         assert not [f for f in findings if f.category == "A01:2021-Broken Access Control"]
+
+    def test_numeric_resource_id_broad_root_fires(self):
+        """Compiled-APK numeric resource-id (@7F170001) resolves -> MEDIUM A05.
+
+        Mirrors the real base.apk case: androguard returns the meta-data
+        resource as a numeric id, not @xml/NAME. The id must be resolved via
+        the resource table to the res/xml/*.xml file before the broad root can
+        be seen. grantUriPermissions=true -> the MEDIUM ("with URI Grants")
+        variant fires.
+        """
+        providers = (
+            '<provider android:name="com.kik.KikShareFileProvider"'
+            ' android:authorities="kik.android.provider"'
+            ' android:exported="false"'
+            ' android:grantUriPermissions="true">'
+            '<meta-data android:name="android.support.FILE_PROVIDER_PATHS"'
+            ' android:resource="@7F170001"/>'
+            "</provider>"
+        )
+        manifest = _build_manifest(providers)
+        files = {"res/xml/provider_paths.xml": _paths_bytes('<external-path name="ext" path="."/>')}
+        resources = _StubResources({0x7F170001: "res/xml/provider_paths.xml"})
+
+        findings = _run(manifest, files, resources=resources)
+
+        broad = [f for f in findings if f.title == "Over-Broad FileProvider Root with URI Grants"]
+        assert len(broad) == 1
+        finding = broad[0]
+        assert finding.category == "A05:2021-Security Misconfiguration"
+        assert finding.severity == AnalysisSeverity.MEDIUM
+        assert finding.confidence == 0.7
+        assert finding.verification_status == VerificationStatus.CONFIRMED
+
+    def test_numeric_resource_id_subdir_scoped_is_true_negative(self):
+        """Numeric id resolving to a subdir-scoped paths XML -> NO broad root.
+
+        Mirrors KikImagePickerFileProvider (cache-path path="camera/"): the id
+        resolves and the XML loads, but the root is properly scoped so no
+        over-broad-root finding must fire.
+        """
+        providers = (
+            '<provider android:name="com.kik.KikImagePickerFileProvider"'
+            ' android:authorities="kik.android.imagepicker"'
+            ' android:exported="false"'
+            ' android:grantUriPermissions="true">'
+            '<meta-data android:name="android.support.FILE_PROVIDER_PATHS"'
+            ' android:resource="@7F170002"/>'
+            "</provider>"
+        )
+        manifest = _build_manifest(providers)
+        files = {"res/xml/kik_image_picker_file_paths.xml": _paths_bytes('<cache-path name="cam" path="camera/"/>')}
+        resources = _StubResources({0x7F170002: "res/xml/kik_image_picker_file_paths.xml"})
+
+        findings = _run(manifest, files, resources=resources)
+
+        assert not [f for f in findings if "Over-Broad FileProvider Root" in f.title]
+
+    def test_numeric_resource_id_resolution_failure_degrades(self):
+        """An unresolvable numeric id -> no crash, no path finding."""
+        providers = (
+            '<provider android:name="com.kik.KikShareFileProvider"'
+            ' android:authorities="kik.android.provider"'
+            ' android:grantUriPermissions="true">'
+            '<meta-data android:name="android.support.FILE_PROVIDER_PATHS"'
+            ' android:resource="@7F170099"/>'
+            "</provider>"
+        )
+        manifest = _build_manifest(providers)
+        # Resource table has no entry for this id -> get_resolved_res_configs -> [].
+        resources = _StubResources({})
+
+        findings = _run(manifest, resources=resources)
+
+        assert not [f for f in findings if "Over-Broad FileProvider Root" in f.title]
 
     def test_no_context_returns_empty(self):
         """Missing context / androguard obj -> empty list, never raises."""

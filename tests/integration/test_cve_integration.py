@@ -126,9 +126,11 @@ class TestCVECLIIntegration:
 
         # Check CVE source configuration
         cve_config = config_updates["security"]["cve_scanning"]
+        # OSV is the key-less default source; NVD/GitHub stay off unless the config
+        # file enables them (NVD needs an API key and rate-limit-stalls without one).
         assert cve_config["sources"]["osv"]["enabled"] is True
-        assert cve_config["sources"]["nvd"]["enabled"] is True
-        assert cve_config["sources"]["github"]["enabled"] is True
+        assert cve_config["sources"]["nvd"]["enabled"] is False
+        assert cve_config["sources"]["github"]["enabled"] is False
         assert cve_config["max_workers"] == 3
         assert cve_config["timeout_seconds"] == 30
 

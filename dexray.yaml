@@ -360,7 +360,21 @@ security:
     #   "raw": legacy v2 behavior (sum over ALL findings). Kept for comparison/rollback.
     headline_mode: confirmed
     confirmed_threshold: 0.7
+    # Retained for backward-compat / rollback; no longer applied as a hard clamp.
     critical_floor: 75.0
+    # Soft additive bump per confirmed high-confidence CRITICAL finding, capped at 100:
+    # score = min(100, base_normalized + critical_bump * n_critical). Replaces the old
+    # hard critical_floor clamp so the headline stays continuous instead of binary.
+    critical_bump: 18.0
+    # Diminishing-returns decay per severity tier. Within a tier, findings are ranked by
+    # confidence and the k-th contributes weight*confidence*decay**k, so a pile of
+    # same-severity findings can't dominate the headline by count. CRITICAL is undecayed
+    # (1.0) so a genuine critical still dominates; MEDIUM/LOW volume is damped.
+    severity_decay:
+      critical: 1.0
+      high: 0.8
+      medium: 0.5
+      low: 0.4
 
   assessments:
     # Privacy / PII taxonomy assessment (Phase B1). Validated PII literals, PII-at-rest

@@ -31,6 +31,12 @@ def pytest_addoption(parser):
         default=False,
         help="Run tests that require network access.",
     )
+    parser.addoption(
+        "--run-integration",
+        action="store_true",
+        default=False,
+        help="Run integration tests that make real external API calls (e.g. live OSV queries).",
+    )
 
 
 def pytest_configure(config):

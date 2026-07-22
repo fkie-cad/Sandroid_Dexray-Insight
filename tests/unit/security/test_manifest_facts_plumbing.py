@@ -127,8 +127,8 @@ class TestSecurityMisconfigurationNoFalsePositives:
             },
             # An http:// endpoint drives the insecure-network (cleartext) finding.
             "string_analysis": {
-                "all_strings": ["http://api.example.com/login"],
-                "urls": ["http://api.example.com/login"],
+                "all_strings": ["http://api.acmeapp.io/login"],
+                "urls": ["http://api.acmeapp.io/login"],
                 "domains": [],
             },
         }
@@ -152,8 +152,8 @@ class TestSecurityMisconfigurationNoFalsePositives:
         # No apk_overview -> facts unknown -> SDK/backup/NSC findings skipped.
         analysis_results = {
             "string_analysis": {
-                "all_strings": ["http://api.example.com/login"],
-                "urls": ["http://api.example.com/login"],
+                "all_strings": ["http://api.acmeapp.io/login"],
+                "urls": ["http://api.acmeapp.io/login"],
                 "domains": [],
             }
         }

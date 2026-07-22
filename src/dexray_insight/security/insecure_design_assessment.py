@@ -33,7 +33,9 @@ from ..core.base_classes import AnalysisContext
 from ..core.base_classes import AnalysisSeverity
 from ..core.base_classes import BaseSecurityAssessment
 from ..core.base_classes import SecurityFinding
+from ..core.base_classes import VerificationStatus
 from ..core.base_classes import register_assessment
+from .evidence import classify_component
 from .evidence import collect_weak_crypto_evidence
 from .evidence import looks_like_type_descriptor
 
@@ -60,6 +62,13 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
         super().__init__(config)
         self.logger = logging.getLogger(__name__)
         self.owasp_category = "A04:2021-Insecure Design"
+
+        # First-party package prefixes let library-origin data-flow matches be
+        # down-ranked. Read defensively from this assessment's own config.
+        configured_prefixes = config.get("first_party_prefixes") or config.get("first_party_packages") or []
+        self.first_party_prefixes = (
+            [str(p) for p in configured_prefixes if p] if isinstance(configured_prefixes, (list, tuple)) else []
+        )
 
         # Design pattern checks for mobile applications
         self.design_patterns = {
@@ -211,7 +220,22 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_insecure_data_flows(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """Assess for insecure data flow patterns."""
+        """Assess for insecure data flow patterns.
+
+        A genuine conjunction is required before a HIGH/confirmed finding is
+        emitted. The ``insecure_data_flows`` patterns are real source->sink
+        conjunctions (a sensitive keyword — password/token/secret — flowing into
+        a concrete sink such as ``Log``, ``Intent.putExtra`` or ``putString``, or
+        a ``file://``/``content://`` scheme parsed into a Uri). These are strong
+        evidence.
+
+        The ``missing_input_validation`` patterns — chiefly the bare
+        ``Uri.parse(this)`` — are ubiquitous and are NOT by themselves evidence of
+        an insecure data flow. A finding backed only by such bare single-pattern
+        signals is down-ranked to at most MEDIUM and routed to the review queue
+        (NEEDS_REVIEW) rather than reported as a confirmed HIGH headline.
+        Library-origin matches (via package_allowlist) are likewise down-ranked.
+        """
         findings = []
 
         # Get string analysis results
@@ -222,37 +246,40 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
         if not isinstance(all_strings, list):
             all_strings = []
 
-        # Check for insecure data flow patterns
-        flow_evidence = []
+        strong_patterns = self.design_patterns["insecure_data_flows"]["patterns"]
+        weak_patterns = self.design_patterns["missing_input_validation"]["patterns"]
 
-        for pattern_category, pattern_info in self.design_patterns.items():
-            if pattern_category in ["insecure_data_flows", "missing_input_validation"]:
-                patterns = pattern_info["patterns"]
+        strong_evidence: list[str] = []
+        weak_evidence: list[str] = []
 
-                if isinstance(all_strings, (list, tuple)):
-                    for string in all_strings:
-                        if isinstance(string, str):
-                            for pattern in patterns:
-                                import re
+        for string in all_strings:
+            if not isinstance(string, str):
+                continue
+            # Down-rank matches that originate in framework/library code.
+            library_origin = (
+                classify_component(string, first_party_prefixes=self.first_party_prefixes) == "framework"
+            )
+            matched_strong = self._any_pattern_matches(strong_patterns, string)
+            matched_weak = self._any_pattern_matches(weak_patterns, string)
 
-                                try:
-                                    if re.search(pattern, string, re.IGNORECASE):
-                                        flow_evidence.append(f"Insecure data flow: {string[:100]}...")
-                                        break
-                                except Exception as e:
-                                    self.logger.debug(f"Regex pattern error for pattern '{pattern}': {e}")
-                                    continue
-                elif all_strings and not isinstance(all_strings, (str, bytes, bool)):
-                    self.logger.debug(f"Skipping non-iterable all_strings in data flows: {type(all_strings)}")
+            if matched_strong and not library_origin:
+                strong_evidence.append(f"Insecure data flow: {string[:100]}...")
+            elif matched_strong and library_origin:
+                weak_evidence.append(f"Potential data flow (library origin): {string[:100]}...")
+            elif matched_weak:
+                weak_evidence.append(f"Unvalidated input (needs review): {string[:100]}...")
 
-        if flow_evidence:
+        if strong_evidence:
+            # Genuine source->sink conjunction present: confirmed HIGH.
+            evidence = (strong_evidence + weak_evidence)[:10]
             findings.append(
                 SecurityFinding(
                     category=self.owasp_category,
                     severity=AnalysisSeverity.HIGH,
                     title="Insecure Data Flow Design",
                     description="Application contains insecure data flow patterns that expose sensitive information through unsafe channels or lack proper input validation.",
-                    evidence=flow_evidence[:10],  # Limit evidence
+                    evidence=evidence,
+                    confidence=0.7,
                     recommendations=[
                         "Implement secure data flow design with clear trust boundaries",
                         "Add comprehensive input validation for all external data sources",
@@ -262,8 +289,80 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
                     ],
                 )
             )
+        elif weak_evidence:
+            # Only bare single-pattern signals (e.g. Uri.parse(this)) or library
+            # origin: down-rank to MEDIUM and route to the review queue instead of
+            # emitting a confirmed HIGH headline on weak evidence alone.
+            findings.append(
+                SecurityFinding(
+                    category=self.owasp_category,
+                    severity=AnalysisSeverity.MEDIUM,
+                    title="Insecure Data Flow Design",
+                    description=(
+                        "Potential unvalidated input flows were detected from bare patterns "
+                        "(e.g. Uri.parse) without a corroborating source->sink conjunction. These "
+                        "are common and low-signal; a human should confirm whether untrusted data "
+                        "actually reaches a dangerous sink."
+                    ),
+                    evidence=weak_evidence[:10],
+                    confidence=0.35,
+                    verification_status=VerificationStatus.NEEDS_REVIEW,
+                    recommendations=[
+                        "Add comprehensive input validation for all external data sources",
+                        "Validate URI schemes and reject unexpected file:///content:// inputs",
+                        "Implement secure data flow design with clear trust boundaries",
+                        "Add data leak prevention controls for sensitive information",
+                    ],
+                )
+            )
 
         return findings
+
+    # Markers that identify a string as (minified/embedded) JavaScript rather than
+    # first-party Android code. Ad SDKs (OMID, MRAID, ...) bundle minified JS blobs
+    # that call Math.random()/new Random(); those are library web content, not a
+    # first-party weak-crypto design smell, so they must not seed a HIGH finding.
+    _JS_BLOB_MARKERS = (
+        "'use strict'",
+        '"use strict"',
+        ";(function",
+        "=>",
+        "function(",
+        "typeof ",
+    )
+
+    @classmethod
+    def _looks_like_embedded_javascript(cls, string: str) -> bool:
+        """Return True when ``string`` is (minified/embedded) JavaScript, not app code.
+
+        Recognises a ``javascript:`` URI prefix, common JS syntax markers, and long
+        minified blobs that declare ``var``s and use statement separators. This
+        keeps ad-SDK JS blobs (which embed Math.random()) out of the first-party
+        weak-crypto evidence.
+        """
+        stripped = string.lstrip()
+        if stripped[:11].lower() == "javascript:":
+            return True
+        lowered = string.lower()
+        if any(marker in lowered for marker in cls._JS_BLOB_MARKERS):
+            return True
+        # Long minified blob that declares vars and uses statement separators.
+        if len(string) > 120 and "var " in lowered and ";" in string:
+            return True
+        return False
+
+    def _any_pattern_matches(self, patterns: list[str], string: str) -> bool:
+        """Return True if any regex in ``patterns`` matches ``string`` (case-insensitive)."""
+        import re
+
+        for pattern in patterns:
+            try:
+                if re.search(pattern, string, re.IGNORECASE):
+                    return True
+            except Exception as e:
+                self.logger.debug(f"Regex pattern error for pattern '{pattern}': {e}")
+                continue
+        return False
 
     def _assess_missing_security_controls(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
         """Emit a single hardening-posture finding.
@@ -380,11 +479,18 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
         weak_crypto_evidence = collect_weak_crypto_evidence(analysis_results, all_strings)
 
         # Non-cryptographic randomness is a design smell not covered by algorithm
-        # token matching; keep it but guard against type descriptors.
+        # token matching; keep it but guard against type descriptors, bundled
+        # ad-SDK / library JavaScript blobs (OMID, MRAID, ... embed Math.random()
+        # inside minified JS — library web content, not first-party crypto), and
+        # library/SDK-origin strings (down-ranked via the shared package allowlist).
         random_patterns = [r"new\s+Random\(\)", r"Math\.random\(\)"]
         if isinstance(all_strings, (list, tuple)):
             for string in all_strings:
                 if not isinstance(string, str) or looks_like_type_descriptor(string):
+                    continue
+                if self._looks_like_embedded_javascript(string):
+                    continue
+                if classify_component(string, first_party_prefixes=self.first_party_prefixes) == "framework":
                     continue
                 for pattern in random_patterns:
                     import re

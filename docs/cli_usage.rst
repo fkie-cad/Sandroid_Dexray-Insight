@@ -120,10 +120,19 @@ Analysis Control Options
       dexray-insight app.apk -s
 
 ``--cve``
-   Enable CVE (Common Vulnerabilities and Exposures) vulnerability scanning for detected libraries.
-   
+   Explicitly enable CVE (Common Vulnerabilities and Exposures) vulnerability scanning for detected libraries.
+
    **Requires the ``--sec`` flag to be enabled** - CVE scanning is only available during security assessment.
-   
+
+   .. note::
+
+      With the shipped ``dexray.yaml`` (``security.cve_scanning.enabled: true``),
+      CVE scanning against the key-less **OSV** database already runs on every
+      ``-s`` run — the ``--cve`` flag is not required to trigger it. This makes
+      outbound network calls for any library that carries a detected version. CVE
+      scanning is now un-gated for Java/Android libraries (previously native-only).
+      Set ``security.cve_scanning.enabled: false`` to run offline.
+
    **Features**:
    
    * Queries multiple CVE databases (OSV, NVD, GitHub Advisory)
@@ -134,9 +143,9 @@ Analysis Control Options
    
    **CVE Data Sources**:
    
-   * **OSV** - Google's Open Source Vulnerabilities database (no API key required)
-   * **NVD** - NIST's National Vulnerability Database (API key optional but recommended)
-   * **GitHub Advisory** - GitHub's security advisory database (token optional but recommended)
+   * **OSV** - Google's Open Source Vulnerabilities database (no API key required; enabled by default)
+   * **NVD** - NIST's National Vulnerability Database (off by default; requires an API key)
+   * **GitHub Advisory** - GitHub's security advisory database (off by default; token recommended)
    
    **Examples**:
    
@@ -171,7 +180,7 @@ Analysis Control Options
 
 ``--deep``
    Enable deep behavioral analysis. Detects privacy-sensitive behaviors and advanced techniques:
-   
+
    * Device model access
    * IMEI access patterns
    * Android version detection
@@ -182,11 +191,19 @@ Analysis Control Options
    * Running services enumeration
    * Installed applications/packages access
    * Reflection usage analysis
-   
+
+   Under a security run, ``--deep`` also enables the xref-based deep data-flow and
+   PII-flow assessments (``deep_dataflow`` / ``pii_flow``), whose findings seed the
+   ``needs_dynamic`` review queue. It additionally turns on
+   ``modules.tracker_analysis.deep_string_location_analysis`` so PII-flow findings can be
+   attributed to a code location. Deep results are cached (keyed on APK MD5 plus a schema
+   version), so a second ``--deep`` run reuses them and skips the expensive androguard
+   ``create_xref()`` pass.
+
    **Example**:
-   
+
    .. code-block:: bash
-   
+
       dexray-insight app.apk --deep
 
 Tracker Analysis Options
@@ -253,9 +270,16 @@ Configuration Options
    
       # Use custom configuration
       dexray-insight app.apk -c my_config.yaml
-      
+
       # Use configuration with security assessment
       dexray-insight app.apk -c dexray.yaml -s
+
+   .. note::
+
+      A config file and CLI flags **compose**: flags such as ``-s``, ``--cve``,
+      ``--deep`` and ``-d`` are layered on top of the loaded configuration and
+      override the matching file settings, rather than the config file being
+      dropped when flags are present.
 
 Information Options
 ~~~~~~~~~~~~~~~~~~~

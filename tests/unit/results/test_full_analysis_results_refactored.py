@@ -84,9 +84,9 @@ class TestFullAnalysisResultsPrintSummaryHeader:
         # Assert
         lines = output.strip().split("\n")
         assert len(lines) >= 3  # Should have at least 3 lines
-        assert len(lines[1]) == 80  # Top border should be 80 characters
+        assert len(lines[0]) == 80  # Top border should be 80 characters
         assert len(lines[-1]) == 80  # Bottom border should be 80 characters
-        assert "📱 DEXRAY INSIGHT ANALYSIS SUMMARY" in lines[2]
+        assert "📱 DEXRAY INSIGHT ANALYSIS SUMMARY" in lines[1]
 
 
 @pytest.mark.refactored

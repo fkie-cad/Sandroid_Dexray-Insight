@@ -8,11 +8,14 @@ Androguard xref objects and stub contexts (no engine/registry, no base.apk).
 Targets mirror the Phase C3 spec:
 
 * deep mode OFF                                   -> []
-* PII source -> Crashlytics.recordException (xref) -> HIGH / off-device / CONFIRMED
+* PII source -> Crashlytics.recordException (xref) -> HIGH / off-device / NEEDS_DYNAMIC
+  (proximity/co-occurrence, not proven argument-level flow -> never CONFIRMED)
+* validator-backed PII literal                     -> higher confidence than a bare token
 * PII source -> android.util.Log (xref)            -> MEDIUM / local / NEEDS_DYNAMIC
 * sink present but no PII source reaches it        -> no finding
 * tracker co-location only (coarse)                -> HIGH / off-device / NEEDS_DYNAMIC
 * source and sink under the same SDK prefix        -> down-ranked (self-telemetry)
+* framework/SDK-owned SOURCE class                 -> down-ranked (library-origin)
 """
 
 import os
@@ -113,8 +116,11 @@ def test_deep_mode_nested_flag_enables():
     assert len(_assess({}, ctx)) == 1
 
 
-# ------------------------------------------------ off-device xref -> CONFIRMED
-def test_pii_to_crashlytics_xref_high_confirmed():
+# ------------------------------ off-device xref co-occurrence -> NEEDS_DYNAMIC
+def test_pii_column_token_to_crashlytics_xref_high_needs_dynamic():
+    # A bare column/field-name token ("user.email") co-occurring with an
+    # off-device sink is a proximity signal, NOT proof the value is the sink's
+    # argument -> HIGH but NEEDS_DYNAMIC at the lower (column) confidence.
     callee = FakeMethodAnalysis(_CRASHLYTICS, "recordException")
     caller = FakeMethodAnalysis("Lcom/evil/app/Leaker;", "leak", xref_to=[callee])
     ctx = FakeContext(
@@ -126,12 +132,30 @@ def test_pii_to_crashlytics_xref_high_confirmed():
     assert len(findings) == 1
     finding = findings[0]
     assert finding.severity == AnalysisSeverity.HIGH
-    assert finding.verification_status == VerificationStatus.CONFIRMED
-    assert finding.confidence == 0.7
+    assert finding.verification_status == VerificationStatus.NEEDS_DYNAMIC
+    assert finding.confidence == 0.5
     assert finding.additional_data["off_device"] is True
     assert finding.additional_data["tracker"] == "Crashlytics"
     assert finding.additional_data["evidence_tier"] == "xref"
     assert finding.additional_data["down_ranked"] is False
+
+
+def test_validated_pii_literal_gets_higher_confidence():
+    # A validator-backed taxonomy literal (a real, non-boilerplate email) is the
+    # stronger source signal -> still NEEDS_DYNAMIC, but higher confidence (0.7).
+    callee = FakeMethodAnalysis(_CRASHLYTICS, "recordException")
+    caller = FakeMethodAnalysis("Lcom/evil/app/Leaker;", "leak", xref_to=[callee])
+    ctx = FakeContext(
+        {"deep_mode": True},
+        FakeAndroguard(FakeDx([caller, callee])),
+        {"john.doe@gmail.com": ["Lcom/evil/app/Leaker;->leak"]},
+    )
+    findings = _assess({}, ctx)
+    assert len(findings) == 1
+    finding = findings[0]
+    assert finding.verification_status == VerificationStatus.NEEDS_DYNAMIC
+    assert finding.confidence == 0.7
+    assert finding.additional_data["source"] == "email"
 
 
 def test_pii_reaches_sink_via_one_hop_caller():
@@ -149,7 +173,21 @@ def test_pii_reaches_sink_via_one_hop_caller():
     )
     findings = _assess({}, ctx)
     assert len(findings) == 1
-    assert findings[0].verification_status == VerificationStatus.CONFIRMED
+    assert findings[0].verification_status == VerificationStatus.NEEDS_DYNAMIC
+
+
+def test_bare_column_word_in_prose_is_ignored():
+    # "Error message: %s" whole-word-matches the column token "message" but is
+    # prose (whitespace + a format specifier), not a column/pref key -> no source
+    # is attributed, so no finding is minted from a trivially common sink.
+    callee = FakeMethodAnalysis(_CRASHLYTICS, "recordException")
+    caller = FakeMethodAnalysis("Lcom/evil/app/Leaker;", "leak", xref_to=[callee])
+    ctx = FakeContext(
+        {"deep_mode": True},
+        FakeAndroguard(FakeDx([caller, callee])),
+        {"Error message: %s": ["Lcom/evil/app/Leaker;->leak"]},
+    )
+    assert _assess({}, ctx) == []
 
 
 # ---------------------------------------------- local log xref -> NEEDS_DYNAMIC
@@ -276,7 +314,31 @@ def test_xref_path_supersedes_colocation_for_same_flow():
         }
     }
     findings = _assess(analysis_results, ctx)
-    # Both tiers describe (email, Crashlytics.*, Crashlytics); the CONFIRMED xref
-    # finding wins the merge.
+    # Both tiers describe (email, Crashlytics.*, Crashlytics); both are now
+    # NEEDS_DYNAMIC, so the xref (precise) tier wins the merge on the tie-break.
     assert len(findings) == 1
-    assert findings[0].verification_status == VerificationStatus.CONFIRMED
+    assert findings[0].verification_status == VerificationStatus.NEEDS_DYNAMIC
+    assert findings[0].additional_data["evidence_tier"] == "xref"
+
+
+# ---------------------------------------- FP control: framework SOURCE class
+def test_framework_source_class_down_ranked():
+    # The SOURCE class alone is framework/SDK-owned (androidx.media3), flowing to
+    # a DIFFERENT SDK sink (Crashlytics). This is not covered by the same-prefix
+    # self-telemetry rule, but a library-origin source must still be down-ranked.
+    callee = FakeMethodAnalysis(_CRASHLYTICS, "recordException")
+    caller = FakeMethodAnalysis(
+        "Landroidx/media3/exoplayer/Analytics;", "report", xref_to=[callee]
+    )
+    ctx = FakeContext(
+        {"deep_mode": True},
+        FakeAndroguard(FakeDx([caller, callee])),
+        {"user.email": ["Landroidx/media3/exoplayer/Analytics;->report"]},
+    )
+    findings = _assess({}, ctx)
+    assert len(findings) == 1
+    finding = findings[0]
+    assert finding.additional_data["down_ranked"] is True
+    assert finding.additional_data["source_is_sdk"] is True
+    assert finding.severity == AnalysisSeverity.MEDIUM  # HIGH -> MEDIUM
+    assert finding.verification_status == VerificationStatus.NEEDS_REVIEW

@@ -34,8 +34,12 @@ Two evidence tiers, mirroring the framework's verification discipline:
 * **Precise (xref path)** — a method both handles a PII source string (via
   ``string_locations``) *and* calls a sink method (via ``get_xref_to``), or a
   one-hop caller of the sink-calling method handles the source (``get_xref_from``).
-  The data-flow fact is statically shown. Off-device sinks -> HIGH / CONFIRMED
-  (confidence ~0.7).
+  This shows *proximity/co-occurrence* — the PII token and the sink call live in
+  (or one hop from) the same method — but it does NOT prove the PII value is the
+  sink's argument. Therefore every precise finding is a review-queue seed
+  (NEEDS_DYNAMIC), never CONFIRMED. A validator-backed taxonomy source (a real
+  Luhn card / E.164 phone / SSN / coordinate / email literal) carries higher
+  confidence (~0.7) than a bare column/field-name token match (~0.5).
 * **Coarse (co-location)** — a detected tracker's code location shares a class
   with a PII source string's location. This is a bridge signal, not a proven
   path. Off-device sinks -> HIGH / NEEDS_DYNAMIC (confidence ~0.5).
@@ -43,8 +47,9 @@ Two evidence tiers, mirroring the framework's verification discipline:
 Severity splits by sink destination: an on-device local log
 (``android.util.Log``) is MEDIUM / NEEDS_DYNAMIC; an off-device third-party sink
 (Crashlytics / Firebase / Branch / Mixpanel) is HIGH. When the PII source and the
-sink both live under the same SDK package (framework prefix) the finding is
-down-ranked — an SDK logging its own telemetry is not a first-party leak.
+sink both live under the same SDK package (framework prefix), OR the source class
+alone is framework/SDK-owned (per the package allowlist), the finding is
+down-ranked — an SDK handling its own telemetry is not a first-party leak.
 """
 
 from __future__ import annotations
@@ -62,7 +67,9 @@ from ..core.base_classes import VerificationStatus
 from ..core.base_classes import register_assessment
 from .deep_cache import cached_deep_findings
 from .evidence import FRAMEWORK_PREFIXES
+from .evidence import classify_component
 from .evidence import matches_algorithm_token
+from .evidence import should_downrank
 from .evidence.pii_taxonomy import ART9_TOKENS
 from .evidence.pii_taxonomy import PII_TAXONOMY
 from .evidence.pii_taxonomy import SENSITIVE_COLUMN_TOKENS
@@ -157,13 +164,15 @@ PII_SINK_CATALOG: tuple[SinkDescriptor, ...] = (
 class _PIISources:
     """PII source attribution derived from ``string_locations``.
 
-    ``locations`` maps a hosting method full-name ("Lclass;->method") to the
-    source label; ``classes`` maps the class part to a label for the coarse
-    tracker co-location bridge.
+    ``locations`` maps a hosting method full-name ("Lclass;->method") to a
+    ``(label, validated)`` pair; ``classes`` maps the class part to the same pair
+    for the coarse tracker co-location bridge. ``validated`` is True only for a
+    validator-backed taxonomy match (a real card/phone/SSN/coordinate/email
+    literal) and False for a bare column/field-name token match.
     """
 
-    locations: dict[str, str] = field(default_factory=dict)
-    classes: dict[str, str] = field(default_factory=dict)
+    locations: dict[str, tuple[str, bool]] = field(default_factory=dict)
+    classes: dict[str, tuple[str, bool]] = field(default_factory=dict)
 
     def any(self) -> bool:
         """Return True when at least one PII source was attributed to code."""
@@ -180,6 +189,8 @@ class PIIFlowAssessment(BaseSecurityAssessment):
         self.logger = logging.getLogger(__name__)
         self.owasp_category = "PRIVACY:2024-Personal Data Exposure"
         self.validator = PIIValidator()
+        # Populated per-run in ``_assess_deep`` from library_detection results.
+        self._library_results: Any = None
 
     def assess(
         self, analysis_results: dict[str, Any], context: AnalysisContext | None = None
@@ -205,6 +216,12 @@ class PIIFlowAssessment(BaseSecurityAssessment):
         self, analysis_results: dict[str, Any], context: AnalysisContext | None
     ) -> list[SecurityFinding]:
         """Run the xref/co-location correlation (the create_xref-heavy work)."""
+        # Detected-library results let us down-rank a SOURCE class that is
+        # framework/SDK-owned (FIX B6: library-origin sources are a major FP
+        # source). Read once here and reused by ``_source_is_framework``.
+        self._library_results = analysis_results.get("library_detection") or analysis_results.get(
+            "library_analysis"
+        )
         findings: dict[tuple[str, str, str], SecurityFinding] = {}
         try:
             sources = self._collect_pii_sources(context)
@@ -225,8 +242,15 @@ class PIIFlowAssessment(BaseSecurityAssessment):
     def _is_deep(context: AnalysisContext | None) -> bool:
         """Return True only when analysis is running in deep mode."""
         cfg = getattr(context, "config", {}) or {}
-        behaviour = cfg.get("behaviour_analysis") or {}
-        return bool(cfg.get("deep_mode") or behaviour.get("deep_mode"))
+        if not isinstance(cfg, dict):
+            return False
+        # Canonical path used by --deep (see analysis_engine._is_deep_mode):
+        # modules.behaviour_analysis.deep_mode. Keep the top-level fallbacks so
+        # existing callers/tests that pass a flat config still work.
+        modules = cfg.get("modules", {}) if isinstance(cfg.get("modules"), dict) else {}
+        beh = modules.get("behaviour_analysis", {}) or cfg.get("behaviour_analysis", {}) or {}
+        nested = beh.get("deep_mode") if isinstance(beh, dict) else None
+        return bool(cfg.get("deep_mode") or nested)
 
     # -------------------------------------------------------- source model
     def _collect_pii_sources(self, context: AnalysisContext | None) -> _PIISources:
@@ -244,21 +268,31 @@ class PIIFlowAssessment(BaseSecurityAssessment):
         for value, locations in string_locations.items():
             if not isinstance(value, str):
                 continue
-            label = self._pii_label(value)
-            if label is None:
+            labelled = self._pii_label(value)
+            if labelled is None:
                 continue
             for location in locations or []:
                 if not isinstance(location, str) or "->" not in location:
                     continue
-                sources.locations.setdefault(location, label)
-                sources.classes.setdefault(self._class_of(location), label)
+                sources.locations.setdefault(location, labelled)
+                sources.classes.setdefault(self._class_of(location), labelled)
         return sources
 
-    def _pii_label(self, value: str) -> str | None:
-        """Return a source label if ``value`` is a validated PII source, else None."""
-        for token in _SOURCE_TOKENS:
-            if matches_algorithm_token(value, token):
-                return token
+    def _pii_label(self, value: str) -> tuple[str, bool] | None:
+        """Return ``(label, validated)`` if ``value`` is a PII source, else None.
+
+        ``validated`` is True for a validator-backed taxonomy literal (a real
+        Luhn card / E.164 phone / SSN / coordinate / non-boilerplate email) and
+        False for a bare column/field-name token. A validator-backed literal is
+        checked first because it is the stronger, lower-false-positive signal.
+
+        Bare column/field-name tokens (``body``, ``message``, ``phone`` ...) are
+        ultra-common words that whole-word-match benign prose ("Error message:
+        %s", "response body"). They are only accepted when the *whole* string
+        looks like a column/pref-key identifier — no whitespace, no format
+        specifiers — which keeps the false positives out of the review queue.
+        """
+        # Validator-backed taxonomy literals first (strongest signal).
         for pattern in PII_TAXONOMY:
             match = pattern.regex.search(value)
             if not match:
@@ -267,10 +301,30 @@ class PIIFlowAssessment(BaseSecurityAssessment):
             if pattern.name == "email":
                 if is_placeholder_or_library_email(literal):
                     continue
-                return "email"
+                return "email", True
             if not self.validator.evaluate(literal, value, pattern).rejected:
-                return pattern.name
+                return pattern.name, True
+        # Bare column/field-name token — only when the string is identifier-like.
+        if self._looks_like_identifier(value):
+            for token in _SOURCE_TOKENS:
+                if matches_algorithm_token(value, token):
+                    return token, False
         return None
+
+    @staticmethod
+    def _looks_like_identifier(value: str) -> bool:
+        """True when ``value`` looks like a column/pref-key, not prose.
+
+        A column name or SharedPreferences key has no whitespace and no printf
+        format specifier; benign log/message strings ("Error message: %s") do.
+        """
+        if not value or len(value) > 64:
+            return False
+        if any(ch.isspace() for ch in value):
+            return False
+        if "%" in value:
+            return False
+        return True
 
     # -------------------------------------------------------- precise xref
     def _xref_findings(
@@ -294,9 +348,11 @@ class PIIFlowAssessment(BaseSecurityAssessment):
                     source = self._reaching_source(method, caller_full, sources)
                     if source is None:
                         continue
-                    label, via = source
+                    label, validated, via = source
                     findings.append(
-                        self._precise_finding(label, sink, via, caller_class, self._callee_class(call))
+                        self._precise_finding(
+                            label, validated, sink, via, caller_class, self._callee_class(call)
+                        )
                     )
             except Exception as exc:  # pragma: no cover - defensive per-method
                 self.logger.debug(f"xref walk skipped a method: {exc}")
@@ -304,16 +360,21 @@ class PIIFlowAssessment(BaseSecurityAssessment):
 
     def _reaching_source(
         self, method: Any, caller_full: str, sources: _PIISources
-    ) -> tuple[str, str] | None:
-        """Find a PII source handled by the sink-calling method or a 1-hop caller."""
+    ) -> tuple[str, bool, str] | None:
+        """Find a PII source handled by the sink-calling method or a 1-hop caller.
+
+        Returns ``(label, validated, via)`` for the reaching source, or None.
+        """
         if caller_full in sources.locations:
-            return sources.locations[caller_full], caller_full
+            label, validated = sources.locations[caller_full]
+            return label, validated, caller_full
         try:
             for call in method.get_xref_from():
                 upstream = call[1].get_method()
                 upstream_full = f"{upstream.get_class_name()}->{upstream.get_name()}"
                 if upstream_full in sources.locations:
-                    return sources.locations[upstream_full], upstream_full
+                    label, validated = sources.locations[upstream_full]
+                    return label, validated, upstream_full
         except Exception:  # pragma: no cover - reverse xref optional
             return None
         return None
@@ -336,9 +397,10 @@ class PIIFlowAssessment(BaseSecurityAssessment):
                 if not isinstance(location, str):
                     continue
                 tracker_class = self._class_of(location)
-                label = sources.classes.get(tracker_class)
-                if label is None:
+                labelled = sources.classes.get(tracker_class)
+                if labelled is None:
                     continue
+                label, _validated = labelled
                 findings.append(
                     self._coarse_finding(label, sink, tracker_class, tracker_name)
                 )
@@ -349,16 +411,27 @@ class PIIFlowAssessment(BaseSecurityAssessment):
     def _precise_finding(
         self,
         source_label: str,
+        validated: bool,
         sink: SinkDescriptor,
         via: str,
         source_class: str,
         sink_class: str,
     ) -> SecurityFinding:
-        """Build a finding for a statically shown source->sink path."""
-        # Off-device with a real xref path is CONFIRMED; a local log is a proven
-        # write but its sensitivity/runtime-reachability still needs a dynamic check.
-        status = VerificationStatus.CONFIRMED if sink.off_device else VerificationStatus.NEEDS_DYNAMIC
-        confidence = 0.7 if sink.off_device else 0.55
+        """Build a finding for an xref-adjacent source->sink co-occurrence.
+
+        HONESTY: the xref only proves the PII token and the sink call share (or
+        sit one hop from) the same method — it does NOT prove the PII value is
+        the sink's argument. That is proximity, not proof, so the finding is a
+        review-queue seed (NEEDS_DYNAMIC), never CONFIRMED — mirroring the
+        deep_dataflow module's discipline. A validator-backed taxonomy literal
+        carries higher confidence than a bare column/field-name token.
+        """
+        status = VerificationStatus.NEEDS_DYNAMIC
+        if sink.off_device:
+            confidence = 0.7 if validated else 0.5
+        else:
+            # Local-log tier behavior kept as-is.
+            confidence = 0.55
         return self._build_finding(
             source_label, sink, via, status, confidence, source_class, sink_class, coarse=False
         )
@@ -389,10 +462,13 @@ class PIIFlowAssessment(BaseSecurityAssessment):
         sink_class: str,
         coarse: bool,
     ) -> SecurityFinding:
-        down_ranked = self._same_sdk(source_class, sink_class)
+        same_sdk = self._same_sdk(source_class, sink_class)
+        source_is_sdk = self._source_is_framework(source_class)
+        down_ranked = same_sdk or source_is_sdk
         severity = AnalysisSeverity.HIGH if sink.off_device else AnalysisSeverity.MEDIUM
         if down_ranked:
-            # SDK logging its own telemetry is not a first-party leak.
+            # An SDK handling its own telemetry (shared prefix), or a
+            # library/SDK-owned SOURCE class, is not a first-party leak.
             severity = AnalysisSeverity.MEDIUM if sink.off_device else AnalysisSeverity.LOW
             status = VerificationStatus.NEEDS_REVIEW
             confidence = round(confidence * 0.7, 2)
@@ -409,11 +485,19 @@ class PIIFlowAssessment(BaseSecurityAssessment):
                     "The path is co-located (shared code class) rather than statically traced; "
                     "dynamic verification is required."
                     if coarse
-                    else "The path is shown by static cross-references."
+                    else "Cross-references show the PII token and the sink call are adjacent "
+                    "(same method, or one hop apart) — this is proximity/co-occurrence, not a "
+                    "proven argument-level flow; dynamic verification is required."
+                )
+                + (
+                    " Down-ranked: the source class is framework/SDK-owned (library-origin), "
+                    "not first-party code."
+                    if source_is_sdk and not same_sdk
+                    else ""
                 )
                 + (
                     " Down-ranked: source and sink share the same SDK package (self-telemetry)."
-                    if down_ranked
+                    if same_sdk
                     else ""
                 )
             ),
@@ -439,6 +523,7 @@ class PIIFlowAssessment(BaseSecurityAssessment):
                 "source": source_label,
                 "path": via,
                 "down_ranked": down_ranked,
+                "source_is_sdk": source_is_sdk,
                 "evidence_tier": "co-location" if coarse else "xref",
             },
         )
@@ -457,8 +542,23 @@ class PIIFlowAssessment(BaseSecurityAssessment):
 
     @staticmethod
     def _is_stronger(candidate: SecurityFinding, existing: SecurityFinding) -> bool:
-        """A CONFIRMED (xref) finding supersedes a NEEDS_DYNAMIC (co-location) one."""
-        return _STATUS_RANK[candidate.verification_status] > _STATUS_RANK[existing.verification_status]
+        """Order findings for the same flow: status, then xref-tier, then confidence.
+
+        A higher verification status wins first. When statuses tie (both precise
+        and coarse tiers are now NEEDS_DYNAMIC), an xref finding supersedes a
+        co-location one, and finally a higher confidence breaks the tie.
+        """
+        return PIIFlowAssessment._strength(candidate) > PIIFlowAssessment._strength(existing)
+
+    @staticmethod
+    def _strength(finding: SecurityFinding) -> tuple[int, int, float]:
+        """Comparable strength key: (status_rank, xref_tier, confidence)."""
+        tier = 1 if finding.additional_data.get("evidence_tier") == "xref" else 0
+        return (
+            _STATUS_RANK[finding.verification_status],
+            tier,
+            finding.confidence or 0.0,
+        )
 
     # ----------------------------------------------------------- helpers
     @staticmethod
@@ -517,6 +617,21 @@ class PIIFlowAssessment(BaseSecurityAssessment):
     def _class_of(location: str) -> str:
         """Return the class part of a 'Lclass;->method' location string."""
         return location.split("->", 1)[0]
+
+    def _source_is_framework(self, source_class: str) -> bool:
+        """True when the SOURCE class alone is framework/SDK-owned (down-rank).
+
+        A library-origin source (Compose, media3, gRPC/protobuf, an ad SDK)
+        flowing into a sink is a well-known false-positive source (base_analys
+        §B6). We reuse ``package_allowlist.classify_component`` /
+        ``should_downrank`` — corroborated by ``library_detection`` results when
+        available — rather than re-deriving a prefix list here.
+        """
+        dotted = source_class.lstrip("L").rstrip(";").replace("/", ".")
+        if not dotted:
+            return False
+        classification = classify_component(dotted, library_results=self._library_results)
+        return should_downrank(classification)
 
     @staticmethod
     def _same_sdk(class_a: str, class_b: str) -> bool:

@@ -145,7 +145,7 @@ class TestDetectedLibraryEnhanced(unittest.TestCase):
         )
 
         formatted = library.format_version_output()
-        expected = "Library (1.0.0): /test/"
+        expected = "Library (1.0.0): /test/: version analysis pending"
         self.assertEqual(formatted, expected)
 
     def test_post_init_new_fields(self):
@@ -236,11 +236,10 @@ class TestLibraryDetectionResultsIntegration(unittest.TestCase):
 
         # Should be able to serialize to JSON
         json_str = json.dumps(library.to_dict(), indent=2)
-        self.assertIn('"years_behind": 1.5', json_str)
-        self.assertIn('"security_risk": "MEDIUM"', json_str)
-        self.assertIn('"anti_features": ["tracking", "ads"]', json_str)
 
-        # Should be able to deserialize
+        # Should round-trip cleanly regardless of the JSON whitespace layout.
+        # (json.dumps with indent=2 pretty-prints lists across multiple lines,
+        # so assert on the deserialized structure rather than substring layout.)
         parsed = json.loads(json_str)
         self.assertEqual(parsed["years_behind"], 1.5)
         self.assertEqual(parsed["security_risk"], "MEDIUM")

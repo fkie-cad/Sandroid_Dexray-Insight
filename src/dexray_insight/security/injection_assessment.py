@@ -39,6 +39,7 @@ from .evidence import list_sink_calls
 from .evidence import list_weak_command_signals
 from .evidence import looks_like_type_descriptor
 from .evidence.whole_word import matches_algorithm_token
+from .ssrf_assessment import _is_library_origin_url
 
 # SQL verbs / clauses used to recognise a *real* dynamic-query shape (as opposed
 # to a bare SQL keyword co-occurring with a "+" somewhere in a class descriptor).
@@ -379,8 +380,25 @@ class InjectionAssessment(BaseSecurityAssessment):
 
         return findings
 
+    _API_INJECTION_RECOMMENDATIONS = [
+        "Use parameterized API calls and avoid URL concatenation",
+        "Validate and sanitize all data used in API requests",
+        "Use safe parsing libraries for XML/JSON processing",
+        "Implement proper input validation for all API parameters",
+        "Use content type validation for API requests",
+        "Apply output encoding for dynamic content generation",
+    ]
+
     def _assess_api_injection_risks(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """Assess for injection risks in API calls and data processing."""
+        """Assess for injection risks in API calls and data processing.
+
+        Gated to require *first-party* evidence of an actual injection shape.
+        Library / ad-SDK format-string URLs (e.g. ``ads.pubmatic.com/.../%s`` or
+        ``play.google.com/...?id=%s``) and library class descriptors are NOT
+        first-party sinks - they are down-ranked (dropped or routed to a LOW
+        review item), never a confirmed MEDIUM injection finding. See
+        base_analys.md B6: "No first-party injection sink demonstrated."
+        """
         findings = []
 
         string_results = analysis_results.get("string_analysis", {})
@@ -388,20 +406,29 @@ class InjectionAssessment(BaseSecurityAssessment):
         all_strings = string_data.get("all_strings", [])
         urls = string_data.get("urls", [])
 
-        api_risks = []
+        api_risks = []  # first-party, user-controlled shape -> MEDIUM
+        api_review = []  # first-party bare template / weak signal -> LOW review
 
-        # Check URLs for injection risks
+        # Check URLs for injection risks.
         for url in urls:
-            if isinstance(url, str):
-                # Look for dynamic URL construction with user input
-                if any(dynamic_indicator in url for dynamic_indicator in ["%s", "{", "}", "+", "concat"]):
-                    api_risks.append(f"Dynamic URL construction: {url}")
+            if not isinstance(url, str):
+                continue
+            # Down-rank library / ad-SDK format-string URLs: not first-party sinks.
+            if _is_library_origin_url(url):
+                continue
+            has_dynamic = any(dynamic_indicator in url for dynamic_indicator in ["%s", "{", "}", "+", "concat"])
+            has_user_param = "?" in url and ("user" in url.lower() or "input" in url.lower())
+            if has_user_param:
+                # A first-party URL that concatenates a user/input parameter.
+                api_risks.append(f"Parameter injection risk: {url}")
+            elif has_dynamic:
+                # First-party printf-style URL template constant: not a proven
+                # sink, routed to a LOW review item rather than confirmed MEDIUM.
+                api_review.append(f"Dynamic URL construction (first-party, review): {url}")
 
-                # Check for parameter injection risks
-                if "?" in url and ("user" in url.lower() or "input" in url.lower()):
-                    api_risks.append(f"Parameter injection risk: {url}")
-
-        # Check for XML/JSON injection patterns
+        # Check for XML/JSON injection patterns. These already require a
+        # user/input token; library class descriptors are excluded so a
+        # protobuf/Room/media3 descriptor does not masquerade as a sink.
         injection_patterns = [
             r"<\?xml.*user.*>",  # XML with user data
             r"json.*user.*input",  # JSON with user input
@@ -412,11 +439,12 @@ class InjectionAssessment(BaseSecurityAssessment):
         import re
 
         for string in all_strings:
-            if isinstance(string, str):
-                for pattern in injection_patterns:
-                    if re.search(pattern, string, re.IGNORECASE):
-                        api_risks.append(f"Data injection risk: {string[:70]}...")
-                        break
+            if not isinstance(string, str) or looks_like_type_descriptor(string):
+                continue
+            for pattern in injection_patterns:
+                if re.search(pattern, string, re.IGNORECASE):
+                    api_risks.append(f"Data injection risk: {string[:70]}...")
+                    break
 
         if api_risks:
             findings.append(
@@ -425,15 +453,24 @@ class InjectionAssessment(BaseSecurityAssessment):
                     severity=AnalysisSeverity.MEDIUM,
                     title="API and Data Injection Risks",
                     description="Application may be vulnerable to injection through API calls and data processing.",
-                    evidence=api_risks[:8],
-                    recommendations=[
-                        "Use parameterized API calls and avoid URL concatenation",
-                        "Validate and sanitize all data used in API requests",
-                        "Use safe parsing libraries for XML/JSON processing",
-                        "Implement proper input validation for all API parameters",
-                        "Use content type validation for API requests",
-                        "Apply output encoding for dynamic content generation",
-                    ],
+                    evidence=(api_risks + api_review)[:8],
+                    confidence=0.6,
+                    recommendations=self._API_INJECTION_RECOMMENDATIONS,
+                )
+            )
+        elif api_review:
+            findings.append(
+                SecurityFinding(
+                    category=self.owasp_category,
+                    severity=AnalysisSeverity.LOW,
+                    title="API and Data Injection Risks (unproven, review)",
+                    description=(
+                        "Application contains first-party parameterized URL template constants. "
+                        "No user-controlled injection sink was demonstrated; included for manual review."
+                    ),
+                    evidence=api_review[:8],
+                    confidence=0.25,
+                    recommendations=self._API_INJECTION_RECOMMENDATIONS,
                 )
             )
 

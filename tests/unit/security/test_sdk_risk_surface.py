@@ -28,6 +28,7 @@ assert the decoupling of SDK-RCE surface from CVE/version matching.
 
 from dexray_insight.core.base_classes import AnalysisSeverity
 from dexray_insight.core.base_classes import VerificationStatus
+from dexray_insight.security.data.sdk_risk_surface import SDK_RISK_SURFACE
 from dexray_insight.security.sdk_risk_surface_assessment import SdkRiskSurfaceAssessment
 
 
@@ -178,3 +179,36 @@ def test_library_objects_without_version_attribute_are_tolerated():
 
     assert len(findings) == 1
     assert findings[0].additional_data["sdk"] == "MediaLab"
+
+
+def _old_nested_match(bridge_classes, all_strings):
+    """The pre-optimization O(descriptors × strings) nested-loop matcher."""
+    for descriptor in bridge_classes:
+        for s in all_strings:
+            if descriptor in s:
+                return descriptor
+    return None
+
+
+def test_joined_corpus_matching_equals_old_nested_loop():
+    """The joined-buffer matcher returns the same descriptor as the old nested
+    loop for representative inputs across every SDK in the knowledge base.
+    """
+    corpora = [
+        [],
+        ["com/example/app/MainActivity", "https://api.example.com"],
+        [
+            "com/bytedance/sdk/openadsdk/core/widget/AdWebViewDownloadManagerImpl;",
+            "com/tapjoy/TJAdUnitJSBridge",
+            "com/applovin/impl/adview/AdViewController",
+        ],
+        ["prefix-WindVaneWebView-suffix", "com/ironsource/sdk/controller/Foo"],
+    ]
+
+    for all_strings in corpora:
+        joined = "\n".join(all_strings)
+        for surface in SDK_RISK_SURFACE.values():
+            bridge_classes = surface.get("bridge_classes", [])
+            expected = _old_nested_match(bridge_classes, all_strings)
+            actual = SdkRiskSurfaceAssessment._matched_bridge_descriptor(bridge_classes, joined)
+            assert actual == expected

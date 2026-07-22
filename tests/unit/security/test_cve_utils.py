@@ -81,9 +81,16 @@ class TestAPIRateLimiter:
         assert len(limiter.request_history["hour"]) == 1
         assert len(limiter.request_history["burst"]) == 1
 
-    def test_minute_rate_limiting(self, strict_config):
-        """Test minute-based rate limiting"""
-        limiter = APIRateLimiter(strict_config)
+    def test_minute_rate_limiting(self):
+        """Test minute-based rate limiting in isolation.
+
+        Uses a config without a burst limit so the minute limit (2/min) is the only
+        constraint being exercised; the burst limit is covered separately by
+        test_burst_rate_limiting. can_make_request() is purely count-based, so this
+        test is deterministic and not timing-sensitive.
+        """
+        config = RateLimitConfig(requests_per_minute=2, requests_per_hour=10, burst_limit=None)
+        limiter = APIRateLimiter(config)
 
         # First 2 requests should be allowed
         assert limiter.can_make_request() is True
@@ -92,7 +99,7 @@ class TestAPIRateLimiter:
         assert limiter.can_make_request() is True
         limiter.record_request()
 
-        # Third request should be blocked
+        # Third request should be blocked by the minute limit
         assert limiter.can_make_request() is False
 
     def test_burst_rate_limiting(self, strict_config):
@@ -169,6 +176,32 @@ class TestAPIRateLimiter:
         assert status["requests_last_minute"] == 0
         assert status["can_make_request"] is True
         assert status["wait_time_seconds"] == 0
+
+    def test_get_rate_limit_status_does_not_deadlock(self, basic_config):
+        """Regression (R7): get_rate_limit_status() re-acquires the instance lock
+        via its nested can_make_request() call. With a non-reentrant Lock this
+        deadlocked; with an RLock it must return promptly on the same thread.
+
+        Run it in a worker thread and join with a short timeout so a
+        reintroduced deadlock fails fast instead of hanging the suite.
+        """
+        import threading
+
+        limiter = APIRateLimiter(basic_config)
+        limiter.record_request()  # ensure history is non-empty so all branches run
+
+        result = {}
+
+        def _call():
+            result["status"] = limiter.get_rate_limit_status()
+
+        worker = threading.Thread(target=_call)
+        worker.start()
+        worker.join(timeout=10)
+
+        assert not worker.is_alive(), "get_rate_limit_status() deadlocked (re-entrant lock regression)"
+        assert isinstance(result["status"], dict)
+        assert result["status"]["can_make_request"] is True
 
     def test_reset_rate_limiter(self, basic_config):
         """Test rate limiter reset functionality"""
@@ -354,11 +387,16 @@ class TestVulnerabilityModels:
     """Test suite for vulnerability data models"""
 
     def test_cve_severity_enum(self):
-        """Test CVE severity enumeration"""
-        assert CVESeverity.CRITICAL.value > CVESeverity.HIGH.value
-        assert CVESeverity.HIGH.value > CVESeverity.MEDIUM.value
-        assert CVESeverity.MEDIUM.value > CVESeverity.LOW.value
-        assert CVESeverity.LOW.value > CVESeverity.UNKNOWN.value
+        """Test CVE severity enumeration is ordered by risk (CRITICAL is greatest).
+
+        Severities compare by their numeric risk rank rather than the alphabetical
+        order of their string values, so production code (e.g. deduplication that
+        keeps the higher-severity duplicate) orders them correctly.
+        """
+        assert CVESeverity.CRITICAL > CVESeverity.HIGH
+        assert CVESeverity.HIGH > CVESeverity.MEDIUM
+        assert CVESeverity.MEDIUM > CVESeverity.LOW
+        assert CVESeverity.LOW > CVESeverity.UNKNOWN
 
     def test_version_range_creation(self):
         """Test version range model creation"""
@@ -437,7 +475,9 @@ class TestVulnerabilityModels:
         assert isinstance(result_dict, dict)
         assert result_dict["cve_id"] == "CVE-2021-0001"
         assert result_dict["summary"] == "Test vulnerability"
-        assert result_dict["severity"] == "high"
+        # Severity is serialized as the uppercase enum value (matching NVD/GitHub
+        # labels); consumers lower-case it themselves where needed.
+        assert result_dict["severity"] == "HIGH"
         assert result_dict["cvss_score"] == 7.5
         assert result_dict["source"] == "osv"
 
@@ -486,9 +526,12 @@ class TestLibraryMapping:
         if cve_names:  # May be empty if no mappings loaded
             assert isinstance(cve_names, dict)
 
-        # Test with unknown library
+        # Test with unknown library. When no explicit mapping exists the mapper
+        # falls back to generating reasonable per-source query names from the
+        # detected name so that unmapped libraries can still be scanned.
         unknown_names = manager.get_cve_names("nonexistent-library")
-        assert unknown_names == {}
+        assert set(unknown_names.keys()) == {"osv", "nvd", "github"}
+        assert all("nonexistent" in name for name in unknown_names.values())
 
     def test_get_ecosystem(self):
         """Test ecosystem detection for libraries"""

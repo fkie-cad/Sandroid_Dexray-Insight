@@ -432,7 +432,7 @@ class FullAnalysisResults:
                 self._print_finding_tiers(findings, config, verbose)
 
             # Signature results
-            if self.in_depth_analysis.signatures:
+            if self.in_depth_analysis and self.in_depth_analysis.signatures:
                 print("\n🛡️  SIGNATURE ANALYSIS")
                 print("-" * 40)
                 sigs = self.in_depth_analysis.signatures

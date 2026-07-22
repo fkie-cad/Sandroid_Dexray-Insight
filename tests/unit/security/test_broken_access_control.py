@@ -15,7 +15,27 @@ Covers the recently implemented fixes:
 
 import pytest
 
+from src.dexray_insight.core.base_classes import AnalysisSeverity, VerificationStatus
 from src.dexray_insight.security.broken_access_control_assessment import BrokenAccessControlAssessment
+
+
+def _manifest_with_permissions(permissions):
+    """Build minimal analysis_data whose manifest declares the given permissions."""
+    return {
+        "manifest_analysis": {
+            "activities": [],
+            "services": [],
+            "receivers": [],
+            "content_providers": [],
+            "permissions": [f"android.permission.{p}" for p in permissions],
+            "intent_filters": [],
+        }
+    }
+
+
+def _dangerous_finding(findings):
+    matches = [f for f in findings if f.title == "Excessive Dangerous Permissions"]
+    return matches[0] if matches else None
 
 
 @pytest.fixture
@@ -97,3 +117,90 @@ class TestBrokenAccessControlWithStringComponents:
         findings = assessment.assess(string_based_manifest_analysis)
         potentially_exported = [f for f in findings if f.title.startswith("Potentially Exported")]
         assert potentially_exported, "Expected a 'Potentially Exported' finding from the intent-filter path"
+
+
+class TestDangerousPermissionSeverity:
+    """Severity of 'Excessive Dangerous Permissions' must reflect *which* permissions
+    are present, not merely the raw count. A routine messenger permission set is
+    LOW/informational; only rarely-justified over-grants escalate."""
+
+    # A large but entirely justified permission set for a messenger with live
+    # video and contacts (the base_analys.md §A6 scenario).
+    MESSENGER_PERMISSIONS = [
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "RECORD_AUDIO",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA",
+        "READ_CONTACTS",
+        "GET_ACCOUNTS",
+    ]
+
+    @pytest.mark.security
+    @pytest.mark.unit
+    def test_standard_messenger_set_is_low(self, assessment):
+        """Five+ standard dangerous permissions must NOT inflate to HIGH."""
+        findings = assessment.assess(_manifest_with_permissions(self.MESSENGER_PERMISSIONS))
+        finding = _dangerous_finding(findings)
+        assert finding is not None, "Expected a dangerous-permissions finding for the messenger set"
+        assert finding.severity == AnalysisSeverity.LOW, (
+            f"Standard messenger permission set should be LOW/informational, got {finding.severity}"
+        )
+
+    @pytest.mark.security
+    @pytest.mark.unit
+    def test_standard_set_stays_confirmed(self, assessment):
+        """The permissions are really declared, so the finding stays CONFIRMED even at LOW."""
+        findings = assessment.assess(_manifest_with_permissions(self.MESSENGER_PERMISSIONS))
+        finding = _dangerous_finding(findings)
+        assert finding is not None
+        assert finding.verification_status == VerificationStatus.CONFIRMED
+
+    @pytest.mark.security
+    @pytest.mark.unit
+    def test_camera_only_is_low(self, assessment):
+        """A single routine permission is LOW, not MEDIUM."""
+        findings = assessment.assess(_manifest_with_permissions(["CAMERA"]))
+        finding = _dangerous_finding(findings)
+        assert finding is not None
+        assert finding.severity == AnalysisSeverity.LOW
+
+    @pytest.mark.security
+    @pytest.mark.unit
+    def test_over_grant_is_high(self, assessment):
+        """A rarely-justified system-level over-grant keeps the finding HIGH."""
+        findings = assessment.assess(
+            _manifest_with_permissions(["CAMERA", "WRITE_SECURE_SETTINGS"])
+        )
+        finding = _dangerous_finding(findings)
+        assert finding is not None
+        assert finding.severity == AnalysisSeverity.HIGH
+
+    @pytest.mark.security
+    @pytest.mark.unit
+    def test_install_packages_over_grant_is_high(self, assessment):
+        findings = assessment.assess(_manifest_with_permissions(["INSTALL_PACKAGES"]))
+        finding = _dangerous_finding(findings)
+        assert finding is not None
+        assert finding.severity == AnalysisSeverity.HIGH
+
+    @pytest.mark.security
+    @pytest.mark.unit
+    def test_elevated_permission_is_medium(self, assessment):
+        """An elevated-but-not-critical permission (e.g. SEND_SMS) is MEDIUM."""
+        findings = assessment.assess(_manifest_with_permissions(["CAMERA", "SEND_SMS"]))
+        finding = _dangerous_finding(findings)
+        assert finding is not None
+        assert finding.severity == AnalysisSeverity.MEDIUM
+
+    @pytest.mark.security
+    @pytest.mark.unit
+    def test_large_messenger_set_with_over_grant_is_high(self, assessment):
+        """An over-grant mixed into a big routine set still escalates to HIGH."""
+        findings = assessment.assess(
+            _manifest_with_permissions(self.MESSENGER_PERMISSIONS + ["BIND_DEVICE_ADMIN"])
+        )
+        finding = _dangerous_finding(findings)
+        assert finding is not None
+        assert finding.severity == AnalysisSeverity.HIGH

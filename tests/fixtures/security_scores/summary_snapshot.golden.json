@@ -12,11 +12,11 @@
   },
   "findings_by_severity": {
     "critical": 1,
-    "high": 2,
+    "high": 1,
     "low": 6,
-    "medium": 6
+    "medium": 7
   },
-  "overall_risk_score": 75.0,
-  "risk_score_confirmed": 75.0,
-  "risk_score_review_mass": 5.21
+  "overall_risk_score": 36.33,
+  "risk_score_confirmed": 36.33,
+  "risk_score_review_mass": 3.58
 }

@@ -146,15 +146,24 @@ class ProviderPathsAssessment(BaseSecurityAssessment):
         except Exception:
             return None
 
-    def _load_paths_xml(self, apk: Any, resource_name: str) -> Any | None:
+    def _load_paths_xml(self, apk: Any, resource: str) -> Any | None:
         """Load and decode a FileProvider paths resource to an lxml root.
+
+        ``resource`` may be a bare resource name (``provider_paths`` ->
+        ``res/xml/provider_paths.xml``, used by unit tests) or an already
+        fully-qualified file path (``res/xml/provider_paths.xml``, as returned
+        when a numeric resource id is resolved against the APK resource table).
 
         The resource is stored as compiled binary AXML; it is decoded with
         androguard's ``AXMLPrinter``. Plain-XML bytes (as used by unit tests)
         are parsed directly. Returns None when the resource is absent/undecodable.
         """
+        if resource.startswith("res/") or resource.endswith(".xml"):
+            file_path = resource
+        else:
+            file_path = f"res/xml/{resource}.xml"
         try:
-            data = apk.get_file(f"res/xml/{resource_name}.xml")
+            data = apk.get_file(file_path)
         except Exception:
             return None
         if not data:
@@ -212,7 +221,7 @@ class ProviderPathsAssessment(BaseSecurityAssessment):
 
     def _provider_paths(self, apk: Any, provider_element: Any) -> list[tuple[str, str | None, str | None]]:
         """Resolve the (tag, name, path) entries of a provider's FileProvider paths."""
-        resource = self._file_provider_resource(provider_element)
+        resource = self._file_provider_resource(apk, provider_element)
         if resource is None:
             return []
         paths_root = self._load_paths_xml(apk, resource)
@@ -226,14 +235,52 @@ class ProviderPathsAssessment(BaseSecurityAssessment):
                 entries.append((tag, child.get("name"), child.get("path")))
         return entries
 
-    def _file_provider_resource(self, provider_element: Any) -> str | None:
-        """Return the FileProvider paths resource name (@xml/NAME -> NAME)."""
+    def _file_provider_resource(self, apk: Any, provider_element: Any) -> str | None:
+        """Return the FileProvider paths resource reference for a provider.
+
+        Handles both forms of the ``<meta-data android:resource>`` value:
+
+        * ``@xml/NAME`` (symbolic, used by unit tests and by some tools) ->
+          the bare resource name ``NAME``.
+        * ``@<hex-id>`` (a numeric resource-id reference, as androguard returns
+          for a compiled APK, e.g. ``@7F17002C``) -> the fully-qualified
+          ``res/xml/NAME.xml`` file path, resolved against the APK resource
+          table. Resolution failures degrade gracefully to None.
+        """
         for child in provider_element.iter("meta-data"):
             if self._attr(child, "name") in _FILE_PROVIDER_META_NAMES:
                 resource = self._attr(child, "resource")
-                if resource and resource.startswith("@xml/"):
+                if not resource:
+                    continue
+                if resource.startswith("@xml/"):
                     return resource[len("@xml/"):]
+                if resource.startswith("@"):
+                    resolved = self._resolve_numeric_resource(apk, resource)
+                    if resolved is not None:
+                        return resolved
         return None
+
+    def _resolve_numeric_resource(self, apk: Any, resource: str) -> str | None:
+        """Resolve a numeric ``@<hex-id>`` resource reference to its file path.
+
+        Parses the leading-``@`` hex id and looks it up in the APK resource
+        table, returning the stored ``res/xml/NAME.xml`` path. Any parse or
+        resolution failure degrades to None so the assessment never crashes.
+        """
+        try:
+            res_id = int(resource.lstrip("@"), 16)
+        except (ValueError, AttributeError):
+            return None
+        try:
+            resources = apk.get_android_resources()
+            if resources is None:
+                return None
+            entries = resources.get_resolved_res_configs(res_id)
+            if not entries:
+                return None
+            return entries[0][1]
+        except Exception:
+            return None
 
     @staticmethod
     def _classify_root_breadth(tag: str, path: str | None) -> str | None:

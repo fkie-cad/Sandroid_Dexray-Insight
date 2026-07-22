@@ -456,9 +456,24 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
                 "description": "PEM-formatted certificate",
                 "severity": "MEDIUM",
             },
-            # Hex encoded keys
-            "hex_key_256": {"pattern": r"[a-fA-F0-9]{64}", "description": "256-bit hex key", "severity": "MEDIUM"},
-            "hex_key_128": {"pattern": r"[a-fA-F0-9]{32}", "description": "128-bit hex key", "severity": "MEDIUM"},
+            # Hex encoded keys. Bare high-entropy hex is indistinguishable from a
+            # crypto known-answer-test (KAT) vector; only surrounding key/crypto
+            # context tells them apart. ``context_hard`` therefore HARD-DROPS a
+            # context-less hex hit instead of the soft LOW downgrade.
+            "hex_key_256": {
+                "pattern": r"[a-fA-F0-9]{64}",
+                "description": "256-bit hex key",
+                "severity": "MEDIUM",
+                "context_required": ["key", "secret", "token", "iv", "password", "aes", "hmac", "cipher"],
+                "context_hard": True,
+            },
+            "hex_key_128": {
+                "pattern": r"[a-fA-F0-9]{32}",
+                "description": "128-bit hex key",
+                "severity": "MEDIUM",
+                "context_required": ["key", "secret", "token", "iv", "password", "aes", "hmac", "cipher"],
+                "context_hard": True,
+            },
             # Smali const-string patterns for API keys
             "smali_const_string_api_key": {
                 "pattern": r'const-string\s+v\d+,\s*"([^"]{20,})"',

@@ -139,8 +139,33 @@ class SecurityAssessmentEngine:
         # Non-confirmed weight is reported separately as review_mass, never folded in.
         self.headline_mode = str(scoring_cfg.get("headline_mode", "confirmed")).lower()
         # A single high-confidence CRITICAL must keep the app in the critical band,
-        # regardless of how few findings there are.
+        # regardless of how few findings there are. `critical_floor` is retained for
+        # backward compatibility (config parity + rollback) but is NO LONGER applied as
+        # a hard clamp — see `critical_bump` below.
         self.critical_floor = float(scoring_cfg.get("critical_floor", 75.0))
+        # Soft additive critical bump (replaces the hard `critical_floor` clamp): each
+        # confirmed high-confidence CRITICAL raises the normalized score by this amount,
+        # capped at 100 — score = min(100, base_normalized + critical_bump * n_critical).
+        # This keeps the headline continuous and monotonic instead of binary-flooring a
+        # single confirmed critical straight to 75.
+        self.critical_bump = float(scoring_cfg.get("critical_bump", 18.0))
+        # Diminishing-returns decay per severity tier. Within each tier the findings are
+        # ranked by confidence and the k-th one contributes weight*confidence*decay**k, so
+        # a pile of same-severity findings can't dominate the headline by sheer count (a
+        # moderate app with many MEDIUM findings should not approach a malware score). A
+        # genuine CRITICAL is undecayed (1.0) and still dominates via its weight + bump.
+        default_decay = {
+            AnalysisSeverity.CRITICAL: 1.0,
+            AnalysisSeverity.HIGH: 0.8,
+            AnalysisSeverity.MEDIUM: 0.5,
+            AnalysisSeverity.LOW: 0.4,
+        }
+        self.severity_decay = dict(default_decay)
+        for sev_name, value in (scoring_cfg.get("severity_decay", {}) or {}).items():
+            try:
+                self.severity_decay[AnalysisSeverity(sev_name)] = float(value)
+            except (ValueError, TypeError):
+                self.logger.debug(f"Ignoring invalid severity decay: {sev_name}={value}")
         self.severity_default_confidence = {
             AnalysisSeverity.CRITICAL: 0.8,
             AnalysisSeverity.HIGH: 0.5,
@@ -406,30 +431,46 @@ class SecurityAssessmentEngine:
         count-inflated low-confidence findings, and a per-finding cap avoids the six-figure
         "174k leakage" distortion.
 
-        A single high-confidence CRITICAL floors the normalized score into the critical
-        band so a real critical is never diluted by aggregate arithmetic.
+        Each confirmed high-confidence CRITICAL adds a soft additive bump so a real
+        critical is never diluted by aggregate arithmetic — without the old hard 75 floor
+        that made the headline binary-ish. The bump is monotonic (more criticals never
+        lower the score) and capped at 100.
 
         Returns (normalized_score 0-100, raw_weighted_sum).
         """
         if not findings:
             return 0.0, 0.0
 
-        raw = 0.0
+        # Group by severity, then apply diminishing returns within each tier to the
+        # confidence-sorted findings, so real-but-medium volume can't dominate a genuine
+        # high-severity signal (the k-th finding in a tier contributes weight*conf*decay**k).
+        by_severity: dict = defaultdict(list)
         for finding in findings:
-            weight = self._SEVERITY_WEIGHTS.get(finding.severity, 0)
             confidence = finding.confidence if finding.confidence is not None else 0.3
-            raw += weight * confidence
+            by_severity[finding.severity].append(confidence)
+
+        raw = 0.0
+        for severity, confidences in by_severity.items():
+            weight = self._SEVERITY_WEIGHTS.get(severity, 0)
+            if not weight:
+                continue
+            decay = self.severity_decay.get(severity, 1.0)
+            for rank, confidence in enumerate(sorted(confidences, reverse=True)):
+                raw += weight * confidence * (decay**rank)
 
         denominator = self.scoring_denominator if self.scoring_denominator > 0 else 100.0
         normalized = min(100.0, (raw / denominator) * 100.0)
 
-        # Single high-confidence CRITICAL floor.
-        has_confirmed_critical = any(
-            f.severity == AnalysisSeverity.CRITICAL and (f.confidence or 0.0) >= self.confirmed_confidence_threshold
+        # Soft additive critical bump: +critical_bump per confirmed high-confidence
+        # CRITICAL, capped at 100. Replaces the former hard max(normalized, critical_floor)
+        # clamp. Preserves monotonicity: adding a critical can only raise the score.
+        n_critical = sum(
+            1
             for f in findings
+            if f.severity == AnalysisSeverity.CRITICAL and (f.confidence or 0.0) >= self.confirmed_confidence_threshold
         )
-        if has_confirmed_critical:
-            normalized = max(normalized, self.critical_floor)
+        if n_critical:
+            normalized = min(100.0, normalized + self.critical_bump * n_critical)
 
         return round(normalized, 2), round(raw, 2)
 

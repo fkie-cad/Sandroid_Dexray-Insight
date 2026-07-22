@@ -60,6 +60,8 @@ from ..core.base_classes import SecurityFinding
 from ..core.base_classes import VerificationStatus
 from ..core.base_classes import register_assessment
 from .deep_cache import cached_deep_findings
+from .evidence import classify_component
+from .evidence import should_downrank
 
 # ---------------------------------------------------------------------------
 # Per-finding OWASP categories (may differ from the assessment default, A01).
@@ -265,6 +267,9 @@ class DeepDataflowAssessment(BaseSecurityAssessment):
         self.logger = logging.getLogger(__name__)
         # Default category; individual findings override per detector as needed.
         self.owasp_category = _CAT_ACCESS_CONTROL
+        # Populated per-run in ``_assess_deep`` for the SOURCE-class down-rank.
+        self._library_results: Any = None
+        self._package_name_cached: str | None = None
 
     # ------------------------------------------------------------------ #
     # Entry point
@@ -296,6 +301,15 @@ class DeepDataflowAssessment(BaseSecurityAssessment):
         dx = self._get_dx(context)
         if dx is None:
             return []
+
+        # Library-origin SOURCE classes (Compose, media3, gRPC/protobuf, ad SDKs)
+        # are a major false-positive source (base_analys §B6); capture the inputs
+        # the package-allowlist down-rank needs before scanning.
+        self._library_results = analysis_results.get("library_detection") or analysis_results.get(
+            "library_analysis"
+        )
+        overview = self._overview_dict(analysis_results)
+        self._package_name_cached = self._package_name(overview) if overview else None
 
         exported = self._exported_class_sets(analysis_results)
 
@@ -334,7 +348,56 @@ class DeepDataflowAssessment(BaseSecurityAssessment):
                 self.logger.debug(f"deep_dataflow detector {detector.__name__} failed: {exc}")
                 continue
             if finding is not None:
+                self._downrank_if_framework_source(view, finding)
                 findings.append(finding)
+
+    # ------------------------------------------------------------------ #
+    # SOURCE-class down-rank (package allowlist)
+    # ------------------------------------------------------------------ #
+    def _downrank_if_framework_source(
+        self, view: _MethodView, finding: SecurityFinding
+    ) -> None:
+        """Down-rank a finding whose SOURCE (caller) class is framework/SDK-owned.
+
+        A library-origin class is a well-known false-positive source, so the
+        seed is softened (severity lowered one notch, confidence reduced) and
+        annotated — never deleted, and it stays NEEDS_DYNAMIC for review.
+        First-party and unknown classes are left untouched.
+        """
+        if not self._source_is_framework(view.caller_class):
+            return
+        finding.severity = self._one_notch_lower(finding.severity)
+        if finding.confidence is not None:
+            finding.confidence = round(finding.confidence * 0.6, 2)
+        finding.description += (
+            " Down-ranked: the source class is framework/SDK-owned (library-origin), "
+            "a common false-positive source — verify it is genuinely app code."
+        )
+        if isinstance(finding.additional_data, dict):
+            finding.additional_data["source_downranked"] = True
+
+    def _source_is_framework(self, dex_class: str) -> bool:
+        """True when ``dex_class`` classifies as framework/SDK per the allowlist."""
+        dotted = (dex_class or "").lstrip("L").rstrip(";").replace("/", ".")
+        if not dotted:
+            return False
+        classification = classify_component(
+            dotted,
+            package_name=self._package_name_cached,
+            library_results=self._library_results,
+        )
+        return should_downrank(classification)
+
+    @staticmethod
+    def _one_notch_lower(severity: AnalysisSeverity) -> AnalysisSeverity:
+        """Lower a severity by one level (CRITICAL->HIGH->MEDIUM->LOW; LOW stays)."""
+        ladder = {
+            AnalysisSeverity.CRITICAL: AnalysisSeverity.HIGH,
+            AnalysisSeverity.HIGH: AnalysisSeverity.MEDIUM,
+            AnalysisSeverity.MEDIUM: AnalysisSeverity.LOW,
+            AnalysisSeverity.LOW: AnalysisSeverity.LOW,
+        }
+        return ladder.get(severity, severity)
 
     # ------------------------------------------------------------------ #
     # Deep gate + xref hook
@@ -345,8 +408,12 @@ class DeepDataflowAssessment(BaseSecurityAssessment):
         cfg = getattr(context, "config", {}) or {}
         if not isinstance(cfg, dict):
             return False
-        behaviour = cfg.get("behaviour_analysis") or {}
-        nested = behaviour.get("deep_mode") if isinstance(behaviour, dict) else None
+        # Canonical path used by --deep (see analysis_engine._is_deep_mode):
+        # modules.behaviour_analysis.deep_mode. Keep the top-level fallbacks so
+        # existing callers/tests that pass a flat config still work.
+        modules = cfg.get("modules", {}) if isinstance(cfg.get("modules"), dict) else {}
+        beh = modules.get("behaviour_analysis", {}) or cfg.get("behaviour_analysis", {}) or {}
+        nested = beh.get("deep_mode") if isinstance(beh, dict) else None
         return bool(cfg.get("deep_mode") or nested)
 
     def _get_dx(self, context: Optional[AnalysisContext]) -> Any | None:
@@ -582,8 +649,11 @@ class DeepDataflowAssessment(BaseSecurityAssessment):
         """openFile that derives a path from the URI without canonicalization."""
         if "openfile" not in view.caller_name_lc:
             return None
-        # androidx FileProvider handles path scoping itself — not a custom provider.
-        if "fileprovider" in view.caller_class.lower():
+        # The androidx FileProvider scopes paths itself — exclude ONLY that exact
+        # class. A substring test on "fileprovider" would also swallow custom
+        # providers such as ...KikFileProvider / ...SnsFileProvider, which are
+        # exactly what this detector must catch.
+        if view.caller_class.lower().startswith("landroidx/core/content/fileprovider"):
             return None
         path_source = view.callee_matches(_PROVIDER_PATH_TOKENS)
         if not path_source:

@@ -47,6 +47,31 @@ PUBLIC_RESOLVER_ALLOWLIST = frozenset(
     }
 )
 
+# Well-known special-purpose IPv4 addresses that must always be accepted, even
+# though their shape (leading small octet or trailing zero octets) would
+# otherwise trip the OID-root or version-number heuristics below.
+#   - 0.0.0.0            unspecified / "this host"
+#   - 127.0.0.1          loopback
+#   - 255.255.255.255    limited broadcast
+# These are structurally valid IPs that are meaningful IOCs, so they are
+# short-circuited before any reclassification heuristic runs.
+WELL_KNOWN_VALID_IPS = frozenset(
+    {
+        "0.0.0.0",  # noqa: S104
+        "127.0.0.1",
+        "255.255.255.255",
+    }
+)
+
+# Leading-octet ceiling below which a version-shaped dotted-quad is treated as a
+# software version rather than an IP. Software major versions are overwhelmingly
+# small (< 50), whereas routable IPv4 space that we care about surfacing (e.g.
+# "52.7.0.0") lives above it. This is the one dimension that separates a genuine
+# routable IP such as "52.7.0.0" (kept, per the INVARIANT in
+# test_network_filter_ip.py) from version strings such as "6.17.0.0" or
+# "16.7.21.0" (dropped, per test_false_positive_improvements.py).
+_VERSION_LEADING_OCTET_MAX = 50
+
 # Curated ASN.1 / X.509 OID arcs commonly mistaken for IPv4 addresses in APKs.
 # Any dotted-number token that is an extension (or prefix) of one of these arcs
 # is an object identifier, not an IP (e.g. "2.5.4.14", "2.5.29.28").
@@ -295,13 +320,31 @@ class NetworkFilter:
         if trusted_ips and ip in trusted_ips:
             return True
 
+        # Layer 2b - well-known special-purpose IPs and public DNS resolvers are
+        # accepted before any reclassification heuristic (e.g. "0.0.0.0" would
+        # otherwise be dropped by the OID-root check, and "1.0.0.1" by the
+        # version-number check, despite both being legitimate addresses).
+        if ip in WELL_KNOWN_VALID_IPS or ip in PUBLIC_RESOLVER_ALLOWLIST:
+            return True
+
         # Layer 3 - curated OID/ASN.1 arc denylist (drops "2.5.4.14", "2.5.29.28").
         if self._matches_oid_arc(ip):
             return False
 
         # Layer 4 - bare OID-root tokens (e.g. "1.2.2.3") that are not on the
         # public-resolver allowlist are object identifiers, not IPs.
-        return not (self._is_oid_root(ip) and ip not in PUBLIC_RESOLVER_ALLOWLIST)
+        if self._is_oid_root(ip) and ip not in PUBLIC_RESOLVER_ALLOWLIST:
+            return False
+
+        # Layer 5 - version-number reclassifier. Dotted-quads such as "6.17.0.0"
+        # or "16.7.21.0" are software versions, not addresses, and are dropped.
+        # The leading-octet guard preserves the INVARIANT that a routable IP with
+        # a large leading octet (e.g. "52.7.0.0") is never dropped as a version.
+        # Runs last so it can never reject a whitelisted IP handled above.
+        if octets[0] < _VERSION_LEADING_OCTET_MAX and self._is_likely_version_number(ip):
+            return False
+
+        return True
 
     def _is_likely_version_number(self, ip: str) -> bool:
         """

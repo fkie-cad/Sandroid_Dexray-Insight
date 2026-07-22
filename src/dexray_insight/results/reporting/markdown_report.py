@@ -131,17 +131,30 @@ class MarkdownSecurityReporter:
 
         risk_score = security.get("overall_risk_score", 0) or 0
         risk_confirmed = security.get("risk_score_confirmed")
+        review_mass = security.get("risk_score_review_mass")
         total = security.get("total_findings", len(findings))
 
         lines = ["## Executive Summary", ""]
-        score_line = f"- **Risk score (triage aid):** {risk_score:.1f}/100"
+        # The headline is the CONFIRMED subset: it reflects only high-confidence,
+        # statically-decidable findings. NEEDS_REVIEW / NEEDS_DYNAMIC findings are
+        # deliberately excluded and surfaced separately as a manual-review queue.
+        score_line = f"- **Risk score (confirmed headline, triage aid):** {risk_score:.1f}/100"
         if risk_confirmed is not None:
             score_line += f"  ·  **confirmed-only:** {risk_confirmed:.1f}/100"
         lines.append(score_line)
         lines.append(
-            "  - _The score pair is a triage aid, not a verdict: the first value weights "
-            "all findings by confidence; the second counts only high-confidence findings._"
+            "  - _The headline reflects only confirmed, high-confidence findings; it is a "
+            "triage aid, not a verdict. NEEDS_REVIEW / NEEDS_DYNAMIC findings are never folded "
+            "into it — they sit in the manual-review queue below._"
         )
+        # Surface the review-queue volume so analysts see how much evidence sits in the
+        # unconfirmed (NEEDS_DYNAMIC / NEEDS_REVIEW) tier and never entered the headline.
+        # Mirrors the console summary's "Review-queue weight (not in headline)" line.
+        if review_mass:
+            lines.append(
+                f"- **Review-queue weight (not in headline):** {review_mass:.2f} — manual-review "
+                "queue (NEEDS_REVIEW / NEEDS_DYNAMIC), excluded from the headline score."
+            )
         lines.append(f"- **Total findings:** {total}")
 
         distribution = security.get("findings_by_severity", {}) or {}
@@ -186,8 +199,10 @@ class MarkdownSecurityReporter:
             confidence = risk_ranking.confidence_of(finding)
             title = risk_ranking.title_of(finding) or "Security Finding"
             category = str(risk_ranking.get_attr(finding, "category", "Unknown"))
+            status = risk_ranking.verification_status_of(finding).upper()
             lines.append(f"### {index}. [{severity} · conf {confidence:.2f}] {title}")
             lines.append(f"- **Category:** {category}")
+            lines.append(f"- **Verification status:** {status}")
             evidence = self._first_evidence(finding)
             if evidence:
                 lines.append(f"- **Evidence:** `{evidence}`")
@@ -218,29 +233,31 @@ class MarkdownSecurityReporter:
             lines.append("_None._")
             return "\n".join(lines)
 
-        lines.append("| Severity | Conf | Category | Title | Evidence |")
-        lines.append("| --- | --- | --- | --- | --- |")
+        lines.append("| Severity | Conf | Status | Category | Title | Evidence |")
+        lines.append("| --- | --- | --- | --- | --- | --- |")
         for finding in findings:
             severity = risk_ranking.severity_str(finding).upper()
             confidence = risk_ranking.confidence_of(finding)
+            status = risk_ranking.verification_status_of(finding).upper()
             category = self._escape(str(risk_ranking.get_attr(finding, "category", "Unknown")))
             title = self._escape(risk_ranking.title_of(finding) or "Security Finding")
             evidence = self._escape(self._first_evidence(finding) or "")
-            lines.append(f"| {severity} | {confidence:.2f} | {category} | {title} | {evidence} |")
+            lines.append(f"| {severity} | {confidence:.2f} | {status} | {category} | {title} | {evidence} |")
         return "\n".join(lines)
 
     def _render_full_findings(self, findings: list) -> str:
         if not findings:
             return ""
         ranked = risk_ranking.rank_findings(findings)
-        lines = [f"## All Findings ({len(ranked)})", "", "| # | Severity | Conf | Category | Title |",
-                 "| --- | --- | --- | --- | --- |"]
+        lines = [f"## All Findings ({len(ranked)})", "", "| # | Severity | Conf | Status | Category | Title |",
+                 "| --- | --- | --- | --- | --- | --- |"]
         for index, finding in enumerate(ranked, start=1):
             severity = risk_ranking.severity_str(finding).upper()
             confidence = risk_ranking.confidence_of(finding)
+            status = risk_ranking.verification_status_of(finding).upper()
             category = self._escape(str(risk_ranking.get_attr(finding, "category", "Unknown")))
             title = self._escape(risk_ranking.title_of(finding) or "Security Finding")
-            lines.append(f"| {index} | {severity} | {confidence:.2f} | {category} | {title} |")
+            lines.append(f"| {index} | {severity} | {confidence:.2f} | {status} | {category} | {title} |")
         return "\n".join(lines)
 
     def _render_informational_appendix(self, findings: list) -> str:

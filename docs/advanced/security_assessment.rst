@@ -440,8 +440,249 @@ Advanced behavioral pattern detection (enabled with ``--deep`` flag):
        ]
    }
 
+New Security Assessments (v2)
+-----------------------------
+
+The v2 overhaul adds several focused assessments on top of the OWASP Mobile
+Top 10 coverage. Unless noted otherwise they run on every ``-s`` security run
+and are enabled by default in ``dexray.yaml``.
+
+Verification Status and the Review Queue
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Every finding now carries a ``verification_status`` that answers a different
+question than ``confidence``: *is this a settled vulnerability, or a lead that
+still needs runtime proof?*
+
+* ``confirmed`` — a settled finding backed by concrete static evidence. Only
+  confirmed findings (above the confidence threshold) drive the headline risk
+  score.
+* ``needs_dynamic`` — a real static signal whose *exploitability* depends on
+  runtime state that static analysis cannot settle (IDOR/BOLA access control,
+  RCE-pivot bridge surface, deep data-flow proximity hints). Surfaced as a
+  ranked **review queue**, never reported as a confirmed vulnerability.
+* ``needs_review`` — a low-confidence presence seed (a bare string-pool token or
+  heuristic hit) that a human should triage.
+
+Review-queue findings (``needs_dynamic`` / ``needs_review``) never inflate the
+headline score. Their combined weight is reported separately as
+``risk_score_review_mass`` so you can gauge how much unconfirmed signal exists
+without it distorting the headline number.
+
+.. code-block:: json
+
+   {
+       "title": "Possible IDOR / BOLA on exported content provider",
+       "severity": "HIGH",
+       "confidence": 0.6,
+       "verification_status": "needs_dynamic",
+       "description": "Static signal only — confirm exploitability at runtime."
+   }
+
+Privacy and PII Assessment (PRIVACY:2024)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A dedicated privacy assessment runs under a new
+``PRIVACY:2024-Personal Data Exposure`` category, alongside the OWASP Mobile
+Top 10. It replaces the old string-corpus PII scanner (which dumped library
+placeholder e-mail addresses) with a validated PII taxonomy:
+
+* **Validated literals** — credit-card numbers are confirmed with the Luhn
+  checksum, phone numbers with E.164, US SSNs, and geolocation coordinates via
+  range validators. A bare regex match alone is not reported.
+* **Permission ↔ sink correlation** — a PII source is escalated only when the
+  app both holds the matching permission and reaches a sink that could
+  exfiltrate the data.
+* **PII-at-rest** — ``CREATE TABLE`` column names and SharedPreferences keys are
+  inspected for personal data, with a GDPR Art. 9 escalation for special
+  categories, gated by the app's encryption posture.
+* **Private-key-at-rest** — detection of private key material persisted on the
+  device.
+* **IDOR/BOLA review queue** — access-control leads that cannot be confirmed
+  statically are emitted as ``needs_dynamic`` review-queue items.
+
+.. code-block:: yaml
+
+   security:
+     assessments:
+       pii:
+         enabled: true   # PRIVACY:2024 taxonomy assessment (default on)
+
+FileProvider Path-Scope Analysis
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``provider_paths`` assessment reads ``<provider>`` declarations and the
+referenced ``res/xml/*_paths.xml`` files (via androguard) to flag misconfigured
+``FileProvider`` scopes:
+
+* Over-broad roots (e.g. sharing an entire external-storage or root path).
+* Exported providers lacking signature-level permission protection.
+* Duplicate authorities across providers.
+
+.. code-block:: yaml
+
+   security:
+     assessments:
+       provider_paths:
+         enabled: true
+
+SDK Risk-Surface Analysis
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``sdk_risk_surface`` assessment maps advertising/analytics SDKs to the risky
+capabilities their concrete bridge classes expose (MRAID / VPAID / JavaScript
+bridges, download-and-install flows). A finding is emitted per matched SDK when
+the corresponding bridge-class descriptors are present in the APK — even when
+the SDK version is unknown. These are surfaced as ``needs_review`` review-queue
+items rather than confirmed RCE.
+
+.. code-block:: yaml
+
+   security:
+     assessments:
+       sdk_risk_surface:
+         enabled: true
+
+Deep Data-Flow and PII-Flow Assessments (``--deep`` only)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Two xref-based assessments run **only** under ``--deep`` (they are gated on
+``modules.behaviour_analysis.deep_mode``):
+
+* ``deep_dataflow`` — emits ``needs_dynamic`` proximity hints for
+  intent-redirection, URI-to-WebView flows, IPC deserialization, provider
+  ``openFile`` path traversal, and debuggable-gated control paths.
+* ``pii_flow`` — correlates validated PII *sources* with per-tracker *sinks*
+  (Crashlytics / Firebase / Branch); off-device transmission is escalated to
+  HIGH.
+
+All deep findings are ``needs_dynamic`` — they seed the review queue and never
+enter the headline score. Because they rely on androguard cross-references, the
+results are cached (keyed on the APK MD5 plus a schema version), so a second
+``--deep`` run reuses them and skips the expensive ``create_xref()`` pass.
+
+.. code-block:: yaml
+
+   security:
+     assessments:
+       deep_dataflow:
+         enabled: true   # runs only under --deep
+       pii_flow:
+         enabled: true   # runs only under --deep
+
+Network Security Configuration: User Trust Anchors
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The insecure-communication analysis now detects apps whose Network Security
+Configuration trusts ``user``-installed CA certificates, which makes traffic
+interception via a user-added certificate substantially easier.
+
+Precision Improvements (v2)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The v2 overhaul routes detections through validators that eliminate the most
+common false positives:
+
+* **Secret / entropy detection** rejects binary blobs, base64-image fragments,
+  cryptographic test-vector hex, DEX class descriptors, slash paths, and
+  camelCase code identifiers before a string is treated as a secret.
+* **Weak-crypto** findings require a real ``getInstance``/usage context rather
+  than a bare mention of an algorithm name.
+* **SSRF / injection** findings require a first-party sink and are not raised on
+  library or ad-SDK ``%s`` URL templates.
+* **Dangerous-permission** severity is tiered: standard messenger permissions
+  are LOW/informational, while genuine over-grants are HIGH.
+* **Cleartext-URL** findings filter documentation, namespace, and placeholder
+  hosts, keeping only first-party endpoints.
+
+The precision layer only ever down-ranks or re-tiers findings for display; it
+never deletes a raw finding from the JSON, so downstream tooling retains the
+full data set.
+
 Risk Assessment and Scoring
 ---------------------------
+
+Confirmed-Subset Risk Scoring (v2)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The headline ``overall_risk_score`` is the **confirmed-subset** score. Only
+findings that are ``verification_status == confirmed`` **and** have
+``confidence >= confirmed_threshold`` (default ``0.7``) enter the headline.
+Review-queue findings never enter it. This makes the headline count-robust: a
+flood of unconfirmed leads can no longer inflate the number, so the headline is
+the defensible figure to threshold on.
+
+Alongside the headline, the security results emit:
+
+* ``risk_score_confirmed`` — the confirmed-subset score (the headline in the
+  default mode).
+* ``risk_score_review_mass`` — the combined weight of the review queue
+  (``needs_dynamic`` / ``needs_review``), reported separately.
+* ``overall_risk_score_raw`` — the sum-over-all-findings score.
+* ``risk_score_legacy`` — the old v1 count-weighted score, emitted for
+  migration.
+
+**Monotonicity invariants**: adding a review-queue finding never changes the
+headline, and adding a confirmed finding never lowers it.
+
+**Per-severity diminishing returns.** The raw sum that feeds the base score now
+applies *diminishing returns within each severity tier*. Findings are grouped by
+severity, ranked by confidence, and the k-th finding in a tier (0-indexed by
+descending confidence) contributes ``weight × confidence × decay**k``. This stops
+a pile of same-severity findings — especially MEDIUM — from dominating the
+headline by sheer count: the first few genuine findings in a tier count at (or
+near) full weight, while the long tail is progressively discounted.
+
+The decay factor is per-severity, configured under
+``security.risk_scoring.severity_decay``. Defaults:
+
+* ``critical: 1.0`` — undecayed, so a genuine critical still dominates.
+* ``high: 0.8``
+* ``medium: 0.5``
+* ``low: 0.4``
+
+**Soft additive critical bump.** The old hard "critical floor" (a single
+confirmed CRITICAL clamped the headline to ``>= 75``) has been replaced by a
+soft additive bump::
+
+   score = min(100, base + critical_bump * n_confirmed_critical)
+
+The default ``critical_bump`` is ``18.0``. This keeps the headline continuous
+instead of binary. The legacy ``critical_floor`` knob remains readable for
+rollback but is no longer applied as a clamp.
+
+**Net effect.** Together, the per-severity decay and the recalibrated bump keep
+the headline count-robust: a moderate app that accumulates many MEDIUM findings
+now lands in a defensible band (for illustration, ~35-40 on the Kik ``base.apk``
+benchmark) rather than being inflated by count alone, while malware whose score
+is driven by genuine CRITICAL findings stays high and a benign app stays ~0.
+
+**Configuration** (``dexray.yaml``):
+
+.. code-block:: yaml
+
+   security:
+     risk_scoring:
+       version: 2
+       headline_mode: confirmed   # "raw" reverts to the old sum-over-all behaviour
+       confirmed_threshold: 0.7   # min confidence for a confirmed finding to count
+       critical_bump: 18.0        # soft additive bump per confirmed CRITICAL
+       critical_floor: 75.0       # legacy; retained for rollback, no longer clamped
+       severity_decay:            # per-severity diminishing-returns factor
+         critical: 1.0            # undecayed — a genuine critical still dominates
+         high: 0.8
+         medium: 0.5
+         low: 0.4
+
+Legacy Risk Calculation (illustrative)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. note::
+
+   The pseudo-code below illustrates the earlier count-weighted model. The
+   default headline is now the confirmed-subset score described above. Set
+   ``security.risk_scoring.headline_mode: raw`` to restore a sum-over-all
+   headline.
 
 Overall Risk Calculation
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -621,23 +862,47 @@ Export findings in Common Vulnerability Scoring System (CVSS) format:
 CVE Vulnerability Scanning
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Dexray Insight includes comprehensive CVE (Common Vulnerabilities and Exposures) scanning capabilities that automatically check detected libraries against multiple online vulnerability databases.
+Dexray Insight includes comprehensive CVE (Common Vulnerabilities and Exposures) scanning capabilities that automatically check detected libraries against online vulnerability databases.
 
 **Supported CVE Data Sources**:
 
-* **OSV (Open Source Vulnerabilities)** - Google's vulnerability database
-* **NVD (National Vulnerability Database)** - NIST's comprehensive CVE database  
-* **GitHub Advisory Database** - GitHub's security advisory database
+* **OSV (Open Source Vulnerabilities)** - Google's vulnerability database; key-less and the default backend
+* **NVD (National Vulnerability Database)** - NIST's comprehensive CVE database (off by default; needs an API key)
+* **GitHub Advisory Database** - GitHub's security advisory database (off by default; token recommended)
+
+.. note::
+
+   **Behavior change (v2).** CVE scanning is now **un-gated for Java/Android
+   libraries** — previously it was native-only and, in practice, found nothing.
+   Because ``cve_scanning.enabled`` defaults to ``true`` in the shipped
+   ``dexray.yaml``, CVE scanning against OSV runs on **every** ``-s`` security
+   run for any library that carries a detected version. This makes outbound
+   network calls to the OSV API. To disable it, set
+   ``security.cve_scanning.enabled: false`` (or trim
+   ``security.cve_scanning.sources``).
+
+**Data-source defaults**:
+
+* **OSV** is enabled by default and requires no API key.
+* **NVD** is disabled by default: without an API key it rate-limit-stalls. Set a
+  real key and enable it to use NVD.
+* **GitHub Advisory** is disabled by default; a token improves rate limits.
 
 **Enabling CVE Scanning**:
 
-CVE scanning is only available during security assessment and requires both the ``--sec`` and ``--cve`` flags:
+CVE scanning is part of the security assessment. With the shipped configuration
+it already runs under ``-s`` (OSV source). The ``--cve`` flag remains available
+to force CVE scanning on and still requires security to be enabled (via ``-s``
+or a config file):
 
 .. code-block:: bash
 
-   # Enable security assessment with CVE scanning
+   # Security assessment — CVE scanning against OSV runs by default
+   dexray-insight app.apk -s
+
+   # Explicitly force CVE scanning
    dexray-insight app.apk --sec --cve
-   
+
    # With custom configuration
    dexray-insight app.apk --sec --cve -c dexray.yaml
 
@@ -647,19 +912,23 @@ CVE scanning is only available during security assessment and requires both the 
 
    security:
      cve_scanning:
-       enabled: false  # Disabled by default, use --cve flag to enable
-       
+       enabled: true  # Enabled by default; runs under -s (makes network calls)
+
        # CVE Data Sources
        sources:
          osv:  # Open Source Vulnerabilities (Google)
-           enabled: true
-           api_key: null  # OSV doesn't require API key
+           enabled: true   # Key-less default backend (Java + native libraries)
+           api_key: null   # OSV doesn't require an API key
          nvd:  # National Vulnerability Database (NIST)
-           enabled: true
-           api_key: "YOUR_NVD_API_KEY"  # Optional, improves rate limits
+           enabled: false  # Off by default: needs an API key
+           api_key: "YOUR_NVD_API_KEY"
          github:  # GitHub Advisory Database
-           enabled: true
-           api_key: "YOUR_GITHUB_TOKEN"  # Optional, improves rate limits
+           enabled: false  # Off by default; token improves rate limits
+           api_key: "YOUR_GITHUB_TOKEN"
+
+       # Library type filtering
+       scan_native_only: false       # Scan native AND Java/Android libraries
+       include_java_libraries: true  # Java/Android libs scanned when they carry a version
        
        # Performance Configuration
        max_workers: 3  # Parallel CVE scans

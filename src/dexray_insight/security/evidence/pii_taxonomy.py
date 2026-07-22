@@ -267,12 +267,17 @@ SENSITIVE_PREF_KEY_TOKENS: frozenset[str] = frozenset(
 )
 
 # Tokens that evidence an at-rest encryption posture (encrypted prefs / DB).
+# NOTE: the bare ``MasterKey``/``MasterKeys`` identifiers were intentionally
+# removed (R8b-2). Whole-word matching still matched a benign camelCase field or
+# variable named ``masterKey`` and falsely asserted encryption-at-rest, silencing
+# genuine plaintext-private-key findings. The Jetpack MasterKey API always lives
+# in ``androidx.security.crypto`` and real usage co-occurs with
+# ``EncryptedSharedPreferences``, so those unambiguous tokens still detect a real
+# posture without the false positive.
 ENCRYPTION_AT_REST_TOKENS: frozenset[str] = frozenset(
     {
         "EncryptedSharedPreferences",
         "androidx.security.crypto",
-        "MasterKey",
-        "MasterKeys",
         "net.sqlcipher",
         "SupportFactory",
     }

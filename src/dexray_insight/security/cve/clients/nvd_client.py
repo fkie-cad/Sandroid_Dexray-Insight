@@ -56,9 +56,11 @@ class NVDClient(BaseCVEClient):
                 requests_per_minute=100, requests_per_hour=6000, burst_limit=50, burst_window_seconds=30
             )
         else:
-            # Without API key: More reasonable limits since 404s are fast
+            # Without API key: NVD documents a very low unauthenticated limit
+            # (about 5 requests per rolling 30 seconds). Cap at 10 requests/minute
+            # with a burst of 5 to stay within that limit and avoid rate-limit stalls.
             return RateLimitConfig(
-                requests_per_minute=20, requests_per_hour=1200, burst_limit=10, burst_window_seconds=30
+                requests_per_minute=10, requests_per_hour=500, burst_limit=5, burst_window_seconds=30
             )
 
     def _setup_headers(self):

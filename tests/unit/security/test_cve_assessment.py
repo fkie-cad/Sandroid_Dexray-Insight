@@ -93,6 +93,7 @@ class TestCVEAssessment:
                 severity=CVESeverity.CRITICAL,
                 cvss_score=9.8,
                 source="osv",
+                source_library="com.squareup.okhttp3:okhttp",
             ),
             CVEVulnerability(
                 cve_id="CVE-2021-0002",
@@ -101,6 +102,7 @@ class TestCVEAssessment:
                 severity=CVESeverity.HIGH,
                 cvss_score=7.5,
                 source="nvd",
+                source_library="com.google.firebase:firebase-core",
             ),
             CVEVulnerability(
                 cve_id="CVE-2021-0001",  # Duplicate for deduplication testing
@@ -109,6 +111,7 @@ class TestCVEAssessment:
                 severity=CVESeverity.CRITICAL,
                 cvss_score=9.8,
                 source="github",
+                source_library="com.squareup.okhttp3:okhttp",
             ),
         ]
 
@@ -219,18 +222,20 @@ class TestCVEAssessment:
         # Should have findings for critical and high severity + summary
         assert len(findings) >= 3
 
-        # Check for critical finding
+        # Check for critical finding. The enhanced finding format attributes CVEs to
+        # their affected library, so the CVE id appears on a dedicated evidence line
+        # rather than necessarily the first one.
         critical_findings = [f for f in findings if f.severity == AnalysisSeverity.CRITICAL]
         assert len(critical_findings) >= 1
-        assert "CVE-2021-0001" in critical_findings[0].evidence[0]
+        assert any("CVE-2021-0001" in line for line in critical_findings[0].evidence)
 
         # Check for high finding
         high_findings = [f for f in findings if f.severity == AnalysisSeverity.HIGH]
         assert len(high_findings) >= 1
-        assert "CVE-2021-0002" in high_findings[0].evidence[0]
+        assert any("CVE-2021-0002" in line for line in high_findings[0].evidence)
 
         # Check for summary finding
-        summary_findings = [f for f in findings if f.severity == AnalysisSeverity.INFO and "Summary" in f.title]
+        summary_findings = [f for f in findings if f.severity == AnalysisSeverity.LOW and "Summary" in f.title]
         assert len(summary_findings) >= 1
 
     def test_create_severity_finding(self, base_config, sample_vulnerabilities):
@@ -292,7 +297,7 @@ class TestCVEAssessment:
         severities = [f.severity for f in findings]
         assert AnalysisSeverity.CRITICAL in severities
         assert AnalysisSeverity.HIGH in severities
-        assert AnalysisSeverity.INFO in severities
+        assert AnalysisSeverity.LOW in severities
 
     @mock.patch.object(CVEAssessment, "_scan_libraries_for_cves")
     def test_assess_no_vulnerabilities_found(self, mock_scan, base_config, sample_library_results):
@@ -304,7 +309,7 @@ class TestCVEAssessment:
 
         # Should return info finding about successful scan
         assert len(findings) == 1
-        assert findings[0].severity == AnalysisSeverity.INFO
+        assert findings[0].severity == AnalysisSeverity.LOW
         assert "CVE Vulnerability Scan Completed" in findings[0].title
         assert "No known vulnerabilities found" in findings[0].description
 
@@ -424,7 +429,7 @@ class TestCVEAssessmentIntegration:
         assert len(findings) >= 1
 
         # If vulnerabilities were found, check structure
-        vuln_findings = [f for f in findings if "CVE" in f.title and f.severity != AnalysisSeverity.INFO]
+        vuln_findings = [f for f in findings if "CVE" in f.title and f.severity != AnalysisSeverity.LOW]
         if vuln_findings:
             finding = vuln_findings[0]
             assert hasattr(finding, "evidence")

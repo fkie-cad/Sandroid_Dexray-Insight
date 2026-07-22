@@ -80,6 +80,46 @@ class BrokenAccessControlAssessment(BaseSecurityAssessment):
             "BIND_DEVICE_ADMIN",
         ]
 
+        # Standard dangerous permissions that are commonly justified by an app's
+        # core functionality (a messenger with camera/mic/contacts, a gallery app,
+        # a maps app, ...). These are legitimately worth *noting* but declaring them
+        # is not, on its own, a HIGH risk -- rating a routine set HIGH inflates the
+        # headline. They map to a LOW / informational finding regardless of count.
+        self.commonly_justified_permissions = {
+            "CAMERA",
+            "RECORD_AUDIO",
+            "READ_EXTERNAL_STORAGE",
+            "WRITE_EXTERNAL_STORAGE",
+            "ACCESS_FINE_LOCATION",
+            "ACCESS_COARSE_LOCATION",
+            "READ_CONTACTS",
+            "GET_ACCOUNTS",
+        }
+        # READ_MEDIA_IMAGES / READ_MEDIA_VIDEO / READ_MEDIA_AUDIO / READ_MEDIA_VISUAL_USER_SELECTED
+        # are the Android 13+ scoped replacements for storage reads and are equally routine.
+        self.commonly_justified_permission_prefixes = ("READ_MEDIA_",)
+
+        # Rarely-justified over-grants: signature/system-level permissions or ones
+        # that hand an app broad control over the device or other apps. Any one of
+        # these present raises the finding to HIGH regardless of the rest of the set.
+        self.high_risk_permissions = {
+            "WRITE_SECURE_SETTINGS",
+            "INSTALL_PACKAGES",
+            "DELETE_PACKAGES",
+            "BIND_DEVICE_ADMIN",
+            "BIND_ACCESSIBILITY_SERVICE",
+        }
+        # Elevated-but-not-critical permissions that are more often abused than the
+        # routine set and warrant a MEDIUM when present without a HIGH over-grant.
+        self.elevated_risk_permissions = {
+            "MANAGE_EXTERNAL_STORAGE",
+            "WRITE_SETTINGS",
+            "WRITE_SMS",
+            "SEND_SMS",
+            "SYSTEM_ALERT_WINDOW",
+            "READ_PHONE_STATE",
+        }
+
     def assess(self, analysis_data: dict[str, Any], context: AnalysisContext | None = None) -> list[SecurityFinding]:
         """Perform broken access control vulnerability assessment."""
         findings = []
@@ -454,6 +494,17 @@ class BrokenAccessControlAssessment(BaseSecurityAssessment):
 
         return potentially_exported
 
+    def _is_commonly_justified_permission(self, permission_name: str) -> bool:
+        """Return True for standard dangerous permissions routinely justified by app features.
+
+        These map to a LOW / informational finding regardless of how many are
+        present, so a normal messenger/gallery/maps permission set does not inflate
+        the headline severity.
+        """
+        if permission_name in self.commonly_justified_permissions:
+            return True
+        return any(permission_name.startswith(prefix) for prefix in self.commonly_justified_permission_prefixes)
+
     def _assess_dangerous_permissions(self, analysis_data: dict[str, Any]) -> list[SecurityFinding]:
         """Assess use of dangerous permissions that could indicate access control issues."""
         findings = []
@@ -475,21 +526,53 @@ class BrokenAccessControlAssessment(BaseSecurityAssessment):
                     dangerous_found.append(permission_name)
 
             if dangerous_found:
-                severity = (
-                    AnalysisSeverity.HIGH
-                    if len(dangerous_found) >= 5 or "WRITE_SECURE_SETTINGS" in dangerous_found
-                    else AnalysisSeverity.MEDIUM
-                )
+                # Severity is driven by *which* permissions are present, not by the
+                # raw count. A large-but-routine set (messenger with camera, mic,
+                # contacts, location, storage) is LOW/informational; only rarely
+                # justified over-grants escalate the finding.
+                over_grants = [p for p in dangerous_found if p in self.high_risk_permissions]
+                elevated = [p for p in dangerous_found if p in self.elevated_risk_permissions]
+                # Anything left that is neither a known over-grant nor part of the
+                # commonly-justified standard set is treated conservatively (MEDIUM).
+                unrecognized = [
+                    p
+                    for p in dangerous_found
+                    if p not in self.high_risk_permissions
+                    and p not in self.elevated_risk_permissions
+                    and not self._is_commonly_justified_permission(p)
+                ]
+
+                if over_grants:
+                    severity = AnalysisSeverity.HIGH
+                    description = (
+                        f"Application requests {len(dangerous_found)} dangerous permissions, including "
+                        f"rarely-justified over-grants ({', '.join(over_grants)}). These grant broad "
+                        "control over the device or other apps and enable privilege escalation if abused."
+                    )
+                elif elevated or unrecognized:
+                    severity = AnalysisSeverity.MEDIUM
+                    flagged = elevated + unrecognized
+                    description = (
+                        f"Application requests {len(dangerous_found)} dangerous permissions, including "
+                        f"elevated-risk permissions ({', '.join(flagged)}). Ensure proper access controls "
+                        "are enforced and each is justified by the app's functionality."
+                    )
+                else:
+                    # Only permissions from the commonly-justified standard set.
+                    severity = AnalysisSeverity.LOW
+                    description = (
+                        f"Application declares {len(dangerous_found)} standard dangerous permissions. "
+                        "These are commonly justified by core functionality (camera, microphone, "
+                        "contacts, location, media/storage) and are worth noting, but declaring them "
+                        "is not on its own a high-risk condition."
+                    )
 
                 findings.append(
                     SecurityFinding(
                         title="Excessive Dangerous Permissions",
                         category=self.owasp_category,
                         severity=severity,
-                        description=(
-                            f"Application requests {len(dangerous_found)} dangerous permissions. "
-                            "Ensure proper access controls are implemented to prevent privilege escalation."
-                        ),
+                        description=description,
                         evidence=[f"Dangerous permissions: {', '.join(dangerous_found)}"],
                         recommendations=[
                             "Request only the minimum permissions required by the app",

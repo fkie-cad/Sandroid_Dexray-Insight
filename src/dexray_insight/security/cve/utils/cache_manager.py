@@ -57,8 +57,11 @@ class CVECacheManager:
         # Cache file for metadata
         self.metadata_file = self.cache_dir / "cache_metadata.json"
 
-        # Initialize metadata
+        # Initialize metadata and persist it so the cache directory is
+        # self-describing on disk immediately after initialization.
         self.metadata = self._load_metadata()
+        if not self.metadata_file.exists():
+            self._save_metadata()
 
     def _load_metadata(self) -> dict[str, Any]:
         """Load cache metadata."""

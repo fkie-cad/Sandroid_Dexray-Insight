@@ -94,14 +94,14 @@ class TestVersionAnalysisDisplayLocation:
 
         # Should have version analysis section
         assert "📚 LIBRARY VERSION ANALYSIS" in output
-        assert "Version analysis grouping:" in output
+        assert "Libraries with versions:" in output
         assert "Firebase Cloud Messaging (19.0.0)" in output
         assert "6.0 years behind" in output
         assert "CRITICAL" in output
 
         # Should have summary statistics
         assert "SUMMARY:" in output
-        assert "Total libraries analyzed: 2" in output
+        assert "Total libraries with versions: 2" in output
         assert "Critical risk: 1" in output
 
     def test_version_analysis_not_shown_without_security(self, mock_library_detection_result):
@@ -121,18 +121,20 @@ class TestVersionAnalysisDisplayLocation:
 
     def test_version_analysis_not_shown_without_version_data(self, mock_security_assessment):
         """Test that version analysis is not shown when libraries have no version data"""
-        # Create library without version analysis data
+        # Create library with no version string at all. The version analysis
+        # summary now surfaces every library that carries a version (even without
+        # age analysis), so the "no output" case is a library that has no version.
         library_no_version = DetectedLibrary(
             name="Some Library",
             package_name="some-lib",
-            version="1.0.0",  # Has version but no analysis results
+            version=None,  # No version information
             detection_method=LibraryDetectionMethod.PATTERN_MATCHING,
             category=LibraryCategory.UTILITY,
             confidence=0.95,
             evidence=["Test"],
             source=LibrarySource.PROPERTIES_FILES,
         )
-        # Note: No years_behind or security_risk attributes
+        # Note: No version, years_behind or security_risk attributes
 
         result = MagicMock()
         result.detected_libraries = [library_no_version]
@@ -175,7 +177,7 @@ class TestVersionAnalysisDisplayLocation:
 
         # Check summary format
         assert any("📊 SUMMARY:" in line for line in lines)
-        assert any("Total libraries analyzed:" in line for line in lines)
+        assert any("Total libraries with versions:" in line for line in lines)
 
     def test_full_summary_integration(self, mock_library_detection_result, mock_security_assessment):
         """Test that version analysis integrates correctly in full summary"""

@@ -329,6 +329,7 @@ class TestProviderTraversal:
         assert findings == []
 
     def test_androidx_fileprovider_excluded(self):
+        # The real androidx FileProvider (safe, scopes paths itself) is excluded.
         caller = "Landroidx/core/content/FileProvider;"
         method = _method(
             caller,
@@ -337,6 +338,62 @@ class TestProviderTraversal:
         )
         dx = _FakeDx([method])
         assert _run(dx, _overview()) == []
+
+    def test_custom_fileprovider_not_excluded(self):
+        # A custom provider whose name merely CONTAINS "FileProvider" (e.g. Kik's
+        # KikFileProvider — the R5 target) must NOT be swallowed by the androidx
+        # exclusion: it is exactly what detector 7d should catch.
+        caller = "Lcom/kik/android/KikFileProvider;"
+        method = _method(
+            caller,
+            "openFile",
+            callees=[("Landroid/net/Uri;", "getLastPathSegment")],
+        )
+        dx = _FakeDx([method])
+        overview = _overview(exported_providers=["com.kik.android.KikFileProvider"], package="com.kik.android")
+        findings = _run(dx, overview)
+        assert len(findings) == 1
+        finding = findings[0]
+        assert finding.additional_data["cwe"] == "CWE-22"
+        assert finding.severity == AnalysisSeverity.HIGH  # exported provider
+
+
+@pytest.mark.unit
+@pytest.mark.security
+class TestFrameworkSourceDownrank:
+    """FIX B6 - a framework/SDK-owned SOURCE class down-ranks the seed."""
+
+    def test_framework_source_class_is_downranked(self):
+        # A media3 (androidx.media3) class trips 7d; because the SOURCE class is
+        # framework-owned the seed is softened, not deleted, and stays for review.
+        caller = "Landroidx/media3/exoplayer/CacheProvider;"
+        method = _method(
+            caller,
+            "openFile",
+            callees=[("Landroid/net/Uri;", "getLastPathSegment")],
+        )
+        dx = _FakeDx([method])
+        findings = _run(dx, _overview())  # not exported -> MEDIUM before down-rank
+        assert len(findings) == 1
+        finding = findings[0]
+        assert finding.additional_data.get("source_downranked") is True
+        assert finding.severity == AnalysisSeverity.LOW  # MEDIUM -> LOW
+        assert finding.verification_status == VerificationStatus.NEEDS_DYNAMIC
+
+    def test_first_party_source_class_not_downranked(self):
+        caller = "Lcom/example/MyProvider;"
+        method = _method(
+            caller,
+            "openFile",
+            callees=[("Landroid/net/Uri;", "getLastPathSegment")],
+        )
+        dx = _FakeDx([method])
+        overview = _overview(exported_providers=["com.example.MyProvider"])
+        findings = _run(dx, overview)
+        assert len(findings) == 1
+        finding = findings[0]
+        assert finding.additional_data.get("source_downranked") is not True
+        assert finding.severity == AnalysisSeverity.HIGH
 
 
 @pytest.mark.unit

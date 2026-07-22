@@ -128,3 +128,57 @@ class TestMarkdownReport:
         )
         md = MarkdownSecurityReporter().generate(results)
         assert "Weird \\| Title \\| With Pipes" in md
+
+
+@pytest.mark.unit
+class TestMarkdownReportHonestyModel:
+    """R9: the executive summary must mirror the console's confirmed-headline /
+    review-queue honesty model (see FullAnalysisResults._print_security_assessment_summary)."""
+
+    def test_executive_summary_shows_confirmed_headline(self):
+        results = _results_dict()
+        results["security_assessment"]["overall_risk_score"] = 42.0
+        results["security_assessment"]["risk_score_confirmed"] = 42.0
+        md = MarkdownSecurityReporter().generate(results)
+        summary = md.split("## Executive Summary", 1)[1].split("## Top Risks", 1)[0]
+        # Headline is the confirmed subset and labeled as such (not "all findings").
+        assert "42.0/100" in summary
+        assert "confirmed headline" in summary.lower()
+        assert "confirmed-only" in summary
+
+    def test_review_mass_is_surfaced_and_labeled_as_review_queue(self):
+        results = _results_dict()
+        results["security_assessment"]["risk_score_review_mass"] = 18.5
+        md = MarkdownSecurityReporter().generate(results)
+        summary = md.split("## Executive Summary", 1)[1].split("## Top Risks", 1)[0]
+        assert "18.5" in summary
+        assert "Review-queue weight (not in headline)" in summary
+        assert "manual-review queue" in summary.lower()
+
+    def test_needs_dynamic_finding_is_not_presented_as_confirmed(self):
+        """A high-severity, high-confidence finding whose verification_status is
+        NEEDS_DYNAMIC must land in the review queue, never the Confirmed tier."""
+        results = _results_dict()
+        dynamic_finding = _finding(
+            "critical", 0.95, "Dynamic-Only Exploitable Path", category="A03:2021-Injection"
+        )
+        dynamic_finding["verification_status"] = "NEEDS_DYNAMIC"
+        results["security_assessment"]["findings"].append(dynamic_finding)
+        md = MarkdownSecurityReporter().generate(results)
+
+        confirmed_block = md.split("## Confirmed", 1)[1].split("## Needs Manual Review", 1)[0]
+        review_block = md.split("## Needs Manual Review", 1)[1].split("## All Findings", 1)[0]
+        assert "Dynamic-Only Exploitable Path" not in confirmed_block
+        assert "Dynamic-Only Exploitable Path" in review_block
+
+    def test_needs_review_status_visible_in_all_findings_table(self):
+        results = _results_dict()
+        review_finding = _finding("high", 0.8, "Needs-Review Item", category="A03:2021-Injection")
+        review_finding["verification_status"] = "NEEDS_REVIEW"
+        results["security_assessment"]["findings"].append(review_finding)
+        md = MarkdownSecurityReporter().generate(results)
+        all_block = md.split("## All Findings", 1)[1]
+        # The verification status column exists and the review item shows its status.
+        assert "| Status |" in md or "Status |" in all_block
+        review_row = [line for line in all_block.splitlines() if "Needs-Review Item" in line][0]
+        assert "NEEDS_REVIEW" in review_row

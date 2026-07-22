@@ -59,35 +59,23 @@ modules:
             os.unlink(config_path)
 
     def test_default_config_auto_loading(self):
-        """Test that default config files are automatically loaded"""
-        # Test the _load_default_config behavior
-        original_cwd = os.getcwd()
+        """Test that the shipped default config file is automatically loaded.
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            os.chdir(temp_dir)
+        The project ships a dexray.yaml at the repository root. _load_default_config
+        locates this file relative to configuration.py, so it is always auto-loaded
+        (and takes precedence over any dexray.yaml that merely happens to live in the
+        current working directory). The shipped file sets the logging level to INFO.
+        """
+        # Create configuration with no explicit config -- it should auto-load the
+        # shipped project-root dexray.yaml.
+        config = Configuration()
 
-            # Create a dexray.yaml in the temp directory
-            config_path = Path(temp_dir) / "dexray.yaml"
-            with open(config_path, "w") as f:
-                f.write(
-                    """
-logging:
-  level: WARNING
-security:
-  enable_owasp_assessment: false
-"""
-                )
+        # The shipped dexray.yaml sets the logging level to INFO.
+        assert config.to_dict()["logging"]["level"] == "INFO"
 
-            try:
-                # Create configuration (should auto-load the file)
-                config = Configuration()
-
-                # Should have loaded our custom settings
-                assert config.to_dict()["logging"]["level"] == "WARNING"
-                assert not config.enable_security_assessment
-
-            finally:
-                os.chdir(original_cwd)
+        # enable_owasp_assessment is left commented out in the shipped config so the
+        # CLI -s flag governs it, therefore it defaults to disabled.
+        assert not config.enable_security_assessment
 
     def test_environment_variables_highest_precedence(self):
         """Test that environment variables have highest precedence"""

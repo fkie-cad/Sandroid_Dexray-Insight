@@ -193,6 +193,41 @@ class TestTierFindings:
 
 
 @pytest.mark.unit
+class TestTierFindingsVerificationStatusLock:
+    """R11 regression lock: a review-queue finding must never reach the confirmed tier.
+
+    Locks the invariant in ``tier_findings`` that a HIGH-severity finding with
+    ``verification_status == NEEDS_DYNAMIC`` and confidence >= 0.75 lands in
+    ``needs_review`` (exploitability not statically settled), NOT ``confirmed`` —
+    keeping the report's CONFIRMED tier in lockstep with the engine's confirmed subset.
+    """
+
+    def test_needs_dynamic_high_conf_high_sev_is_needs_review_not_confirmed(self):
+        finding = _d("high", confidence=0.75, title="idor-endpoint")
+        finding["verification_status"] = "NEEDS_DYNAMIC"
+        tiers = risk_ranking.tier_findings([finding])
+        review_titles = {risk_ranking.title_of(f) for f in tiers["needs_review"]}
+        confirmed_titles = {risk_ranking.title_of(f) for f in tiers["confirmed"]}
+        assert "idor-endpoint" in review_titles
+        assert "idor-endpoint" not in confirmed_titles
+
+    def test_needs_dynamic_lock_holds_at_very_high_confidence(self):
+        finding = _d("high", confidence=0.99, title="near-certain")
+        finding["verification_status"] = "NEEDS_DYNAMIC"
+        tiers = risk_ranking.tier_findings([finding])
+        assert "near-certain" in {risk_ranking.title_of(f) for f in tiers["needs_review"]}
+        assert "near-certain" not in {risk_ranking.title_of(f) for f in tiers["confirmed"]}
+
+    def test_genuinely_confirmed_high_conf_high_sev_is_confirmed(self):
+        # Contrast: an identical finding that IS statically confirmed reaches confirmed.
+        finding = _d("high", confidence=0.75, title="confirmed-high")
+        finding["verification_status"] = "CONFIRMED"
+        tiers = risk_ranking.tier_findings([finding])
+        assert "confirmed-high" in {risk_ranking.title_of(f) for f in tiers["confirmed"]}
+        assert "confirmed-high" not in {risk_ranking.title_of(f) for f in tiers["needs_review"]}
+
+
+@pytest.mark.unit
 class TestHintFor:
     def test_category_keyed_hint(self):
         finding = _d("high", category="A03:2021-Injection")

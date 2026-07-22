@@ -282,12 +282,15 @@ class TestNativeLibraryVersionModule:
         # Mock time for execution time calculation
         mock_time.side_effect = [1000.0, 1002.0]  # 2 second execution
 
-        # Mock r2 commands to return strings with library patterns
+        # Mock r2 commands to return strings with library patterns.
+        # Real r2 iz/izz output format: nth paddr vaddr len size section type string
         mock_r2.cmd.side_effect = [
-            # iz command result (format: offset length size string)
-            "0x1000 4 4 string1\n0x2000 40 40 --prefix=/build/ffmpeg-4.1.3/output\n",
-            # izz command result
-            "0x3000 4 4 string2\n0x4000 20 20 FFmpeg version 4.1.3\n",
+            # iz command result (data-section strings)
+            "0 0x1000 0x1000 7 8 .rodata ascii string1\n"
+            "1 0x2000 0x2000 39 40 .rodata ascii --prefix=/build/ffmpeg-4.1.3/output\n",
+            # izz command result (all-section strings)
+            "0 0x3000 0x3000 7 8 .rodata ascii string2\n"
+            "1 0x4000 0x4000 20 21 .rodata ascii FFmpeg version 4.1.3\n",
         ]
 
         result = version_module.analyze_binary(binary_info, mock_r2)
@@ -325,8 +328,11 @@ class TestNativeLibraryVersionModule:
 
     def test_extract_strings_iz_success(self, version_module, binary_info, mock_r2):
         """Test successful string extraction using iz command"""
-        # Mock r2 command output (format: offset length size string)
-        mock_r2.cmd.return_value = "0x1000 4 4 string1\n0x2000 8 8 string2 test\n"
+        # Mock r2 command output (real iz format: nth paddr vaddr len size section type string)
+        mock_r2.cmd.return_value = (
+            "0 0x1000 0x1000 7 8 .rodata ascii string1\n"
+            "1 0x2000 0x2000 12 13 .rodata ascii string2 test\n"
+        )
 
         strings = version_module._extract_strings_iz(mock_r2, binary_info)
 

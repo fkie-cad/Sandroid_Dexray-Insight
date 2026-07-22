@@ -447,8 +447,12 @@ class TestApktoolDetectionEngineIntegration(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             apktool_dir = Path(temp_dir)
 
-            # Create mock context
+            # Create mock context. context.config is a real dict at runtime
+            # (AnalysisContext.config: dict[str, Any]); detect_libraries reads
+            # context.config.get("security"/"modules", {}), so a plain Mock would
+            # make dict.update() choke on Mock.keys(). Provide a real dict here.
             mock_context = Mock()
+            mock_context.config = {"security": {}, "modules": {"library_detection": {}}}
             mock_temporal_paths = Mock()
             mock_temporal_paths.apktool_dir = apktool_dir
             mock_context.temporal_paths = mock_temporal_paths

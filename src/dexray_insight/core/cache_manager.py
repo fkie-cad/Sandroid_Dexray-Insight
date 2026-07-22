@@ -67,6 +67,14 @@ from typing import Any
 #     from a thin manifest dict; stale caches must be invalidated.
 CACHE_SCHEMA_VERSION = 2
 
+# Detection-LOGIC version folded into every cache key (full-result + per-module) via
+# hash_config. Bump this string whenever analysis/security detection logic changes in a
+# way that alters output for an unchanged config — otherwise a re-analysis of the same APK
+# on the same tool version silently serves stale results (the package `tool_version` in the
+# fingerprint does not move during in-place development). This is the shallow-cache analog
+# of security/deep_cache.py's DEEP_SCHEMA_VERSION.
+ANALYSIS_SCHEMA_VERSION = "2026-07-22-security-overhaul"
+
 
 def _dexray_version() -> str:
     """Best-effort dexray-insight package version for the cache fingerprint."""

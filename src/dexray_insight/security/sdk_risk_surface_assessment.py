@@ -84,12 +84,19 @@ class SdkRiskSurfaceAssessment(BaseSecurityAssessment):
         try:
             detected = self._get_detected_libraries(analysis_results)
             all_strings = self._get_all_strings(analysis_results)
+            # Join the whole DEX string pool into one buffer ONCE, so descriptor
+            # matching is O(SDKs × descriptors) substring searches over a single
+            # buffer instead of the former O(SDKs × descriptors × strings) nested
+            # scan over the ~174k-string pool. The newline join is safe: bridge
+            # descriptors never contain newlines, so it cannot create or destroy a
+            # match relative to the old "substring of ANY string" semantics.
+            joined_strings = "\n".join(all_strings)
 
             for sdk_name, surface in SDK_RISK_SURFACE.items():
                 capabilities = surface.get("capabilities", [])
                 bridge_classes = surface.get("bridge_classes", [])
 
-                matched_descriptor = self._matched_bridge_descriptor(bridge_classes, all_strings)
+                matched_descriptor = self._matched_bridge_descriptor(bridge_classes, joined_strings)
                 library_match = detected.get(self._normalize(sdk_name))
 
                 # Match requires a concrete bridge descriptor OR a confirmed
@@ -201,15 +208,23 @@ class SdkRiskSurfaceAssessment(BaseSecurityAssessment):
         return [s for s in all_strings if isinstance(s, str)]
 
     @staticmethod
-    def _matched_bridge_descriptor(bridge_classes: list[str], all_strings: list[str]) -> str | None:
+    def _matched_bridge_descriptor(bridge_classes: list[str], joined_strings: str) -> str | None:
         """Return the first bridge-class descriptor found in the string pool.
 
-        A descriptor matches when it appears as a substring of any DEX string,
-        which tolerates the surrounding path/type-descriptor decoration commonly
-        seen in the string pool. Returns None when no descriptor is present.
+        ``joined_strings`` is the whole DEX string pool concatenated into one
+        buffer (newline-separated) by the caller. A descriptor matches when it
+        appears as a substring of that buffer, which is equivalent to the former
+        "substring of ANY individual string" test (descriptors contain no
+        newlines, so the join neither merges nor splits a match) while being a
+        single O(len(buffer)) scan per descriptor instead of a per-string loop.
+
+        The first matching descriptor in knowledge-base order is returned,
+        preserving the prior first-match identity. Note that some descriptors are
+        intentionally weaker than others: AppLovin's ``com/applovin/impl/adview``
+        is a subpackage prefix rather than a concrete bridge class, so it is less
+        specific and matches more broadly — it is kept as-is deliberately.
         """
         for descriptor in bridge_classes:
-            for s in all_strings:
-                if descriptor in s:
-                    return descriptor
+            if descriptor in joined_strings:
+                return descriptor
         return None

@@ -28,12 +28,108 @@ It identifies potential SSRF vulnerabilities in Android applications.
 
 import logging
 from typing import Any
+from urllib.parse import urlparse
 
 from ..core.base_classes import AnalysisContext
 from ..core.base_classes import AnalysisSeverity
 from ..core.base_classes import BaseSecurityAssessment
 from ..core.base_classes import SecurityFinding
 from ..core.base_classes import register_assessment
+from .evidence.package_allowlist import classify_component
+from .evidence.package_allowlist import should_downrank
+
+# Ad / tracking / analytics hosts whose format-string URL constants are library
+# artifacts, not first-party SSRF sinks. ``package_allowlist`` covers java
+# package prefixes (and via reversed-host classification catches google/
+# facebook/gms/...); this list covers the DNS hosts of common SDKs that are not
+# expressible as a java package prefix (e.g. pubmatic, doubleclick).
+_LIBRARY_URL_HOSTS: tuple[str, ...] = (
+    "pubmatic.com",
+    "doubleclick.net",
+    "googlesyndication.com",
+    "googleadservices.com",
+    "google-analytics.com",
+    "crashlytics.com",
+    "app-measurement.com",
+    "applovin.com",
+    "adcolony.com",
+    "unity3d.com",
+    "mopub.com",
+    "inmobi.com",
+    "vungle.com",
+    "chartboost.com",
+    "ironsrc.com",
+    "supersonicads.com",
+    "adjust.com",
+    "appsflyer.com",
+    "branch.io",
+    "onesignal.com",
+    "fbcdn.net",
+    "mbridge.com",
+    "flurry.com",
+    "tapjoy.com",
+    "smaato.net",
+)
+
+# Tokens that indicate user/attacker-controlled input flowing into a URL (the
+# real SSRF shape). A bare ``%s``/``%d`` template constant is NOT one of these.
+_USER_INPUT_URL_TOKENS: tuple[str, ...] = (
+    "user",
+    "input",
+    "param",
+    "session",
+    "token",
+    "redirect",
+    "callback",
+    "next=",
+    "target=",
+    "dest",
+    "url=",
+    "uri=",
+)
+
+
+def _extract_host(url: str) -> str:
+    """Return the lowercased hostname of a URL, or '' when it has none."""
+    if not isinstance(url, str):
+        return ""
+    try:
+        netloc = urlparse(url).netloc
+    except (ValueError, TypeError):
+        return ""
+    return netloc.split("@")[-1].split(":")[0].strip().lower()
+
+
+def _is_library_origin_url(url: str) -> bool:
+    """True when a URL belongs to a known library / ad-SDK / analytics host.
+
+    Reuses ``package_allowlist.classify_component`` by reversing the hostname
+    into a java-package-like prefix (``play.google.com`` -> ``com.google.play``)
+    so the framework prefix list is the single source of truth, then falls back
+    to :data:`_LIBRARY_URL_HOSTS` for SDK hosts not expressible as a package.
+    """
+    host = _extract_host(url)
+    if not host:
+        return False
+    reversed_pkg = ".".join(reversed(host.split(".")))
+    if should_downrank(classify_component(reversed_pkg)):
+        return True
+    return any(host == h or host.endswith("." + h) for h in _LIBRARY_URL_HOSTS)
+
+
+def _url_looks_user_controlled(url: str) -> bool:
+    """True when a URL both interpolates AND references user-controllable data.
+
+    This is the genuine SSRF shape. A bare ``%s``/``%d`` template constant with
+    no user-controlled token is only a parameterized URL, not an SSRF sink.
+    """
+    if not isinstance(url, str):
+        return False
+    has_interpolation = any(tok in url for tok in ("{", "}", "$", "%s", "%d"))
+    if not has_interpolation:
+        return False
+    lower = url.lower()
+    return any(tok in lower for tok in _USER_INPUT_URL_TOKENS)
 
 
 @register_assessment("ssrf")
@@ -75,7 +171,7 @@ class SSRFAssessment(BaseSecurityAssessment):
             urls = string_data.get("urls", [])
 
             # Check for potential SSRF vulnerabilities
-            ssrf_risks, internal_access = self._detect_ssrf_risks(all_strings, urls)
+            ssrf_risks, internal_access, dynamic_url_templates = self._detect_ssrf_risks(all_strings, urls)
 
             # Create findings based on detected risks
             if ssrf_risks:
@@ -132,6 +228,30 @@ class SSRFAssessment(BaseSecurityAssessment):
                     )
                 )
 
+            # First-party printf-style URL template constants with no user-controlled
+            # input are NOT confirmed SSRF. They are routed to a LOW review item
+            # (library / ad-SDK templates were already dropped in _detect_ssrf_risks).
+            if dynamic_url_templates:
+                findings.append(
+                    SecurityFinding(
+                        category=self.owasp_category,
+                        severity=AnalysisSeverity.LOW,
+                        title="Dynamic URL Template (unproven, review)",
+                        description=(
+                            "Application contains parameterized URL template constants "
+                            "(printf-style %s/%d). No user-controlled URL sink was demonstrated, "
+                            "so this is not a confirmed SSRF vulnerability; included for manual review."
+                        ),
+                        evidence=dynamic_url_templates[:8],
+                        confidence=0.2,
+                        recommendations=[
+                            "Confirm the template parameters are not attacker-controlled",
+                            "Use predefined URL templates with parameter validation",
+                            "Validate and sanitize any values interpolated into URLs",
+                        ],
+                    )
+                )
+
             # Check for WebView-related SSRF risks
             webview_ssrf = self._detect_webview_ssrf(all_strings)
 
@@ -169,10 +289,22 @@ class SSRFAssessment(BaseSecurityAssessment):
 
         return findings
 
-    def _detect_ssrf_risks(self, all_strings: list, urls: list) -> tuple[list, list]:
-        """Detect SSRF risks and internal service access in strings and URLs."""
+    def _detect_ssrf_risks(self, all_strings: list, urls: list) -> tuple[list, list, list]:
+        """Detect SSRF risks and internal service access in strings and URLs.
+
+        Returns ``(ssrf_risks, internal_access, dynamic_url_templates)``.
+
+        ``ssrf_risks`` (drives the HIGH finding) contains only *genuine*
+        SSRF-shaped evidence: code-level user-controlled URL construction
+        (``url_validation_patterns``) and dynamic URLs that both interpolate and
+        reference user-controllable data. Bare printf-style URL template
+        constants are NOT SSRF sinks: library / ad-SDK templates are dropped and
+        first-party bare templates are routed to ``dynamic_url_templates`` (a LOW
+        review item), never confirmed as HIGH.
+        """
         ssrf_risks = []
         internal_access = []
+        dynamic_url_templates = []
 
         import re
 
@@ -199,11 +331,20 @@ class SSRFAssessment(BaseSecurityAssessment):
                 ):
                     internal_access.append(f"Internal URL detected: {url}")
 
-                # Check for dynamic URL construction
+                # Dynamic URL construction: gate on provenance + SSRF shape.
                 if any(dynamic_indicator in url for dynamic_indicator in ["{", "}", "$", "%s", "%d"]):
-                    ssrf_risks.append(f"Dynamic URL construction: {url}")
+                    if _is_library_origin_url(url):
+                        # Ad-SDK / library format-string URL constant: down-ranked
+                        # (dropped from findings). It is not a first-party sink.
+                        continue
+                    if _url_looks_user_controlled(url):
+                        ssrf_risks.append(f"Dynamic URL construction (user-controlled): {url}")
+                    else:
+                        # First-party bare printf-style template constant: not a
+                        # confirmed SSRF sink, routed to a LOW review item.
+                        dynamic_url_templates.append(f"Dynamic URL template (constant, review): {url}")
 
-        return ssrf_risks, internal_access
+        return ssrf_risks, internal_access, dynamic_url_templates
 
     def _detect_webview_ssrf(self, all_strings: list) -> list:
         """Detect WebView-related SSRF risks in strings."""

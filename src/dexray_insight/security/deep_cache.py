@@ -52,6 +52,14 @@ from ..core.base_classes import VerificationStatus
 
 logger = logging.getLogger(__name__)
 
+# Version stamp for the DEEP detector LOGIC + finding schema. The cache key is
+# derived only from (apk_md5, module, config_hash), and config_hash is fingerprinted
+# on tool/androguard/schema versions — none of which change when detector logic is
+# edited without a package version bump. Folding this constant into the config_hash
+# means any detector-logic revision (bump the suffix) changes the key, so a stale
+# HIT can never serve findings from the old logic. Bump on ANY logic/schema change.
+DEEP_SCHEMA_VERSION = "c1-v3"
+
 # Fallback config hash used when the cache manager's ``hash_config`` helper is
 # unavailable. Constant per schema version — bump the suffix if the finding
 # serialization format changes in a backwards-incompatible way.
@@ -59,13 +67,19 @@ _FALLBACK_CONFIG_HASH = "deep_v1"
 
 
 def _config_hash(config: Any) -> str:
-    """Return a stable hash of the assessment config, tolerating import failure."""
+    """Return a stable hash of the assessment config, tolerating import failure.
+
+    The active :data:`DEEP_SCHEMA_VERSION` is folded into the hashed input so a
+    detector-logic revision (which does not change the APK bytes or tool versions)
+    still produces a different cache key and cannot serve stale findings.
+    """
+    keyed = {"deep_schema_version": DEEP_SCHEMA_VERSION, "config": config}
     try:
         from ..core.cache_manager import hash_config
 
-        return hash_config(config)
+        return hash_config(keyed)
     except Exception:
-        return _FALLBACK_CONFIG_HASH
+        return f"{_FALLBACK_CONFIG_HASH}:{DEEP_SCHEMA_VERSION}"
 
 
 def cached_deep_findings(

@@ -145,7 +145,7 @@ def _process_security_flags(args, config_updates: dict) -> None:
         security_report.setdefault("markdown", {})["enabled"] = True
 
 
-def _process_cve_flags(args, config_updates: dict) -> None:
+def _process_cve_flags(args, config_updates: dict, existing_config=None) -> None:
     """Process CVE vulnerability scanning related command line flags.
 
     Single Responsibility: Handle only CVE scanning flag processing.
@@ -154,26 +154,37 @@ def _process_cve_flags(args, config_updates: dict) -> None:
     Args:
         args: Command line arguments namespace
         config_updates: Dictionary to update with configuration changes
+        existing_config: Optional already-loaded Configuration (e.g. from a
+            ``-c`` config file). When security is enabled there, ``--cve`` is
+            valid even without the ``-s`` CLI flag.
     """
     if hasattr(args, "cve") and args.cve:
-        # Check if security analysis is enabled
-        sec_enabled = (hasattr(args, "sec") and args.sec) or config_updates.get("security", {}).get(
-            "enable_owasp_assessment", False
+        # Security may be enabled via the CLI (-s), via updates already staged in
+        # this batch, or via a loaded config file. Any of these makes --cve valid.
+        config_file_sec_enabled = existing_config is not None and existing_config.enable_security_assessment
+        sec_enabled = (
+            (hasattr(args, "sec") and args.sec)
+            or config_updates.get("security", {}).get("enable_owasp_assessment", False)
+            or config_file_sec_enabled
         )
 
         if sec_enabled:
-            # Enable CVE scanning with native library focus
+            # Enable CVE scanning. OSV is the key-less default source; NVD/GitHub
+            # stay off unless the config file turns them on (NVD needs an API key
+            # and rate-limit-stalls without one). Java/Android libraries are scanned
+            # too — native-only scanning was the historical bug that found nothing on
+            # an obviously-outdated Java SDK stack.
             config_updates.setdefault("security", {})["cve_scanning"] = {
                 "enabled": True,
-                "sources": {"osv": {"enabled": True}, "nvd": {"enabled": True}, "github": {"enabled": True}},
+                "sources": {"osv": {"enabled": True}, "nvd": {"enabled": False}, "github": {"enabled": False}},
                 "max_workers": 3,
                 "timeout_seconds": 30,
                 "min_confidence": 0.7,
                 "cache_duration_hours": 24,
                 "max_libraries_per_source": 50,
-                # Native library focus for better CVE relevance
-                "scan_native_only": True,
-                "include_java_libraries": False,
+                # Scan Java/Android libraries in addition to native libraries.
+                "scan_native_only": False,
+                "include_java_libraries": True,
                 "native_library_patterns": [
                     "*.so",
                     "*ffmpeg*",
@@ -239,13 +250,19 @@ def _process_analysis_flags(args, config_updates: dict) -> None:
     # Deep behavior analysis
     if hasattr(args, "deep") and args.deep:
         config_updates.setdefault("modules", {})["behaviour_analysis"] = {"enabled": True, "deep_mode": True}
+        # Deep mode also needs per-method string attribution so the deep PII-flow
+        # detectors can tie a PII source string to the code location that uses it.
+        # Enable the opt-in tracker-analysis pass that populates string_locations
+        # with "class->method" attributions (default is off for cost reasons).
+        tracker = config_updates.setdefault("modules", {}).setdefault("tracker_analysis", {})
+        tracker["deep_string_location_analysis"] = True
 
     # Analysis result cache
     if hasattr(args, "no_cache") and args.no_cache:
         config_updates.setdefault("caching", {})["enabled"] = False
 
 
-def _build_configuration_updates(args) -> dict:
+def _build_configuration_updates(args, existing_config=None) -> dict:
     """Build configuration updates from command line arguments.
 
     Single Responsibility: Coordinate all flag processing to build complete config updates.
@@ -253,6 +270,8 @@ def _build_configuration_updates(args) -> dict:
 
     Args:
         args: Command line arguments namespace
+        existing_config: Optional already-loaded Configuration (e.g. from a
+            ``-c`` config file) used so CLI flags can compose with file settings.
 
     Returns:
         Dictionary containing all configuration updates
@@ -262,7 +281,7 @@ def _build_configuration_updates(args) -> dict:
     # Process different categories of flags using single-responsibility functions
     _process_signature_flags(args, config_updates)
     _process_security_flags(args, config_updates)
-    _process_cve_flags(args, config_updates)  # CVE processing after security flags
+    _process_cve_flags(args, config_updates, existing_config)  # CVE processing after security flags
     _process_logging_flags(args, config_updates)
     _process_analysis_flags(args, config_updates)
 
@@ -761,6 +780,12 @@ def _load_or_create_configuration(parsed_args):
 
     if config is None:
         config = create_configuration_from_args(parsed_args)
+    else:
+        # A config file was loaded. Layer CLI flag overrides on top so that
+        # explicit flags (-s, --cve, --deep, --debug, --no-cache, ...) win over
+        # the file, matching the DEFAULT -> dexray.yaml -> file -> dict layering.
+        # Pass the loaded config so --cve can see file-enabled security.
+        config._merge_config(_build_configuration_updates(parsed_args, existing_config=config))
 
     return config, 0
 

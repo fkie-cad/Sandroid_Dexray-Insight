@@ -73,8 +73,28 @@ GENERIC_PATTERN_NAMES: frozenset[str] = frozenset(
     }
 )
 
+# The base64/entropy "leakage" family: prefix-less shape detectors whose hits are
+# dominated (on real APKs) by DEX class descriptors and slash URL/package paths
+# rather than secrets. A path-like / DEX-descriptor hit in ANY of these must be
+# HARD-DROPPED, not soft-downgraded to LOW, or the "Information Leakage" bucket
+# balloons to tens of thousands of findings. base64 punctuation ('+'/'=') and a
+# lack of identifier-path structure keep genuine high-entropy secrets out of the
+# drop (see ``_looks_like_path`` / ``_looks_like_dex_descriptor``).
+_PATH_DROP_PATTERN_NAMES: frozenset[str] = frozenset(
+    {
+        "high_entropy_string",
+        "base64_key_long",
+        "base64_key_medium",
+    }
+)
+
 # Base64url alphabet for JWT segment decoding.
 _JWT_SEGMENT_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+
+# A camelCase/PascalCase "word": an optional leading capital followed by >=2
+# lowercase letters (so a dictionary-length token, min length 3). Used by
+# ``_looks_like_code_identifier`` to segment long Java method/class names.
+_CODE_WORD_RE = re.compile(r"[A-Z]?[a-z]{2,}")
 
 # Firebase / Google-services co-location markers. When an AIza key sits next to
 # any of these, it is almost certainly a client Firebase key -> LOW.
@@ -103,6 +123,10 @@ _MAPS_CONTEXT_MARKERS = (
 )
 
 _SEVERITY_RANK = {"LOW": 0, "MEDIUM": 1, "HIGH": 2, "CRITICAL": 3}
+
+# Minimum Shannon entropy an ``Authorization: Basic`` credential must have to be
+# treated as genuine base64 credentials rather than a plain word/UI phrase.
+_BASIC_AUTH_MIN_ENTROPY = 3.0
 
 
 @dataclass
@@ -211,11 +235,23 @@ class SecretValidator:
         if pattern_name == "jwt_token":
             return self._evaluate_jwt(matched_value, base_severity)
 
+        # 1b. HTTP Basic authorization gate (targeted validator). ``authorization_basic``
+        #     is structural, so without this a plain UI string like "basic settings"
+        #     would skip every gate and be reported as a HIGH secret.
+        if pattern_name == "authorization_basic":
+            return self._evaluate_authorization_basic(matched_value, base_severity)
+
         # 2. Binary-signature rejection. Real prefix keys never base64-decode to a
         #    full binary signature, so running this for structural matches too is
         #    safe and catches e.g. an image blob that matched a Square-token shape.
+        #    The check runs on BOTH the matched fragment AND the full source string:
+        #    a structural prefix token (e.g. an ``EAAA...`` Square-token shape) can be
+        #    a ~64-char slice of a larger base64 image blob whose PNG magic (offset 0)
+        #    or ICC 'acsp' marker (offset 36) only aligns on the FULL string.
         if self.binary_filter_enabled:
             binary = self._binary_verdict(matched_value)
+            if binary is None and full_context and full_context != matched_value:
+                binary = self._binary_verdict(full_context)
             if binary is not None:
                 return binary
 
@@ -353,13 +389,46 @@ class SecretValidator:
 
         context_required = pattern_config.get("context_required", [])
         if context_required and self.context_detection_enabled and not self._has_context(full_context, context_required):
-            if self.context_strict_mode:
+            # ``context_hard`` patterns (e.g. bare hex keys) HARD-DROP without context:
+            # entropy cannot separate a crypto known-answer-test vector from a real
+            # key, so context is the only discriminator. Global strict_mode still
+            # forces the same hard drop for every context-required pattern.
+            if self.context_strict_mode or pattern_config.get("context_hard"):
                 return SecretVerdict(rejected=True, reason="missing required context", classification_basis="generic:context")
             downgraded = True
             basis = "generic:no_context"
             self.logger.debug(f"Generic hit '{pattern_name}' lacks required context; downgraded to LOW")
 
         fp_probability = self._false_positive_probability(matched_value)
+        # base64/entropy "leakage" family: a path-like URL/class-package fragment
+        # (``com/library/test/success``), a Smali/DEX class descriptor
+        # (``Lcom/revenuecat/purchases/Offerings``), or a long camelCase/PascalCase
+        # Java identifier (``findTrustAnchorByIssuerAndSignature``,
+        # ``BadgeCountFileDescriptorSupplier``) is noise, not a secret. These match
+        # ``high_entropy_string`` AND ``base64_key_long``/``base64_key_medium`` on
+        # real APKs, so the drop must cover the whole family -> hard drop instead of
+        # the soft LOW downgrade that produced tens of thousands of "Information
+        # Leakage" entries. Genuine high-entropy base64 secrets (containing '+'/'='
+        # or lacking identifier-path/word structure) are NOT matched by these
+        # helpers and survive.
+        if pattern_name in _PATH_DROP_PATTERN_NAMES and (
+            self._looks_like_path(matched_value)
+            or self._looks_like_dex_descriptor(matched_value)
+            or self._looks_like_code_identifier(matched_value)
+        ):
+            return SecretVerdict(
+                rejected=True,
+                reason="path-like / DEX class-descriptor / code-identifier noise (not a secret)",
+                classification_basis="generic:path_fp",
+            )
+        # high_entropy_string retains its broader FP drop (mostly-digit ids, dotted
+        # class names, obvious placeholders) — path-like hits are already handled above.
+        if pattern_name == "high_entropy_string" and fp_probability >= 0.5:
+            return SecretVerdict(
+                rejected=True,
+                reason=f"high-entropy noise (path-like/FP p={fp_probability:.2f})",
+                classification_basis="generic:path_fp",
+            )
         if fp_probability >= 0.5:
             downgraded = True
             basis = "generic:false_positive"
@@ -426,6 +495,42 @@ class SecretValidator:
             confidence=0.9,
             classification_label="JWT (valid header)",
             classification_basis="jwt:valid_header",
+        )
+
+    # ------------------------------------------------------ authorization basic
+    def _evaluate_authorization_basic(self, matched_value: str, base_severity: str) -> SecretVerdict:
+        """Validate an ``Authorization: Basic`` match by its credential shape.
+
+        HTTP Basic credentials are ``base64(user:password)`` — a compact, mixed
+        alphabet, no whitespace. A plain UI phrase such as ``"basic settings"``
+        matches the pattern but is obviously not a credential. Rejection signals
+        (any one is enough), kept deliberately conservative so a genuine base64
+        blob still surfaces:
+
+        * the credential contains whitespace (multi-word phrase);
+        * the credential is a single lowercase dictionary-style word (``settings``);
+        * the credential's Shannon entropy is below :data:`_BASIC_AUTH_MIN_ENTROPY`.
+        """
+        match = re.match(r"(?is)basic\s+(.+)$", matched_value.strip())
+        credential = (match.group(1) if match else matched_value).strip()
+
+        reason: str | None = None
+        if not credential or re.search(r"\s", credential):
+            reason = "basic-auth credential contains whitespace (UI phrase, not creds)"
+        elif re.fullmatch(r"[A-Za-z]+", credential) and credential.islower():
+            reason = "basic-auth value is a plain lowercase word, not base64 credentials"
+        elif self._entropy(credential) < _BASIC_AUTH_MIN_ENTROPY:
+            reason = f"basic-auth credential entropy {self._entropy(credential):.2f} too low"
+
+        if reason is not None:
+            return SecretVerdict(rejected=True, reason=reason, classification_basis="authorization_basic:fp")
+
+        return SecretVerdict(
+            rejected=False,
+            severity=base_severity,
+            confidence=0.85,
+            classification_label="HTTP Basic credentials",
+            classification_basis="authorization_basic:valid",
         )
 
     # ---------------------------------------------------------------- binary
@@ -600,4 +705,87 @@ class SecretValidator:
         if "." in value and re.fullmatch(r"[A-Za-z][A-Za-z0-9_$]*(?:\.[A-Za-z][A-Za-z0-9_$]*)+", value):
             return 0.6
 
+        # Slash-delimited path fragments (URL / class-package paths such as
+        # ``com/library/test/success`` or ``net/sdk/sdk/1121/android/mraid``). These
+        # match the high-entropy shape but are navigation/library paths, not keys.
+        # base64 punctuation ('+'/'=') is absent from such paths, so its presence
+        # rules out this branch and protects genuine base64 secrets.
+        if self._looks_like_path(value):
+            return 0.9
+
         return 0.05
+
+    @staticmethod
+    def _looks_like_path(value: str) -> bool:
+        """True for slash-delimited path fragments (URL/class-package paths).
+
+        Requires >=2 non-empty segments, most of which are short identifier-like
+        tokens containing a letter, and no base64 padding/plus punctuation (which
+        would indicate a genuine base64 blob rather than a path).
+        """
+        if "/" not in value or "+" in value or "=" in value:
+            return False
+        segments = [seg for seg in value.split("/") if seg]
+        if len(segments) < 2:
+            return False
+        id_like = [
+            seg
+            for seg in segments
+            if len(seg) <= 40 and re.fullmatch(r"[A-Za-z0-9_$.-]+", seg) and re.search(r"[A-Za-z]", seg)
+        ]
+        return len(id_like) >= 2 and len(id_like) >= len(segments) - 1
+
+    @staticmethod
+    def _looks_like_dex_descriptor(value: str) -> bool:
+        """True for a Smali/DEX class type descriptor.
+
+        A DEX/Smali class descriptor is ``L`` followed by slash-separated identifier
+        segments, optionally with a trailing ``;`` (e.g. ``Lcom/revenuecat/purchases/
+        Offerings`` or ``Landroidx/compose/ui/text/SaversKt;``). ``_looks_like_path``
+        already covers the multi-segment shape, but this catches the 2-segment /
+        trailing-``;`` edge cases it would otherwise miss.
+        """
+        return bool(
+            re.fullmatch(
+                r"L(?:[A-Za-z_$][A-Za-z0-9_$]*/)+[A-Za-z_$][A-Za-z0-9_$]*;?",
+                value,
+            )
+        )
+
+    @staticmethod
+    def _looks_like_code_identifier(value: str) -> bool:
+        """True for a long camelCase/PascalCase source-code identifier.
+
+        Java method and class names such as ``findTrustAnchorByIssuerAndSignature``
+        or ``BadgeCountFileDescriptorSupplier`` have no slash, so they escape
+        ``_looks_like_path``/``_looks_like_dex_descriptor`` yet still match the
+        prefix-less ``base64_key_medium`` shape (``[A-Za-z0-9+/=]{20,}``) and
+        dominated the LOW "Information Leakage" bucket. They are source code, never
+        secrets. A string qualifies as an identifier (-> drop) ONLY when ALL hold:
+
+        * it is purely ``[A-Za-z0-9]`` -- ANY base64 padding/special char
+          (``+``/``/``/``=``) means it is NOT an identifier and is left alone. This
+          is the key guardrail protecting genuine base64 tokens such as
+          ``gfLiyhD2OvLSOj6bwf+kcmK11rwQ90aeBshxHD6xXgk=``;
+        * it is a valid identifier shape (starts with a letter);
+        * it is not dominated by digits (numeric ids/timestamps are handled
+          elsewhere);
+        * it decomposes into camelCase/PascalCase words: at least two
+          dictionary-length word tokens (a run of >=3 letters, optionally
+          capital-led) that together cover most of the string. A random
+          high-entropy alnum blob (e.g. ``A1b2C3d4E5f6...`` with single-letter
+          case flips) has no such word runs, so it is NOT classified here and the
+          entropy/other gates decide it.
+        """
+        if not value or not re.fullmatch(r"[A-Za-z0-9]+", value):
+            return False
+        if not value[0].isalpha():
+            return False
+        digit_count = sum(c.isdigit() for c in value)
+        if digit_count / len(value) >= 0.5:
+            return False
+        words = [w for w in _CODE_WORD_RE.findall(value) if len(w) >= 3]
+        if len(words) < 2:
+            return False
+        covered = sum(len(w) for w in words)
+        return covered / len(value) >= 0.6

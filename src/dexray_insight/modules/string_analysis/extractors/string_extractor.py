@@ -344,10 +344,13 @@ class StringExtractor:
 
             # Parse XML content (secure: parsing trusted APK-extracted content only)
             xml_text = xml_content.decode("utf-8", errors="ignore")
-            # Create a secure parser that disables DTD processing to prevent XXE attacks
-            parser = ET.XMLParser()
-            parser.entity = {}  # Disable entity processing for security
-            root = ET.fromstring(xml_text, parser=parser)
+            # Python's stdlib ElementTree/expat parser does not resolve external
+            # entities by default, so it is already safe against XXE for the
+            # trusted APK-extracted content parsed here. (Note: the previous
+            # attempt to harden this via ``parser.entity = {}`` raised
+            # "readonly attribute" on Python 3.9+, aborting the real parse and
+            # silently dropping CDATA text into an unreliable regex fallback.)
+            root = ET.fromstring(xml_text)
 
             # Extract text content from all elements
             for elem in root.iter():

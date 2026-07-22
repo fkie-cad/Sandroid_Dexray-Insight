@@ -150,11 +150,15 @@ class LibraryNameMapper:
         return mappings
 
     def _initialize_ecosystem_patterns(self) -> dict[str, list[str]]:
-        """Initialize patterns to detect library ecosystems."""
+        """Initialize patterns that confidently identify a library's ecosystem.
+
+        Only high-signal patterns are used. Broad catch-alls such as "any lowercase
+        hyphenated name" were removed because they mis-classified arbitrary
+        Android/unknown libraries (e.g. treating ``nonexistent-library`` as npm).
+        """
         return {
             "Maven": [r"^com\.", r"^org\.", r"^net\.", r"^io\.", r"^androidx\.", r"^android\."],
-            "npm": [r"^@", r"[a-z\-]+$"],  # Scoped packages  # Simple lowercase with hyphens
-            "PyPI": [r"[a-z\-_]+$"],  # Lowercase with hyphens/underscores
+            "npm": [r"^@"],  # Scoped npm packages, e.g. @scope/pkg
         }
 
     def get_cve_names(self, detected_name: str, version: str | None = None) -> dict[str, str]:
@@ -174,13 +178,15 @@ class LibraryNameMapper:
         if normalized in self.mappings:
             return self.mappings[normalized].ecosystem
 
-        # Try to infer ecosystem from name patterns
+        # Try to infer ecosystem from confident name patterns only
         for ecosystem, patterns in self.ecosystem_patterns.items():
             for pattern in patterns:
                 if re.match(pattern, detected_name, re.IGNORECASE):
                     return ecosystem
 
-        return "Maven"  # Default to Maven for Android libraries
+        # No confident match: report unknown rather than guessing an ecosystem,
+        # which would produce incorrect ecosystem-scoped CVE queries.
+        return None
 
     def _generate_cve_names(self, detected_name: str) -> dict[str, str]:
         """Generate reasonable CVE names when no mapping exists."""
@@ -191,8 +197,13 @@ class LibraryNameMapper:
         return {"osv": detected_name, "nvd": normalized, "github": detected_name}
 
     def _normalize_name(self, name: str) -> str:
-        """Normalize library name for consistent lookup."""
-        return name.lower().replace("-", "_").replace(".", "_").replace(" ", "_")
+        """Normalize a library name for consistent lookup.
+
+        Lower-cases the name and drops separators that do not carry meaning for
+        matching (spaces and dots), while preserving hyphens and underscores which
+        are significant parts of many package names (e.g. ``firebase-core``).
+        """
+        return name.lower().replace(" ", "").replace(".", "")
 
     def add_mapping(self, mapping: LibraryMapping):
         """Add a new library mapping."""

@@ -184,6 +184,71 @@ class TestWeakCrypto:
         findings = SensitiveDataAssessment({"enabled": True}).assess(results)
         assert [f for f in findings if "Weak Cryptographic" in f.title]
 
+    # -- base_analys.md B6: library-internal / provider / prose false positives --
+    #
+    # The six strings below are real evidence text observed on a library-heavy
+    # APK. None are first-party weak-crypto usage; the bare whole-word path must
+    # reject every one of them.
+    B6_FALSE_POSITIVE_STRINGS = [
+        "File MD5 check fail.",  # prose / log sentence
+        "KeyStore.PKCS12-3DES-3DES",  # JCA KeyStore provider alias
+        "org.bouncycastle.jcajce.provider.asymmetric.rsa.DigestSignatureSpi$MD4",  # dotted class
+        "HARMONY (SHA1 digest; SecureRandom; SHA1withDSA signature)",  # provider descriptor
+        "Alg.Alias.Mac.RC2/CFB8",  # BouncyCastle provider alias registration
+        "Failed to get MD5",  # prose / log sentence
+    ]
+
+    def test_b6_library_provider_prose_strings_yield_no_evidence(self):
+        results = {**_strings(self.B6_FALSE_POSITIVE_STRINGS), **_api([])}
+        assert collect_weak_crypto_evidence(results, self.B6_FALSE_POSITIVE_STRINGS) == []
+
+    def test_b6_each_false_positive_rejected_individually(self):
+        for fp in self.B6_FALSE_POSITIVE_STRINGS:
+            results = {**_strings([fp]), **_api([])}
+            assert collect_weak_crypto_evidence(results, [fp]) == [], f"should reject: {fp!r}"
+
+    def test_b6_library_heavy_app_produces_no_high_weak_crypto_finding(self):
+        results = {**_strings(self.B6_FALSE_POSITIVE_STRINGS), **_api([])}
+        findings = SensitiveDataAssessment({"enabled": True}).assess(results)
+        assert [f for f in findings if "Weak Cryptographic" in f.title] == []
+
+    def test_genuine_getinstance_md5_still_flagged(self):
+        # #2a getInstance-argument path stays intact.
+        strings = ['MessageDigest.getInstance("MD5")']
+        results = {**_strings(strings), **_api([])}
+        assert collect_weak_crypto_evidence(results, strings)
+
+    def test_genuine_getinstance_des_transformation_still_flagged(self):
+        strings = ['Cipher.getInstance("DES/CBC/PKCS5Padding")']
+        results = {**_strings(strings), **_api([])}
+        assert collect_weak_crypto_evidence(results, strings)
+
+    def test_genuine_structured_crypto_usage_md5_still_flagged(self):
+        # #1 structured api_invocation crypto_usage path stays intact.
+        results = {"api_invocation": {"crypto_usage": [{"algorithm": "MD5", "location": "Enc.java:42"}]}}
+        assert collect_weak_crypto_evidence(results, [])
+
+    # -- B6 residual bare-token / header / label false positives (this session) --
+    #
+    # A mere MENTION of an algorithm name (a bare token, an HTTP header name, or a
+    # ``<Algo> Parameters`` label) is not weak-crypto usage. These live-run HIGH
+    # false positives must all yield NO evidence via the bare whole-word path.
+    B6_BARE_TOKEN_FALSE_POSITIVES = ["RC2", "Md5", "sha1", "x-kik-content-md5", "RC2 Parameters"]
+
+    def test_b6_bare_token_and_header_false_positives_yield_no_evidence(self):
+        results = {**_strings(self.B6_BARE_TOKEN_FALSE_POSITIVES), **_api([])}
+        assert collect_weak_crypto_evidence(results, self.B6_BARE_TOKEN_FALSE_POSITIVES) == []
+
+    def test_b6_bare_token_false_positives_rejected_individually(self):
+        for fp in self.B6_BARE_TOKEN_FALSE_POSITIVES:
+            results = {**_strings([fp]), **_api([])}
+            assert collect_weak_crypto_evidence(results, [fp]) == [], f"should reject: {fp!r}"
+
+    def test_b6_bare_tokens_produce_no_high_weak_crypto_finding(self):
+        results = {**_strings(self.B6_BARE_TOKEN_FALSE_POSITIVES), **_api([])}
+        findings = SensitiveDataAssessment({"enabled": True}).assess(results)
+        assert [f for f in findings if "Weak Cryptographic" in f.title] == []
+
 
 # ---------------------------------------------------------------------------
 # SSRF
@@ -268,3 +333,118 @@ class TestMobileSpecific:
     def test_weak_command_signals_helper(self):
         results = _api(reflection_usage=["invoke Runtime exec"])
         assert list_weak_command_signals(results)
+
+
+# ---------------------------------------------------------------------------
+# base_analys.md B6: SSRF / injection false positives on library format-string
+# URL constants (ad-SDK / Play-Store %s/%d templates). These must NOT produce a
+# HIGH SSRF or a confirmed injection finding, while genuine first-party
+# user-controlled sinks must still fire.
+# ---------------------------------------------------------------------------
+from src.dexray_insight.security.ssrf_assessment import _is_library_origin_url  # noqa: E402
+from src.dexray_insight.security.ssrf_assessment import _url_looks_user_controlled  # noqa: E402
+
+# The two exact evidence strings base_analys.md B6 flagged as false positives.
+B6_LIBRARY_URL_CONSTANTS = [
+    "https://ads.pubmatic.com/AdServer/js/pwt/%s/%d/config.json",
+    "https://play.google.com/store/apps/details?id=%s",
+]
+
+
+class TestB6UrlOriginHelpers:
+    def test_ad_sdk_host_is_library_origin(self):
+        assert _is_library_origin_url("https://ads.pubmatic.com/AdServer/js/pwt/%s/%d/config.json")
+
+    def test_play_store_host_is_library_origin_via_reversed_package(self):
+        # play.google.com -> com.google.play matches the com.google. framework prefix.
+        assert _is_library_origin_url("https://play.google.com/store/apps/details?id=%s")
+
+    def test_first_party_host_is_not_library_origin(self):
+        assert not _is_library_origin_url("https://api.myfirstpartyapp.example/user/%s/profile")
+
+    def test_bare_template_not_user_controlled(self):
+        assert not _url_looks_user_controlled("https://cdn.example/assets/%s.png")
+
+    def test_interpolated_user_token_is_user_controlled(self):
+        assert _url_looks_user_controlled("https://api.myapp.example/fetch?redirect=%s&user=1")
+
+
+class TestB6SSRFFalsePositives:
+    def test_ad_sdk_format_string_urls_no_high_ssrf(self):
+        results = _strings(B6_LIBRARY_URL_CONSTANTS, urls=B6_LIBRARY_URL_CONSTANTS)
+        findings = SSRFAssessment({"enabled": True}).assess(results)
+        # No HIGH SSRF finding of any kind.
+        assert [f for f in findings if f.severity == AnalysisSeverity.HIGH] == []
+        # The "Potential SSRF Vulnerability" (HIGH) title must not be present.
+        assert [f for f in findings if f.title == "Potential SSRF Vulnerability"] == []
+        # Library-origin templates are dropped entirely, not even a review item.
+        assert [f for f in findings if "Dynamic URL Template" in f.title] == []
+
+    def test_first_party_bare_template_is_low_review_not_high(self):
+        url = "https://api.myfirstpartyapp.example/assets/%s.json"
+        results = _strings([url], urls=[url])
+        findings = SSRFAssessment({"enabled": True}).assess(results)
+        assert [f for f in findings if f.severity == AnalysisSeverity.HIGH] == []
+        review = [f for f in findings if "Dynamic URL Template" in f.title]
+        assert len(review) == 1
+        assert review[0].severity == AnalysisSeverity.LOW
+
+    def test_genuine_user_controlled_url_sink_still_high(self):
+        # Code-level user-controlled URL construction remains a HIGH SSRF finding.
+        results = _strings(["Intent.setData(Uri.parse(userInput))"], urls=[])
+        findings = SSRFAssessment({"enabled": True}).assess(results)
+        high = [f for f in findings if f.title == "Potential SSRF Vulnerability"]
+        assert len(high) == 1
+        assert high[0].severity == AnalysisSeverity.HIGH
+
+    def test_first_party_user_controlled_dynamic_url_still_high(self):
+        url = "https://api.myfirstpartyapp.example/fetch?redirect=%s&user=1"
+        results = _strings([url], urls=[url])
+        findings = SSRFAssessment({"enabled": True}).assess(results)
+        high = [f for f in findings if f.title == "Potential SSRF Vulnerability"]
+        assert len(high) == 1
+        assert high[0].severity == AnalysisSeverity.HIGH
+
+
+class TestB6InjectionFalsePositives:
+    def test_ad_sdk_format_string_urls_no_injection_finding(self):
+        results = {**_strings(B6_LIBRARY_URL_CONSTANTS, urls=B6_LIBRARY_URL_CONSTANTS), **_api([])}
+        findings = InjectionAssessment({"enabled": True}).assess(results)
+        api = [f for f in findings if "API and Data Injection" in f.title]
+        # Library-origin URLs are dropped: no injection finding at all.
+        assert api == []
+
+    def test_library_class_descriptor_not_injection_sink(self):
+        # A Room/protobuf class descriptor must not be a first-party sink.
+        descriptor = "Landroidx/room/RoomDatabase$parse_user_input;"
+        results = {**_strings([descriptor], urls=[]), **_api([])}
+        findings = InjectionAssessment({"enabled": True}).assess(results)
+        assert [f for f in findings if "API and Data Injection" in f.title] == []
+
+    def test_first_party_bare_template_url_is_low_review(self):
+        url = "https://api.myfirstpartyapp.example/assets/%s.json"
+        results = {**_strings([url], urls=[url]), **_api([])}
+        findings = InjectionAssessment({"enabled": True}).assess(results)
+        api = [f for f in findings if "API and Data Injection" in f.title]
+        assert len(api) == 1
+        assert api[0].severity == AnalysisSeverity.LOW
+        assert "unproven" in api[0].title.lower()
+
+    def test_first_party_user_param_url_still_medium(self):
+        url = "https://api.myfirstpartyapp.example/query?user=%s"
+        results = {**_strings([url], urls=[url]), **_api([])}
+        findings = InjectionAssessment({"enabled": True}).assess(results)
+        api = [f for f in findings if f.title == "API and Data Injection Risks"]
+        assert len(api) == 1
+        assert api[0].severity == AnalysisSeverity.MEDIUM
+
+    def test_genuine_first_party_sql_sink_still_fires(self):
+        # First-party SQL sink path is untouched and still fires MEDIUM/HIGH.
+        results = {
+            **_strings([]),
+            **_api([{"called_class": "Landroid/database/sqlite/SQLiteDatabase;", "called_method": "rawQuery"}]),
+        }
+        findings = InjectionAssessment({"enabled": True}).assess(results)
+        sql = [f for f in findings if f.title.startswith("SQL Injection")]
+        assert len(sql) == 1
+        assert sql[0].severity in (AnalysisSeverity.MEDIUM, AnalysisSeverity.HIGH)

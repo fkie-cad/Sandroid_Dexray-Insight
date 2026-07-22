@@ -24,6 +24,7 @@ from dexray_insight.core.base_classes import AnalysisSeverity  # noqa: E402
 from dexray_insight.core.base_classes import FileLocation  # noqa: E402
 from dexray_insight.core.base_classes import SecurityFinding  # noqa: E402
 from dexray_insight.core.base_classes import VerificationStatus  # noqa: E402
+import dexray_insight.security.deep_cache as deep_cache  # noqa: E402
 from dexray_insight.security.deep_cache import cached_deep_findings  # noqa: E402
 from dexray_insight.security.deep_cache import finding_from_dict  # noqa: E402
 from dexray_insight.security.deep_cache import findings_from_cache  # noqa: E402
@@ -321,3 +322,43 @@ class TestDeepDataflowCacheIntegration:
         findings = DeepDataflowAssessment({}).assess(_overview(), _Ctx())
         assert len(findings) == 1
         assert androguard.calls == 1
+
+
+# --------------------------------------------------------------------------- #
+# DEEP_SCHEMA_VERSION participates in the cache key (stale-hit guard)
+# --------------------------------------------------------------------------- #
+@pytest.mark.unit
+@pytest.mark.security
+class TestDeepSchemaVersionInvalidatesCache:
+    """A detector-logic revision (bumping DEEP_SCHEMA_VERSION) must miss the old key."""
+
+    def test_config_hash_changes_with_schema_version(self, monkeypatch):
+        monkeypatch.setattr(deep_cache, "DEEP_SCHEMA_VERSION", "test-v1")
+        hash_v1 = deep_cache._config_hash({})
+        monkeypatch.setattr(deep_cache, "DEEP_SCHEMA_VERSION", "test-v2")
+        hash_v2 = deep_cache._config_hash({})
+        assert hash_v1 != hash_v2, "DEEP_SCHEMA_VERSION must change the config hash"
+
+    def test_bumping_schema_version_misses_prior_entry(self, monkeypatch):
+        cm = _FakeCacheManager()
+        calls = {"n": 0}
+
+        def build():
+            calls["n"] += 1
+            return []
+
+        ctx = _FakeContext(None, cache_manager=cm, apk_md5="abc")
+
+        monkeypatch.setattr(deep_cache, "DEEP_SCHEMA_VERSION", "logic-v1")
+        cached_deep_findings(ctx, "deep_dataflow", {}, build)
+        assert calls["n"] == 1  # miss + store under logic-v1
+
+        # Same md5/module/config, but the detector logic changed -> version bump.
+        monkeypatch.setattr(deep_cache, "DEEP_SCHEMA_VERSION", "logic-v2")
+        cached_deep_findings(ctx, "deep_dataflow", {}, build)
+        assert calls["n"] == 2  # MISS: old (stale) entry not served
+
+        # And the original version still hits its own entry (no rebuild).
+        monkeypatch.setattr(deep_cache, "DEEP_SCHEMA_VERSION", "logic-v1")
+        cached_deep_findings(ctx, "deep_dataflow", {}, build)
+        assert calls["n"] == 2  # HIT: logic-v1 entry intact

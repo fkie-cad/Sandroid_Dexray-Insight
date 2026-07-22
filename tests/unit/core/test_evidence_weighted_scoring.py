@@ -113,10 +113,13 @@ class TestEvidenceWeightedScorerV2:
 
     def test_low_confidence_heuristics_do_not_dominate(self):
         engine = _engine()
-        # 16 evidence-free HIGH heuristics at conf 0.3 contribute far less than under v1.
+        # 16 evidence-free HIGH heuristics at conf 0.3 contribute far less than under v1,
+        # and are damped further by the per-tier diminishing-returns decay (HIGH decay 0.8):
+        # raw = 7*0.3 * Σ 0.8^k (k=0..15) ≈ 10.2, vs 33.6 under the flat v2 sum, vs 112 v1.
         findings = [_finding(AnalysisSeverity.HIGH, 0.3) for _ in range(16)]
         _, raw = engine._calculate_risk_score_v2(findings)
-        assert raw == pytest.approx(16 * 7 * 0.3)  # 33.6, vs 112 under v1
+        assert raw == pytest.approx(7 * 0.3 * sum(0.8**k for k in range(16)), abs=0.02)  # ~10.2
+        assert raw < 33.6  # strictly below the old flat-sum contribution
 
     def test_confirmed_subset_excludes_low_confidence(self):
         engine = _engine()
@@ -128,17 +131,33 @@ class TestEvidenceWeightedScorerV2:
         _, raw_confirmed = engine._calculate_risk_score_v2(confirmed)
         assert raw_confirmed == pytest.approx(7 * 0.9)
 
-    def test_single_high_confidence_critical_floors_score(self):
-        engine = _engine(critical_floor=75.0)
+    def test_single_high_confidence_critical_gets_soft_bump(self):
+        # Soft additive bump replaces the old hard 75 floor: one confirmed critical
+        # (conf 0.9) => base 10*0.9=9.0, + critical_bump(18) => 27.0.
+        engine = _engine()
+        assert engine.critical_bump == 18.0
         findings = [_finding(AnalysisSeverity.CRITICAL, 0.9)]
         normalized, _ = engine._calculate_risk_score_v2(findings)
-        assert normalized >= 75.0
+        assert normalized == pytest.approx(27.0)
 
-    def test_low_confidence_critical_does_not_floor(self):
-        engine = _engine(critical_floor=75.0)
+    def test_two_criticals_bump_more_than_one(self):
+        # Monotonic in the number of confirmed criticals. CRITICAL decay is 1.0 (undecayed),
+        # so base = 10*0.9 + 10*0.85 = 17.5; + critical_bump(18) * 2 = 53.5.
+        engine = _engine()
+        one = engine._calculate_risk_score_v2([_finding(AnalysisSeverity.CRITICAL, 0.9)])[0]
+        two = engine._calculate_risk_score_v2(
+            [_finding(AnalysisSeverity.CRITICAL, 0.9), _finding(AnalysisSeverity.CRITICAL, 0.85)]
+        )[0]
+        assert two > one
+        assert two == pytest.approx(53.5)
+
+    def test_low_confidence_critical_does_not_bump(self):
+        # A low-confidence critical (0.4 < 0.7 threshold) is not "confirmed" and gets no
+        # bump: base 10*0.4 = 4.0, no additive increment.
+        engine = _engine()
         findings = [_finding(AnalysisSeverity.CRITICAL, 0.4)]
         normalized, _ = engine._calculate_risk_score_v2(findings)
-        assert normalized < 75.0
+        assert normalized == pytest.approx(4.0)
 
     def test_monotonic_adding_finding_never_lowers(self):
         engine = _engine()

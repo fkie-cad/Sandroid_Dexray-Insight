@@ -14,7 +14,9 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "src"))
 
+from dexray_insight.security.evidence import matches_algorithm_token  # noqa: E402
 from dexray_insight.security.evidence.pii_taxonomy import (  # noqa: E402
+    ENCRYPTION_AT_REST_TOKENS,
     PII_TAXONOMY,
     PIICategory,
     PIIPattern,
@@ -111,6 +113,27 @@ def test_library_and_placeholder_emails_flagged():
 
 def test_real_user_email_not_flagged():
     assert is_placeholder_or_library_email("jane.doe@protonmail.com") is False
+
+
+# ----------------------------------------------- encryption-at-rest posture
+def _has_posture(text):
+    return any(matches_algorithm_token(text, tok) for tok in ENCRYPTION_AT_REST_TOKENS)
+
+
+def test_bare_masterkey_field_is_not_encryption_posture():
+    # R8b-2: a bare camelCase field/var name must NOT assert an at-rest posture.
+    assert "MasterKey" not in ENCRYPTION_AT_REST_TOKENS
+    assert "MasterKeys" not in ENCRYPTION_AT_REST_TOKENS
+    assert _has_posture("masterKey") is False
+    assert _has_posture("MasterKey") is False
+
+
+def test_genuine_encryption_apis_are_posture():
+    # The unambiguous signals still count as an at-rest encryption posture.
+    assert _has_posture("androidx.security.crypto.MasterKey") is True
+    assert _has_posture("androidx.security.crypto.EncryptedSharedPreferences") is True
+    assert _has_posture("net.sqlcipher.database.SQLiteDatabase") is True
+    assert _has_posture("androidx.sqlite.db.SupportFactory") is True
 
 
 # ---------------------------------------------------------------- taxonomy

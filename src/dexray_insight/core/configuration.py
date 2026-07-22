@@ -244,7 +244,19 @@ class Configuration:
                 "version": 2,
                 "headline_mode": "confirmed",
                 "confirmed_threshold": 0.7,
+                # Retained for backward-compat / rollback; no longer a hard clamp.
                 "critical_floor": 75.0,
+                # Soft additive bump per confirmed high-confidence CRITICAL (capped at 100):
+                # score = min(100, base_normalized + critical_bump * n_critical).
+                "critical_bump": 18.0,
+                # Diminishing-returns decay per severity tier (k-th finding in a tier
+                # contributes weight*confidence*decay**k). CRITICAL undecayed; volume damped.
+                "severity_decay": {
+                    "critical": 1.0,
+                    "high": 0.8,
+                    "medium": 0.5,
+                    "low": 0.4,
+                },
             },
         },
         "output": {

@@ -20,7 +20,7 @@ Dexray Insight is part of the dynamic Sandbox Sandroid. Its purpose is to perfor
 - **Manifest Analysis Module**: Extracts intent filters, activities, services, and receivers from AndroidManifest.xml
 - **APKID Integration**: Detects packers, obfuscation, and anti-analysis techniques
 - **Kavanoz Integration**: Static unpacking of packed Android malware
-- **Security Analysis**: Runtime-specific security checks for DEX and .NET code
+- **Security Analysis**: OWASP Mobile Top 10 assessment plus a validated PII/privacy taxonomy, FileProvider path-scope analysis, ad-SDK risk-surface mapping, CVE scanning of detected libraries, and (under `--deep`) xref-based data-flow and PII-flow review queues. The headline risk score is the *confirmed-subset* score; unconfirmed leads are surfaced as a separate review queue instead of inflating it.
 
 
 ## Install
@@ -227,6 +227,8 @@ dexray-insight <path_to_apk> | less
 ### Do Security Analysis
 
 When we just interested in the security of an app we can use the `-s` flag in order to extend the analysis with security scanning:
+
+> **Note:** With the shipped `dexray.yaml`, a `-s` run performs **CVE scanning against the OSV database**, which makes outbound network calls for any detected library that carries a version. Set `security.cve_scanning.enabled: false` to run offline. The headline `overall_risk_score` reports the confirmed-subset score; NVD is off by default (needs an API key). See `docs/advanced/security_assessment.rst` and `MIGRATION.md` for details.
 
 ```bash
 dexray-insight -d DEBUG -s 67673216-93c35cc190d1713fb37f9b04894a4c1e.apk

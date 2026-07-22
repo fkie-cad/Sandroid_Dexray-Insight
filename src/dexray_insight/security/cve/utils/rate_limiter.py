@@ -30,7 +30,7 @@ of various CVE data sources.
 import logging
 import time
 from dataclasses import dataclass
-from threading import Lock
+from threading import RLock
 
 
 @dataclass
@@ -55,8 +55,10 @@ class APIRateLimiter:
         # Track request timestamps for different time windows
         self.request_history: dict[str, list] = {"minute": [], "hour": [], "day": [], "burst": []}
 
-        # Lock for thread safety
-        self._lock = Lock()
+        # Reentrant lock for thread safety. Reentrancy is required because
+        # get_rate_limit_status() holds the lock and then calls
+        # can_make_request(), which re-acquires it on the same thread.
+        self._lock = RLock()
 
         # Last request time for minimum delay enforcement
         self.last_request_time: float | None = None

@@ -267,20 +267,31 @@ class PIIAssessment(BaseSecurityAssessment):
         )
 
     def _private_key_finding(self, evidence: list[str], encryption_posture: bool) -> SecurityFinding:
+        # A private-key SharedPreferences key at rest is a critical fact and must
+        # NEVER be silenced to LOW by an app-wide encryption-posture signal (which
+        # cannot prove the key itself is written through the encrypted store).
+        # Posture only shifts the verification status: no posture -> CONFIRMED
+        # plaintext storage; posture present -> still CRITICAL, but routed to the
+        # review queue (NEEDS_REVIEW) so a human confirms the actual write path.
         if encryption_posture:
             return SecurityFinding(
                 category=self.owasp_category,
-                severity=AnalysisSeverity.LOW,
-                title="Private-key material stored with encryption posture",
+                severity=AnalysisSeverity.CRITICAL,
+                title="Private-key material at rest (encryption posture present — needs review)",
                 description=(
-                    "A private-key SharedPreferences key was found, but an at-rest encryption "
-                    "posture (EncryptedSharedPreferences / SQLCipher / MasterKey) is present."
+                    "A private-key SharedPreferences key was found. An at-rest encryption posture "
+                    "(EncryptedSharedPreferences / SQLCipher / MasterKey) is also present, but it "
+                    "cannot be statically confirmed that the private key is actually written through "
+                    "the encrypted store rather than plaintext preferences — manual review required."
                 ),
                 evidence=evidence[:10],
-                recommendations=["Verify the private key is actually stored via the encrypted store"],
-                confidence=0.6,
+                recommendations=[
+                    "Verify the private key is actually stored via the encrypted store",
+                    "Store private keys in the Android Keystore, never in plaintext SharedPreferences",
+                ],
+                confidence=0.7,
                 verification_status=VerificationStatus.NEEDS_REVIEW,
-                additional_data={"pii_category": PIICategory.CREDENTIAL.value},
+                additional_data={"pii_category": PIICategory.CREDENTIAL.value, "encryption_posture": True},
             )
         return SecurityFinding(
             category=self.owasp_category,
@@ -483,10 +494,17 @@ class PIIAssessment(BaseSecurityAssessment):
 
     @staticmethod
     def _has_encryption_posture(corpus: list[str]) -> bool:
-        lowered_tokens = [tok.lower() for tok in ENCRYPTION_AT_REST_TOKENS]
+        # Whole-word token matching (not naive substring) so an unrelated string
+        # such as "MasterKeyGenerator" does not lowercase-match a token and
+        # spuriously assert an at-rest encryption posture. The bare
+        # ``MasterKey``/``MasterKeys`` tokens were dropped (R8b-2) because even
+        # whole-word matching flagged a benign camelCase ``masterKey`` field name;
+        # only the unambiguous tokens (EncryptedSharedPreferences,
+        # androidx.security.crypto, net.sqlcipher, SupportFactory) count now. A
+        # genuine Jetpack MasterKey usage still qualifies via its mandatory
+        # ``androidx.security.crypto`` package reference.
         for text in corpus:
-            lowered = text.lower()
-            if any(tok in lowered for tok in lowered_tokens):
+            if any(matches_algorithm_token(text, tok) for tok in ENCRYPTION_AT_REST_TOKENS):
                 return True
         return False
 

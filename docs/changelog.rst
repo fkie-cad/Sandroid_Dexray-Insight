@@ -11,6 +11,24 @@ and this project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0
 
 Added
 ~~~~~
+- **Verification status** on every finding (``confirmed`` / ``needs_review`` /
+  ``needs_dynamic``); unconfirmed static leads are surfaced as a ranked review queue
+- **PII / privacy assessment** (``assessments.pii``) under a new
+  ``PRIVACY:2024-Personal Data Exposure`` category, with a validated PII taxonomy
+  (Luhn/E.164/SSN/geo validators, permission↔sink correlation, PII-at-rest with an
+  encryption-posture gate, and private-key-at-rest detection)
+- **FileProvider path-scope analyzer** (``assessments.provider_paths``): over-broad roots,
+  exported providers without signature protection, duplicate authorities
+- **SDK risk-surface** assessment (``assessments.sdk_risk_surface``) mapping ad-SDK bridge
+  classes to risky capabilities
+- **Deep data-flow** (``assessments.deep_dataflow``) and **PII-flow**
+  (``assessments.pii_flow``) assessments that run only under ``--deep`` (xref-based, all
+  ``needs_dynamic``); deep findings are cached (keyed on APK MD5 + schema version)
+- NSC ``user``-trust-anchor detection (apps trusting user-installed CA certificates)
+- New scoring fields: ``risk_score_confirmed``, ``risk_score_review_mass``,
+  ``overall_risk_score_raw``, ``risk_score_legacy``, ``risk_score_version``
+- Configurable risk scoring (``security.risk_scoring``): ``headline_mode``,
+  ``confirmed_threshold``, ``critical_bump``, ``severity_decay``
 - Comprehensive Sphinx documentation with RTD theme
 - Complete API documentation for all modules and utilities
 - Testing framework documentation with writing guides
@@ -23,6 +41,34 @@ Added
 
 Changed
 ~~~~~~~
+- **Headline risk score** is now the confirmed-subset score by default
+  (``headline_mode: confirmed``): only ``confirmed`` findings with confidence ≥ 0.7 enter
+  the headline; review-queue weight is reported separately as ``risk_score_review_mass``.
+  Set ``headline_mode: raw`` to restore the old sum-over-all behaviour
+- **Critical scoring** replaced the hard critical floor with a soft additive bump
+  (``critical_bump``, default lowered 25.0 → 18.0); ``critical_floor`` is retained for
+  rollback only
+- **Risk-score recalibration**: the raw sum now applies per-severity diminishing returns.
+  Within each severity tier, findings are ranked by confidence and the k-th contributes
+  ``weight × confidence × decay**k`` (``severity_decay`` defaults ``critical: 1.0``,
+  ``high: 0.8``, ``medium: 0.5``, ``low: 0.4``). This stops a pile of same-severity
+  (especially MEDIUM) findings from inflating the headline by count — a moderate app now
+  lands in a defensible band (~35-40 on the Kik ``base.apk`` benchmark) while
+  critical-driven malware stays high and benign apps stay ~0
+- **Analysis cache logic versioning**: added ``ANALYSIS_SCHEMA_VERSION``
+  (``core/cache_manager.py``), folded into the full-result and per-module cache keys as
+  the shallow-cache analog of the deep cache's ``DEEP_SCHEMA_VERSION``. Because the key is
+  otherwise config-based and the fingerprint's ``tool_version`` does not move during
+  in-place development, bumping it on a detection-logic change invalidates stale entries
+  that would otherwise mask the change on re-analysis. Use ``--no-cache`` (or
+  ``--clear-analysis-cache``) to force a fresh run when validating local changes
+- **CVE scanning un-gated for Java/Android libraries** (previously native-only); OSV is
+  the key-less default source and runs on every ``-s`` run (outbound network calls), NVD
+  is off by default (needs an API key)
+- A config file (``-c``) and CLI flags now **compose** — ``-s``, ``--cve``, ``--deep``,
+  etc. override the config file instead of being dropped
+- ``--deep`` now also enables ``modules.tracker_analysis.deep_string_location_analysis``
+  for PII-flow attribution
 - Improved native library extraction with fallback mechanisms
 - Enhanced error handling across all modules
 - Updated CLI interface with additional debugging options
@@ -30,6 +76,12 @@ Changed
 
 Fixed
 ~~~~~
+- **False-positive precision**: secret/entropy detection now rejects binary blobs,
+  base64-image fragments, crypto test-vector hex, DEX class descriptors, slash paths, and
+  camelCase identifiers; weak-crypto requires real ``getInstance``/usage context;
+  SSRF/injection require first-party sinks (not library/ad-SDK URL templates);
+  dangerous-permission severity is tiered; cleartext-URL findings filter
+  documentation/namespace/placeholder hosts
 - Native library detection showing framework names instead of .so files
 - Configuration validation and error reporting
 - Import errors in testing modules

@@ -47,12 +47,18 @@ class OSVClient(BaseCVEClient):
     BASE_URL = "https://api.osv.dev"
 
     def _get_default_rate_limit_config(self) -> RateLimitConfig:
-        """OSV rate limits - very conservative to avoid 429 errors during parallel scanning."""
+        """OSV rate limits.
+
+        OSV (Google) publishes no hard per-minute cap and is the key-less default
+        source, so it should not be throttled to a crawl. 60 requests/minute with a
+        small burst allowance is a safe conservative default that comfortably stays
+        within OSV's capacity.
+        """
         return RateLimitConfig(
-            requests_per_minute=20,  # Further reduced from 30
-            requests_per_hour=1200,  # Further reduced from 1800
-            burst_limit=3,  # Further reduced from 5
-            burst_window_seconds=60,  # Increased window
+            requests_per_minute=60,
+            requests_per_hour=3600,
+            burst_limit=10,
+            burst_window_seconds=60,
         )
 
     def _setup_headers(self):

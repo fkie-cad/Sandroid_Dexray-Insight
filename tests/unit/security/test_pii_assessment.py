@@ -54,7 +54,10 @@ def test_private_key_pref_critical_confirmed():
     assert "private key" in crit[0].title.lower()
 
 
-def test_private_key_pref_downgraded_when_encrypted():
+def test_private_key_pref_stays_critical_but_needs_review_when_encrypted():
+    # A genuine at-rest encryption posture (EncryptedSharedPreferences) must NOT
+    # silence a plaintext private key to LOW. It stays CRITICAL but is routed to
+    # the review queue (NEEDS_REVIEW) because the actual write path is unproven.
     results = {
         "string_analysis": {
             "all_strings": [
@@ -64,7 +67,75 @@ def test_private_key_pref_downgraded_when_encrypted():
         }
     }
     findings = _assess(results)
-    assert not _find(findings, lambda f: f.severity == AnalysisSeverity.CRITICAL)
+    crit = _find(findings, lambda f: f.additional_data.get("pii_category") == "credential")
+    assert len(crit) == 1
+    assert crit[0].severity == AnalysisSeverity.CRITICAL
+    assert crit[0].verification_status == VerificationStatus.NEEDS_REVIEW
+
+
+def test_private_key_not_downgraded_by_unrelated_masterkey_substring():
+    # Regression lock for the base.apk bug: an unrelated class name containing
+    # the substring "masterkey" (but NO real EncryptedSharedPreferences) must not
+    # assert an encryption posture. The plaintext private key stays CRITICAL and
+    # CONFIRMED — never downgraded to LOW/NEEDS_REVIEW by a loose substring.
+    results = {
+        "string_analysis": {
+            "all_strings": [
+                "kik.auth.gen.priv.key",
+                "com/example/crypto/MasterKeyGenerator",
+                "someMasterKeyThing",
+            ]
+        }
+    }
+    findings = _assess(results)
+    crit = _find(findings, lambda f: f.severity == AnalysisSeverity.CRITICAL)
+    assert len(crit) == 1
+    assert crit[0].additional_data.get("pii_category") == "credential"
+    assert crit[0].verification_status == VerificationStatus.CONFIRMED
+    assert "private key" in crit[0].title.lower()
+    assert not _find(findings, lambda f: f.severity == AnalysisSeverity.LOW)
+
+
+def test_private_key_not_downgraded_by_bare_camelcase_masterkey():
+    # R8b-2 regression lock (the exact base.apk bug): a lone camelCase field name
+    # ``masterKey`` is a WHOLE-WORD match for the old ``MasterKey`` token, so it
+    # spuriously asserted an at-rest encryption posture -> the plaintext private
+    # key was mislabeled "needs review". With MasterKey/MasterKeys dropped there is
+    # no posture, so the finding is CONFIRMED CRITICAL plaintext storage.
+    results = {
+        "string_analysis": {
+            "all_strings": [
+                "kik.auth.gen.priv.key",
+                "masterKey",
+            ]
+        }
+    }
+    findings = _assess(results)
+    crit = _find(findings, lambda f: f.severity == AnalysisSeverity.CRITICAL)
+    assert len(crit) == 1
+    assert crit[0].additional_data.get("pii_category") == "credential"
+    assert crit[0].additional_data.get("encryption_posture") is not True
+    assert crit[0].verification_status == VerificationStatus.CONFIRMED
+    assert "private key" in crit[0].title.lower()
+
+
+def test_private_key_needs_review_with_genuine_masterkey_api():
+    # A genuine Jetpack MasterKey usage references its mandatory
+    # ``androidx.security.crypto`` package -> that DOES constitute a posture, so the
+    # (still CRITICAL) finding is routed to review.
+    results = {
+        "string_analysis": {
+            "all_strings": [
+                "kik.auth.gen.priv.key",
+                "androidx.security.crypto.MasterKey",
+            ]
+        }
+    }
+    findings = _assess(results)
+    crit = _find(findings, lambda f: f.additional_data.get("pii_category") == "credential")
+    assert len(crit) == 1
+    assert crit[0].severity == AnalysisSeverity.CRITICAL
+    assert crit[0].verification_status == VerificationStatus.NEEDS_REVIEW
 
 
 # ------------------------------------------------------------- Luhn kills FP

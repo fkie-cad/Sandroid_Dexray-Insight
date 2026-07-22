@@ -121,8 +121,11 @@ class CVEAssessment(BaseSecurityAssessment):
             "retry_attempts": cve_config.get("retry_attempts", 2),
             "retry_delay_seconds": cve_config.get("retry_delay_seconds", 5),
             # Library type filtering configuration
-            "scan_native_only": cve_config.get("scan_native_only", True),  # Default to native only
-            "include_java_libraries": cve_config.get("include_java_libraries", False),
+            # Phase B5 un-gate: CVE scanning defaults to Java + native libraries. Java/Android
+            # libraries are scanned whenever they carry a version (see version scraping), rather
+            # than being restricted to native (.so) libraries only.
+            "scan_native_only": cve_config.get("scan_native_only", False),
+            "include_java_libraries": cve_config.get("include_java_libraries", True),
             "native_library_patterns": cve_config.get(
                 "native_library_patterns",
                 [
@@ -459,6 +462,16 @@ class CVEAssessment(BaseSecurityAssessment):
                 version_scraped = any(
                     isinstance(entry, str) and "path_scrape" in entry for entry in evidence
                 )
+
+                # Apply the same confidence threshold used for native libraries so that
+                # low-confidence detections do not generate spurious CVE lookups.
+                min_confidence = self.scan_config.get("min_confidence", 0.7)
+                if confidence < min_confidence:
+                    self.logger.debug(
+                        f"CVE Scanner: Skipped Java library {library_name} - low confidence: "
+                        f"{confidence:.2f} < {min_confidence}"
+                    )
+                    continue
 
                 if library_name and library_version:
                     scannable_libraries.append(
@@ -966,7 +979,7 @@ class CVEAssessment(BaseSecurityAssessment):
             else:
                 # Keep the vulnerability with higher severity or more recent data
                 existing = seen_cves[cve_id]
-                if vuln.severity.value > existing.severity.value or (
+                if vuln.severity > existing.severity or (
                     vuln.modified_date and existing.modified_date and vuln.modified_date > existing.modified_date
                 ):
                     seen_cves[cve_id] = vuln

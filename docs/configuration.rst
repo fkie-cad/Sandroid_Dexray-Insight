@@ -50,9 +50,18 @@ Configuration files can be loaded in several ways:
 **Priority Order** (highest to lowest):
 
 1. Command-line arguments
-2. Custom configuration file (``-c`` option)  
+2. Custom configuration file (``-c`` option)
 3. Default ``dexray.yaml`` in current directory
 4. Built-in defaults
+
+.. note::
+
+   A config file (``-c``) and CLI flags now **compose**. Flags such as ``-s``,
+   ``--cve``, ``--deep`` and ``-d`` are layered on top of the loaded
+   configuration and override the corresponding file settings, instead of the
+   config file being dropped when flags are present. For example,
+   ``dexray-insight app.apk -c dexray.yaml --deep`` keeps every setting from
+   ``dexray.yaml`` and additionally enables deep mode.
 
 Analysis Configuration
 ----------------------
@@ -76,7 +85,28 @@ Controls overall analysis execution behavior:
 * ``timeout.module_timeout``: Maximum time allowed per analysis module (default: 300s)
 * ``timeout.tool_timeout``: Maximum time allowed per external tool (default: 600s)
 
-Module Configuration  
+Analysis Cache and Logic Versioning
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Full-result and per-module analysis results are cached so a re-analysis of the
+same APK under the same configuration can be reused. The cache key is derived
+from the configuration plus an ``ANALYSIS_SCHEMA_VERSION`` constant (defined in
+``core/cache_manager.py``) — the shallow-cache analog of the deep cache's
+``DEEP_SCHEMA_VERSION``.
+
+Because the key is otherwise config-based and the APK fingerprint's package
+``tool_version`` does not move during in-place development, a detection-logic
+change could otherwise be masked by a stale cache hit on re-analysis. Bumping
+``ANALYSIS_SCHEMA_VERSION`` whenever detection logic changes invalidates stale
+entries so the new logic actually runs.
+
+.. tip::
+
+   When validating local code changes, pass ``--no-cache`` (or
+   ``--clear-analysis-cache``) to force a fresh run rather than relying on a
+   cached result.
+
+Module Configuration
 --------------------
 
 Controls which analysis modules are enabled and their specific settings:
@@ -558,10 +588,135 @@ Dexray Insight includes advanced hardcoded secret detection with **54 different 
        vulnerable_components:
          enabled: true
          check_known_libraries: true
-       
+
        insufficient_logging:
          enabled: true
          check_logging_practices: true
+
+Privacy and Extended Assessments
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The v2 overhaul adds several focused assessments. All are enabled by default;
+the two deep assessments run only under ``--deep``:
+
+.. code-block:: yaml
+
+   security:
+     assessments:
+       # Validated PII taxonomy (PRIVACY:2024). Luhn/E.164/SSN/geo validators,
+       # permission<->sink correlation, PII-at-rest + encryption-posture gate,
+       # private-key-at-rest, and an unconfirmed IDOR/BOLA review queue.
+       pii:
+         enabled: true
+       # FileProvider path-scope + exported-provider analyzer: over-broad roots,
+       # duplicate authorities, exported providers lacking signature protection.
+       provider_paths:
+         enabled: true
+       # SDK RCE-surface knowledge base: flags ad SDKs whose bridge-class
+       # descriptors are present (review queue, even when the version is unknown).
+       sdk_risk_surface:
+         enabled: true
+       # Deep xref data-flow review-queue seeds (--deep only, all NEEDS_DYNAMIC).
+       deep_dataflow:
+         enabled: true
+       # Deep PII-flow correlation of PII sources with tracker sinks (--deep only).
+       pii_flow:
+         enabled: true
+
+**Configuration Options**:
+
+* ``pii.enabled``: Validated PII / personal-data-exposure assessment
+* ``provider_paths.enabled``: FileProvider path-scope analysis
+* ``sdk_risk_surface.enabled``: Ad-SDK bridge-class RCE surface mapping
+* ``deep_dataflow.enabled``: Deep xref data-flow hints (requires ``--deep``)
+* ``pii_flow.enabled``: Deep PII-source-to-tracker-sink correlation (requires ``--deep``)
+
+Risk Scoring Configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Controls how the headline ``overall_risk_score`` is computed:
+
+.. code-block:: yaml
+
+   security:
+     risk_scoring:
+       version: 2
+       # Headline source:
+       #   "confirmed" (default): only CONFIRMED findings with confidence >=
+       #       confirmed_threshold enter the headline. Review-queue findings
+       #       (NEEDS_REVIEW / NEEDS_DYNAMIC) never do — their weight is reported
+       #       separately as risk_score_review_mass.
+       #   "raw": legacy sum-over-all-findings behaviour.
+       headline_mode: confirmed
+       confirmed_threshold: 0.7   # min confidence for a confirmed finding to count
+       # Soft additive bump per confirmed high-confidence CRITICAL, capped at 100:
+       #   score = min(100, base + critical_bump * n_confirmed_critical)
+       critical_bump: 18.0
+       # Legacy hard clamp; retained for rollback but no longer applied.
+       critical_floor: 75.0
+       # Per-severity diminishing-returns factor applied to the raw sum. Within
+       # each severity tier, findings are ranked by confidence and the k-th
+       # contributes weight * confidence * decay**k, so a pile of same-severity
+       # (especially MEDIUM) findings can no longer dominate by count alone.
+       severity_decay:
+         critical: 1.0             # undecayed — a genuine critical still dominates
+         high: 0.8
+         medium: 0.5
+         low: 0.4
+
+**Configuration Options**:
+
+* ``headline_mode``: ``confirmed`` (default) uses the confirmed-subset score;
+  ``raw`` restores the old sum-over-all-findings headline
+* ``confirmed_threshold``: Minimum confidence for a CONFIRMED finding to enter
+  the headline (default ``0.7``)
+* ``critical_bump``: Soft additive bump per confirmed CRITICAL finding
+  (default ``18.0``), replacing the old hard critical floor
+* ``critical_floor``: Legacy clamp value, retained for rollback but no longer
+  applied
+* ``severity_decay``: Per-severity diminishing-returns factor for the raw sum.
+  Within each severity tier, findings are ranked by confidence and the k-th
+  contributes ``weight × confidence × decay**k``. Defaults: ``critical: 1.0``
+  (undecayed), ``high: 0.8``, ``medium: 0.5``, ``low: 0.4``. This keeps a large
+  count of same-severity (especially MEDIUM) findings from inflating the headline
+
+Alongside the headline, the security results also emit ``risk_score_confirmed``,
+``risk_score_review_mass``, ``overall_risk_score_raw`` and ``risk_score_legacy``.
+See :doc:`advanced/security_assessment` for the full scoring model.
+
+CVE Scanning Configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+CVE scanning is part of the security assessment and, with the shipped
+configuration, runs on every ``-s`` run against the key-less OSV database. This
+makes outbound network calls.
+
+.. code-block:: yaml
+
+   security:
+     cve_scanning:
+       enabled: true  # Runs under -s; set false to disable network CVE lookups
+       sources:
+         osv:            # Key-less default backend (Java + native libraries)
+           enabled: true
+           api_key: null
+         nvd:            # Off by default: needs an API key
+           enabled: false
+           api_key: "YOUR_NVD_API_KEY"
+         github:         # Off by default; token improves rate limits
+           enabled: false
+           api_key: "YOUR_GITHUB_TOKEN"
+       scan_native_only: false        # Scan native AND Java/Android libraries
+       include_java_libraries: true   # Java/Android libs scanned when versioned
+
+**Configuration Options**:
+
+* ``enabled``: Enable CVE scanning (default ``true``; performs network calls)
+* ``sources.osv.enabled``: Key-less default source, on by default
+* ``sources.nvd.enabled``: NVD source, off by default (requires an API key)
+* ``sources.github.enabled``: GitHub Advisory source, off by default
+* ``scan_native_only`` / ``include_java_libraries``: With the v2 defaults,
+  Java/Android libraries are scanned in addition to native libraries
 
 Output Configuration
 --------------------

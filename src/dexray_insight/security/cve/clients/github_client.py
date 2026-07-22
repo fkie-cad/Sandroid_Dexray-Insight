@@ -126,12 +126,13 @@ class GitHubAdvisoryClient(BaseCVEClient):
 
         # Try to infer from structure
         if library_name.count(".") >= 2:
-            # Looks like Java package
+            # Looks like a Java/Maven package (e.g. com.example.library)
             return "maven"
-        elif "-" in library_name and "." not in library_name:
-            # Might be npm package
-            return "npm"
 
+        # A bare name such as "simple-lib" is not enough to confidently classify the
+        # ecosystem. Previously any hyphenated name was assumed to be npm, which
+        # mis-attributed Android/unknown libraries; return None so the caller can
+        # query without an incorrect ecosystem constraint.
         return None
 
     def _generate_search_variants(self, library_name: str) -> list[str]:
@@ -427,10 +428,11 @@ class GitHubAdvisoryClient(BaseCVEClient):
         try:
             self.logger.debug("GitHub: Starting health check...")
 
-            # If no API key is provided, skip GitHub client (return False but don't error)
-            if not self.api_key:
-                self.logger.debug("GitHub: No API key provided, skipping GitHub Advisory client")
-                return False
+            # The GitHub Advisory REST endpoint (/advisories) is publicly readable
+            # without authentication (a token only raises the rate limit), so the
+            # health check probes the endpoint regardless of whether an API key is
+            # configured. Whether GitHub is used at all is controlled by the source's
+            # `enabled` flag in configuration, not by this health check.
 
             # Test with a simple request
             params = {"per_page": 1}

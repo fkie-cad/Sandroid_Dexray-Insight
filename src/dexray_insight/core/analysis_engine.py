@@ -314,12 +314,16 @@ class AnalysisEngine:
 
     def _full_hit_config_hash(self, requested_modules: list[str]) -> str:
         """Hash the full effective config + requested module set (memoized per run)."""
-        from .cache_manager import hash_config
+        from .cache_manager import ANALYSIS_SCHEMA_VERSION, hash_config
 
         key = "full_hit:" + ",".join(sorted(requested_modules))
         if key not in self._config_hash_cache:
             self._config_hash_cache[key] = hash_config(
-                {"config": self.config.to_dict(), "modules": sorted(requested_modules)}
+                {
+                    "config": self.config.to_dict(),
+                    "modules": sorted(requested_modules),
+                    "schema": ANALYSIS_SCHEMA_VERSION,
+                }
             )
         return self._config_hash_cache[key]
 
@@ -408,10 +412,12 @@ class AnalysisEngine:
 
     def _module_cache_key_hash(self) -> str:
         """Hash the full effective config for per-module cache keying (memoized)."""
-        from .cache_manager import hash_config
+        from .cache_manager import ANALYSIS_SCHEMA_VERSION, hash_config
 
         if "module" not in self._config_hash_cache:
-            self._config_hash_cache["module"] = hash_config(self.config.to_dict())
+            self._config_hash_cache["module"] = hash_config(
+                {"config": self.config.to_dict(), "schema": ANALYSIS_SCHEMA_VERSION}
+            )
         return self._config_hash_cache["module"]
 
     def _tier3_cache_read(self, module_name: str, context) -> "BaseResult | None":

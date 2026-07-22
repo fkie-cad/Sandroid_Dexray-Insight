@@ -27,14 +27,43 @@ It identifies security misconfigurations that weaken application security.
 """
 
 import logging
+import re
 from typing import Any
 
 from ..core.base_classes import AnalysisContext
 from ..core.base_classes import AnalysisSeverity
 from ..core.base_classes import BaseSecurityAssessment
 from ..core.base_classes import SecurityFinding
+from ..core.base_classes import VerificationStatus
 from ..core.base_classes import register_assessment
+from .evidence import FRAMEWORK_PREFIXES
 from .manifest_facts import get_manifest_facts
+from .mobile_specific_assessment import _NON_ENDPOINT_HOSTS as _MOBILE_NON_ENDPOINT_HOSTS
+
+# Compiled AXML resource files start with this little-endian chunk header.
+_AXML_MAGIC = b"\x03\x00\x08\x00"
+
+# Documentation / XML-namespace / placeholder / connectivity-check / captive-portal
+# hosts whose cleartext ``http://`` URLs are namespace identifiers, doc links, or
+# deliberate test/connectivity probes, NOT first-party network endpoints, and so
+# must be dropped from the "Insecure Network Configuration" cleartext evidence
+# (base_analys.md A05/B6 false positives: www.w3.org, www.example.com,
+# www.google.com, apple.com captive portal, neverssl.com, schemas.microsoft.com,
+# ...). Reuses the shared mobile-specific denylist so both assessments filter
+# identically, and extends it. Genuine first-party cleartext hosts (meme.kik.com,
+# kik.com, piranhakik.com, cdn.kik.com, ...) are NOT on this list and are always
+# kept — the filter drops noise, it never suppresses a real endpoint.
+_NON_ENDPOINT_HOSTS: tuple[str, ...] = _MOBILE_NON_ENDPOINT_HOSTS + (
+    "google.com",  # plain doc links + clients3.google.com/generate_204 connectivity check
+    "apple.com",  # Apple captive-portal connectivity check (www.apple.com/library/test/success.html)
+    "neverssl.com",  # deliberate always-cleartext test host (*.neverssl.com)
+    "schemas.microsoft.com",  # Microsoft XML namespace / DRM schema host
+    "msftconnecttest.com",  # Microsoft connectivity check
+    "gstatic.com",  # includes connectivitycheck.gstatic.com / generate_204
+)
+
+# Extracts the host from the first ``http://`` URL embedded anywhere in a string.
+_HTTP_URL_HOST_RE = re.compile(r"http://([^/\s\"'<>?#\\]+)", re.IGNORECASE)
 
 
 @register_assessment("security_misconfiguration")
@@ -218,6 +247,9 @@ class SecurityMisconfigurationAssessment(BaseSecurityAssessment):
             # 8. Manifest-driven cleartext traffic feeding first-party endpoints
             findings.extend(self._assess_cleartext_traffic(analysis_results))
 
+            # 9. Network-security-config `user` trust anchor (weakens MITM resistance)
+            findings.extend(self._assess_nsc_user_trust_anchors(analysis_results, context))
+
         except Exception as e:
             self.logger.error(f"Security misconfiguration assessment failed: {str(e)}")
 
@@ -329,6 +361,10 @@ class SecurityMisconfigurationAssessment(BaseSecurityAssessment):
         all_strings = string_data.get("all_strings", [])
 
         network_issues = []
+        # A cleartext-only finding is MEDIUM (base_analys.md A2); a *strong* signal
+        # (missing NSC, TLS trust-bypass, disabled security feature, weak SSL)
+        # escalates it to HIGH. Cleartext HTTP alone must not carry HIGH.
+        strong_signal = False
 
         # Check for missing network security config using authoritative manifest
         # facts. Only flag when the manifest attribute is a KNOWN absence; skip
@@ -336,45 +372,68 @@ class SecurityMisconfigurationAssessment(BaseSecurityAssessment):
         manifest_facts = get_manifest_facts(analysis_results)
         if manifest_facts["network_security_config_known"] and not manifest_facts["network_security_config"]:
             network_issues.append("No network security configuration detected")
+            strong_signal = True
 
-        # Check for insecure connections
+        # Check for insecure connections. The first pattern is the cleartext
+        # http:// matcher; the remaining patterns are genuine TLS trust-bypass
+        # signals (ALLOW_ALL hostname verifier, empty TrustManager, ...). Cleartext
+        # URLs pointing at documentation / XML-namespace / placeholder hosts
+        # (w3.org, example.com, google.com, ...) are not first-party endpoints and
+        # are dropped; genuine first-party cleartext (meme.kik.com, ...) is kept.
         insecure_patterns = self.network_security_checks["insecure_connections"]
+        cleartext_pattern = insecure_patterns[0]
+        trust_bypass_patterns = insecure_patterns[1:]
         for string in all_strings:
-            if isinstance(string, str):
-                for pattern in insecure_patterns:
-                    import re
-
-                    if re.search(pattern, string, re.IGNORECASE):
-                        network_issues.append(f"Insecure network configuration: {string[:80]}...")
-                        break
+            if not isinstance(string, str):
+                continue
+            if any(re.search(p, string, re.IGNORECASE) for p in trust_bypass_patterns):
+                network_issues.append(f"Insecure network configuration: {string[:80]}...")
+                strong_signal = True
+                continue
+            if re.search(cleartext_pattern, string, re.IGNORECASE):
+                host = self._cleartext_url_host(string)
+                if host and self._is_non_endpoint_host(host):
+                    continue  # documentation / namespace / placeholder host -> drop
+                network_issues.append(f"Insecure network configuration: {string[:80]}...")
 
         # Check for disabled security features
         disabled_patterns = self.network_security_checks["disabled_security_features"]
         for string in all_strings:
             if isinstance(string, str):
                 for pattern in disabled_patterns:
-                    import re
-
                     if re.search(pattern, string, re.IGNORECASE):
                         network_issues.append(f"Disabled security feature: {string[:80]}...")
+                        strong_signal = True
                         break
 
-        # Check for weak SSL configurations
+        # Check for weak SSL configurations. The first two patterns are inherently
+        # SSL/TLS-context signals (deprecated protocol version, weak key size) and
+        # remain genuine strong signals. The trailing bare cipher/hash tokens
+        # (RC4|DES|3DES, MD5|SHA1) match arbitrary library strings as SUBSTRINGS —
+        # `DES` matches "descendant"/"Design"/"NavDestination", `MD5`/`SHA1` match
+        # BouncyCastle aliases and log messages — so they are NOT by themselves an
+        # SSL misconfiguration. They only count when the string is an actual
+        # SSL/TLS/cipher context, preventing bundled crypto-library strings from
+        # escalating a cleartext-only finding to HIGH (base_analys.md B3/B6).
         weak_ssl_patterns = self.network_security_checks["weak_ssl_configurations"]
+        ssl_context_patterns = weak_ssl_patterns[:2]
+        bare_algo_patterns = weak_ssl_patterns[2:]
         for string in all_strings:
-            if isinstance(string, str):
-                for pattern in weak_ssl_patterns:
-                    import re
-
-                    if re.search(pattern, string, re.IGNORECASE):
-                        network_issues.append(f"Weak SSL configuration: {string[:80]}...")
-                        break
+            if not isinstance(string, str):
+                continue
+            matched = any(re.search(p, string, re.IGNORECASE) for p in ssl_context_patterns)
+            if not matched and self._has_ssl_tls_context(string):
+                matched = any(re.search(p, string, re.IGNORECASE) for p in bare_algo_patterns)
+            if matched:
+                network_issues.append(f"Weak SSL configuration: {string[:80]}...")
+                strong_signal = True
 
         if network_issues:
+            severity = AnalysisSeverity.HIGH if strong_signal else AnalysisSeverity.MEDIUM
             findings.append(
                 SecurityFinding(
                     category=self.owasp_category,
-                    severity=AnalysisSeverity.HIGH,
+                    severity=severity,
                     title="Insecure Network Configuration",
                     description="Application contains insecure network configurations that expose communications to attacks.",
                     evidence=network_issues[:10],
@@ -389,6 +448,76 @@ class SecurityMisconfigurationAssessment(BaseSecurityAssessment):
             )
 
         return findings
+
+    # Tokens that mark a string as an actual SSL/TLS/cipher-suite context (so a
+    # bare weak-cipher/hash token in it is a real config signal, not library noise).
+    _SSL_CONTEXT_TOKENS = (
+        "ssl",
+        "tls",
+        "cipher",
+        "https",
+        "socketfactory",
+        "sslcontext",
+        "handshake",
+        "x509",
+        "trustmanager",
+        "protocol",
+    )
+
+    @classmethod
+    def _has_ssl_tls_context(cls, string: str) -> bool:
+        """True when ``string`` references an SSL/TLS/cipher configuration context."""
+        lowered = string.lower()
+        return any(token in lowered for token in cls._SSL_CONTEXT_TOKENS)
+
+    @staticmethod
+    def _cleartext_url_host(text: str) -> str | None:
+        """Return the lower-cased host of the first ``http://`` URL in ``text``.
+
+        Handles URLs embedded anywhere in a larger string and strips any
+        userinfo/port. Returns None when no ``http://`` URL is present.
+        """
+        match = _HTTP_URL_HOST_RE.search(text)
+        if not match:
+            return None
+        host = match.group(1).split("@")[-1].split(":")[0].strip().lower()
+        return host or None
+
+    @staticmethod
+    def _is_non_endpoint_host(host: str) -> bool:
+        """True for documentation / namespace / connectivity-check / ad-SDK hosts.
+
+        Drops (a) explicit denylist hosts, (b) ``connectivitycheck.*`` captive-portal
+        probes, and (c) third-party / ad-SDK hosts recognised by reversing the host
+        to a known library package prefix (fyber.com, ogury.com, inmobi.com, ...).
+        First-party hosts (kik.com, piranhakik.com, cdn.kik.com, ...) reverse to
+        prefixes absent from the allowlist and are never on the denylist, so a
+        genuine cleartext endpoint is never suppressed here.
+        """
+        if host.startswith("connectivitycheck."):
+            return True
+        if any(host == h or host.endswith("." + h) for h in _NON_ENDPOINT_HOSTS):
+            return True
+        return SecurityMisconfigurationAssessment._is_ad_or_library_host(host)
+
+    @staticmethod
+    def _is_ad_or_library_host(host: str) -> bool:
+        """True when ``host`` reverses to a known third-party/ad-SDK package prefix.
+
+        e.g. ``ads-test.st.ogury.com`` -> ``com.ogury.st.ads-test`` which sits under
+        the ``com.ogury.`` allowlist prefix. First-party hosts (kik.com,
+        piranhakik.com) reverse to prefixes not present in the allowlist and are
+        therefore never dropped here.
+        """
+        labels = [label for label in host.split(".") if label]
+        if len(labels) < 2:
+            return False
+        reversed_domain = ".".join(reversed(labels))
+        for prefix in FRAMEWORK_PREFIXES:
+            base = prefix.rstrip(".")
+            if reversed_domain == base or reversed_domain.startswith(base + "."):
+                return True
+        return False
 
     def _assess_storage_configurations(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
         """Assess file and storage permission configurations."""
@@ -924,14 +1053,12 @@ class SecurityMisconfigurationAssessment(BaseSecurityAssessment):
         return findings
 
     @staticmethod
-    def _nsc_restricts_cleartext(analysis_results: dict[str, Any]) -> bool:
-        """Return True only with positive evidence that an NSC forbids cleartext.
+    def _network_security_dict(analysis_results: dict[str, Any]) -> dict | None:
+        """Return the ``apk_overview.network_security`` dict, or None.
 
-        We cannot parse the referenced NSC XML content here, so absent explicit
-        parsed evidence we do not treat cleartext as restricted; the global
-        usesCleartextTraffic=\"true\" flag stands. This is a deliberately
-        conservative guard so the check is easy to strengthen later without
-        changing callers.
+        This is the output of the per-domain NSC parser
+        (``apk_overview/network_security.py``), which stores its results under
+        the keys ``network_findings`` / ``network_summary``.
         """
         overview = analysis_results.get("apk_overview") if isinstance(analysis_results, dict) else None
         network_security = None
@@ -939,9 +1066,206 @@ class SecurityMisconfigurationAssessment(BaseSecurityAssessment):
             network_security = overview.get("network_security")
         elif overview is not None:
             network_security = getattr(overview, "network_security", None)
+        return network_security if isinstance(network_security, dict) else None
 
-        if isinstance(network_security, dict):
-            permitted = network_security.get("cleartext_traffic_permitted")
-            if permitted is False:
+    def _nsc_restricts_cleartext(self, analysis_results: dict[str, Any]) -> bool:
+        """Return True only with positive evidence that an NSC forbids cleartext.
+
+        Consumes the per-domain NSC parser output stored under
+        ``apk_overview.network_security.network_findings``. A base-config that
+        disallows cleartext to all domains (a SECURE finding scoped to ``*`` with
+        a "disallow clear text traffic to all domains" description) is treated as
+        a global cleartext restriction. Absent such positive evidence the global
+        ``usesCleartextTraffic="true"`` flag stands (deliberately conservative).
+        """
+        network_security = self._network_security_dict(analysis_results)
+        if network_security is None:
+            return False
+        for finding in network_security.get("network_findings", []) or []:
+            if not isinstance(finding, dict):
+                continue
+            scope = finding.get("scope") or []
+            description = str(finding.get("description", "")).lower()
+            if "*" in scope and "disallow clear text traffic to all domains" in description:
                 return True
         return False
+
+    # ------------------------------------------------------------------ #
+    # Network-security-config `user` trust anchor (A05 - misconfiguration)
+    # ------------------------------------------------------------------ #
+    def _assess_nsc_user_trust_anchors(
+        self, analysis_results: dict[str, Any], context: AnalysisContext | None
+    ) -> list[SecurityFinding]:
+        """Surface a network-security-config ``user`` trust anchor as an A05 finding.
+
+        Trusting user-installed CA certificates (``<certificates src="user"/>``)
+        weakens resistance to man-in-the-middle interception. Two independent
+        sources are consulted and de-duplicated by (origin, scope):
+
+        (a) the per-domain NSC parser output already stored under
+            ``apk_overview.network_security.network_findings`` (apktool-dependent,
+            only present when a decode ran), and
+        (b) an androguard-based decode of ``res/xml/network_security_config.xml``
+            (default-on; needs no apktool run — mirrors provider_paths).
+
+        Findings are CONFIRMED because the anchor is read straight from the decoded
+        XML. Base-config anchors (app-wide) are HIGH; domain-config anchors are
+        MEDIUM; debug-overrides anchors are MEDIUM (they apply only to debuggable
+        builds). Gates gracefully: when no NSC data is available, nothing fires.
+        """
+        anchors: dict[tuple[str, str], SecurityFinding] = {}
+        try:
+            for origin, scope_key in self._nsc_user_anchors_from_androguard(context):
+                anchors.setdefault((origin, scope_key.lower()), self._build_user_trust_anchor_finding(origin, scope_key))
+            for origin, scope_key in self._nsc_user_anchors_from_parser(analysis_results):
+                anchors.setdefault((origin, scope_key.lower()), self._build_user_trust_anchor_finding(origin, scope_key))
+        except Exception as e:  # never regress the whole assessment on a decode issue
+            self.logger.debug(f"NSC user trust-anchor assessment skipped: {e}")
+            return []
+        return list(anchors.values())
+
+    def _nsc_user_anchors_from_parser(self, analysis_results: dict[str, Any]):
+        """Yield (origin, scope_key) user-trust-anchor entries from the NSC parser output."""
+        network_security = self._network_security_dict(analysis_results)
+        if network_security is None:
+            return
+        for finding in network_security.get("network_findings", []) or []:
+            if not isinstance(finding, dict):
+                continue
+            description = str(finding.get("description", "")).lower()
+            if "user installed certificates" not in description:
+                continue
+            scope = finding.get("scope") or []
+            if "*" in scope:
+                yield ("base-config", "*")
+            else:
+                domains = ", ".join(str(s) for s in scope if s)
+                yield ("domain-config", domains or "(unspecified)")
+
+    def _nsc_user_anchors_from_androguard(self, context: AnalysisContext | None):
+        """Yield (origin, scope_key) user-trust-anchor entries via an androguard decode.
+
+        Reads and decodes ``res/xml/network_security_config.xml`` directly, so it
+        works without an apktool run. Any failure yields nothing.
+        """
+        if context is None or getattr(context, "androguard_obj", None) is None:
+            return
+        try:
+            apk = context.androguard_obj.get_androguard_apk()
+        except Exception:
+            return
+        if apk is None:
+            return
+        try:
+            data = apk.get_file("res/xml/network_security_config.xml")
+        except Exception:
+            return
+        if not data:
+            return
+        root = self._decode_nsc_xml(data)
+        if root is None:
+            return
+        yield from self._scan_nsc_root(root)
+
+    @staticmethod
+    def _decode_nsc_xml(data: bytes):
+        """Decode NSC bytes to an lxml root: compiled AXML via AXMLPrinter, else plain XML."""
+        try:
+            if data[:4] == _AXML_MAGIC:
+                from androguard.core.axml import AXMLPrinter
+
+                return AXMLPrinter(data).get_xml_obj()
+            from lxml import etree
+
+            return etree.fromstring(data)
+        except Exception:
+            return None
+
+    @staticmethod
+    def _nsc_localname(tag: Any) -> str:
+        """Return the namespace-stripped local name of an lxml element tag."""
+        if not isinstance(tag, str):
+            return ""
+        return tag.rsplit("}", 1)[-1]
+
+    def _config_trusts_user_certs(self, config_element: Any) -> bool:
+        """Return True when a config's DIRECT trust-anchors trust user certs.
+
+        Only direct ``<trust-anchors>`` children are inspected so a nested
+        ``<domain-config>`` cannot be misattributed to its parent (the nested one
+        is scanned independently as its own element).
+        """
+        for child in config_element:
+            if self._nsc_localname(child.tag) != "trust-anchors":
+                continue
+            for cert in child:
+                if self._nsc_localname(cert.tag) == "certificates" and cert.get("src") == "user":
+                    return True
+        return False
+
+    def _config_domains(self, config_element: Any) -> list[str]:
+        """Return the domain names declared directly under a ``<domain-config>``."""
+        domains: list[str] = []
+        for child in config_element:
+            if self._nsc_localname(child.tag) == "domain":
+                text = (child.text or "").strip()
+                if text:
+                    domains.append(text)
+        return domains
+
+    def _scan_nsc_root(self, root: Any):
+        """Yield (origin, scope_key) for every user trust anchor in an NSC tree."""
+        for element in root.iter():
+            tag = self._nsc_localname(element.tag)
+            if tag == "base-config":
+                if self._config_trusts_user_certs(element):
+                    yield ("base-config", "*")
+            elif tag == "domain-config":
+                if self._config_trusts_user_certs(element):
+                    domains = self._config_domains(element)
+                    yield ("domain-config", ", ".join(domains) if domains else "(unspecified)")
+            elif tag == "debug-overrides":
+                if self._config_trusts_user_certs(element):
+                    yield ("debug-overrides", "*")
+
+    def _build_user_trust_anchor_finding(self, origin: str, scope_key: str) -> SecurityFinding:
+        """Build one CONFIRMED A05 finding for a ``user`` trust anchor."""
+        if origin == "base-config":
+            severity = AnalysisSeverity.HIGH
+            scope_desc = "all app traffic (base-config)"
+            caveat = ""
+        elif origin == "domain-config":
+            severity = AnalysisSeverity.MEDIUM
+            scope_desc = f"domains: {scope_key}"
+            caveat = ""
+        else:  # debug-overrides
+            severity = AnalysisSeverity.MEDIUM
+            scope_desc = "debug-overrides"
+            caveat = (
+                " This anchor lives under <debug-overrides>, so it is active only when the app is "
+                "debuggable; it must never be relied upon in a release build."
+            )
+
+        return SecurityFinding(
+            category=self.owasp_category,
+            severity=severity,
+            confidence=0.9,
+            verification_status=VerificationStatus.CONFIRMED,
+            title="Network Security Config Trusts User-Installed CA Certificates",
+            description=(
+                "The network security configuration declares a `user` trust anchor "
+                "(<certificates src=\"user\"/>), so it trusts user-installed CA certificates for "
+                f"{scope_desc}. This weakens resistance to man-in-the-middle interception: a user "
+                "(or an attacker with device access) can install a CA and decrypt or modify the "
+                "app's TLS traffic." + caveat
+            ),
+            evidence=[
+                f"Trust-anchor scope: {scope_desc}",
+                "network_security_config.xml: <trust-anchors><certificates src=\"user\"/></trust-anchors>",
+            ],
+            recommendations=[
+                "Remove the `user` trust anchor and trust only the system CA store",
+                "Pin certificates for first-party endpoints",
+                "Confine any user-CA trust to debug builds via <debug-overrides>",
+            ],
+        )
