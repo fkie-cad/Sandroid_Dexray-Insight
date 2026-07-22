@@ -1,0 +1,22 @@
+{
+  "findings_by_assessment": {
+    "authentication_failures": 1,
+    "broken_access_control": 1,
+    "injection": 2,
+    "insecure_design": 1,
+    "integrity_failures": 1,
+    "logging_monitoring_failures": 1,
+    "mobile_specific": 3,
+    "security_misconfiguration": 2,
+    "sensitive_data": 3
+  },
+  "findings_by_severity": {
+    "critical": 1,
+    "high": 2,
+    "low": 6,
+    "medium": 6
+  },
+  "overall_risk_score": 75.0,
+  "risk_score_confirmed": 75.0,
+  "risk_score_review_mass": 5.21
+}

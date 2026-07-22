@@ -22,11 +22,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 
 from src.dexray_insight.core.base_classes import AnalysisSeverity  # noqa: E402
 from src.dexray_insight.core.base_classes import SecurityFinding  # noqa: E402
+from src.dexray_insight.core.base_classes import VerificationStatus  # noqa: E402
 from src.dexray_insight.core.configuration import Configuration  # noqa: E402
 from src.dexray_insight.core.security_engine import SecurityAssessmentEngine  # noqa: E402
 
 
-def _finding(severity, confidence=None, title="f"):
+def _finding(severity, confidence=None, title="f", verification_status=VerificationStatus.CONFIRMED):
     return SecurityFinding(
         category="TestCat",
         severity=severity,
@@ -35,6 +36,7 @@ def _finding(severity, confidence=None, title="f"):
         evidence=[],
         recommendations=[],
         confidence=confidence,
+        verification_status=verification_status,
     )
 
 
@@ -149,3 +151,54 @@ class TestEvidenceWeightedScorerV2:
         findings = [_finding(AnalysisSeverity.CRITICAL, 1.0) for _ in range(50)]
         normalized, _ = engine._calculate_risk_score_v2(findings)
         assert normalized == 100.0
+
+
+def _confirmed_headline(engine, findings):
+    """Recompute the confirmed-subset headline exactly as the engine's assess() does."""
+    normalized, _ = engine._calculate_risk_score_v2(engine._confirmed_subset(findings))
+    return normalized
+
+
+@pytest.mark.unit
+@pytest.mark.security
+class TestVerificationStatusInvariants:
+    """A7 invariants: the confirmed-subset headline must be robust to review-queue noise."""
+
+    def test_confirmed_subset_excludes_needs_dynamic_even_at_high_confidence(self):
+        engine = _engine()
+        findings = [
+            _finding(AnalysisSeverity.CRITICAL, 0.95, verification_status=VerificationStatus.NEEDS_DYNAMIC),
+        ]
+        assert engine._confirmed_subset(findings) == []
+
+    def test_confirmed_subset_excludes_needs_review_even_at_high_confidence(self):
+        engine = _engine()
+        findings = [
+            _finding(AnalysisSeverity.HIGH, 0.95, verification_status=VerificationStatus.NEEDS_REVIEW),
+        ]
+        assert engine._confirmed_subset(findings) == []
+
+    def test_adding_needs_review_finding_does_not_change_headline(self):
+        engine = _engine()
+        base = [_finding(AnalysisSeverity.HIGH, 0.9, verification_status=VerificationStatus.CONFIRMED)]
+        before = _confirmed_headline(engine, base)
+        noisy = base + [
+            _finding(AnalysisSeverity.CRITICAL, 0.99, "loud", verification_status=VerificationStatus.NEEDS_REVIEW),
+        ]
+        assert _confirmed_headline(engine, noisy) == before
+
+    def test_adding_needs_dynamic_finding_does_not_change_headline(self):
+        engine = _engine()
+        base = [_finding(AnalysisSeverity.HIGH, 0.9, verification_status=VerificationStatus.CONFIRMED)]
+        before = _confirmed_headline(engine, base)
+        noisy = base + [
+            _finding(AnalysisSeverity.CRITICAL, 0.99, "loud", verification_status=VerificationStatus.NEEDS_DYNAMIC),
+        ]
+        assert _confirmed_headline(engine, noisy) == before
+
+    def test_adding_confirmed_high_confidence_finding_never_lowers_headline(self):
+        engine = _engine()
+        base = [_finding(AnalysisSeverity.MEDIUM, 0.8, verification_status=VerificationStatus.CONFIRMED)]
+        before = _confirmed_headline(engine, base)
+        more = base + [_finding(AnalysisSeverity.HIGH, 0.9, verification_status=VerificationStatus.CONFIRMED)]
+        assert _confirmed_headline(engine, more) >= before

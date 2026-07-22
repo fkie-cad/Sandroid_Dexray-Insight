@@ -54,6 +54,7 @@ from .base_classes import AnalysisContext
 from .base_classes import AnalysisSeverity
 from .base_classes import BaseSecurityAssessment
 from .base_classes import SecurityFinding
+from .base_classes import VerificationStatus
 from .base_classes import registry
 from .configuration import Configuration
 
@@ -72,6 +73,9 @@ class SecurityAssessmentResults:
     overall_risk_score_raw: float | None = None
     risk_score_confirmed: float | None = None
     risk_score_legacy: float | None = None
+    # Weighted contribution of non-confirmed (review-queue) findings, reported alongside
+    # the headline but never folded into it. Lets consumers see review-queue volume.
+    risk_score_review_mass: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert security results to dictionary format."""
@@ -89,6 +93,7 @@ class SecurityAssessmentResults:
             "overall_risk_score_raw": self.overall_risk_score_raw,
             "risk_score_confirmed": self.risk_score_confirmed,
             "risk_score_legacy": self.risk_score_legacy,
+            "risk_score_review_mass": self.risk_score_review_mass,
         }
 
     def to_json(self) -> str:
@@ -124,6 +129,15 @@ class SecurityAssessmentEngine:
         self.scoring_version = int(scoring_cfg.get("version", 2))
         self.scoring_denominator = float(scoring_cfg.get("denominator", 100.0))
         self.confirmed_confidence_threshold = float(scoring_cfg.get("confirmed_threshold", 0.7))
+        # Headline scoring mode (v2 only):
+        #   "confirmed" (default): headline = the confirmed-subset score, i.e. only
+        #       findings that are verification_status==CONFIRMED AND confidence>=threshold.
+        #       This is count-robust — piling on low-confidence review-queue findings can
+        #       never inflate the headline — and it is the number the ground-truth audit
+        #       showed is defensible (Kik base.apk ~41, benign example ~0).
+        #   "raw": legacy v2 behavior — sum over ALL findings against the denominator.
+        # Non-confirmed weight is reported separately as review_mass, never folded in.
+        self.headline_mode = str(scoring_cfg.get("headline_mode", "confirmed")).lower()
         # A single high-confidence CRITICAL must keep the app in the critical band,
         # regardless of how few findings there are.
         self.critical_floor = float(scoring_cfg.get("critical_floor", 75.0))
@@ -215,15 +229,28 @@ class SecurityAssessmentEngine:
         # Calculate risk scores. v2 (evidence-weighted) is the default; v1 (legacy
         # count-weighted) is always computed too and emitted as risk_score_legacy.
         legacy_score = self._calculate_risk_score_v1(all_findings)
+        review_mass = None
         if self.scoring_version == 1:
             overall_risk_score = legacy_score
             raw_score = None
             confirmed_score = None
         else:
-            overall_risk_score, raw_score = self._calculate_risk_score_v2(all_findings)
-            confirmed_score, _ = self._calculate_risk_score_v2(
-                [f for f in all_findings if (f.confidence or 0.0) >= self.confirmed_confidence_threshold]
+            # raw = evidence-weighted sum over ALL findings (informational only).
+            raw_normalized, raw_score = self._calculate_risk_score_v2(all_findings)
+            # confirmed subset: statically-decidable findings at/above the confidence
+            # threshold. This is the count-robust headline candidate.
+            confirmed_subset = self._confirmed_subset(all_findings)
+            confirmed_score, _ = self._calculate_risk_score_v2(confirmed_subset)
+            # review_mass: weighted contribution of everything NOT confirmed — surfaced
+            # separately so the review queue's size is visible without inflating the headline.
+            confirmed_ids = {id(f) for f in confirmed_subset}
+            _, review_mass = self._calculate_risk_score_v2(
+                [f for f in all_findings if id(f) not in confirmed_ids]
             )
+            if self.headline_mode == "raw":
+                overall_risk_score = raw_normalized
+            else:  # "confirmed" (default)
+                overall_risk_score = confirmed_score
         owasp_categories = list({finding.category for finding in all_findings})
 
         summary = {
@@ -242,6 +269,7 @@ class SecurityAssessmentEngine:
             overall_risk_score_raw=raw_score,
             risk_score_confirmed=confirmed_score,
             risk_score_legacy=legacy_score,
+            risk_score_review_mass=review_mass,
         )
 
         self.logger.info(
@@ -352,6 +380,22 @@ class SecurityAssessmentEngine:
         max_possible_score = 50 * self._SEVERITY_WEIGHTS[AnalysisSeverity.CRITICAL]
         normalized_score = min(100.0, (total_score / max_possible_score) * 100)
         return round(normalized_score, 2)
+
+    def _confirmed_subset(self, findings: list[SecurityFinding]) -> list[SecurityFinding]:
+        """Findings eligible for the headline score: statically-decidable AND confident.
+
+        A finding counts as confirmed when its verification_status is CONFIRMED (or unset,
+        which normalizes to CONFIRMED for backward compatibility) AND its confidence is at
+        or above the confirmed threshold. Review-queue findings (NEEDS_DYNAMIC /
+        NEEDS_REVIEW) are excluded regardless of confidence, so a near-certain-but-
+        unconfirmed lead (e.g. an IDOR endpoint string) never inflates the headline.
+        """
+        confirmed = []
+        for f in findings:
+            status = getattr(f, "verification_status", None) or VerificationStatus.CONFIRMED
+            if status == VerificationStatus.CONFIRMED and (f.confidence or 0.0) >= self.confirmed_confidence_threshold:
+                confirmed.append(f)
+        return confirmed
 
     def _calculate_risk_score_v2(self, findings: list[SecurityFinding]) -> tuple[float, float]:
         """Evidence-weighted risk score: Σ (severity_weight × confidence).

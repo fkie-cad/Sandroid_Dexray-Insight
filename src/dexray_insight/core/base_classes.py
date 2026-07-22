@@ -55,6 +55,33 @@ class AnalysisSeverity(Enum):
     CRITICAL = "critical"
 
 
+class VerificationStatus(Enum):
+    """How a finding was established, orthogonal to true-positive confidence.
+
+    ``confidence`` answers "how sure are we the pattern/fact is really present?".
+    ``verification_status`` answers "is this a settled vulnerability, or a lead that
+    still needs a human / dynamic check?". The two axes are independent: a gRPC
+    ``GetPersonaFullByUsername`` string match can be near-certain to exist
+    (confidence ~0.9) yet unconfirmed as exploitable (NEEDS_DYNAMIC), because
+    server-side authorization is not statically decidable.
+
+    Only CONFIRMED findings (at/above the confirmed-confidence threshold) contribute
+    to the headline risk score; NEEDS_DYNAMIC / NEEDS_REVIEW populate the review queue.
+
+    Values:
+        CONFIRMED: Statically decidable fact (manifest attribute, validated literal,
+            source+sink conjunction). Eligible for the headline score.
+        NEEDS_DYNAMIC: Real static signal whose *exploitability* depends on runtime
+            reachability or server-side authorization; review queue, never headline.
+        NEEDS_REVIEW: Low-confidence presence seed (bare string-pool token, heuristic)
+            that a human should triage; review queue, never headline.
+    """
+
+    CONFIRMED = "confirmed"
+    NEEDS_DYNAMIC = "needs_dynamic"
+    NEEDS_REVIEW = "needs_review"
+
+
 class AnalysisStatus(Enum):
     """Enumeration of analysis module execution statuses.
 
@@ -419,6 +446,10 @@ class SecurityFinding:
     # evidence-weighted risk scorer and by report ranking. Stored as a first-class field
     # (single source of truth) rather than mirrored into additional_data.
     confidence: float | None = None
+    # Whether this is a settled vulnerability (CONFIRMED) or a review-queue lead
+    # (NEEDS_DYNAMIC / NEEDS_REVIEW). Orthogonal to confidence — see VerificationStatus.
+    # Defaults to CONFIRMED so pre-existing findings keep their prior headline behavior.
+    verification_status: "VerificationStatus" = None
 
     def __post_init__(self):
         """Initialize optional fields after dataclass creation."""
@@ -426,6 +457,8 @@ class SecurityFinding:
             self.cve_references = []
         if self.additional_data is None:
             self.additional_data = {}
+        if self.verification_status is None:
+            self.verification_status = VerificationStatus.CONFIRMED
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization including file location."""
@@ -441,6 +474,11 @@ class SecurityFinding:
             # Additive, backward compatible: consumers that ignore unknown keys are
             # unaffected; the report field that showed "-" now shows a float or null.
             "confidence": self.confidence,
+            # Additive: "confirmed" for legacy/statically-decidable findings; other
+            # values mark review-queue leads that never enter the headline score.
+            "verification_status": self.verification_status.value
+            if self.verification_status is not None
+            else VerificationStatus.CONFIRMED.value,
         }
         if self.file_location:
             result["fileLocation"] = self.file_location.to_dict()

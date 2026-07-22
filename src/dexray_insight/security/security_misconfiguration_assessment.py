@@ -521,6 +521,24 @@ class SecurityMisconfigurationAssessment(BaseSecurityAssessment):
                 f"Excessive dangerous permissions: {len(excessive_permissions)} sensitive permissions"
             )
 
+        # Consume the previously-dead `content_provider_risks` patterns (grantUriPermissions
+        # / multiprocess / syncable). We match them against whatever manifest-derived text
+        # is available here (component reprs + raw DEX/manifest strings), adding evidence
+        # ONLY on a genuine match so this never fabricates a no-op finding. The authoritative
+        # androguard-resource-based provider analysis lands in Phase B (provider_paths).
+        provider_risk_patterns = self.component_misconfigurations.get("content_provider_risks", [])
+        if provider_risk_patterns:
+            string_results = analysis_results.get("string_analysis", {})
+            string_data = string_results.to_dict() if hasattr(string_results, "to_dict") else string_results
+            manifest_corpus = [str(c) for c in exported_components]
+            manifest_corpus.extend(str(s) for s in string_data.get("all_strings", []) if isinstance(s, str))
+            for pattern in provider_risk_patterns:
+                # Normalize the attribute pattern to its bare token so it matches decoded
+                # manifest text regardless of quoting/namespace (e.g. grantUriPermissions).
+                token = pattern.split(":")[-1].split("=")[0]
+                if any(token in entry for entry in manifest_corpus):
+                    component_issues.append(f"Content provider risk indicator present: {token}")
+
         if component_issues:
             findings.append(
                 SecurityFinding(

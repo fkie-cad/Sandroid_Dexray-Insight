@@ -6,6 +6,11 @@ Strings.txt
 apktool_out/
 obj/
 
+# A7 security-score regression fixtures & golden snapshot must be committed
+# (they are stable inputs to the scoring regression harness, not generated output).
+!tests/fixtures/security_scores/
+!tests/fixtures/security_scores/*.json
+
 #built application files
 *.apk
 *.ap_

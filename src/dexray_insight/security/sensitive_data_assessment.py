@@ -35,6 +35,26 @@ from .evidence import matches_algorithm_token
 from .secret_validation import SecretValidator
 
 
+def _luhn_valid(candidate: str) -> bool:
+    """Return True if the digits in ``candidate`` pass the Luhn checksum.
+
+    Used to reject arbitrary 13-16 digit runs that are not real payment card
+    numbers (the dominant credit-card false-positive source).
+    """
+    digits = [int(c) for c in candidate if c.isdigit()]
+    if len(digits) < 13 or len(digits) > 19:
+        return False
+    checksum = 0
+    parity = len(digits) % 2
+    for i, digit in enumerate(digits):
+        if i % 2 == parity:
+            digit *= 2
+            if digit > 9:
+                digit -= 9
+        checksum += digit
+    return checksum % 10 == 0
+
+
 @register_assessment("sensitive_data")
 class SensitiveDataAssessment(BaseSecurityAssessment):
     """OWASP A02:2021 - Cryptographic Failures / Sensitive Data Exposure assessment."""
@@ -81,6 +101,12 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
 
         self.pii_patterns = config.get("pii_patterns", ["email", "phone", "ssn", "credit_card"])
         self.crypto_keys_check = config.get("crypto_keys_check", True)
+        # Legacy string-corpus PII scanner. Off by default: it scanned only
+        # emails/urls/domains and unconditionally dumped emails, producing library
+        # placeholder-email and article-ID false positives. Superseded by the dedicated
+        # `pii` assessment (validated taxonomy). Retained behind a flag for one release;
+        # not deleted (removal requires explicit sign-off).
+        self.pii_exposure_enabled = config.get("pii_exposure_enabled", False)
 
     def _setup_pattern_enablement(self, config: dict[str, Any]):
         """Configure which detection patterns are enabled.
@@ -134,11 +160,15 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
 
         Single Responsibility: Create PII regex patterns only.
         """
-        # PII detection patterns
+        # PII detection patterns.
+        # NOTE: the SSN pattern requires the dashed form and uses digit-boundary
+        # lookarounds so it does NOT match an arbitrary 9-digit run embedded in a longer
+        # numeric id (e.g. a Zendesk article id "/articles/123456789"). \b does not break
+        # between two digits, which is what caused the old false positive.
         self.pii_regex_patterns = {
             "email": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b",
             "phone": r"(\+?1[-.\s]?)?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}",
-            "ssn": r"\b\d{3}-?\d{2}-?\d{4}\b",
+            "ssn": r"(?<!\d)\d{3}-\d{2}-\d{4}(?!\d)",
             "credit_card": r"\b(?:\d{4}[-\s]?){3}\d{4}\b",
         }
 
@@ -606,9 +636,11 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
         findings: list[SecurityFinding] = []
 
         try:
-            # Check for PII in strings
-            pii_findings = self._assess_pii_exposure(analysis_results)
-            findings.extend(pii_findings)
+            # Check for PII in strings (legacy path, gated off by default — see the
+            # dedicated `pii` assessment which supersedes it with a validated taxonomy).
+            if self.pii_exposure_enabled:
+                pii_findings = self._assess_pii_exposure(analysis_results)
+                findings.extend(pii_findings)
 
             # Check for crypto keys and secrets
             if self.crypto_keys_check and self.key_detection_enabled:
@@ -749,16 +781,26 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
                 matches = []
 
                 for string in all_strings:
-                    if isinstance(string, str) and re.search(pattern, string):
-                        matches.append(string[:50] + "..." if len(string) > 50 else string)
+                    if not isinstance(string, str):
+                        continue
+                    match = re.search(pattern, string)
+                    if not match:
+                        continue
+                    # Precision gates (kept even though this legacy path is off by default):
+                    #  - credit_card: require a Luhn-valid number, not any 16-digit run.
+                    #  - ssn: require an ssn/social/tax context token nearby.
+                    if pii_type == "credit_card" and not _luhn_valid(match.group(0)):
+                        continue
+                    if pii_type == "ssn" and not re.search(r"(?i)\b(ssn|social|tax)\b", string):
+                        continue
+                    matches.append(string[:50] + "..." if len(string) > 50 else string)
 
                 if matches:
                     pii_found[pii_type] = matches
 
-        # Also check emails from string analysis results
-        emails = string_data.get("emails", [])
-        if emails:
-            pii_found["emails_detected"] = [email[:30] + "..." for email in emails[:5]]
+        # NOTE: the old code unconditionally dumped emails[:5] here, which surfaced library
+        # placeholder emails (e.g. test@revenuecat.com) as PII. Removed — email PII is now
+        # owned by the dedicated `pii` assessment with a placeholder/library allowlist.
 
         if pii_found:
             evidence = []

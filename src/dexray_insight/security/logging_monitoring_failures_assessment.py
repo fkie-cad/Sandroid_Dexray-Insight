@@ -34,6 +34,7 @@ from ..core.base_classes import AnalysisSeverity
 from ..core.base_classes import BaseSecurityAssessment
 from ..core.base_classes import SecurityFinding
 from ..core.base_classes import register_assessment
+from .evidence import matches_algorithm_token
 
 
 @register_assessment("logging_monitoring_failures")
@@ -54,17 +55,24 @@ class LoggingMonitoringFailuresAssessment(BaseSecurityAssessment):
             r"android\.util\.Log",
         ]
 
+        # Strong indicators: whole-word matches here are high-signal for sensitive
+        # data in logs.
         self.sensitive_data_patterns = [
             "password",
             "token",
             "secret",
             "credential",
-            "key",
             "email",
             "phone",
-            "address",
             "ssn",
             "credit",
+        ]
+        # Weak indicators: real words but very common inside benign identifiers even
+        # with whole-word matching (e.g. a "key" in a config map). Kept for recall but
+        # reported at lower confidence to avoid inflating findings.
+        self.weak_sensitive_data_patterns = [
+            "key",
+            "address",
         ]
 
     def assess(self, analysis_results: dict[str, Any], context: AnalysisContext | None = None) -> list[SecurityFinding]:
@@ -170,13 +178,19 @@ class LoggingMonitoringFailuresAssessment(BaseSecurityAssessment):
 
         for string in all_strings:
             if isinstance(string, str):
-                # Check for sensitive data in logs
-                for pattern in self.sensitive_data_patterns:
-                    if pattern.lower() in string.lower() and any(
-                        log_keyword in string.lower() for log_keyword in ["log.", "system.out", "print"]
-                    ):
-                        sensitive_logs.append(f"Sensitive data in logs: {string[:80]}...")
-                        break
+                # Only consider strings that also look like a logging call site.
+                is_log_string = any(
+                    log_keyword in string.lower() for log_keyword in ["log.", "system.out", "print"]
+                )
+                # Check for sensitive data in logs using WHOLE-WORD matching. Substring
+                # matching wrongly fired on e.g. "ssn" in "sSnackbar" or "key" in
+                # "keyboard"; matches_algorithm_token enforces word boundaries.
+                if is_log_string:
+                    all_patterns = self.sensitive_data_patterns + self.weak_sensitive_data_patterns
+                    for pattern in all_patterns:
+                        if matches_algorithm_token(string, pattern):
+                            sensitive_logs.append(f"Sensitive data in logs: {string[:80]}...")
+                            break
 
                 # Check for debug logging patterns
                 if any(debug_pattern in string.lower() for debug_pattern in ["log.d", "log.v", "debug", "trace"]):

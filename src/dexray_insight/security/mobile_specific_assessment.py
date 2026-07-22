@@ -35,6 +35,7 @@ from ..core.base_classes import AnalysisContext
 from ..core.base_classes import AnalysisSeverity
 from ..core.base_classes import BaseSecurityAssessment
 from ..core.base_classes import SecurityFinding
+from ..core.base_classes import VerificationStatus
 from ..core.base_classes import register_assessment
 from .evidence import collect_weak_crypto_evidence
 from .evidence import list_sink_calls
@@ -88,12 +89,18 @@ class MobileSpecificAssessment(BaseSecurityAssessment):
                 r"android\.permission\.READ_CONTACTS",
                 r"android\.permission\.SEND_SMS",
             ],
+            # Match BARE Android WebView method names as they appear in the DEX string
+            # pool. The old patterns used call syntax ("addJavaScriptInterface(",
+            # "setJavaScriptEnabled(true)") which (a) never appears as a standalone
+            # string-pool token and (b) misspelled the real API (capital "S"). Bare names
+            # match reliably; the argument value is not recoverable from the string pool.
             "webview_issues": [
-                r"setJavaScriptEnabled\(true\)",
-                r"setAllowFileAccess\(true\)",
-                r"setAllowContentAccess\(true\)",
-                r"setAllowUniversalAccessFromFileURLs\(true\)",
-                r"addJavaScriptInterface\(",
+                r"\bsetJavaScriptEnabled\b",
+                r"\bsetAllowFileAccess\b",
+                r"\bsetAllowContentAccess\b",
+                r"\bsetAllowUniversalAccessFromFileURLs\b",
+                r"\baddJavascriptInterface\b",  # real Android API — lowercase "s"
+                r"\bloadUrl\b",
             ],
             "intent_issues": [r"Intent\.ACTION_SEND", r"startActivityForResult\(", r"setResult\(RESULT_OK"],
         }
@@ -346,6 +353,13 @@ class MobileSpecificAssessment(BaseSecurityAssessment):
                         "Use platform security controls appropriately",
                         "Follow Android security best practices for component exposure",
                     ],
+                    # String-pool presence of WebView APIs / dangerous permissions is a
+                    # review-queue seed, not a confirmed vulnerability: the token's
+                    # receiver, call-site and reachability are unknown here. Keep it out
+                    # of the confirmed headline until the deeper bridge analysis (B3)
+                    # promotes a concrete, capability-classified finding.
+                    confidence=0.45,
+                    verification_status=VerificationStatus.NEEDS_REVIEW,
                 )
             )
 

@@ -1,0 +1,658 @@
+{
+    "findings": [
+        {
+            "category": "A07:2021-Identification and Authentication Failures",
+            "severity": "high",
+            "title": "Weak Authentication Mechanisms",
+            "description": "Application uses weak authentication mechanisms or stores credentials insecurely.",
+            "evidence": [
+                "No biometric authentication permissions detected"
+            ],
+            "recommendations": [
+                "Implement strong authentication mechanisms",
+                "Use biometric authentication for sensitive operations",
+                "Store credentials securely using Android Keystore",
+                "Implement proper password policies",
+                "Use multi-factor authentication where appropriate"
+            ],
+            "cve_references": [],
+            "additional_data": {}
+        },
+        {
+            "category": "A07:2021-Identification and Authentication Failures",
+            "severity": "medium",
+            "title": "Insecure Session Management",
+            "description": "Application implements session management but lacks proper security controls.",
+            "evidence": [
+                "Session management without timeout: Landroid/media/session/MediaSessionManager;..."
+            ],
+            "recommendations": [
+                "Implement proper session timeout mechanisms",
+                "Use secure session storage practices",
+                "Implement session invalidation on logout",
+                "Use secure cookie attributes for web sessions",
+                "Monitor and log authentication events"
+            ],
+            "cve_references": [],
+            "additional_data": {}
+        },
+        {
+            "category": "A03:2021-Injection",
+            "severity": "high",
+            "title": "SQL Injection Risk",
+            "description": "Application may be vulnerable to SQL injection attacks through dynamic query construction.",
+            "evidence": [
+                "Potential SQL injection: performAtomicTrySelect...",
+                "Potential SQL injection: dateSelector should not be null. Use MaterialTextInputPicker#newInstance() to cr...",
+                "Potential SQL injection: SMAP\nSequences.kt\nKotlin\n*S Kotlin\n*F\n+ 1 Sequences.kt\nkotlin/sequences/DropSequ...",
+                "Potential SQL injection: updateTransformationMethod...",
+                "Potential SQL injection: SMAP\nRunnable.kt\nKotlin\n*S Kotlin\n*F\n+ 1 Runnable.kt\nkotlinx/coroutines/Runnable...",
+                "Potential SQL injection: textInputFilledExposedDropdownMenuStyle...",
+                "Potential SQL injection: Widget_Material3_TextInputLayout_OutlinedBox_Dense_ExposedDropdownMenu...",
+                "Potential SQL injection: updateTextInputBoxState...",
+                "Potential SQL injection: SMAP\nSelect.kt\nKotlin\n*S Kotlin\n*F\n+ 1 Select.kt\nkotlinx/coroutines/selects/Sele...",
+                "Potential SQL injection: SMAP\nDelay.kt\nKotlin\n*S Kotlin\n*F\n+ 1 Delay.kt\nkotlinx/coroutines/flow/FlowKt__D..."
+            ],
+            "recommendations": [
+                "Use parameterized queries or prepared statements",
+                "Validate and sanitize all user input before database operations",
+                "Use ORM frameworks with built-in injection protection",
+                "Implement strict input validation and type checking",
+                "Apply principle of least privilege for database access",
+                "Use stored procedures with proper parameter handling"
+            ],
+            "cve_references": [],
+            "additional_data": {}
+        },
+        {
+            "category": "A03:2021-Injection",
+            "severity": "high",
+            "title": "Command Injection Risk",
+            "description": "Application may be vulnerable to command injection attacks through system command execution.",
+            "evidence": [
+                "Shell injection risk: Ljava/lang/System;...",
+                "Shell injection risk: popBackStackFromNavigator$navigation_runtime_release...",
+                "Shell injection risk: Ljava/nio/file/FileSystemLoopException;...",
+                "Shell injection risk: Lkotlinx/coroutines/ExecutorCoroutineDispatcher;...",
+                "Shell injection risk: executeUnconfined$default...",
+                "Shell injection risk: Lkotlinx/coroutines/ExecutorCoroutineDispatcher$Key$1;...",
+                "Shell injection risk: Landroid/system/StructStat;...",
+                "Shell injection risk: ()Ljava/util/concurrent/Executor;..."
+            ],
+            "recommendations": [
+                "Avoid executing system commands with user input",
+                "Use safe APIs instead of shell command execution",
+                "Validate and sanitize all input used in system commands",
+                "Use allowlists for permitted commands and parameters",
+                "Run with minimal privileges and sandboxing",
+                "Consider safer alternatives to Runtime.exec() or system calls"
+            ],
+            "cve_references": [],
+            "additional_data": {}
+        },
+        {
+            "category": "A04:2021-Insecure Design",
+            "severity": "high",
+            "title": "Insecure Data Flow Design",
+            "description": "Application contains insecure data flow patterns that expose sensitive information through unsafe channels or lack proper input validation.",
+            "evidence": [
+                "Insecure data flow: Uri.parse(this)..."
+            ],
+            "recommendations": [
+                "Implement secure data flow design with clear trust boundaries",
+                "Add comprehensive input validation for all external data sources",
+                "Use secure storage mechanisms for sensitive data transmission",
+                "Implement data classification and handling policies",
+                "Add data leak prevention controls for sensitive information"
+            ],
+            "cve_references": [],
+            "additional_data": {}
+        },
+        {
+            "category": "A04:2021-Insecure Design",
+            "severity": "medium",
+            "title": "Missing Security Controls",
+            "description": "Application lacks essential security controls that should be present in a defense-in-depth security design.",
+            "evidence": [
+                "No biometric authentication permissions detected",
+                "No secure key storage implementation detected",
+                "No network security configuration detected",
+                "No certificate pinning implementation detected"
+            ],
+            "recommendations": [
+                "Implement biometric authentication for sensitive operations",
+                "Use Android Keystore for secure key and credential storage",
+                "Configure network security policy with certificate pinning",
+                "Add integrity verification and tamper detection controls",
+                "Implement comprehensive session management and timeout controls"
+            ],
+            "cve_references": [],
+            "additional_data": {}
+        },
+        {
+            "category": "A04:2021-Insecure Design",
+            "severity": "medium",
+            "title": "Insufficient Threat Scenario Coverage",
+            "description": "Application design does not adequately address common mobile threat scenarios and attack vectors.",
+            "evidence": [
+                "No root/jailbreak detection mechanisms detected",
+                "No network security configuration for protecting against network attacks"
+            ],
+            "recommendations": [
+                "Implement comprehensive threat modeling for mobile-specific risks",
+                "Add device integrity checks (root/jailbreak detection)",
+                "Implement code obfuscation and anti-tampering controls",
+                "Configure network security policies for threat protection",
+                "Design with assumption of device compromise and plan accordingly"
+            ],
+            "cve_references": [],
+            "additional_data": {}
+        },
+        {
+            "category": "A08:2021-Software and Data Integrity Failures",
+            "severity": "high",
+            "title": "Unsafe Deserialization Detected",
+            "description": "Application uses deserialization mechanisms that could allow remote code execution if untrusted data is processed.",
+            "evidence": [
+                "Deserialization pattern:  does not implement Parcelable or Serializable....",
+                "Deserialization pattern:  is not Serializable or Parcelable....",
+                "Deserialization pattern: (Ljava/lang/String;)Ljava/io/Serializable;...",
+                "Deserialization pattern: null cannot be cast to non-null type java.lang.Class<java.io.Serializable>...",
+                "Deserialization pattern: (Landroid/os/Bundle;Ljava/lang/String;Ljava/io/Serializable;)V...",
+                "Deserialization pattern: Lkotlin/jvm/JvmSerializableLambda;...",
+                "Deserialization pattern:  does not implement Serializable....",
+                "Deserialization pattern: SerializableArrayType..."
+            ],
+            "recommendations": [
+                "Avoid deserializing untrusted data",
+                "Use safe serialization formats like JSON with schema validation",
+                "Implement input validation before deserialization",
+                "Use allowlists for deserializable classes",
+                "Consider alternative data exchange formats"
+            ],
+            "cve_references": [],
+            "additional_data": {}
+        },
+        {
+            "category": "A08:2021-Software and Data Integrity Failures",
+            "severity": "medium",
+            "title": "Missing Integrity Controls",
+            "description": "Application lacks essential integrity verification mechanisms.",
+            "evidence": [
+                "No certificate pinning implementation detected",
+                "No signature verification implementation detected"
+            ],
+            "recommendations": [
+                "Implement certificate pinning for network communications",
+                "Add signature verification for critical operations",
+                "Use checksums for data integrity validation",
+                "Implement tamper detection mechanisms",
+                "Verify the integrity of downloaded content"
+            ],
+            "cve_references": [],
+            "additional_data": {}
+        },
+        {
+            "category": "A09:2021-Security Logging and Monitoring Failures",
+            "severity": "high",
+            "title": "Sensitive Data Logging",
+            "description": "Application logs sensitive information that could be exposed to unauthorized parties.",
+            "evidence": [
+                "Sensitive data in logs: (?:(?:aaa|aarp|abb|abbott|abogado|academy|accenture|accountant|accountants|aco|a...",
+                "Sensitive data in logs: (?:(?:[a-zA-Z0-9[\u00a0-\ud7ff\uf900-\ufdcf\ufdf0-\uffef\ud800\udc00-\ud83f\udffd\ud800\udc00-\ud83f\udffd\ud880\udc00-\ud8bf\udffd\ud880\udc00-\ud8bf\udffd\ud900\udc00-\ud93f\udffd\ud900\udc00-\ud93f\udffd\ud980\udc00-\ud9bf\udffd\ud980\udc00-\ud9bf\udffd\uda00\udc00-\uda3f\udffd\uda00\udc00-\uda3f\udffd\uda80\udc00-\udabf\udffd\uda80\udc00-\udabf\udffd\udb00\udc00-\udb3f\udffd\udb04\udc00-\udb3f\udffd&&[^\u00a0[\u2000-\u200a]\u2028\u2029...",
+                "Sensitive data in logs: (?:(?:(?:[a-zA-Z0-9[\u00a0-\ud7ff\uf900-\ufdcf\ufdf0-\uffef\ud800\udc00-\ud83f\udffd\ud800\udc00-\ud83f\udffd\ud880\udc00-\ud8bf\udffd\ud880\udc00-\ud8bf\udffd\ud900\udc00-\ud93f\udffd\ud900\udc00-\ud93f\udffd\ud980\udc00-\ud9bf\udffd\ud980\udc00-\ud9bf\udffd\uda00\udc00-\uda3f\udffd\uda00\udc00-\uda3f\udffd\uda80\udc00-\udabf\udffd\uda80\udc00-\udabf\udffd\udb00\udc00-\udb3f\udffd\udb04\udc00-\udb3f\udffd&&[^\u00a0[\u2000-\u200a...",
+                "Sensitive data in logs: (?:(?:(?:aaa|aarp|abb|abbott|abogado|academy|accenture|accountant|accountants|ac..."
+            ],
+            "recommendations": [
+                "Remove sensitive data from log statements",
+                "Use conditional logging based on build configuration",
+                "Implement secure logging practices with data sanitization",
+                "Review log outputs before production releases",
+                "Use structured logging to control data exposure"
+            ],
+            "cve_references": [],
+            "additional_data": {}
+        },
+        {
+            "category": "A09:2021-Security Logging and Monitoring Failures",
+            "severity": "medium",
+            "title": "Excessive Debug Logging",
+            "description": "Application contains extensive debug logging that may leak internal information.",
+            "evidence": [
+                "Debug logging detected: SMAP\nDispatchedTask.kt\nKotlin\n*S Kotlin\n*F\n+ 1 DispatchedTas...",
+                "Debug logging detected: DebugProbesTransformer...",
+                "Debug logging detected: DEBUG...",
+                "Debug logging detected: setStackTrace...",
+                "Debug logging detected: SMAP\nIntrinsicsJvm.kt\nKotlin\n*S Kotlin\n*F\n+ 1 IntrinsicsJvm....",
+                "Debug logging detected: (Lkotlinx/coroutines/debug/internal/DebugProbesImpl$Coroutin...",
+                "Debug logging detected: SMAP\nAbstractChannel.kt\nKotlin\n*S Kotlin\n*F\n+ 1 AbstractChan...",
+                "Debug logging detected: SMAP\nCombine.kt\nKotlin\n*S Kotlin\n*F\n+ 1 Combine.kt\nkotlinx/c..."
+            ],
+            "recommendations": [
+                "Disable debug logging in production builds",
+                "Use ProGuard/R8 to remove debug code",
+                "Implement logging levels appropriate for production",
+                "Review log statements for information disclosure",
+                "Use build-time constants to control logging verbosity"
+            ],
+            "cve_references": [],
+            "additional_data": {}
+        },
+        {
+            "category": "A09:2021-Security Logging and Monitoring Failures",
+            "severity": "low",
+            "title": "Limited Security Monitoring Capabilities",
+            "description": "Application may lack adequate security monitoring and alerting capabilities.",
+            "evidence": [
+                "No security monitoring permissions detected"
+            ],
+            "recommendations": [
+                "Implement security event logging for critical operations",
+                "Add monitoring for authentication failures and suspicious activities",
+                "Consider implementing tamper detection and alerting",
+                "Log security-relevant events with appropriate detail",
+                "Implement centralized logging for security events"
+            ],
+            "cve_references": [],
+            "additional_data": {}
+        },
+        {
+            "category": "OWASP Mobile Top 10 - M2",
+            "severity": "high",
+            "title": "Insecure Data Storage",
+            "description": "Application stores sensitive data insecurely, making it accessible to other applications or unauthorized users.",
+            "evidence": [
+                "Insecure database_issues: resolveContentProvider...",
+                "Insecure database_issues: Landroidx/core/content/ContentProviderCompat;...",
+                "Insecure database_issues: queryDefaultInstalledContentProvider...",
+                "Insecure database_issues: queryIntentContentProviders...",
+                "Insecure database_issues: Landroid/content/ContentProvider;...",
+                "Insecure database_issues: ContentProviderCompat.java..."
+            ],
+            "recommendations": [
+                "Use Android Keystore for sensitive data storage",
+                "Avoid storing sensitive data in SharedPreferences without encryption",
+                "Use internal storage instead of external storage for sensitive files",
+                "Implement proper file permissions and access controls",
+                "Encrypt sensitive data before storage using strong encryption"
+            ],
+            "cve_references": [],
+            "additional_data": {}
+        },
+        {
+            "category": "OWASP Mobile Top 10 - M3",
+            "severity": "high",
+            "title": "Insecure Communication",
+            "description": "Application uses insecure communication channels or improperly implements SSL/TLS security.",
+            "evidence": [
+                "SSL/TLS issue (cleartext_traffic): http://schemas.android.com/apk/res-auto...",
+                "SSL/TLS issue (cleartext_traffic): http://schemas.android.com/apk/res/android...",
+                "SSL/TLS issue (cleartext_traffic): http://..."
+            ],
+            "recommendations": [
+                "Use HTTPS for all network communications",
+                "Implement certificate pinning for critical connections",
+                "Use strong SSL/TLS configurations and avoid weak protocols",
+                "Validate SSL certificates properly without bypassing checks",
+                "Set network security config to block cleartext traffic"
+            ],
+            "cve_references": [],
+            "additional_data": {}
+        },
+        {
+            "category": "OWASP Mobile Top 10 - M4",
+            "severity": "medium",
+            "title": "Insecure Mobile Authentication",
+            "description": "Application implements authentication mechanisms that are insufficient for mobile security requirements.",
+            "evidence": [
+                "Authentication issue (biometric_issues): Landroidx/core/hardware/fingerprint/FingerprintManagerCompat...",
+                "Authentication issue (session_handling): Landroid/media/session/MediaSessionManager;...",
+                "Authentication issue (biometric_issues): Landroid/hardware/fingerprint/FingerprintManager$Authenticat...",
+                "Authentication issue (biometric_issues): FingerprintManagerCompat.java...",
+                "Authentication issue (biometric_issues): getFingerprintManagerOrNull...",
+                "Authentication issue (biometric_issues): Landroidx/core/hardware/fingerprint/FingerprintManagerCompat..."
+            ],
+            "recommendations": [
+                "Implement strong local authentication using Android Keystore",
+                "Use biometric authentication for sensitive operations",
+                "Avoid hardcoded credentials and weak password policies",
+                "Implement proper session management with timeout",
+                "Use multi-factor authentication where appropriate"
+            ],
+            "cve_references": [],
+            "additional_data": {}
+        },
+        {
+            "category": "OWASP Mobile Top 10 - M6",
+            "severity": "medium",
+            "title": "Insecure Authorization",
+            "description": "Application fails to properly verify user authorization for accessing sensitive functionality or data.",
+            "evidence": [
+                "Authorization issue (permission_bypass): called and checkSelfPermission() with result ..."
+            ],
+            "recommendations": [
+                "Implement proper permission checking before sensitive operations",
+                "Use role-based access control where appropriate",
+                "Validate user authorization on both client and server side",
+                "Avoid privilege escalation vulnerabilities",
+                "Follow principle of least privilege"
+            ],
+            "cve_references": [],
+            "additional_data": {}
+        },
+        {
+            "category": "OWASP Mobile Top 10 - M10",
+            "severity": "medium",
+            "title": "Extraneous Functionality",
+            "description": "Application contains hidden backdoor functionality or internal development features that could be exploited.",
+            "evidence": [
+                "Extraneous functionality (test_features): Lcom/google/android/material/internal/ViewGroupOverlayApi14;...",
+                "Extraneous functionality (test_features): Lkotlin/jvm/internal/MagicApiIntrinsics;...",
+                "Extraneous functionality (test_features): drawDebugMode...",
+                "Extraneous functionality (test_features): setDebugMode...",
+                "Extraneous functionality (test_features): Lcom/google/android/material/internal/ViewOverlayApi14;...",
+                "Extraneous functionality (test_features): Lcom/google/android/material/internal/ViewOverlayApi14$Overl...",
+                "Extraneous functionality (test_features): debugMode...",
+                "Extraneous functionality (test_features): Lcom/google/android/material/internal/ViewGroupOverlayApi18;..."
+            ],
+            "recommendations": [
+                "Remove debug and development code from production builds",
+                "Disable debug flags and testing features in release builds",
+                "Implement proper build configurations for different environments",
+                "Use build-time feature flags to exclude development functionality",
+                "Regular security testing to identify hidden functionality"
+            ],
+            "cve_references": [],
+            "additional_data": {}
+        },
+        {
+            "category": "A05:2021-Security Misconfiguration",
+            "severity": "high",
+            "title": "Insecure Network Configuration",
+            "description": "Application contains insecure network configurations that expose communications to attacks.",
+            "evidence": [
+                "No network security configuration detected",
+                "Insecure network configuration: http://schemas.android.com/apk/res-auto...",
+                "Insecure network configuration: http://schemas.android.com/apk/res/android...",
+                "Insecure network configuration: http://...",
+                "Weak SSL configuration: isViewDescendantOf...",
+                "Weak SSL configuration: TextAppearance_Design_Hint...",
+                "Weak SSL configuration: sortedArrayDescending...",
+                "Weak SSL configuration: thenDescending$lambda$2$ComparisonsKt__ComparisonsKt...",
+                "Weak SSL configuration: val$fileDescriptor...",
+                "Weak SSL configuration: (Landroidx/navigation/NavDestination;)Ljava/lang/Boolean;..."
+            ],
+            "recommendations": [
+                "Implement network security configuration with certificate pinning",
+                "Disable cleartext traffic and enforce HTTPS",
+                "Use strong TLS versions (1.2+) and secure cipher suites",
+                "Properly validate SSL certificates and hostnames",
+                "Remove or secure any disabled security features"
+            ],
+            "cve_references": [],
+            "additional_data": {}
+        },
+        {
+            "category": "A05:2021-Security Misconfiguration",
+            "severity": "medium",
+            "title": "Missing or Weak Security Policies",
+            "description": "Application lacks essential security policies or uses weak policy configurations.",
+            "evidence": [
+                "Missing network security configuration",
+                "Backup is enabled without proper configuration",
+                "Target SDK version 0 does not enforce modern security policies",
+                "Minimum SDK version 0 does not support runtime permissions"
+            ],
+            "recommendations": [
+                "Implement comprehensive network security configuration",
+                "Configure proper backup and data extraction rules",
+                "Target recent Android API levels for security enforcement",
+                "Implement Content Security Policy for web content",
+                "Add certificate pinning and integrity verification policies"
+            ],
+            "cve_references": [],
+            "additional_data": {}
+        },
+        {
+            "category": "A02:2021-Cryptographic Failures",
+            "severity": "low",
+            "title": "\ud83d\udd35 LOW: 13785 Potential Information Leakage",
+            "description": "Found 13785 low severity strings that may leak information about system configuration, third-party services, or internal infrastructure.",
+            "evidence": [
+                "\ud83d\udd11 [LOW] High entropy string (potential key): EmojiCompatInitializer (found in String analysis (domains))",
+                "\ud83d\udd11 [LOW] High entropy string (potential key): WindowInsetsControllerCompat (found in All extracted strings (including XML))",
+                "\ud83d\udd11 [LOW] High entropy string (potential key): installSignalHandler (found in All extracted strings (including XML))",
+                "\ud83d\udd11 [LOW] High entropy string (potential key): parseViewTransitionTags (found in All extracted strings (including XML))",
+                "\ud83d\udd11 [LOW] High entropy string (potential key): Lkotlin/reflect/KVisibility (found in All extracted strings (including XML))",
+                "\ud83d\udd11 [LOW] High entropy string (potential key): DirectionalityEstimator (found in All extracted strings (including XML))",
+                "\ud83d\udd11 [LOW] Medium Base64 encoded string (potential key): Landroidx/collection/LongSparseArrayKt (found in All extracted strings (including XML))",
+                "\ud83d\udd11 [LOW] High entropy string (potential key): Landroidx/collection/LongSparseArrayKt (found in All extracted strings (including XML))",
+                "\ud83d\udd11 [LOW] Medium Base64 encoded string (potential key): Lcom/google/android/material/timepicker/TimePickerView (found in All extracted strings (including XML))",
+                "\ud83d\udd11 [LOW] High entropy string (potential key): Lcom/google/android/material/timepicker/TimePickerView (found in All extracted strings (including XML))",
+                "\ud83d\udd11 [LOW] Medium Base64 encoded string (potential key): Landroidx/appcompat/widget/PopupMenu (found in All extracted strings (including XML))",
+                "\ud83d\udd11 [LOW] High entropy string (potential key): Landroidx/appcompat/widget/PopupMenu (found in All extracted strings (including XML))",
+                "\ud83d\udd11 [LOW] High entropy string (potential key): removeAllDynamicShortcuts (found in All extracted strings (including XML))",
+                "\ud83d\udd11 [LOW] High entropy string (potential key): setSupportButtonTintMode (found in All extracted strings (including XML))",
+                "\ud83d\udd11 [LOW] High entropy string (potential key): Lkotlinx/coroutines/Job (found in All extracted strings (including XML))",
+                "\ud83d\udd11 [LOW] Medium Base64 encoded string (potential key): kotlinx/coroutines/test/TestCoroutineContext (found in All extracted strings (including XML))",
+                "\ud83d\udd11 [LOW] High entropy string (potential key): kotlinx/coroutines/RunnableKt (found in All extracted strings (including XML))",
+                "\ud83d\udd11 [LOW] Medium Base64 encoded string (potential key): Landroidx/appcompat/view/menu/ActionMenuItemView (found in All extracted strings (including XML))",
+                "\ud83d\udd11 [LOW] High entropy string (potential key): Landroidx/appcompat/view/menu/ActionMenuItemView (found in All extracted strings (including XML))",
+                "\ud83d\udd11 [LOW] Medium Base64 encoded string (potential key): Lkotlinx/coroutines/sync/MutexImpl (found in All extracted strings (including XML))"
+            ],
+            "recommendations": [
+                "\u2139\ufe0f Review for information disclosure. Consider if exposed details provide unnecessary information to potential attackers.",
+                "1. Review exposed service URLs and tokens for necessity",
+                "2. Consider using generic identifiers where possible",
+                "3. Validate that exposed information follows security by design principles"
+            ],
+            "cve_references": [],
+            "additional_data": {}
+        },
+        {
+            "category": "A06:2021-Vulnerable and Outdated Components",
+            "severity": "medium",
+            "title": "Deprecated API and Component Usage",
+            "description": "Application uses deprecated APIs or components that may have security implications and limited support.",
+            "evidence": [
+                "Deprecated API usage: Landroidx/loader/content/AsyncTaskLoader<...",
+                "Deprecated API usage: Landroidx/loader/content/ModernAsyncTask$3;...",
+                "Deprecated API usage: ModernAsyncTask #...",
+                "Deprecated API usage: PersistHistoryAsyncTask...",
+                "Deprecated API usage: Landroidx/loader/content/ModernAsyncTask$1;...",
+                "Deprecated API usage: Landroid/os/AsyncTask;...",
+                "Deprecated API usage: Landroidx/loader/content/AsyncTaskLoader;...",
+                "Deprecated API usage: AsyncTaskResult...",
+                "Deprecated API usage: AsyncTaskLoader.java...",
+                "Deprecated API usage: ModernAsyncTask.java..."
+            ],
+            "recommendations": [
+                "Migrate from deprecated APIs to recommended alternatives",
+                "Update target SDK to leverage modern security features",
+                "Review deprecated component usage for security implications",
+                "Plan migration timeline for critical deprecated components",
+                "Test thoroughly when replacing deprecated functionality"
+            ],
+            "cve_references": [],
+            "additional_data": {}
+        },
+        {
+            "category": "A06:2021-Vulnerable and Outdated Components",
+            "severity": "medium",
+            "title": "Android Framework Version Vulnerabilities",
+            "description": "Application targets or supports Android versions with known security vulnerabilities or uses framework components insecurely.",
+            "evidence": [
+                "Minimum SDK 0 includes WebView with known XSS vulnerabilities",
+                "Minimum SDK 0 lacks runtime permission model",
+                "Target SDK 0 does not enforce modern security policies",
+                "Target SDK 0 allows cleartext traffic by default"
+            ],
+            "recommendations": [
+                "Increase minimum SDK version to eliminate known vulnerabilities",
+                "Target recent Android API levels for security improvements",
+                "Review framework component usage for security best practices",
+                "Implement additional security controls for legacy Android support",
+                "Consider dropping support for very old Android versions"
+            ],
+            "cve_references": [],
+            "additional_data": {}
+        }
+    ],
+    "summary": {
+        "total_assessments_run": 12,
+        "total_assessments_failed": 0,
+        "assessments": {
+            "authentication_failures": {
+                "findings_count": 2,
+                "owasp_category": "A07:2021-Identification and Authentication Failures",
+                "status": "completed"
+            },
+            "broken_access_control": {
+                "findings_count": 0,
+                "owasp_category": "A01:2021-Broken Access Control",
+                "status": "completed"
+            },
+            "cve_scanning": {
+                "findings_count": 0,
+                "owasp_category": "CVE Vulnerability Scanning",
+                "status": "completed"
+            },
+            "injection": {
+                "findings_count": 2,
+                "owasp_category": "A03:2021-Injection",
+                "status": "completed"
+            },
+            "insecure_design": {
+                "findings_count": 3,
+                "owasp_category": "A04:2021-Insecure Design",
+                "status": "completed"
+            },
+            "integrity_failures": {
+                "findings_count": 2,
+                "owasp_category": "A08:2021-Software and Data Integrity Failures",
+                "status": "completed"
+            },
+            "logging_monitoring_failures": {
+                "findings_count": 3,
+                "owasp_category": "A09:2021-Security Logging and Monitoring Failures",
+                "status": "completed"
+            },
+            "mobile_specific": {
+                "findings_count": 5,
+                "owasp_category": "OWASP Mobile Top 10",
+                "status": "completed"
+            },
+            "security_misconfiguration": {
+                "findings_count": 2,
+                "owasp_category": "A05:2021-Security Misconfiguration",
+                "status": "completed"
+            },
+            "sensitive_data": {
+                "findings_count": 1,
+                "owasp_category": "A02:2021-Cryptographic Failures",
+                "status": "completed"
+            },
+            "ssrf": {
+                "findings_count": 0,
+                "owasp_category": "A10:2021-Server-Side Request Forgery (SSRF)",
+                "status": "completed"
+            },
+            "vulnerable_components": {
+                "findings_count": 2,
+                "owasp_category": "A06:2021-Vulnerable and Outdated Components",
+                "status": "completed"
+            }
+        },
+        "risk_distribution": {
+            "by_severity": {
+                "high": 9,
+                "medium": 11,
+                "low": 2
+            },
+            "by_category": {
+                "A07:2021-Identification and Authentication Failures": 2,
+                "A03:2021-Injection": 2,
+                "A04:2021-Insecure Design": 3,
+                "A08:2021-Software and Data Integrity Failures": 2,
+                "A09:2021-Security Logging and Monitoring Failures": 3,
+                "OWASP Mobile Top 10 - M2": 1,
+                "OWASP Mobile Top 10 - M3": 1,
+                "OWASP Mobile Top 10 - M4": 1,
+                "OWASP Mobile Top 10 - M6": 1,
+                "OWASP Mobile Top 10 - M10": 1,
+                "A05:2021-Security Misconfiguration": 2,
+                "A02:2021-Cryptographic Failures": 1,
+                "A06:2021-Vulnerable and Outdated Components": 2
+            },
+            "by_category_and_severity": {
+                "A07:2021-Identification and Authentication Failures": {
+                    "high": 1,
+                    "medium": 1
+                },
+                "A03:2021-Injection": {
+                    "high": 2
+                },
+                "A04:2021-Insecure Design": {
+                    "high": 1,
+                    "medium": 2
+                },
+                "A08:2021-Software and Data Integrity Failures": {
+                    "high": 1,
+                    "medium": 1
+                },
+                "A09:2021-Security Logging and Monitoring Failures": {
+                    "high": 1,
+                    "medium": 1,
+                    "low": 1
+                },
+                "OWASP Mobile Top 10 - M2": {
+                    "high": 1
+                },
+                "OWASP Mobile Top 10 - M3": {
+                    "high": 1
+                },
+                "OWASP Mobile Top 10 - M4": {
+                    "medium": 1
+                },
+                "OWASP Mobile Top 10 - M6": {
+                    "medium": 1
+                },
+                "OWASP Mobile Top 10 - M10": {
+                    "medium": 1
+                },
+                "A05:2021-Security Misconfiguration": {
+                    "high": 1,
+                    "medium": 1
+                },
+                "A02:2021-Cryptographic Failures": {
+                    "low": 1
+                },
+                "A06:2021-Vulnerable and Outdated Components": {
+                    "medium": 2
+                }
+            }
+        }
+    },
+    "overall_risk_score": 21.8,
+    "owasp_categories_affected": [
+        "A06:2021-Vulnerable and Outdated Components",
+        "OWASP Mobile Top 10 - M2",
+        "A04:2021-Insecure Design",
+        "OWASP Mobile Top 10 - M3",
+        "OWASP Mobile Top 10 - M4",
+        "A09:2021-Security Logging and Monitoring Failures",
+        "A05:2021-Security Misconfiguration",
+        "A03:2021-Injection",
+        "A08:2021-Software and Data Integrity Failures",
+        "OWASP Mobile Top 10 - M10",
+        "A02:2021-Cryptographic Failures",
+        "A07:2021-Identification and Authentication Failures",
+        "OWASP Mobile Top 10 - M6"
+    ],
+    "total_findings": 22,
+    "findings_by_severity": {
+        "high": 9,
+        "medium": 11,
+        "low": 2
+    }
+}

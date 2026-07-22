@@ -349,7 +349,19 @@ security:
         requests_per_hour: 1800
         burst_limit: 5
         burst_window_seconds: 60
-  
+
+  # Evidence-weighted risk scoring (v2 is the default).
+  risk_scoring:
+    version: 2
+    # Headline score source:
+    #   "confirmed" (default): headline = confirmed-subset score (only findings that are
+    #       verification_status==CONFIRMED AND confidence>=confirmed_threshold). Count-robust:
+    #       review-queue findings can never inflate the headline. This is the defensible number.
+    #   "raw": legacy v2 behavior (sum over ALL findings). Kept for comparison/rollback.
+    headline_mode: confirmed
+    confirmed_threshold: 0.7
+    critical_floor: 75.0
+
   assessments:
     injection:
       enabled: true
@@ -369,6 +381,10 @@ security:
       enabled: true
       pii_patterns: ["email", "phone", "ssn", "credit_card"]
       crypto_keys_check: true
+      # Legacy string-corpus PII scanner (scanned only emails/urls/domains and dumped
+      # library placeholder emails). Off by default — superseded by the dedicated `pii`
+      # assessment with a validated taxonomy. Set true only to restore the old behavior.
+      pii_exposure_enabled: false
       # Enhanced hardcoded key detection settings
       key_detection:
         enabled: true
