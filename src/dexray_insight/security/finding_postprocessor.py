@@ -31,7 +31,12 @@ ordered stages:
    confidence already carries the FP signal, so a severity downgrade would double
    penalise. Any display-only tier is recorded in ``additional_data``.
 
-2. Cross-assessment dedup: findings that describe the same underlying issue
+2. Cross-finding cleartext correlation: assessments run in isolation and never see
+   one another's findings, so a manifest cleartext-traffic fact can only be joined
+   with a PII or WebView-bridge finding here, once the full finding list is known.
+   Emits at most one correlated "A05:2021-Security Misconfiguration" finding.
+
+3. Cross-assessment dedup: findings that describe the same underlying issue
    (same location/value + normalized title stem) are merged, keeping the strongest
    severity and confidence and unioning evidence/recommendations/cve_references.
 
@@ -45,9 +50,11 @@ from typing import Any
 
 from ..core.base_classes import AnalysisSeverity
 from ..core.base_classes import SecurityFinding
+from ..core.base_classes import VerificationStatus
 from .context_analysis.code_context_analyzer import CodeContextAnalyzer
 from .context_analysis.false_positive_filter import FalsePositiveFilter
 from .context_analysis.models.context_models import CodeContext
+from .manifest_facts import get_manifest_facts
 
 
 class FindingPostProcessor:
@@ -72,6 +79,18 @@ class FindingPostProcessor:
         AnalysisSeverity.HIGH: 3,
         AnalysisSeverity.CRITICAL: 4,
     }
+
+    # Category shared by every correlated finding this stage emits.
+    _MISCONFIG_CATEGORY = "A05:2021-Security Misconfiguration"
+
+    # Category identifying PII (Personal Data Exposure) findings to correlate with.
+    _PII_CATEGORY = "PRIVACY:2024-Personal Data Exposure"
+
+    # http:// upload paths that suggest transmission of user data in the clear.
+    _UPLOAD_PATH_RE = re.compile(r"(?i)(profilepic|upload|avatar|contact|photo)")
+
+    # Local endpoints that are not real cleartext exposure (mirror sibling M3 logic).
+    _LOCAL_HOSTS = ("localhost", "127.0.0.1", "10.0.2.2")
 
     def __init__(self):
         """Initialize the post-processor."""
@@ -108,7 +127,11 @@ class FindingPostProcessor:
         # Stage 1: confidence / false-positive pass.
         self._apply_confidence_pass(findings, analysis_results, fp_cfg, allow_downgrade, max_context_strings)
 
-        # Stage 2: dedup.
+        # Stage 2: cross-finding cleartext correlation (append-only, runs before
+        # dedup so any correlated finding is subject to the same merge rules).
+        findings = self._apply_cleartext_correlation(findings, analysis_results)
+
+        # Stage 3: dedup.
         if dedup_cfg.get("enabled", True):
             findings = self._dedup(
                 findings, merge_across_categories=bool(dedup_cfg.get("merge_across_categories", True))
@@ -246,7 +269,171 @@ class FindingPostProcessor:
             return "MEDIUM"
         return None
 
-    # ------------------------------------------------------------- stage 2: dedup
+    # ----------------------------------------------- stage 2: cleartext correlation
+
+    def _apply_cleartext_correlation(
+        self, findings: list[SecurityFinding], analysis_results: dict[str, Any]
+    ) -> list[SecurityFinding]:
+        """Correlate the manifest cleartext-traffic fact with sibling findings.
+
+        Fires only when ``usesCleartextTraffic`` is a *known* True. Joins a cleartext
+        http upload endpoint with a PII finding (statically decidable -> CONFIRMED),
+        or a cleartext channel with a WebView bridge finding (RCE precondition needs
+        runtime confirmation -> NEEDS_DYNAMIC). Appends AT MOST ONE finding and is
+        idempotent by title. Missing/partial inputs no-op safely.
+        """
+        try:
+            facts = get_manifest_facts(analysis_results)
+            if facts.get("uses_cleartext_traffic") is not True:
+                return findings
+
+            cleartext_uploads = self._cleartext_upload_urls(analysis_results)
+            pii_finding = next((f for f in findings if self._is_pii_finding(f)), None)
+            bridge_finding = next((f for f in findings if self._is_webview_bridge_finding(f)), None)
+
+            correlated = self._correlated_finding(cleartext_uploads, pii_finding, bridge_finding)
+            if correlated is None:
+                return findings
+
+            # Idempotency: never emit a second correlated finding of the same title.
+            if any((f.title or "") == correlated.title for f in findings):
+                return findings
+
+            findings.append(correlated)
+        except Exception:
+            self.logger.debug("cleartext correlation stage skipped", exc_info=True)
+        return findings
+
+    def _correlated_finding(
+        self,
+        cleartext_uploads: list[str],
+        pii_finding: SecurityFinding | None,
+        bridge_finding: SecurityFinding | None,
+    ) -> SecurityFinding | None:
+        """Select and build the single correlated finding for the current signals."""
+        if cleartext_uploads and pii_finding is not None:
+            evidence = [
+                *cleartext_uploads,
+                "usesCleartextTraffic=true",
+                f"Correlated with PII finding: {pii_finding.title}",
+            ]
+            return self._build_correlated_finding(
+                title="Cleartext PII Transmission",
+                severity=AnalysisSeverity.HIGH,
+                confidence=0.7,
+                verification_status=VerificationStatus.CONFIRMED,
+                description=(
+                    "The app declares usesCleartextTraffic=true and uploads user data "
+                    "to an http:// endpoint while personal data exposure was detected, "
+                    "so PII is transmitted in the clear."
+                ),
+                evidence=evidence,
+                recommendations=[
+                    "Disable cleartext traffic and upload user data over HTTPS only.",
+                    "Restrict any remaining cleartext endpoints via a network security config.",
+                ],
+            )
+
+        if bridge_finding is not None:
+            evidence = [
+                "usesCleartextTraffic=true",
+                f"Correlated with WebView bridge finding: {bridge_finding.title}",
+            ]
+            return self._build_correlated_finding(
+                title="Cleartext Content Into WebView",
+                severity=AnalysisSeverity.HIGH,
+                confidence=0.6,
+                verification_status=VerificationStatus.NEEDS_DYNAMIC,
+                description=(
+                    "The app declares usesCleartextTraffic=true and exposes a WebView "
+                    "JavaScript bridge; cleartext content loaded into that WebView could "
+                    "reach the bridge, so the RCE precondition needs runtime confirmation."
+                ),
+                evidence=evidence,
+                recommendations=[
+                    "Disable cleartext traffic so WebView content cannot be MITM-injected.",
+                    "Restrict the JavaScript bridge surface and validate all loaded URLs.",
+                ],
+            )
+
+        if cleartext_uploads:
+            return self._build_correlated_finding(
+                title="Cleartext Upload Endpoint",
+                severity=AnalysisSeverity.MEDIUM,
+                confidence=0.6,
+                verification_status=VerificationStatus.CONFIRMED,
+                description=(
+                    "The app declares usesCleartextTraffic=true and uploads user data to "
+                    "an http:// endpoint, exposing that data on the network."
+                ),
+                evidence=[*cleartext_uploads, "usesCleartextTraffic=true"],
+                recommendations=["Upload user data over HTTPS and disable cleartext traffic."],
+            )
+
+        return None
+
+    def _build_correlated_finding(
+        self,
+        *,
+        title: str,
+        severity: AnalysisSeverity,
+        confidence: float,
+        verification_status: VerificationStatus,
+        description: str,
+        evidence: list[str],
+        recommendations: list[str],
+    ) -> SecurityFinding:
+        """Construct a correlated A05 finding with the correlation marker set."""
+        return SecurityFinding(
+            category=self._MISCONFIG_CATEGORY,
+            severity=severity,
+            title=title,
+            description=description,
+            evidence=evidence,
+            recommendations=recommendations,
+            confidence=confidence,
+            verification_status=verification_status,
+            additional_data={"correlated": True},
+        )
+
+    def _cleartext_upload_urls(self, analysis_results: dict[str, Any]) -> list[str]:
+        """Return first-party http:// URLs whose path suggests a user-data upload."""
+        string_results = analysis_results.get("string_analysis", {}) or {}
+        string_data = string_results.to_dict() if hasattr(string_results, "to_dict") else string_results
+        if not isinstance(string_data, dict):
+            return []
+        urls = string_data.get("urls") or []
+        if not isinstance(urls, list):
+            return []
+        return [
+            url
+            for url in urls
+            if isinstance(url, str)
+            and url.startswith("http://")
+            and not any(host in url for host in self._LOCAL_HOSTS)
+            and self._UPLOAD_PATH_RE.search(url)
+        ]
+
+    def _is_pii_finding(self, finding: SecurityFinding) -> bool:
+        """Return True for PRIVACY:2024 Personal Data Exposure findings."""
+        return (finding.category or "") == self._PII_CATEGORY
+
+    def _is_webview_bridge_finding(self, finding: SecurityFinding) -> bool:
+        """Return True for an OWASP Mobile bridge / WebView finding.
+
+        Matches defensively by attribute since assessment ordering is not guaranteed:
+        the dedicated bridge finding (title contains "Bridge") and the M1 "Improper
+        Platform Usage" finding that lists WebView APIs in its evidence both qualify.
+        """
+        if "OWASP Mobile Top 10" not in (finding.category or ""):
+            return False
+        title = finding.title or ""
+        if "Bridge" in title:
+            return True
+        haystack = " ".join([title, *(finding.evidence or [])])
+        return "WebView" in haystack
+
+    # ------------------------------------------------------------- stage 3: dedup
 
     def _dedup(
         self, findings: list[SecurityFinding], merge_across_categories: bool

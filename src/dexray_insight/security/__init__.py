@@ -26,11 +26,16 @@
 from . import authentication_failures_assessment
 from . import broken_access_control_assessment
 from . import cve_assessment
+from . import deep_dataflow_assessment
 from . import injection_assessment
 from . import insecure_design_assessment
 from . import integrity_failures_assessment
 from . import logging_monitoring_failures_assessment
 from . import mobile_specific_assessment
+from . import pii_assessment
+from . import pii_flow_assessment
+from . import provider_paths_assessment
+from . import sdk_risk_surface_assessment
 from . import security_misconfiguration_assessment
 from . import sensitive_data_assessment
 from . import ssrf_assessment
@@ -48,5 +53,10 @@ __all__ = [
     "logging_monitoring_failures_assessment",
     "ssrf_assessment",
     "mobile_specific_assessment",
+    "pii_assessment",
+    "pii_flow_assessment",
+    "provider_paths_assessment",
+    "sdk_risk_surface_assessment",
+    "deep_dataflow_assessment",
     "cve_assessment",
 ]

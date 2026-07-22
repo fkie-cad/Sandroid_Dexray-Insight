@@ -76,6 +76,7 @@ class MobileSpecificAssessment(BaseSecurityAssessment):
         self._initialize_crypto_and_authorization_patterns()
         self._initialize_code_quality_and_tampering_patterns()
         self._initialize_extraneous_functionality_patterns()
+        self._initialize_webview_bridge_patterns()
 
     def _initialize_platform_and_storage_patterns(self):
         """Initialize M1 (Improper Platform Usage) and M2 (Insecure Data Storage) patterns."""
@@ -241,6 +242,145 @@ class MobileSpecificAssessment(BaseSecurityAssessment):
             "development_features": [r"developer.*options", r"staging.*environment", r"test.*user", r"mock.*data"],
         }
 
+    def _initialize_webview_bridge_patterns(self):
+        """Initialize B3 reflection/onJsPrompt WebView-bridge detection tokens.
+
+        These target a higher-signal bridge shape the M1 WebView regex cannot see:
+        a JS<->native bridge built on ``WebChromeClient.onJsPrompt`` plus reflective
+        dispatch (as used by Kik Cards) rather than the classic
+        ``addJavascriptInterface``. All token lists live on the instance so they stay
+        configurable and unit-testable.
+        """
+        # Generic bridge-dispatch markers. Deliberately excludes app-specific literals
+        # (e.g. "CardsBridge") to avoid single-sample overfit; opt-in extras go below.
+        self.webview_bridge_markers = ["invokeFunction", "nativeCall", "JavascriptGlue", "__rpc"]
+        # Opt-in, app-specific markers; empty by default. Populated from config when the
+        # analyst already knows the target's bridge name.
+        self.extra_bridge_markers = list(self.config.get("webview_extra_bridge_markers", []) or [])
+        # WebChromeClient / JS-prompt channel signals.
+        self.webview_prompt_tokens = ["onJsPrompt", "JsPromptResult", "WebChromeClient"]
+        # Reflective dispatch tokens (the RCE-pivot enabler).
+        self.webview_reflection_tokens = ["getMethod", "getDeclaredMethod", "invoke"]
+        # Capability classification: which sensitive operations the bridge can reach.
+        self.webview_capability_tokens = {
+            "auth": ["signRequest", "getAuth", "AuthPlugin"],
+            "messaging": ["sendKik", "sendMessage", "getLastMessage"],
+            "pii": ["getProfile", "getUser", "getContacts"],
+            "file": ["openFile", "download", "readFile"],
+            "intent": ["openExternal", "startActivity", "openUrl"],
+        }
+
+    def _collect_bridge_tokens(
+        self, all_strings: list, token_map: dict[str, list[str]]
+    ) -> dict[str, list[str]]:
+        """Single-pass whole-word scan of the string pool for each token group.
+
+        Whole-word matching (``matches_algorithm_token``) keeps the reflection token
+        ``invoke`` from matching inside the bridge marker ``invokeFunction`` — the two
+        must be independent signals for the conjunction guard to mean anything.
+        """
+        remaining = {group: list(tokens) for group, tokens in token_map.items()}
+        found = {group: [] for group in token_map}
+        for string in all_strings:
+            if not isinstance(string, str):
+                continue
+            for group, tokens in remaining.items():
+                still = []
+                for token in tokens:
+                    if matches_algorithm_token(string, token):
+                        found[group].append(token)
+                    else:
+                        still.append(token)
+                remaining[group] = still
+        return found
+
+    def _assess_webview_bridge_surface(
+        self, analysis_results: dict[str, Any], context: AnalysisContext | None = None
+    ) -> list[SecurityFinding]:
+        """B3: Detect reflection/onJsPrompt WebView JS bridges with capability classing.
+
+        Fires only when at least *two distinct signal classes* co-occur among:
+        generic bridge-dispatch markers, WebChromeClient/onJsPrompt channel tokens,
+        and reflective-dispatch tokens. Requiring two independent classes means no
+        single common signal fires on its own: a lone ``invokeFunction`` (React
+        Native / Cordova), reflection alone (Gson et al. use it everywhere), or a lone
+        ``WebChromeClient`` are all suppressed. The Kik-style bridge — onJsPrompt plus
+        reflective dispatch — is prompt+reflection, so it fires without needing a
+        generic marker. Full RCE pivot is not statically confirmable, so findings are
+        NEEDS_DYNAMIC (review queue, out of the headline score) at string-only
+        confidence.
+        """
+        findings = []
+
+        string_results = analysis_results.get("string_analysis", {})
+        string_data = string_results.to_dict() if hasattr(string_results, "to_dict") else string_results
+        all_strings = string_data.get("all_strings", []) if isinstance(string_data, dict) else []
+        if not isinstance(all_strings, list):
+            all_strings = []
+
+        token_map = {
+            "bridge": self.webview_bridge_markers + self.extra_bridge_markers,
+            "prompt": self.webview_prompt_tokens,
+            "reflection": self.webview_reflection_tokens,
+        }
+        for capability, tokens in self.webview_capability_tokens.items():
+            token_map[f"cap:{capability}"] = tokens
+
+        found = self._collect_bridge_tokens(all_strings, token_map)
+        bridge_markers = found["bridge"]
+        prompt_tokens = found["prompt"]
+        reflection_tokens = found["reflection"]
+
+        # Conjunction guard: at least two independent signal classes must co-occur.
+        # This suppresses every single-signal false positive (lone invokeFunction,
+        # reflection-only, WebChromeClient-only) while still catching the onJsPrompt +
+        # reflection bridge that has no generic marker.
+        signal_classes = sum(bool(x) for x in (bridge_markers, prompt_tokens, reflection_tokens))
+        if signal_classes < 2:
+            return findings
+
+        capabilities = [cap for cap in self.webview_capability_tokens if found[f"cap:{cap}"]]
+
+        # R1 shape: a reflection/prompt bridge that can reach auth or messaging is the
+        # dangerous case (account takeover / message exfiltration pivot) -> HIGH.
+        high_risk = any(cap in capabilities for cap in ("auth", "messaging"))
+        severity = AnalysisSeverity.HIGH if high_risk else AnalysisSeverity.MEDIUM
+
+        evidence = [f"Bridge dispatch markers: {', '.join(bridge_markers)}"]
+        if prompt_tokens:
+            evidence.append(f"WebChromeClient/JS-prompt channel: {', '.join(prompt_tokens)}")
+        if reflection_tokens:
+            evidence.append(f"Reflective dispatch tokens: {', '.join(reflection_tokens)}")
+        if capabilities:
+            evidence.append(f"Reachable capabilities: {', '.join(capabilities)}")
+
+        findings.append(
+            SecurityFinding(
+                category=f"{self.owasp_category} - M1",
+                severity=severity,
+                title="WebView Reflection/Prompt JavaScript Bridge",
+                description=(
+                    "A JavaScript<->native bridge implemented via WebChromeClient.onJsPrompt "
+                    "and/or reflective method dispatch was detected. Unlike a classic "
+                    "addJavascriptInterface bridge, this shape is invisible to standard WebView "
+                    "checks and, if the loaded origin is not tightly constrained, can let "
+                    "attacker-controlled web content invoke sensitive native capabilities."
+                ),
+                evidence=evidence,
+                confidence=0.5,
+                verification_status=VerificationStatus.NEEDS_DYNAMIC,
+                recommendations=[
+                    "Enforce a strict origin allowlist for content permitted to reach the bridge",
+                    "Use scheme-aware host checks before dispatching any bridge call",
+                    "Drop reflection-based method dispatch in favor of an explicit, audited call table",
+                    "Constrain WebChromeClient.onJsPrompt to a vetted message protocol",
+                ],
+                additional_data={"verify_dynamically": True, "capabilities": capabilities},
+            )
+        )
+
+        return findings
+
     def assess(self, analysis_results: dict[str, Any], context: AnalysisContext | None = None) -> list[SecurityFinding]:
         """
         Assess for mobile-specific security vulnerabilities.
@@ -257,6 +397,10 @@ class MobileSpecificAssessment(BaseSecurityAssessment):
             # M1: Improper Platform Usage
             platform_findings = self._assess_improper_platform_usage(analysis_results)
             findings.extend(platform_findings)
+
+            # M1 (B3): Reflection/onJsPrompt WebView JavaScript-bridge surface
+            bridge_findings = self._assess_webview_bridge_surface(analysis_results, context)
+            findings.extend(bridge_findings)
 
             # M2: Insecure Data Storage
             storage_findings = self._assess_insecure_data_storage(analysis_results)

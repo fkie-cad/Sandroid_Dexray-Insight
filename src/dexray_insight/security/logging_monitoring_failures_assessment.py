@@ -33,6 +33,7 @@ from ..core.base_classes import AnalysisContext
 from ..core.base_classes import AnalysisSeverity
 from ..core.base_classes import BaseSecurityAssessment
 from ..core.base_classes import SecurityFinding
+from ..core.base_classes import VerificationStatus
 from ..core.base_classes import register_assessment
 from .evidence import matches_algorithm_token
 
@@ -85,25 +86,45 @@ class LoggingMonitoringFailuresAssessment(BaseSecurityAssessment):
 
             all_strings = string_data.get("all_strings", [])
 
-            # Check for sensitive data logging
-            sensitive_logs, debug_logs = self._scan_log_strings(all_strings)
+            # Check for sensitive data logging (strong vs weak indicators bucketed).
+            strong_logs, weak_logs, debug_logs = self._scan_log_strings(all_strings)
 
-            # Create findings based on detected issues
-            if sensitive_logs:
+            recommendations = [
+                "Remove sensitive data from log statements",
+                "Use conditional logging based on build configuration",
+                "Implement secure logging practices with data sanitization",
+                "Review log outputs before production releases",
+                "Use structured logging to control data exposure",
+            ]
+
+            # Strong indicators (password/token/secret/...) -> HIGH, confirmed.
+            if strong_logs:
                 findings.append(
                     SecurityFinding(
                         category=self.owasp_category,
                         severity=AnalysisSeverity.HIGH,
                         title="Sensitive Data Logging",
                         description="Application logs sensitive information that could be exposed to unauthorized parties.",
-                        evidence=sensitive_logs[:10],  # Limit evidence items
-                        recommendations=[
-                            "Remove sensitive data from log statements",
-                            "Use conditional logging based on build configuration",
-                            "Implement secure logging practices with data sanitization",
-                            "Review log outputs before production releases",
-                            "Use structured logging to control data exposure",
-                        ],
+                        evidence=strong_logs[:10],  # Limit evidence items
+                        recommendations=recommendations,
+                        confidence=0.5,
+                    )
+                )
+
+            # Weak indicators (key/address) -> MEDIUM review-queue lead at lower confidence.
+            # These whole-word tokens still occur in benign identifiers, so they are not
+            # reported as a confirmed HIGH.
+            if weak_logs:
+                findings.append(
+                    SecurityFinding(
+                        category=self.owasp_category,
+                        severity=AnalysisSeverity.MEDIUM,
+                        title="Possible Sensitive Data Logging (weak indicators)",
+                        description="Log statements reference generic terms (e.g. key/address) that may or may not be sensitive; manual review recommended.",
+                        evidence=weak_logs[:10],
+                        recommendations=recommendations,
+                        confidence=0.35,
+                        verification_status=VerificationStatus.NEEDS_REVIEW,
                     )
                 )
 
@@ -171,9 +192,16 @@ class LoggingMonitoringFailuresAssessment(BaseSecurityAssessment):
 
         return findings
 
-    def _scan_log_strings(self, all_strings: list) -> tuple[list, list]:
-        """Scan strings for sensitive data logging and debug logging patterns."""
-        sensitive_logs = []
+    def _scan_log_strings(self, all_strings: list) -> tuple[list, list, list]:
+        """Scan strings for sensitive-data logging and debug logging patterns.
+
+        Returns ``(strong_logs, weak_logs, debug_logs)``. Strong-indicator hits
+        (password/token/secret/...) are high-signal; weak-indicator hits (key/address)
+        are real words but common in benign identifiers even with whole-word matching, so
+        they are bucketed separately and reported at lower confidence by the caller.
+        """
+        strong_logs = []
+        weak_logs = []
         debug_logs = []
 
         for string in all_strings:
@@ -182,18 +210,16 @@ class LoggingMonitoringFailuresAssessment(BaseSecurityAssessment):
                 is_log_string = any(
                     log_keyword in string.lower() for log_keyword in ["log.", "system.out", "print"]
                 )
-                # Check for sensitive data in logs using WHOLE-WORD matching. Substring
-                # matching wrongly fired on e.g. "ssn" in "sSnackbar" or "key" in
-                # "keyboard"; matches_algorithm_token enforces word boundaries.
+                # Whole-word matching (via matches_algorithm_token) — substring matching
+                # wrongly fired on e.g. "ssn" in "sSnackbar" or "key" in "keyboard".
                 if is_log_string:
-                    all_patterns = self.sensitive_data_patterns + self.weak_sensitive_data_patterns
-                    for pattern in all_patterns:
-                        if matches_algorithm_token(string, pattern):
-                            sensitive_logs.append(f"Sensitive data in logs: {string[:80]}...")
-                            break
+                    if any(matches_algorithm_token(string, p) for p in self.sensitive_data_patterns):
+                        strong_logs.append(f"Sensitive data in logs: {string[:80]}...")
+                    elif any(matches_algorithm_token(string, p) for p in self.weak_sensitive_data_patterns):
+                        weak_logs.append(f"Possible sensitive data in logs (weak indicator): {string[:80]}...")
 
                 # Check for debug logging patterns
                 if any(debug_pattern in string.lower() for debug_pattern in ["log.d", "log.v", "debug", "trace"]):
                     debug_logs.append(f"Debug logging detected: {string[:60]}...")
 
-        return sensitive_logs, debug_logs
+        return strong_logs, weak_logs, debug_logs

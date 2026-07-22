@@ -75,6 +75,56 @@ LIBRARY_PATTERNS = {
         "category": LibraryCategory.ADVERTISING,
         "classes": ["UnityAds", "UnityBannerSize"],
     },
+    "ironSource": {
+        "packages": ["com.ironsource"],
+        "category": LibraryCategory.ADVERTISING,
+        "classes": ["IronSource", "IronSourceObject", "ISDemandOnlyInterstitial"],
+    },
+    "AppLovin": {
+        "packages": ["com.applovin"],
+        "category": LibraryCategory.ADVERTISING,
+        "classes": ["AppLovinSdk", "MaxAdView", "AppLovinAdView"],
+    },
+    "Pangle": {
+        "packages": ["com.bytedance.sdk.openadsdk", "com.pangle"],
+        "category": LibraryCategory.ADVERTISING,
+        "classes": ["TTAdSdk", "TTAdNative", "PAGSdk"],
+    },
+    "Mintegral": {
+        "packages": ["com.mbridge.msdk"],
+        "category": LibraryCategory.ADVERTISING,
+        "classes": ["MBridgeSDK", "MBridgeSDKFactory", "MBInterstitialHandler"],
+    },
+    "Vungle": {
+        "packages": ["com.vungle"],
+        "category": LibraryCategory.ADVERTISING,
+        "classes": ["Vungle", "VungleApiClient", "VungleBanner"],
+    },
+    "Tapjoy": {
+        "packages": ["com.tapjoy"],
+        "category": LibraryCategory.ADVERTISING,
+        "classes": ["Tapjoy", "TJPlacement", "TJAdUnitJSBridge"],
+    },
+    "PubMatic OpenWrap": {
+        "packages": ["com.pubmatic.sdk"],
+        "category": LibraryCategory.ADVERTISING,
+        "classes": ["POBBannerView", "POBInterstitial", "POBMraidBridge"],
+    },
+    "MediaLab": {
+        "packages": ["ai.medialab.medialabads2"],
+        "category": LibraryCategory.ADVERTISING,
+        "classes": ["MediaLabAdView", "AnaBidManager"],
+    },
+    "Fyber": {
+        "packages": ["com.fyber"],
+        "category": LibraryCategory.ADVERTISING,
+        "classes": ["InneractiveAdManager", "FyberMarketplace", "InneractiveAdSpot"],
+    },
+    "MobileFuse": {
+        "packages": ["com.mobilefuse"],
+        "category": LibraryCategory.ADVERTISING,
+        "classes": ["MobileFuse", "MobileFuseBannerAd", "MobileFuseInterstitialAd"],
+    },
     # Crash Reporting
     "Crashlytics": {
         "packages": ["com.crashlytics.android", "io.fabric.sdk.android.services.crashlytics"],

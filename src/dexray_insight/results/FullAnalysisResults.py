@@ -380,6 +380,7 @@ class FullAnalysisResults:
             total_findings = self.security_assessment.get("total_findings", 0)
             risk_score = self.security_assessment.get("overall_risk_score", 0)
             risk_score_confirmed = self.security_assessment.get("risk_score_confirmed")
+            review_mass = self.security_assessment.get("risk_score_review_mass")
 
             print(f"Security Findings: {total_findings}")
             # Show the score PAIR (all-findings vs confirmed-only) and label it a triage
@@ -392,6 +393,10 @@ class FullAnalysisResults:
                 )
             else:
                 print(f"Risk Score (triage aid): {risk_score:.2f}/100")
+            # Surface the review-queue volume so analysts see how much evidence sits in the
+            # unconfirmed (NEEDS_DYNAMIC / NEEDS_REVIEW) tier and never entered the headline.
+            if review_mass:
+                print(f"Review-queue weight (not in headline): {review_mass:.2f}")
 
             # Show findings by severity, most-severe first (not dict insertion order).
             findings_by_severity = self.security_assessment.get("findings_by_severity", {})

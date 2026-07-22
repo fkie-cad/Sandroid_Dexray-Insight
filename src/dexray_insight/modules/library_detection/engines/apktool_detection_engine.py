@@ -49,6 +49,11 @@ from dexray_insight.results.LibraryDetectionResults import RiskLevel
 
 from ..utils.version_analyzer import get_version_analyzer
 
+# Marker appended to a library's evidence when its version was recovered by
+# scraping a directory-path segment rather than read from a declared field.
+# Downstream CVE assessment keys on this token to flag such findings for review.
+PATH_SCRAPE_EVIDENCE = "version_source=path_scrape"
+
 
 class ApktoolDetectionEngine:
     """Library detection engine that requires apktool extraction results.
@@ -89,6 +94,10 @@ class ApktoolDetectionEngine:
         # Cache for library definitions
         self._libs_by_path: dict[str, dict] | None = None
         self._id_to_paths: dict[str, list[str]] | None = None
+
+        # Best-effort versions scraped from decoded directory paths. Populated per
+        # analysis run in detect_libraries; empty when apktool produced no tree.
+        self._scraped_versions: dict[str, str] = {}
 
         # Initialize version analyzer (will be updated with security context later)
         self.version_analyzer = get_version_analyzer(config)
@@ -154,6 +163,15 @@ class ApktoolDetectionEngine:
         start_time = time.time()
 
         try:
+            # Scrape best-effort versions embedded in decoded directory paths. This is
+            # purely additive: it only yields hints when apktool actually produced a
+            # decoded tree, and never blocks detection when that tree is absent.
+            self._scraped_versions = self._scan_release_version_paths(apktool_dir, errors)
+            if self._scraped_versions:
+                self.logger.debug(
+                    f"Path-scraped {len(self._scraped_versions)} version hint(s) from apktool output"
+                )
+
             # Approach 1: Pattern-based detection using JSONL files
             if self.enable_pattern_detection:
                 pattern_libraries = self._scan_lib_patterns(apktool_dir, errors)
@@ -407,6 +425,10 @@ class ApktoolDetectionEngine:
                     self.logger.debug(
                         f"AndroidX library CREATED: {library.name} (Category: {library.category.name})"
                     )
+                # Pattern detection does not carry a version; try to recover one from
+                # scraped directory-path segments before running version analysis.
+                if not library.version:
+                    self._apply_scraped_version(library)
                 # Enhance library with version analysis if version is available
                 if library.version:
                     self._enhance_library_with_version_analysis(library)
@@ -515,6 +537,26 @@ class ApktoolDetectionEngine:
             r"\.field\s+public\s+static\s+final\s+VERSION_CODE:I\s*=\s*([+-]?(?:0x[0-9a-fA-F]+|\d+))"
         )
 
+        # Additional string version fields used by SDKs that do not expose VERSION_NAME.
+        # Tried in order only as fallbacks after VERSION_NAME/VERSION_CODE.
+        fallback_version_fields = [
+            "SDK_VERSION_NAME",
+            "SDK_VERSION",
+            "MEDIATION_SDK_VERSION",
+            "BUILD_VERSION",
+        ]
+        re_fallback_versions = [
+            (
+                field_name,
+                re.compile(
+                    r"\.field\s+public\s+static\s+final\s+"
+                    + field_name
+                    + r':Ljava/lang/String;\s*=\s*"([^"]*)"'
+                ),
+            )
+            for field_name in fallback_version_fields
+        ]
+
         try:
             for buildconfig_file in apktool_dir.rglob("BuildConfig.smali"):
                 try:
@@ -534,15 +576,25 @@ class ApktoolDetectionEngine:
                     m_pkg = re_lib_pkg.search(content)
                     lib_name = m_app.group(1) if m_app else (m_pkg.group(1) if m_pkg else lib_from_class)
 
-                    # Priority: VERSION_NAME -> VERSION_CODE
+                    # Priority: VERSION_NAME -> VERSION_CODE -> SDK/BUILD version fallbacks
                     version = None
                     m_vname = re_version_name.search(content)
-                    if m_vname:
+                    if m_vname and m_vname.group(1):
                         version = m_vname.group(1)
                     else:
                         m_vcode = re_version_code.search(content)
                         if m_vcode:
                             version = self._parse_smali_int(m_vcode.group(1))
+
+                    if not version:
+                        for field_name, field_re in re_fallback_versions:
+                            m_fallback = field_re.search(content)
+                            if m_fallback and m_fallback.group(1):
+                                version = m_fallback.group(1)
+                                self.logger.debug(
+                                    f"BuildConfig version recovered from {field_name} field: {version}"
+                                )
+                                break
 
                     if lib_name:
                         library = DetectedLibrary(
@@ -571,6 +623,97 @@ class ApktoolDetectionEngine:
             errors.append(error_msg)
 
         return detected_libraries
+
+    def _scan_release_version_paths(self, apktool_dir: Path, errors: list[str]) -> dict[str, str]:
+        """Scrape best-effort library versions embedded in decoded directory paths.
+
+        Many SDKs ship their smali/assets under version-tagged directories such as
+        ``.../ironsource/release/7.2.1/Foo.smali`` or ``.../<lib>/1.2.3/...``. When
+        apktool actually decoded the APK, we can recover a coarse version from those
+        path segments. This is purely additive: when ``apktool_dir`` is missing or
+        empty the method returns an empty mapping and appends no error (the decoded
+        tree is frequently absent in this pipeline, and that is expected).
+
+        Args:
+            apktool_dir: Path to the apktool extraction directory (may not exist).
+            errors: List to append genuine error messages to (not the empty-tree case).
+
+        Returns:
+            Mapping of a lowercased library/path key to the scraped version string.
+        """
+        scraped: dict[str, str] = {}
+
+        try:
+            if not apktool_dir:
+                return scraped
+            apktool_dir = Path(apktool_dir)
+            if not apktool_dir.exists() or not any(apktool_dir.iterdir()):
+                return scraped
+
+            release_re = re.compile(r"/release/(\d+\.\d+(?:\.\d+)?)/")
+            generic_re = re.compile(r"/([^/]+)/(\d+\.\d+\.\d+)/")
+
+            for path in apktool_dir.rglob("*"):
+                # Normalize to a POSIX relative path bounded by slashes for matching.
+                rel_posix = "/" + path.relative_to(apktool_dir).as_posix() + "/"
+
+                m_release = release_re.search(rel_posix)
+                if m_release:
+                    version = m_release.group(1)
+                    # Key on the directory segment immediately preceding "/release/".
+                    prefix = rel_posix[: m_release.start()].strip("/")
+                    lib_key = prefix.split("/")[-1].lower() if prefix else "release"
+                    scraped.setdefault(lib_key, version)
+                    continue
+
+                m_generic = generic_re.search(rel_posix)
+                if m_generic:
+                    lib_key = m_generic.group(1).lower()
+                    version = m_generic.group(2)
+                    # Skip the plain "release" segment; that is handled above.
+                    if lib_key != "release":
+                        scraped.setdefault(lib_key, version)
+
+        except Exception as e:
+            error_msg = f"Error scraping version paths: {str(e)}"
+            self.logger.warning(error_msg)
+            errors.append(error_msg)
+
+        return scraped
+
+    def _apply_scraped_version(self, library: DetectedLibrary) -> None:
+        """Fill a missing library version from path-scraped hints, tagged low-confidence.
+
+        Only fills a version when the library currently has none (never overwrites a
+        higher-confidence declared version). Matches are heuristic: a scraped key must
+        appear in the library's smali path, package name, or name. Successful matches
+        are capped at 0.7 confidence and annotated with a path-scrape evidence marker
+        so downstream CVE assessment can flag them for manual verification.
+
+        Args:
+            library: DetectedLibrary to enrich in place.
+        """
+        if not self._scraped_versions or library.version:
+            return
+
+        haystacks = [
+            (library.smali_path or "").lower().replace("\\", "/"),
+            (library.package_name or "").lower(),
+            (library.name or "").lower(),
+        ]
+
+        for lib_key, version in self._scraped_versions.items():
+            if lib_key and any(lib_key in haystack for haystack in haystacks):
+                library.version = version
+                library.confidence = min(library.confidence, 0.7)
+                library.detection_method = LibraryDetectionMethod.FILE_ANALYSIS
+                library.evidence.append(
+                    f"Version {version} recovered from directory path ({PATH_SCRAPE_EVIDENCE})"
+                )
+                self.logger.debug(
+                    f"Applied path-scraped version {version} to {library.name} (key: {lib_key})"
+                )
+                return
 
     def _parse_smali_int(self, raw: str) -> str | None:
         """Parse smali integer (decimal, hex, negative) and return as string."""

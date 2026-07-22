@@ -294,11 +294,11 @@ security:
     # CVE Data Sources Configuration
     sources:
       osv:  # Open Source Vulnerabilities (Google)
-        enabled: false
+        enabled: true  # Key-less source; the default CVE backend (Java + native libs)
         api_key: null  # OSV doesn't require API key
       nvd:  # National Vulnerability Database (NIST)
-        enabled: true  # Disabled for testing since API key not configured
-        api_key: "YOUR_NVD_API_KEY"  # Optional, improves rate limits
+        enabled: false  # Off by default: needs an API key; without one it rate-limit-stalls.
+        api_key: "YOUR_NVD_API_KEY"  # Set a real key and enable to use NVD instead of/with OSV
       github:  # GitHub Advisory Database
         enabled: false
         api_key: "YOUR_GITHUB_TOKEN"  # Optional, improves rate limits
@@ -313,8 +313,8 @@ security:
     retry_delay_seconds: 5  # Base delay between retries (exponential backoff)
     
     # Library Type Filtering Configuration
-    scan_native_only: true  # Only scan native libraries (.so files) - these have more CVEs than Java/Android libs
-    include_java_libraries: false  # Also scan Java/Android libraries (may have fewer relevant CVEs)
+    scan_native_only: false  # Scan native AND Java/Android libraries (Phase B5 un-gate)
+    include_java_libraries: true  # Java/Android libs are scanned when they carry a version (see version scraping)
     native_library_patterns:  # Patterns to identify native libraries
       - "*.so"  # Native shared objects
       - "*ffmpeg*"  # FFmpeg variants
@@ -363,6 +363,30 @@ security:
     critical_floor: 75.0
 
   assessments:
+    # Privacy / PII taxonomy assessment (Phase B1). Validated PII literals, PII-at-rest
+    # (CREATE TABLE + SharedPreferences keys, GDPR Art.9 escalation, encryption-posture
+    # gate), permission<->sink correlation, and an unconfirmed IDOR/BOLA review queue.
+    pii:
+      enabled: true
+    # FileProvider path-scope + exported-provider analyzer (Phase B2). Reads providers +
+    # res/xml/*_paths.xml via androguard; flags over-broad roots + URI grants, duplicate
+    # authorities, and exported providers lacking signature-level protection.
+    provider_paths:
+      enabled: true
+    # SDK RCE-surface knowledge base (Phase B4). Flags ad SDKs whose concrete bridge-class
+    # descriptors (MRAID/VPAID/JS-bridge, download-and-install) are present — emitted per
+    # matched SDK even when the version is unknown. Review-queue (NEEDS_REVIEW).
+    sdk_risk_surface:
+      enabled: true
+    # Deep xref dataflow review-queue seeds (Phase C1/C2). Runs ONLY under --deep;
+    # emits NEEDS_DYNAMIC proximity hints (intent-redirection, URI->WebView, IPC
+    # deserialization, provider openFile traversal, debuggable-gated control).
+    deep_dataflow:
+      enabled: true
+    # Deep PII-flow correlation (Phase C3). --deep only; correlates validated PII
+    # sources with per-tracker sinks (Crashlytics/Firebase/Branch); off-device -> HIGH.
+    pii_flow:
+      enabled: true
     injection:
       enabled: true
       sql_patterns: ["SELECT", "INSERT", "UPDATE", "DELETE", "DROP"]

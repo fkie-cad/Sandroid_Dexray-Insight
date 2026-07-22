@@ -117,6 +117,18 @@ def confidence_of(finding: Any) -> float:
         return DEFAULT_CONFIDENCE
 
 
+def verification_status_of(finding: Any) -> str:
+    """Coerce a finding's verification_status (enum | serialized str | absent) to lower-case.
+
+    Absent/None normalizes to ``"confirmed"`` so pre-existing findings (and any producer
+    that does not set the field) keep their prior "confirmed" behavior. Mirrors the engine's
+    ``_confirmed_subset`` semantics so the report's tiering agrees with the headline score.
+    """
+    status = get_attr(finding, "verification_status", "confirmed")
+    status_text = status.value if hasattr(status, "value") else str(status)
+    return status_text.lower()
+
+
 def has_location(finding: Any) -> bool:
     """Whether the finding carries a concrete file location (dict or object shape)."""
     return bool(get_attr(finding, "file_location", None) or get_attr(finding, "fileLocation", None))
@@ -201,10 +213,12 @@ def tier_findings(findings: list, config: Any = None) -> dict[str, list]:
 
     Tiers (thresholds from ``config``, defaulting to 0.75 / 0.40):
 
-    * ``confirmed`` — confidence >= ``high_confidence_min`` AND severity in
-      {critical, high}. These are the "act now" findings.
+    * ``confirmed`` — ``verification_status == CONFIRMED`` AND confidence >=
+      ``high_confidence_min`` AND severity in {critical, high}. These are the
+      statically-decidable "act now" findings, matching the engine's confirmed subset.
     * ``needs_review`` — ``review_min`` <= confidence < ``high_confidence_min``,
-      OR any medium-severity finding. Worth a human look.
+      OR any medium-severity finding, OR any NEEDS_DYNAMIC / NEEDS_REVIEW finding
+      (regardless of confidence/severity — exploitability is unconfirmed). Worth a human look.
     * ``informational`` — confidence < ``review_min``, or info/unknown severity
       noise. Hidden by default in the terminal.
 
@@ -220,8 +234,13 @@ def tier_findings(findings: list, config: Any = None) -> dict[str, list]:
     for finding in findings:
         severity = severity_str(finding)
         confidence = confidence_of(finding)
+        # A review-queue finding (NEEDS_DYNAMIC / NEEDS_REVIEW) is never "confirmed" in the
+        # report, even at high confidence — its exploitability is not statically settled.
+        # This keeps the report's CONFIRMED tier in lockstep with the engine's headline
+        # confirmed subset (see SecurityAssessmentEngine._confirmed_subset).
+        is_confirmed_status = verification_status_of(finding) == "confirmed"
 
-        if confidence >= high_min and severity in ("critical", "high"):
+        if is_confirmed_status and confidence >= high_min and severity in ("critical", "high"):
             confirmed.append(finding)
         elif severity in ("critical", "high", "medium") and confidence >= review_min:
             needs_review.append(finding)

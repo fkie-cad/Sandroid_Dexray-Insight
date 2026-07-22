@@ -37,6 +37,7 @@ from typing import Any
 from ..core.base_classes import AnalysisSeverity
 from ..core.base_classes import BaseSecurityAssessment
 from ..core.base_classes import SecurityFinding
+from ..core.base_classes import VerificationStatus
 from ..core.base_classes import register_assessment
 from .cve.clients.github_client import GitHubAdvisoryClient
 from .cve.clients.nvd_client import NVDClient
@@ -452,6 +453,13 @@ class CVEAssessment(BaseSecurityAssessment):
                 library_version = library.get("version", "")
                 confidence = library.get("confidence", 1.0)
 
+                # Detect whether the version was recovered by path scraping so the
+                # resulting CVE finding can be flagged for manual verification.
+                evidence = library.get("evidence", []) or []
+                version_scraped = any(
+                    isinstance(entry, str) and "path_scrape" in entry for entry in evidence
+                )
+
                 if library_name and library_version:
                     scannable_libraries.append(
                         {
@@ -462,6 +470,7 @@ class CVEAssessment(BaseSecurityAssessment):
                             "source": "library_detection",
                             "file_path": "",
                             "category": "java_library",
+                            "version_source": "scraped" if version_scraped else "declared",
                         }
                     )
                     self.logger.debug(
@@ -1406,6 +1415,23 @@ class CVEAssessment(BaseSecurityAssessment):
 
         file_location = self._create_cve_file_location(context, library_cves, library_lookup)
 
+        # Labeling only: when any affected library's version was recovered by path
+        # scraping (low-confidence, non-authoritative), flag the finding for manual
+        # verification against NVD/OSV instead of treating it as a settled CVE. Does
+        # not alter CVE gating — findings with declared versions keep the default
+        # CONFIRMED status.
+        scraped_libraries = [
+            lib_name
+            for lib_name in library_cves
+            if library_lookup.get(lib_name, {}).get("version_source") == "scraped"
+        ]
+        verification_status = None
+        if scraped_libraries:
+            additional_data["version_source"] = "scraped"
+            additional_data["verify"] = "NVD/OSV"
+            additional_data["scraped_libraries"] = scraped_libraries
+            verification_status = VerificationStatus.NEEDS_REVIEW
+
         return SecurityFinding(
             category=self.owasp_category,
             severity=severity,
@@ -1416,6 +1442,7 @@ class CVEAssessment(BaseSecurityAssessment):
             cve_references=cve_references,
             additional_data=additional_data,
             file_location=file_location,
+            verification_status=verification_status,
         )
 
     def _group_cves_by_library(

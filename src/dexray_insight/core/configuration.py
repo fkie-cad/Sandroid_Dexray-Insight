@@ -197,7 +197,20 @@ class Configuration:
                     "enabled": True,
                     "pii_patterns": ["email", "phone", "ssn", "credit_card"],
                     "crypto_keys_check": True,
+                    # Legacy string-corpus PII scanner; off by default, superseded by the
+                    # dedicated `pii` assessment (validated taxonomy).
+                    "pii_exposure_enabled": False,
                 },
+                # Privacy / PII taxonomy assessment (Phase B1).
+                "pii": {"enabled": True},
+                # FileProvider path-scope + exported-provider analyzer (Phase B2).
+                "provider_paths": {"enabled": True},
+                # Ad-SDK RCE-surface knowledge base (Phase B4).
+                "sdk_risk_surface": {"enabled": True},
+                # Deep xref detectors (Phase C1/C2) — no-op unless --deep.
+                "deep_dataflow": {"enabled": True},
+                # Deep PII-flow correlation (Phase C3) — no-op unless --deep.
+                "pii_flow": {"enabled": True},
                 "broken_access_control": {
                     "enabled": True,
                     "check_exported_components": True,
@@ -225,6 +238,13 @@ class Configuration:
                     "enabled": True,
                     "merge_across_categories": True,
                 },
+            },
+            # Evidence-weighted risk scoring (Phase A). Headline = confirmed-subset score.
+            "risk_scoring": {
+                "version": 2,
+                "headline_mode": "confirmed",
+                "confirmed_threshold": 0.7,
+                "critical_floor": 75.0,
             },
         },
         "output": {

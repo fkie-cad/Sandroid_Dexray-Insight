@@ -41,6 +41,19 @@ from .package_allowlist import FRAMEWORK_PREFIXES
 from .package_allowlist import carries_browsable_or_custom_scheme
 from .package_allowlist import classify_component
 from .package_allowlist import should_downrank
+from .pii_taxonomy import ART9_TOKENS
+from .pii_taxonomy import ENCRYPTION_AT_REST_TOKENS
+from .pii_taxonomy import LIBRARY_EMAIL_DOMAINS
+from .pii_taxonomy import PERMISSION_SINK_MAP
+from .pii_taxonomy import PII_TAXONOMY
+from .pii_taxonomy import PRIVATE_KEY_PREF_TOKENS
+from .pii_taxonomy import SENSITIVE_COLUMN_TOKENS
+from .pii_taxonomy import SENSITIVE_PREF_KEY_TOKENS
+from .pii_taxonomy import PIICategory
+from .pii_taxonomy import PIIPattern
+from .pii_taxonomy import PIIValidator
+from .pii_taxonomy import PIIVerdict
+from .pii_taxonomy import is_placeholder_or_library_email
 from .sinks import extract_algorithm_argument
 from .sinks import has_sink
 from .sinks import list_sink_calls
@@ -65,4 +78,17 @@ __all__ = [
     "should_downrank",
     "carries_browsable_or_custom_scheme",
     "FRAMEWORK_PREFIXES",
+    "PIICategory",
+    "PIIPattern",
+    "PIIVerdict",
+    "PIIValidator",
+    "PII_TAXONOMY",
+    "PERMISSION_SINK_MAP",
+    "ART9_TOKENS",
+    "ENCRYPTION_AT_REST_TOKENS",
+    "SENSITIVE_COLUMN_TOKENS",
+    "SENSITIVE_PREF_KEY_TOKENS",
+    "PRIVATE_KEY_PREF_TOKENS",
+    "LIBRARY_EMAIL_DOMAINS",
+    "is_placeholder_or_library_email",
 ]
