@@ -292,6 +292,63 @@ For project-specific needs, modify **.pre-commit-config.yaml**:
 
 **Remember**: Pre-commit hooks are your first line of defense for code quality. They save time by catching issues early and ensure that all contributions meet the project's quality standards automatically.
 
+Secret Detection and GitHub Push Protection
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Because Dexray Insight *detects* credentials, its test suite and reference data
+deliberately contain realistic-looking sample keys (Stripe, AWS, Google API,
+GitHub tokens, ...). These samples are **synthetic and never live**, but they
+match the same shapes real scanners look for. Two independent systems inspect
+them, and they behave differently.
+
+**1. Local pre-commit (detect-secrets) — under your control**
+
+Every synthetic credential in source or tests must carry an inline allowlist
+pragma so the local hook does not block your commit:
+
+.. code-block:: python
+
+   STRIPE_SECRET = "sk_live_0123456789abcdefghijklmn"  # pragma: allowlist secret
+
+The same pragma works in YAML fixtures (e.g.
+``src/dexray_insight/security/data/known_safe_credentials.yaml``). Prefer
+obviously-synthetic values built from sequential characters such as
+``0123456789abcdef...``; detect-secrets' ``is_sequential_string`` filter treats
+these as non-secrets, giving a second layer of protection beyond the pragma.
+
+Do **not** add these fixture paths to the detect-secrets ``exclude`` list. They
+are scanned on purpose, so that a *real* secret accidentally pasted into them is
+still caught — only the individually pragma'd lines are skipped.
+
+**2. GitHub Push Protection (server-side) — NOT under your control**
+
+GitHub scans every pushed commit against its partner regex patterns. It does
+**not** read detect-secrets pragmas or ``.secrets.baseline``, so a new fixture
+matching a partner pattern (Stripe ``sk_live_`` / ``sk_test_``, AWS, Google
+``AIza`` keys, GitHub tokens, ...) will still block ``git push`` with a
+``GH013`` / "Repository rule violations" error.
+
+When that happens on a **synthetic fixture**:
+
+1. Confirm the value is synthetic (it always should be in this repo).
+2. Open the ``unblock-secret`` URL GitHub prints in the push output.
+3. Select reason **"Used in tests"** (false positive) and confirm.
+4. Re-run ``git push`` — it now succeeds. No history rewrite is needed.
+
+If a push is ever blocked on a **real** credential, do not allow it. Rotate the
+credential at the provider first, then remove it from history
+(``git filter-repo`` or BFG) and force-push — adding a later "delete" commit is
+not enough, because push protection scans the whole pushed history, not just the
+latest state.
+
+**Repository configuration**
+
+``.github/secret_scanning.yml`` lists ``paths-ignore`` entries for the known
+fixture locations. This suppresses secret-scanning *alerts* for those paths once
+Secret Scanning is enabled for the repository. Note that ``paths-ignore`` does
+**not** disable Push Protection — the unblock step above remains the mechanism
+for individual synthetic-fixture pushes.
+
 Types of Contributions
 ----------------------
 
