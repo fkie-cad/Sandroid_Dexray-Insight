@@ -42,6 +42,7 @@
 # # limitations under the License.
 
 import argparse
+import contextlib
 import logging
 import sys
 import time
@@ -356,8 +357,19 @@ def start_apk_static_analysis_new(
             if security_dict:
                 security_result_file_name = dump_security_results_as_json_file(security_dict, name, timestamp)
 
+                # Re-emit the optional Markdown security report so a cached re-run
+                # produces the same artifacts as a fresh run. Reconstruct a minimal
+                # results object carrying the cached security dict for the reporter.
+                from .results.FullAnalysisResults import FullAnalysisResults
+
+                recon_for_md = FullAnalysisResults()
+                recon_for_md.security_assessment = security_dict
+                with contextlib.suppress(Exception):
+                    recon_for_md.apk_overview.update_from_dict(main_dict.get("apk_overview", {}) or {})
+                _maybe_dump_security_markdown(recon_for_md, config, name, timestamp)
+
             if print_results_to_terminal:
-                _print_cached_summary(main_dict, security_dict)
+                _print_cached_summary(main_dict, security_dict, verbose=verbose, config=config)
 
             return cached_payload, result_file_name, security_result_file_name
 
@@ -521,12 +533,34 @@ def _maybe_dump_security_markdown(results, config, name: str, timestamp: str) ->
         return ""
 
 
-def _print_cached_summary(main_dict: dict, security_dict: dict | None):
-    """Print a concise summary for a full-hit cache re-emit.
+def _print_cached_summary(main_dict: dict, security_dict: dict | None, verbose: bool = False, config=None):
+    """Print the analyst summary for a full-hit cache re-emit.
 
-    A cache hit does not reconstruct the rich typed result object, so this prints
-    the key facts directly from the cached dicts. Full detail is in the JSON files.
+    Reconstructs a lightweight :class:`FullAnalysisResults` from the cached dicts —
+    the security assessment dict (rendered verbatim) plus the APK overview — and
+    delegates to ``print_cached_summary`` so the security block (risk scores, TOP
+    RISKS, CONFIRMED tiers) matches a fresh run. On any reconstruction failure this
+    falls back to a concise stub so a cache hit never regresses to zero output.
     """
+    try:
+        from .results.FullAnalysisResults import FullAnalysisResults
+
+        recon = FullAnalysisResults()
+        if security_dict:
+            recon.security_assessment = security_dict
+        # Best-effort restore of the APK-info header. Only apk_overview supports
+        # dict rehydration (Results/in_depth has no update_from_dict); a malformed
+        # overview must not sink the whole summary.
+        with contextlib.suppress(Exception):
+            recon.apk_overview.update_from_dict(main_dict.get("apk_overview", {}) or {})
+        recon.print_cached_summary(verbose=verbose, config=config)
+    except Exception as e:
+        logging.debug(f"Rich cached summary failed, printing concise stub: {e}")
+        _print_cached_summary_stub(main_dict, security_dict)
+
+
+def _print_cached_summary_stub(main_dict: dict, security_dict: dict | None):
+    """Concise fallback summary printed only if the rich cached summary fails."""
     try:
         overview = main_dict.get("apk_overview", {}) or {}
         general = overview.get("general_info", {}) or {}
@@ -544,7 +578,7 @@ def _print_cached_summary(main_dict: dict, security_dict: dict | None):
                 print(f"Security Findings: {len(findings)}")
         print("💡 Full details saved to the JSON output file(s).")
     except Exception as e:
-        logging.debug(f"Could not print cached summary: {e}")
+        logging.debug(f"Could not print cached summary stub: {e}")
 
 
 class ArgParser(argparse.ArgumentParser):

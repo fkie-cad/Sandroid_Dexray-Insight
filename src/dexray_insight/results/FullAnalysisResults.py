@@ -170,6 +170,33 @@ class FullAnalysisResults:
         self._print_component_behavior_summary()
         self._print_summary_footer()
 
+    def print_cached_summary(self, verbose: bool = False, config: Any = None):
+        """Print the analyst summary for a full-hit cache re-emit.
+
+        A cache hit rehydrates only the ``apk_overview`` and ``security_assessment``
+        dicts (no Androguard object, no typed string/library/tracker results). This
+        renders exactly the sections whose data survives that reconstruction, reusing
+        the same private section renderers as :meth:`print_analyst_summary` so the
+        security block (risk scores, TOP RISKS, CONFIRMED tiers) is byte-for-byte
+        identical to a fresh run. Sections whose typed data is absent are intentionally
+        skipped rather than printed with misleading defaults.
+
+        Args:
+            verbose: Threaded into the security-summary tiering (see
+                :meth:`print_analyst_summary`).
+            config: Optional Configuration controlling report thresholds / ``top_n``.
+        """
+        # Report-scoped display preferences, read by the security-summary section.
+        self._report_verbose = verbose
+        self._report_config = config
+
+        print("\n" + "=" * 80)
+        print("📱 DEXRAY INSIGHT ANALYSIS SUMMARY (from cache)")
+        print("=" * 80)
+        self._print_apk_information()
+        self._print_security_assessment_summary()
+        self._print_summary_footer()
+
     def _print_summary_header(self):
         """Print formatted header for analysis summary.
 
