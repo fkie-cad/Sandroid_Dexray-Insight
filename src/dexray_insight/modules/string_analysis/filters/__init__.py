@@ -33,5 +33,14 @@ from .android_properties_filter import AndroidPropertiesFilter
 from .domain_filter import DomainFilter
 from .email_filter import EmailFilter
 from .network_filter import NetworkFilter
+from .public_suffix import PublicSuffixList
+from .public_suffix import get_public_suffix_list
 
-__all__ = ["EmailFilter", "NetworkFilter", "DomainFilter", "AndroidPropertiesFilter"]
+__all__ = [
+    "EmailFilter",
+    "NetworkFilter",
+    "DomainFilter",
+    "AndroidPropertiesFilter",
+    "PublicSuffixList",
+    "get_public_suffix_list",
+]

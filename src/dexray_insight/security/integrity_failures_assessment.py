@@ -28,6 +28,7 @@ from ..core.base_classes import AnalysisSeverity
 from ..core.base_classes import BaseSecurityAssessment
 from ..core.base_classes import SecurityFinding
 from ..core.base_classes import register_assessment
+from .evidence import list_sink_calls
 
 
 @register_assessment("integrity_failures")
@@ -40,6 +41,10 @@ class IntegrityFailuresAssessment(BaseSecurityAssessment):
         self.logger = logging.getLogger(__name__)
         self.owasp_category = "A08:2021-Software and Data Integrity Failures"
 
+        # Retained for backward-compatible attribute access, but the bare
+        # "Serializable"/"Gson"/"Jackson" substrings are no longer used to raise a
+        # HIGH RCE finding - they matched nearly every app. Deserialization RCE now
+        # requires a real ObjectInputStream.readObject sink (see evidence.sinks).
         self.deserialization_patterns = [
             r"ObjectInputStream.*readObject\(",
             r"Gson.*fromJson\(",
@@ -69,86 +74,84 @@ class IntegrityFailuresAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_unsafe_deserialization(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
+        """Flag unsafe deserialization only when a real readObject sink exists.
+
+        The former behaviour also matched bare "Serializable"/"Gson.fromJson"
+        substrings, which raised a HIGH RCE finding on nearly every app. Those
+        substrings are not evidence of untrusted-data deserialization, so the HIGH
+        finding now requires a ``java.io.ObjectInputStream.readObject`` sink.
+        """
         findings = []
 
-        # Check API invocation for deserialization usage
-        api_results = analysis_results.get("api_invocation", {})
-        api_data = api_results.to_dict() if hasattr(api_results, "to_dict") else api_results
-        api_calls = api_data.get("api_calls", [])
+        sink_calls = list_sink_calls(analysis_results, "deserialization")
+        if not sink_calls:
+            return findings
 
-        deserialization_usage = []
+        deserialization_usage = [
+            f"Unsafe deserialization: {c.get('called_class', '')}.{c.get('called_method', '')}"
+            for c in sink_calls
+        ]
 
-        for api_call in api_calls:
-            if isinstance(api_call, dict):
-                called_method = api_call.get("called_method", "")
-                called_class = api_call.get("called_class", "")
-
-                if "readObject" in called_method and "ObjectInputStream" in called_class:
-                    deserialization_usage.append(f"Unsafe deserialization: {called_class}.{called_method}")
-
-        # Check strings for deserialization patterns
-        string_results = analysis_results.get("string_analysis", {})
-        string_data = string_results.to_dict() if hasattr(string_results, "to_dict") else string_results
-        all_strings = string_data.get("all_strings", [])
-
-        for string in all_strings:
-            if isinstance(string, str):
-                for pattern in self.deserialization_patterns:
-                    import re
-
-                    if re.search(pattern, string, re.IGNORECASE):
-                        deserialization_usage.append(f"Deserialization pattern: {string[:80]}...")
-                        break
-
-        if deserialization_usage:
-            findings.append(
-                SecurityFinding(
-                    category=self.owasp_category,
-                    severity=AnalysisSeverity.HIGH,
-                    title="Unsafe Deserialization Detected",
-                    description="Application uses deserialization mechanisms that could allow remote code execution if untrusted data is processed.",
-                    evidence=deserialization_usage[:8],
-                    recommendations=[
-                        "Avoid deserializing untrusted data",
-                        "Use safe serialization formats like JSON with schema validation",
-                        "Implement input validation before deserialization",
-                        "Use allowlists for deserializable classes",
-                        "Consider alternative data exchange formats",
-                    ],
-                )
+        findings.append(
+            SecurityFinding(
+                category=self.owasp_category,
+                severity=AnalysisSeverity.HIGH,
+                title="Unsafe Deserialization Detected",
+                description="Application uses deserialization mechanisms that could allow remote code execution if untrusted data is processed.",
+                evidence=deserialization_usage[:8],
+                confidence=0.8,
+                recommendations=[
+                    "Avoid deserializing untrusted data",
+                    "Use safe serialization formats like JSON with schema validation",
+                    "Implement input validation before deserialization",
+                    "Use allowlists for deserializable classes",
+                    "Consider alternative data exchange formats",
+                ],
             )
+        )
 
         return findings
 
     def _assess_missing_integrity_controls(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
+        """Report integrity-hardening posture as a single low-confidence note.
+
+        Previously each missing control (cert pinning, signature verification)
+        emitted its own MEDIUM finding. Absence of a hardening measure is not a
+        vulnerability, so these are folded into one low-confidence posture finding.
+        """
         findings = []
 
         string_results = analysis_results.get("string_analysis", {})
         string_data = string_results.to_dict() if hasattr(string_results, "to_dict") else string_results
         all_strings = string_data.get("all_strings", [])
+        if not isinstance(all_strings, list):
+            all_strings = []
 
-        integrity_issues = []
+        posture_notes = []
 
-        # Check for certificate pinning
         has_cert_pinning = any("pin" in s.lower() and "cert" in s.lower() for s in all_strings if isinstance(s, str))
         if not has_cert_pinning:
-            integrity_issues.append("No certificate pinning implementation detected")
+            posture_notes.append("No certificate pinning implementation detected")
 
-        # Check for signature verification
         has_signature_check = any(
             "signature" in s.lower() and "verify" in s.lower() for s in all_strings if isinstance(s, str)
         )
         if not has_signature_check:
-            integrity_issues.append("No signature verification implementation detected")
+            posture_notes.append("No signature verification implementation detected")
 
-        if integrity_issues:
+        if posture_notes:
             findings.append(
                 SecurityFinding(
                     category=self.owasp_category,
-                    severity=AnalysisSeverity.MEDIUM,
-                    title="Missing Integrity Controls",
-                    description="Application lacks essential integrity verification mechanisms.",
-                    evidence=integrity_issues,
+                    severity=AnalysisSeverity.LOW,
+                    title="Integrity Hardening Posture",
+                    description=(
+                        "Informational: the app does not appear to implement optional integrity-hardening "
+                        "controls. Absence is not itself a vulnerability; review whether these controls are "
+                        "warranted for this app's threat model."
+                    ),
+                    evidence=posture_notes,
+                    confidence=0.2,
                     recommendations=[
                         "Implement certificate pinning for network communications",
                         "Add signature verification for critical operations",

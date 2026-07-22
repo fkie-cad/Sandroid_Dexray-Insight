@@ -60,6 +60,7 @@ from .core import AnalysisEngine
 from .core import Configuration
 from .Utils import androguardObjClass
 from .Utils.file_utils import dump_json
+from .Utils.file_utils import dump_text
 from .Utils.file_utils import split_path_file_extension
 from .Utils.log import set_logger
 
@@ -136,6 +137,12 @@ def _process_security_flags(args, config_updates: dict) -> None:
     """
     if hasattr(args, "sec") and args.sec:
         config_updates.setdefault("security", {})["enable_owasp_assessment"] = True
+
+    # Markdown security report is a pure output preference; enable it independently.
+    if hasattr(args, "security_report_md") and args.security_report_md:
+        output_updates = config_updates.setdefault("output", {})
+        security_report = output_updates.setdefault("security_report", {})
+        security_report.setdefault("markdown", {})["enabled"] = True
 
 
 def _process_cve_flags(args, config_updates: dict) -> None:
@@ -262,8 +269,15 @@ def _build_configuration_updates(args) -> dict:
     return config_updates
 
 
-def _print_analysis_results_to_terminal(results, verbose: bool):
-    """Print analysis results to the terminal using the appropriate format."""
+def _print_analysis_results_to_terminal(results, verbose: bool, config=None):
+    """Print analysis results to the terminal using the appropriate format.
+
+    Args:
+        results: The analysis results object (or dict).
+        verbose: When True, show full JSON output; otherwise the analyst summary.
+        config: Optional Configuration, threaded into the analyst summary so the
+            ranked TOP-RISKS / tier thresholds and ``top_n`` come from config.
+    """
     # Use analyst-friendly summary by default, full JSON if verbose is enabled
     if verbose:
         # Verbose mode: show full JSON output
@@ -272,9 +286,9 @@ def _print_analysis_results_to_terminal(results, verbose: bool):
         else:
             print(results.to_json() if hasattr(results, "to_json") else str(results))
     else:
-        # Default mode: show analyst-friendly summary
+        # Default mode: show analyst-friendly summary (ranked TOP RISKS + tiers)
         if hasattr(results, "print_analyst_summary"):
-            results.print_analyst_summary()
+            results.print_analyst_summary(verbose=verbose, config=config)
         elif hasattr(results, "print_results"):
             results.print_results()
         else:
@@ -344,7 +358,7 @@ def start_apk_static_analysis_new(
         results = engine.analyze_apk(apk_file_path, androguard_obj=androguard_obj, timestamp=timestamp)
 
         if print_results_to_terminal:
-            _print_analysis_results_to_terminal(results, verbose)
+            _print_analysis_results_to_terminal(results, verbose, config)
 
         # Save results to file
         result_file_name = dump_results_as_json_file(results, name, timestamp)
@@ -353,6 +367,9 @@ def start_apk_static_analysis_new(
         # Save separate security results file if security assessment was performed
         if hasattr(results, "security_assessment") and results.security_assessment:
             security_result_file_name = dump_security_results_as_json_file(results, name, timestamp)
+
+            # Optional human-readable Markdown security report (config-gated).
+            _maybe_dump_security_markdown(results, config, name, timestamp)
 
         return results, result_file_name, security_result_file_name
 
@@ -419,6 +436,70 @@ def dump_security_results_as_json_file(results, filename: str, timestamp: str = 
         dump_json(safe_filename, security_dict)
         return safe_filename
     return ""
+
+
+def dump_security_report_as_markdown(results, filename: str, timestamp: str = None, config=None) -> str:
+    """Save a human-readable Markdown security report beside the JSON writers.
+
+    Uses :class:`MarkdownSecurityReporter` to render a ranked / tiered report from
+    the analysis results. Returns the written filename, or "" when there is nothing
+    to write.
+
+    Args:
+        results: FullAnalysisResults object or a dict with apk_overview/security_assessment.
+        filename: Base APK name used to build the output filename.
+        timestamp: Shared run timestamp; generated when omitted.
+        config: Optional Configuration controlling report thresholds and top_n.
+    """
+    from .results.reporting.markdown_report import MarkdownSecurityReporter
+
+    if timestamp is None:
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+    # Nothing to report without a security assessment.
+    has_security = (isinstance(results, dict) and results.get("security_assessment")) or getattr(
+        results, "security_assessment", None
+    )
+    if not has_security:
+        return ""
+
+    top_n = 5
+    if config is not None:
+        try:
+            security_report_cfg = config.get_output_config().get("security_report", {}) or {}
+            top_n = int(security_report_cfg.get("top_n", 5))
+        except Exception:
+            top_n = 5
+
+    reporter = MarkdownSecurityReporter(top_n=top_n, config=config)
+    markdown = reporter.generate(results)
+
+    base_filename = filename.replace(" ", "_")
+    safe_filename = f"dexray_{base_filename}_security_{timestamp}.md"
+    dump_text(safe_filename, markdown)
+    return safe_filename
+
+
+def _maybe_dump_security_markdown(results, config, name: str, timestamp: str) -> str:
+    """Write the Markdown security report if output.security_report.markdown.enabled.
+
+    Returns the written filename (or "") and never raises: a report-rendering
+    failure must not abort the analysis run.
+    """
+    try:
+        if config is None:
+            return ""
+        output_cfg = config.get_output_config() if hasattr(config, "get_output_config") else {}
+        markdown_cfg = (output_cfg.get("security_report", {}) or {}).get("markdown", {}) or {}
+        if not markdown_cfg.get("enabled", False):
+            return ""
+        report_file = dump_security_report_as_markdown(results, name, timestamp, config)
+        if report_file:
+            print(f"[*] Markdown security report saved to: {report_file}")
+        return report_file
+    except Exception as e:
+        logging.debug(f"Markdown security report generation failed: {e}")
+        return ""
 
 
 def _print_cached_summary(main_dict: dict, security_dict: dict | None):
@@ -584,6 +665,16 @@ def _add_security_arguments(args_group):
         help=(
             "Clear the analysis result cache (~/.dexray_insight/analysis_cache) before "
             "analysis. Does not affect the CVE cache (see --clear-cve-cache)."
+        ),
+    )
+    args_group.add_argument(
+        "--security-report-md",
+        required=False,
+        action="store_true",
+        help=(
+            "Write a human-readable Markdown security report (ranked TOP RISKS + "
+            "Confirmed / Needs-review / Informational tiers) alongside the JSON output. "
+            "Equivalent to setting output.security_report.markdown.enabled in config."
         ),
     )
 

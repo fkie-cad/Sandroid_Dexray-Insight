@@ -61,6 +61,12 @@ class StringAnalysisResult(BaseResult):
     android_properties: dict[str, str] = None
     all_strings: list[str] = None  # Store all filtered strings for security analysis
     total_strings_analyzed: int = 0
+    # True (uncapped) count per category, preserved even when the sample lists
+    # above are capped to max_samples_per_category.
+    category_counts: dict[str, int] = None
+    # Full, uncapped category lists kept available for downstream modules that
+    # need complete recall (not serialized into the compact report).
+    full_categories: dict[str, Any] = None
 
     def __post_init__(self):
         """Initialize default values for optional fields."""
@@ -76,6 +82,10 @@ class StringAnalysisResult(BaseResult):
             self.android_properties = {}
         if self.all_strings is None:
             self.all_strings = []
+        if self.category_counts is None:
+            self.category_counts = {}
+        if self.full_categories is None:
+            self.full_categories = {}
 
     def to_dict(self) -> dict[str, Any]:
         """Convert result to dictionary."""
@@ -89,6 +99,7 @@ class StringAnalysisResult(BaseResult):
                 "android_properties": self.android_properties,
                 "all_strings": self.all_strings,
                 "total_strings_analyzed": self.total_strings_analyzed,
+                "category_counts": self.category_counts,
             }
         )
         return base_dict
@@ -110,6 +121,11 @@ class StringAnalysisModule(BaseAnalysisModule):
         # Configuration options
         self.min_string_length = config.get("min_string_length", 3)
         self.exclude_patterns = config.get("exclude_patterns", [])
+
+        # Cap on the number of materialized samples surfaced per category. The
+        # true total count is always preserved (see _apply_all_filters); this
+        # only bounds the flat sample list so reports never balloon.
+        self.max_samples_per_category = config.get("max_samples_per_category", 1000)
 
         # Pattern enablement flags
         self.patterns = {
@@ -182,6 +198,8 @@ class StringAnalysisModule(BaseAnalysisModule):
                 android_properties=results["android_properties"],
                 all_strings=list(all_strings),  # Convert set to list for JSON serialization
                 total_strings_analyzed=len(all_strings),
+                category_counts=results.get("category_counts", {}),
+                full_categories=results.get("full_categories", {}),
             )
 
         except Exception as e:
@@ -206,46 +224,73 @@ class StringAnalysisModule(BaseAnalysisModule):
         Returns:
             Dictionary with filtered results for each category
         """
-        results = {"emails": [], "ip_addresses": [], "urls": [], "domains": [], "android_properties": {}}
+        # Full (uncapped) results computed first; capping happens at the end.
+        full = {"emails": [], "ip_addresses": [], "urls": [], "domains": [], "android_properties": {}}
 
         self.logger.debug(f"🔍 CATEGORIZING {len(strings)} FILTERED STRINGS:")
 
         # Apply email filter
         if self.patterns.get("email_addresses", True):
-            results["emails"] = self.email_filter.filter_emails(strings)
-            self.logger.debug(f"   📧 Email addresses found: {len(results['emails'])}")
-            if results["emails"] and len(results["emails"]) <= 5:
-                self.logger.debug(f"      Sample emails: {results['emails']}")
+            full["emails"] = self.email_filter.filter_emails(strings)
+            self.logger.debug(f"   📧 Email addresses found: {len(full['emails'])}")
 
-        # Apply network filter for IPs and URLs
-        if self.patterns.get("ip_addresses", True):
-            results["ip_addresses"] = self.network_filter.filter_ip_addresses(strings)
-            self.logger.debug(f"   🌐 IP addresses found: {len(results['ip_addresses'])}")
-            if results["ip_addresses"] and len(results["ip_addresses"]) <= 5:
-                self.logger.debug(f"      Sample IPs: {results['ip_addresses']}")
-
+        # Apply URL filter FIRST so IPs embedded in URLs can be used as a
+        # provenance allowlist for the IP filter (URL netloc IPs are trusted).
+        trusted_ips: set[str] = set()
         if self.patterns.get("urls", True):
-            results["urls"] = self.network_filter.filter_urls(strings)
-            self.logger.debug(f"   🔗 URLs found: {len(results['urls'])}")
-            if results["urls"] and len(results["urls"]) <= 5:
-                self.logger.debug(f"      Sample URLs: {results['urls']}")
+            full["urls"] = self.network_filter.filter_urls(strings)
+            trusted_ips = self.network_filter.extract_ips_from_urls(full["urls"])
+            self.logger.debug(f"   🔗 URLs found: {len(full['urls'])}")
+
+        # Apply IP filter, passing the URL-embedded IPs as a trusted allowlist.
+        if self.patterns.get("ip_addresses", True):
+            full["ip_addresses"] = self.network_filter.filter_ip_addresses(strings, trusted_ips=trusted_ips)
+            self.logger.debug(f"   🌐 IP addresses found: {len(full['ip_addresses'])}")
 
         # Apply domain filter
         if self.patterns.get("domains", True):
-            results["domains"] = self.domain_filter.filter_domains(strings)
-            self.logger.debug(f"   🏠 Domains found: {len(results['domains'])}")
-            if results["domains"] and len(results["domains"]) <= 5:
-                self.logger.debug(f"      Sample domains: {results['domains']}")
+            full["domains"] = self.domain_filter.filter_domains(strings)
+            self.logger.debug(f"   🏠 Domains found: {len(full['domains'])}")
 
         # Apply Android properties filter
         if self.patterns.get("android_properties", True):
             # Convert strings set to list for Android properties filter
-            android_props, remaining = self.android_properties_filter.filter_android_properties(list(strings))
-            results["android_properties"] = android_props
+            android_props, _remaining = self.android_properties_filter.filter_android_properties(list(strings))
+            full["android_properties"] = android_props
             self.logger.debug(f"   🤖 Android properties found: {len(android_props)}")
-            if android_props and len(android_props) <= 3:
-                self.logger.debug(f"      Found properties: {list(android_props.keys())}")
 
+        # Cap materialized samples per category while preserving true totals.
+        return self._cap_and_bucket(full)
+
+    def _cap_and_bucket(self, full: dict[str, Any]) -> dict[str, Any]:
+        """
+        Bucket + cap each category to max_samples_per_category.
+
+        The emitted sample lists are bounded, but the true total count is always
+        preserved (in ``category_counts``) and the complete lists remain
+        available internally (in ``full_categories``) for downstream modules.
+
+        Args:
+            full: Uncapped per-category results
+
+        Returns:
+            Dictionary with capped samples plus ``category_counts`` and
+            ``full_categories`` metadata.
+        """
+        cap = self.max_samples_per_category
+        results: dict[str, Any] = {}
+        counts: dict[str, int] = {}
+
+        for key, value in full.items():
+            if isinstance(value, dict):
+                counts[key] = len(value)
+                results[key] = dict(list(value.items())[:cap]) if cap and len(value) > cap else value
+            else:
+                counts[key] = len(value)
+                results[key] = value[:cap] if cap and len(value) > cap else value
+
+        results["category_counts"] = counts
+        results["full_categories"] = full
         return results
 
     def _log_analysis_summary(self, results: dict[str, list]):
@@ -255,35 +300,41 @@ class StringAnalysisModule(BaseAnalysisModule):
         Args:
             results: Dictionary with analysis results
         """
+        # Prefer true (uncapped) counts and full lists when available.
+        counts = results.get("category_counts", {})
+        full = results.get("full_categories", results)
+
+        def _count(key):
+            return counts.get(key, len(results.get(key, [])))
+
         self.logger.info("📊 STRING ANALYSIS SUMMARY:")
-        self.logger.info(f"   📧 Email addresses: {len(results['emails'])}")
-        self.logger.info(f"   🌐 IP addresses: {len(results['ip_addresses'])}")
-        self.logger.info(f"   🔗 URLs: {len(results['urls'])}")
-        self.logger.info(f"   🏠 Domain names: {len(results['domains'])}")
-        self.logger.info(f"   🤖 Android properties: {len(results['android_properties'])}")
+        self.logger.info(f"   📧 Email addresses: {_count('emails')}")
+        self.logger.info(f"   🌐 IP addresses: {_count('ip_addresses')}")
+        self.logger.info(f"   🔗 URLs: {_count('urls')}")
+        self.logger.info(f"   🏠 Domain names: {_count('domains')}")
+        self.logger.info(f"   🤖 Android properties: {_count('android_properties')}")
 
         total_found = (
-            len(results["emails"])
-            + len(results["ip_addresses"])
-            + len(results["urls"])
-            + len(results["domains"])
-            + len(results["android_properties"])
+            _count("emails")
+            + _count("ip_addresses")
+            + _count("urls")
+            + _count("domains")
+            + _count("android_properties")
         )
         self.logger.info(f"   ✅ Total categorized strings: {total_found}")
 
         # Log interesting findings
-        if results["android_properties"]:
-            security_props = self.android_properties_filter.get_security_relevant_properties(
-                results["android_properties"]
-            )
+        android_props = full.get("android_properties", results.get("android_properties", {}))
+        if android_props:
+            security_props = self.android_properties_filter.get_security_relevant_properties(android_props)
             if security_props:
                 self.logger.info(f"   🔒 Security-relevant properties found: {len(security_props)}")
 
-        if results["ip_addresses"]:
-            ip_classifications = self.network_filter.classify_ip_addresses(results["ip_addresses"])
-            public_ips = len(ip_classifications.get("Public IPv4", []))
-            if public_ips > 0:
-                self.logger.info(f"   🌍 Public IP addresses found: {public_ips}")
+        ip_list = full.get("ip_addresses", results.get("ip_addresses", []))
+        if ip_list:
+            global_ips = self.network_filter.get_global_ips(ip_list)
+            if global_ips:
+                self.logger.info(f"   🌍 Public (globally routable) IP addresses found: {len(global_ips)}")
 
     def _validate_configuration(self) -> bool:
         """

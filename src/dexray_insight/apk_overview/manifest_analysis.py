@@ -145,9 +145,11 @@ def get_browsable_activities(node, ns):
         path_patterns = []
         well_known = {}
         well_known_path = "/.well-known/assetlinks.json"
+        has_browsable = False
         catg = node.getElementsByTagName("category")
         for cat in catg:
             if cat.getAttribute(f"{ns}:name") == "android.intent.category.BROWSABLE":
+                has_browsable = True
                 data_tag = node.getElementsByTagName("data")
                 for data in data_tag:
                     scheme = data.getAttribute(f"{ns}:scheme")
@@ -190,7 +192,12 @@ def get_browsable_activities(node, ns):
         browse_dic["paths"] = paths
         browse_dic["path_prefixs"] = path_prefixs
         browse_dic["path_patterns"] = path_patterns
-        browse_dic["browsable"] = bool(browse_dic["schemes"])
+        # An activity is browsable if it declares the BROWSABLE category, even when it
+        # carries no <data> scheme. Such scheme-less VIEW+BROWSABLE filters are catch-all
+        # deep-link entry points (e.g. InternalDeeplinkActivity) — the highest-risk IPC
+        # surface — and were previously dropped because browsable required a scheme.
+        browse_dic["browsable"] = has_browsable
+        browse_dic["catch_all"] = has_browsable and not schemes and not hosts and not mime_types
         browse_dic["well_known"] = well_known
         return browse_dic
     except Exception:
@@ -655,6 +662,56 @@ def _build_permissions_output(man_data_dic):
     return permissions
 
 
+def _extract_manifest_security(mfxml, ns):
+    """Extract structured application-level security facts from the manifest.
+
+    Single Responsibility: Surface manifest security attributes as structured
+    booleans/values (not finding tuples) so downstream security assessments can
+    reason about them directly instead of re-parsing findings.
+
+    This complements ``_analyze_application_configuration`` (which emits report
+    findings); it does not replace it.
+
+    Returns:
+        dict with keys:
+            uses_cleartext_traffic (bool): value of android:usesCleartextTraffic
+            network_security_config (str | None): value of
+                android:networkSecurityConfig, or None when the attribute is
+                absent
+            allow_backup (bool | None): True/False when android:allowBackup is
+                set; None when the attribute is absent (i.e. platform default,
+                treated as "unknown" by callers to avoid false positives)
+            debuggable (bool): value of android:debuggable
+    """
+    uses_cleartext_traffic = False
+    network_security_config = None
+    allow_backup = None
+    debuggable = False
+
+    applications = mfxml.getElementsByTagName("application")
+    for application in applications:
+        if application.getAttribute(f"{ns}:usesCleartextTraffic") == "true":
+            uses_cleartext_traffic = True
+        nsc = application.getAttribute(f"{ns}:networkSecurityConfig")
+        if nsc:
+            network_security_config = nsc
+        if application.getAttribute(f"{ns}:debuggable") == "true":
+            debuggable = True
+        backup_attr = application.getAttribute(f"{ns}:allowBackup")
+        if backup_attr == "true":
+            allow_backup = True
+        elif backup_attr == "false":
+            allow_backup = False
+        # attribute absent -> leave allow_backup as None (unknown/default)
+
+    return {
+        "uses_cleartext_traffic": uses_cleartext_traffic,
+        "network_security_config": network_security_config,
+        "allow_backup": allow_backup,
+        "debuggable": debuggable,
+    }
+
+
 def _determine_network_security_requirements(mfxml, ns):
     """Determine network security analysis requirements from the manifest.
 
@@ -747,6 +804,9 @@ def manifest_analysis(checksum, mfxml, ns, man_data_dic, src_type, app_dir):
         # Phase 14: Determine network security analysis requirements
         do_netsec, debuggable = _determine_network_security_requirements(mfxml, ns)
 
+        # Phase 14b: Extract structured manifest security facts for assessments
+        manifest_security = _extract_manifest_security(mfxml, ns)
+
         # Phase 15: Build final result dictionary
         man_an_dic = {
             "manifest_anal": processed_findings + network_security_findings,
@@ -757,6 +817,7 @@ def manifest_analysis(checksum, mfxml, ns, man_data_dic, src_type, app_dir):
             "exported_cnt": exported_comp,
             "browsable_activities": browsable_activities,
             "permissions": permissions,
+            "manifest_security": manifest_security,
             "network_security": network_security_analysis(checksum, app_dir, do_netsec, debuggable, src_type),
         }
         return man_an_dic

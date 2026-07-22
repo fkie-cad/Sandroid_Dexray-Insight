@@ -41,6 +41,10 @@ setup: ## Create virtual environment and install dependencies
 clean-env: ## Remove virtual environment
 	rm -rf $(VENV)
 
+.PHONY: update-psl
+update-psl: ## Refresh the bundled Public Suffix List (maintainer only; downloads from publicsuffix.org)
+	$(PYTHON) scripts/update_psl.py
+
 # Testing Commands
 .PHONY: test
 test: ## Run all tests

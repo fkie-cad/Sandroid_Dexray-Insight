@@ -77,6 +77,9 @@ class Configuration:
                     "base64_strings": True,
                 },
                 "filters": {"min_string_length": 2, "exclude_patterns": []},
+                # Cap on materialized samples surfaced per category (emails, IPs,
+                # URLs, domains, android_properties). True totals are preserved.
+                "max_samples_per_category": 1000,
             },
             "api_invocation": {"enabled": False, "priority": 40, "reflection_analysis": True},
             "manifest_analysis": {
@@ -208,6 +211,21 @@ class Configuration:
                 "vulnerable_components": {"enabled": True, "check_known_libraries": True},
                 "insufficient_logging": {"enabled": True, "check_logging_practices": True},
             },
+            # PR-7: context analysis / false-positive post-processing pass. Default ON
+            # (per rollout decision); the pass is a safety no-op for non-secret findings.
+            "context_analysis": {
+                "enabled": True,
+                "allow_severity_downgrade": True,
+                "max_context_strings": 5000,
+                "false_positive": {
+                    "downgrade_high_threshold": 0.8,
+                    "downgrade_medium_threshold": 0.5,
+                },
+                "dedup": {
+                    "enabled": True,
+                    "merge_across_categories": True,
+                },
+            },
         },
         "output": {
             "format": "json",
@@ -215,6 +233,18 @@ class Configuration:
             "include_timestamps": True,
             "output_directory": "./results",
             "filename_template": "asam_{apk_name}_{timestamp}.json",
+            # Ranked / tiered security report (PR-9). Controls the terminal analyst
+            # summary's TOP-RISKS count and tier thresholds, and the optional
+            # Markdown security report writer.
+            "security_report": {
+                "top_n": 5,  # findings surfaced in the TOP RISKS section
+                "tiers": {
+                    "high_confidence_min": 0.75,  # confirmed tier: confidence >= this AND crit/high
+                    "review_min": 0.40,  # needs-review floor; below -> informational
+                },
+                "show_informational": False,  # print the informational tier in the terminal
+                "markdown": {"enabled": False},  # write a Markdown security report file
+            },
         },
         "logging": {
             "level": "INFO",
@@ -345,6 +375,14 @@ class Configuration:
     def get_security_config(self) -> dict[str, Any]:
         """Get security assessment configuration."""
         return self.config.get("security", {})
+
+    def get_context_analysis_config(self) -> dict[str, Any]:
+        """Get the security context-analysis / false-positive post-processing config.
+
+        Returns the ``security.context_analysis`` block (PR-7). Returns an empty dict
+        when absent, which the post-processor treats as disabled (no-op) for safety.
+        """
+        return self.config.get("security", {}).get("context_analysis", {})
 
     def get_output_config(self) -> dict[str, Any]:
         """Get output configuration."""

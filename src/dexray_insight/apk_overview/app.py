@@ -468,6 +468,10 @@ def analyze_apk(apk_path, apk_overview, app_dic, permissions_details=False):
         "directory_listing": directory_listing,
         "is_cross_platform": is_cross_platform,
         "cross_platform_framework": cross_platform_framework,
+        # Manifest-derived data previously discarded; surfaced for security assessments
+        "browsable_activities": man_analysis.get("browsable_activities", {}),
+        "network_security": man_analysis.get("network_security", []),
+        "manifest_security": man_analysis.get("manifest_security", {}),
     }
 
     _add_certificates_and_permissions_details(apk_analysis, apk_overview, man_data, permissions_details)

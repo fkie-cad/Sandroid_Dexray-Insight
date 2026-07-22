@@ -38,6 +38,7 @@ from .BehaviourAnalysisResults import BehaviourAnalysisResults
 from .InDepthAnalysisResults import Results
 from .kavanozResults import KavanozResults
 from .LibraryDetectionResults import LibraryDetectionResults
+from .reporting import risk_ranking
 from .TrackerAnalysisResults import TrackerAnalysisResults
 
 
@@ -130,7 +131,7 @@ class FullAnalysisResults:
         """Print the combined results as a JSON string."""
         print(self.to_json())
 
-    def print_analyst_summary(self):
+    def print_analyst_summary(self, verbose: bool = False, config: Any = None):
         """Print a concise, analyst-friendly summary of the analysis results.
 
         Shows key findings with truncated details for better readability.
@@ -147,7 +148,18 @@ class FullAnalysisResults:
         - Tool analysis results
         - Component and behavior analysis
         - Footer formatting
+
+        Args:
+            verbose: When True, the low-confidence / informational finding tier is
+                printed in full. When False (default) it is collapsed to a one-line
+                "N hidden - rerun with -v" notice.
+            config: Optional Configuration (or dict) controlling report thresholds and
+                ``top_n``. Absent config falls back to sensible defaults.
         """
+        # Report-scoped display preferences, read by the security-summary section.
+        self._report_verbose = verbose
+        self._report_config = config
+
         # Use refactored single-responsibility functions for each section
         self._print_summary_header()
         self._print_apk_information()
@@ -317,6 +329,28 @@ class FullAnalysisResults:
                 if len(self.in_depth_analysis.dotnet_mono_assemblies) > 3:
                     print(f"   ... and {len(self.in_depth_analysis.dotnet_mono_assemblies) - 3} more")
 
+    # Severity weights mirror core/security_engine.py risk scoring.
+    _SEVERITY_WEIGHT = {"critical": 10, "high": 7, "medium": 4, "low": 1, "info": 0}
+
+    @staticmethod
+    def _finding_severity_str(finding: dict) -> str:
+        """Coerce a finding's severity (enum | {'value': ...} | str) to a lower-case string.
+
+        Thin wrapper delegating to the pure :mod:`results.reporting.risk_ranking`
+        module (single source of truth) while preserving the historical call site.
+        """
+        return risk_ranking.severity_str(finding)
+
+    @classmethod
+    def _finding_rank_key(cls, finding: dict) -> tuple:
+        """Ranking key for a finding: (severity_weight × confidence, has_location, title).
+
+        Delegates to :func:`results.reporting.risk_ranking._rank_key`, the shared,
+        unit-tested ranking primitive. Kept as a classmethod so existing callers/tests
+        continue to work unchanged.
+        """
+        return risk_ranking._rank_key(finding)
+
     def _print_security_assessment_summary(self):
         """
         Print security assessment results with findings and risk scoring.
@@ -345,17 +379,32 @@ class FullAnalysisResults:
 
             total_findings = self.security_assessment.get("total_findings", 0)
             risk_score = self.security_assessment.get("overall_risk_score", 0)
+            risk_score_confirmed = self.security_assessment.get("risk_score_confirmed")
 
             print(f"Security Findings: {total_findings}")
-            print(f"Risk Score: {risk_score:.2f}/100")
+            # Show the score PAIR (all-findings vs confirmed-only) and label it a triage
+            # aid: the first weights every finding by confidence, the second counts only
+            # high-confidence findings. Neither is a verdict on its own.
+            if risk_score_confirmed is not None:
+                print(
+                    f"Risk Score (triage aid): {risk_score:.2f}/100 "
+                    f"(confirmed-only: {risk_score_confirmed:.2f}/100)"
+                )
+            else:
+                print(f"Risk Score (triage aid): {risk_score:.2f}/100")
 
-            # Show findings by severity
+            # Show findings by severity, most-severe first (not dict insertion order).
             findings_by_severity = self.security_assessment.get("findings_by_severity", {})
             if findings_by_severity:
                 severity_parts = []
-                for severity, count in findings_by_severity.items():
+                for severity in ("critical", "high", "medium", "low"):
+                    count = findings_by_severity.get(severity, 0)
                     if count > 0:
                         severity_parts.append(f"{severity.title()}: {count}")
+                # Include any non-standard severities that were not covered above.
+                for severity, count in findings_by_severity.items():
+                    if severity not in ("critical", "high", "medium", "low") and count > 0:
+                        severity_parts.append(f"{str(severity).title()}: {count}")
                 if severity_parts:
                     print(f"Severity Distribution: {', '.join(severity_parts)}")
 
@@ -366,20 +415,16 @@ class FullAnalysisResults:
                 if len(categories) > 3:
                     print(f"   ... and {len(categories) - 3} more")
 
-            # Show key findings
+            # Ranked TOP RISKS + triage tiers. Replaces the old severity-only "Key
+            # Findings" block: the highest-value risks (severity × confidence) are
+            # surfaced with concrete evidence and a one-line next-step hint, then the
+            # findings are grouped into Confirmed / Needs-review / Informational tiers.
             findings = self.security_assessment.get("findings", [])
             if findings:
-                print("\nKey Findings:")
-                for finding in findings[:3]:  # Show max 3 findings
-                    title = finding.get("title", "Security Finding")
-                    category = finding.get("category", "Unknown")
-                    severity = finding.get("severity", "unknown")
-                    if isinstance(severity, dict) and "value" in severity:
-                        severity = severity["value"]
-                    severity_str = severity.value if hasattr(severity, "value") else str(severity)
-                    print(f"   • [{severity_str.upper()}] {category}: {title}")
-                if len(findings) > 3:
-                    print(f"   ... and {len(findings) - 3} more findings (see security JSON file)")
+                verbose = getattr(self, "_report_verbose", False)
+                config = getattr(self, "_report_config", None)
+                self._print_top_risks(findings, config)
+                self._print_finding_tiers(findings, config, verbose)
 
             # Signature results
             if self.in_depth_analysis.signatures:
@@ -399,6 +444,93 @@ class FullAnalysisResults:
 
                 if sigs.get("triage"):
                     print(f"Triage: {sigs['triage']}")
+
+    @staticmethod
+    def _resolve_report_top_n(config: Any) -> int:
+        """Resolve the Top-Risks count from config, defaulting to 5."""
+        default_top_n = 5
+        if config is None:
+            return default_top_n
+        try:
+            if hasattr(config, "get_output_config"):
+                security_report = config.get_output_config().get("security_report", {}) or {}
+            elif isinstance(config, dict):
+                node = config.get("output", config)
+                security_report = node.get("security_report", {}) or {}
+            else:
+                return default_top_n
+            return int(security_report.get("top_n", default_top_n))
+        except Exception:
+            return default_top_n
+
+    @staticmethod
+    def _finding_evidence_snippet(finding: dict) -> str:
+        """Return a short, concrete evidence string for a finding (first item, truncated)."""
+        evidence = risk_ranking.get_attr(finding, "evidence", []) or []
+        if isinstance(evidence, (list, tuple)) and evidence:
+            snippet = str(evidence[0])
+        elif isinstance(evidence, str):
+            snippet = evidence
+        else:
+            snippet = ""
+        snippet = snippet.replace("\n", " ").strip()
+        return snippet if len(snippet) <= 90 else snippet[:87] + "..."
+
+    def _print_top_risks(self, findings: list, config: Any) -> None:
+        """Print the ranked TOP RISKS block (severity × confidence, evidence, hint)."""
+        top_n = self._resolve_report_top_n(config)
+        top = risk_ranking.top_risks(findings, top_n)
+        if not top:
+            return
+
+        print("\n🎯 TOP RISKS (ranked by severity × confidence — triage aid)")
+        print("-" * 40)
+        for index, finding in enumerate(top, start=1):
+            severity = risk_ranking.severity_str(finding).upper()
+            confidence = risk_ranking.confidence_of(finding)
+            title = risk_ranking.title_of(finding) or "Security Finding"
+            category = str(risk_ranking.get_attr(finding, "category", "Unknown"))
+            print(f"   {index}. [{severity} · conf {confidence:.2f}] {category}: {title}")
+            evidence = self._finding_evidence_snippet(finding)
+            if evidence:
+                print(f"      evidence: {evidence}")
+            print(f"      → {risk_ranking.hint_for(finding)}")
+
+    def _print_finding_tiers(self, findings: list, config: Any, verbose: bool) -> None:
+        """Print Confirmed / Needs-review tiers; hide Informational unless verbose."""
+        tiers = risk_ranking.tier_findings(findings, config)
+        confirmed = tiers["confirmed"]
+        needs_review = tiers["needs_review"]
+        informational = tiers["informational"]
+
+        if confirmed:
+            print("\n✅ CONFIRMED (high-confidence critical/high):")
+            for finding in confirmed:
+                self._print_tier_line(finding)
+
+        if needs_review:
+            print("\n🔬 NEEDS MANUAL REVIEW:")
+            for finding in needs_review:
+                self._print_tier_line(finding)
+
+        if informational:
+            if verbose:
+                print("\nℹ️  INFORMATIONAL / LOW-CONFIDENCE:")
+                for finding in informational:
+                    self._print_tier_line(finding)
+            else:
+                print(
+                    f"\nℹ️  {len(informational)} informational/low-confidence "
+                    f"finding(s) hidden — rerun with -v to show them."
+                )
+
+    def _print_tier_line(self, finding: dict) -> None:
+        """Print a single one-line tier entry: [SEV · conf] category: title."""
+        severity = risk_ranking.severity_str(finding).upper()
+        confidence = risk_ranking.confidence_of(finding)
+        title = risk_ranking.title_of(finding) or "Security Finding"
+        category = str(risk_ranking.get_attr(finding, "category", "Unknown"))
+        print(f"   • [{severity} · conf {confidence:.2f}] {category}: {title}")
 
     def _print_tool_analysis_summary(self):
         """

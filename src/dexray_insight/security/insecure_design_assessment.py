@@ -34,6 +34,8 @@ from ..core.base_classes import AnalysisSeverity
 from ..core.base_classes import BaseSecurityAssessment
 from ..core.base_classes import SecurityFinding
 from ..core.base_classes import register_assessment
+from .evidence import collect_weak_crypto_evidence
+from .evidence import looks_like_type_descriptor
 
 
 @register_assessment("insecure_design")
@@ -264,126 +266,136 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_missing_security_controls(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """Assess for missing essential security controls."""
-        findings = []
+        """Emit a single hardening-posture finding.
 
-        # Get manifest analysis to check for security controls
+        Historically this method plus :meth:`_assess_threat_scenario_coverage`
+        each emitted a separate MEDIUM "absence checklist" finding (no biometric,
+        no keystore, no cert pinning, no NSC, no root detection, no obfuscation)
+        that every app tripped. The absence of a hardening control is not a
+        vulnerability, so both checklists are now collapsed into ONE LOW
+        "Security Hardening Posture" finding (confidence 0.2) that simply lists
+        which controls were and were not observed.
+        (No INFO severity exists in the enum, so LOW + low confidence is used.)
+        """
+        observed_controls, missing_controls = self._collect_security_controls(analysis_results)
+        observed_threats, missing_threats = self._collect_threat_coverage(analysis_results)
+
+        observed = observed_controls + observed_threats
+        missing = missing_controls + missing_threats
+
+        # Nothing to report if, implausibly, there is neither an observation nor a gap.
+        if not observed and not missing:
+            return []
+
+        evidence: list[str] = []
+        if observed:
+            evidence.append("Observed hardening controls:")
+            evidence.extend(f"  + {item}" for item in observed)
+        if missing:
+            evidence.append("Hardening controls not observed:")
+            evidence.extend(f"  - {item}" for item in missing)
+
+        return [
+            SecurityFinding(
+                category=self.owasp_category,
+                severity=AnalysisSeverity.LOW,
+                confidence=0.2,
+                title="Security Hardening Posture",
+                description=(
+                    "Defense-in-depth posture overview. The absence of a hardening control is not by "
+                    "itself a vulnerability; this finding lists which controls were and were not observed."
+                ),
+                evidence=evidence,
+                recommendations=[
+                    "Consider biometric authentication for sensitive operations where appropriate",
+                    "Use Android Keystore for secure key and credential storage",
+                    "Configure a network security policy with certificate pinning where feasible",
+                    "Add integrity verification, tamper and root/jailbreak detection for high-risk apps",
+                    "Apply code obfuscation and anti-tampering controls to protect sensitive logic",
+                ],
+            )
+        ]
+
+    def _collect_security_controls(self, analysis_results: dict[str, Any]) -> tuple[list[str], list[str]]:
+        """Return (observed, missing) essential security controls."""
+        observed: list[str] = []
+        missing: list[str] = []
+
         manifest_results = analysis_results.get("manifest_analysis", {})
         manifest_data = manifest_results.to_dict() if hasattr(manifest_results, "to_dict") else manifest_results
 
-        # Get behavior analysis for security features
         behavior_results = analysis_results.get("behaviour_analysis", {})
 
-        missing_controls = []
-
-        # Check for authentication controls
+        # Authentication controls (biometric).
         permissions = manifest_data.get("permissions", [])
-        if not isinstance(permissions, (list, tuple)):
-            permissions = []
         try:
             perm_list = (
                 list(permissions)
                 if hasattr(permissions, "__iter__") and not isinstance(permissions, (str, bytes, bool))
                 else []
             )
-            if not any("FINGERPRINT" in str(perm) or "BIOMETRIC" in str(perm) for perm in perm_list):
-                missing_controls.append("No biometric authentication permissions detected")
+            has_biometric = any("FINGERPRINT" in str(perm) or "BIOMETRIC" in str(perm) for perm in perm_list)
         except (TypeError, AttributeError):
-            # Skip if permissions is not iterable or is a boolean/other non-iterable type
             self.logger.debug(f"Skipping non-iterable permissions: {type(permissions)}")
-            missing_controls.append("No biometric authentication permissions detected")
+            has_biometric = False
+        (observed if has_biometric else missing).append("Biometric authentication permission")
 
-        # Check for secure storage controls
+        # Secure storage controls.
         behavior_str = str(behavior_results).upper()
-        if not ("KEYSTORE" in behavior_str or "ENCRYPTED" in behavior_str):
-            missing_controls.append("No secure key storage implementation detected")
+        has_keystore = "KEYSTORE" in behavior_str or "ENCRYPTED" in behavior_str
+        (observed if has_keystore else missing).append("Secure key storage (Keystore/encryption)")
 
-        # Check for network security controls
-        network_config = manifest_data.get("network_security_config")
-        if not network_config:
-            missing_controls.append("No network security configuration detected")
+        # Network security controls.
+        has_nsc = bool(manifest_data.get("network_security_config"))
+        (observed if has_nsc else missing).append("Network security configuration")
 
-        # Check for integrity controls
+        # Integrity controls (certificate pinning).
         string_results = analysis_results.get("string_analysis", {})
         string_data = string_results.to_dict() if hasattr(string_results, "to_dict") else string_results
         all_strings = string_data.get("all_strings", [])
-        if not isinstance(all_strings, list):
-            all_strings = []
-
         if isinstance(all_strings, (list, tuple)):
             has_cert_pinning = any("pin" in str(s).lower() and "cert" in str(s).lower() for s in all_strings)
         else:
             has_cert_pinning = False
             self.logger.debug(f"Skipping non-iterable all_strings in cert pinning: {type(all_strings)}")
-        if not has_cert_pinning:
-            missing_controls.append("No certificate pinning implementation detected")
+        (observed if has_cert_pinning else missing).append("Certificate pinning")
 
-        if missing_controls:
-            findings.append(
-                SecurityFinding(
-                    category=self.owasp_category,
-                    severity=AnalysisSeverity.MEDIUM,
-                    title="Missing Security Controls",
-                    description="Application lacks essential security controls that should be present in a defense-in-depth security design.",
-                    evidence=missing_controls,
-                    recommendations=[
-                        "Implement biometric authentication for sensitive operations",
-                        "Use Android Keystore for secure key and credential storage",
-                        "Configure network security policy with certificate pinning",
-                        "Add integrity verification and tamper detection controls",
-                        "Implement comprehensive session management and timeout controls",
-                    ],
-                )
-            )
-
-        return findings
+        return observed, missing
 
     def _assess_cryptographic_design(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
         """Assess cryptographic design patterns."""
         findings = []
 
-        # Get API invocation results for crypto usage
-        api_results = analysis_results.get("api_invocation", {})
-        api_data = api_results.to_dict() if hasattr(api_results, "to_dict") else api_results
-
-        crypto_usage = api_data.get("crypto_usage", [])
-        if not isinstance(crypto_usage, list):
-            crypto_usage = []
+        # crypto_usage is read inside collect_weak_crypto_evidence directly from
+        # analysis_results; only the decompiled strings are needed locally here.
         string_results = analysis_results.get("string_analysis", {})
         string_data = string_results.to_dict() if hasattr(string_results, "to_dict") else string_results
         all_strings = string_data.get("all_strings", [])
         if not isinstance(all_strings, list):
             all_strings = []
 
-        weak_crypto_evidence = []
+        # Algorithm tokens are matched only as getInstance arguments or whole
+        # words (never substrings) via the shared evidence collector - this
+        # handles both the crypto_usage entries and the decompiled strings.
+        weak_crypto_evidence = collect_weak_crypto_evidence(analysis_results, all_strings)
 
-        # Check for weak algorithms in API usage
-        if isinstance(crypto_usage, (list, tuple)):
-            for crypto_call in crypto_usage:
-                if isinstance(crypto_call, dict):
-                    algorithm = crypto_call.get("algorithm", "").upper()
-                    if algorithm in ["MD5", "SHA1", "DES", "RC4"]:
-                        weak_crypto_evidence.append(
-                            f"Weak algorithm detected: {algorithm} at {crypto_call.get('location', 'unknown')}"
-                        )
-        elif crypto_usage and not isinstance(crypto_usage, (str, bytes, bool)):
-            self.logger.debug(f"Skipping non-iterable crypto_usage: {type(crypto_usage)}")
-
-        # Check for weak crypto patterns in strings
-        weak_patterns = self.design_patterns["weak_crypto_design"]["patterns"]
+        # Non-cryptographic randomness is a design smell not covered by algorithm
+        # token matching; keep it but guard against type descriptors.
+        random_patterns = [r"new\s+Random\(\)", r"Math\.random\(\)"]
         if isinstance(all_strings, (list, tuple)):
             for string in all_strings:
-                if isinstance(string, str):
-                    for pattern in weak_patterns:
-                        import re
+                if not isinstance(string, str) or looks_like_type_descriptor(string):
+                    continue
+                for pattern in random_patterns:
+                    import re
 
-                        try:
-                            if re.search(pattern, string, re.IGNORECASE):
-                                weak_crypto_evidence.append(f"Weak crypto pattern: {string[:80]}...")
-                                break
-                        except Exception as e:
-                            self.logger.debug(f"Regex pattern error for pattern '{pattern}': {e}")
-                            continue
+                    try:
+                        if re.search(pattern, string, re.IGNORECASE):
+                            weak_crypto_evidence.append(f"Non-cryptographic randomness: {string[:80]}")
+                            break
+                    except Exception as e:
+                        self.logger.debug(f"Regex pattern error for pattern '{pattern}': {e}")
+                        continue
         elif all_strings and not isinstance(all_strings, (str, bytes, bool)):
             self.logger.debug(f"Skipping non-iterable all_strings in crypto: {type(all_strings)}")
 
@@ -395,6 +407,7 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
                     title="Weak Cryptographic Design",
                     description="Application uses weak or deprecated cryptographic algorithms and patterns that compromise data security.",
                     evidence=weak_crypto_evidence[:8],
+                    confidence=0.7,
                     recommendations=[
                         "Replace weak algorithms with strong alternatives (AES-256, SHA-256, etc.)",
                         "Use cryptographically secure random number generators",
@@ -554,56 +567,37 @@ class InsecureDesignAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_threat_scenario_coverage(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """Assess coverage of common mobile threat scenarios."""
-        findings = []
+        """Threat-scenario coverage is folded into the single hardening-posture finding.
 
-        # This is a high-level assessment of whether the app design addresses common threats
-        threat_gaps = []
+        This used to emit its own MEDIUM "Insufficient Threat Scenario Coverage"
+        absence checklist that every app tripped. Its checks are now collected by
+        :meth:`_collect_threat_coverage` and reported inside the combined LOW
+        "Security Hardening Posture" finding, so this method intentionally emits
+        nothing to avoid a duplicate finding. The check logic is preserved (and
+        still exercised) in the helper.
+        """
+        return []
 
-        # Check for device compromise protections
+    def _collect_threat_coverage(self, analysis_results: dict[str, Any]) -> tuple[list[str], list[str]]:
+        """Return (observed, missing) mobile threat-scenario protections."""
+        observed: list[str] = []
+        missing: list[str] = []
+
+        # Device-compromise protections (root/jailbreak detection).
         behavior_results = analysis_results.get("behaviour_analysis", {})
         behavior_str = str(behavior_results).lower()
-        if not ("root" in behavior_str or "jailbreak" in behavior_str):
-            threat_gaps.append("No root/jailbreak detection mechanisms detected")
+        has_root_detection = "root" in behavior_str or "jailbreak" in behavior_str
+        (observed if has_root_detection else missing).append("Root/jailbreak detection")
 
-        # Check for reverse engineering protections
+        # Reverse-engineering protections (obfuscation).
         string_results = analysis_results.get("string_analysis", {})
         string_data = string_results.to_dict() if hasattr(string_results, "to_dict") else string_results
         all_strings = string_data.get("all_strings", [])
-        if not isinstance(all_strings, list):
-            all_strings = []
-
         if isinstance(all_strings, (list, tuple)):
             has_obfuscation = any("obfuscat" in str(s).lower() or "proguard" in str(s).lower() for s in all_strings)
         else:
             has_obfuscation = False
             self.logger.debug(f"Skipping non-iterable all_strings in threat scenario: {type(all_strings)}")
-        if not has_obfuscation:
-            threat_gaps.append("No code obfuscation or anti-reverse engineering protections detected")
+        (observed if has_obfuscation else missing).append("Code obfuscation / anti-reverse-engineering")
 
-        # Check for network attack protections
-        manifest_results = analysis_results.get("manifest_analysis", {})
-        manifest_data = manifest_results.to_dict() if hasattr(manifest_results, "to_dict") else manifest_results
-
-        if not manifest_data.get("network_security_config"):
-            threat_gaps.append("No network security configuration for protecting against network attacks")
-
-        if threat_gaps:
-            findings.append(
-                SecurityFinding(
-                    category=self.owasp_category,
-                    severity=AnalysisSeverity.MEDIUM,
-                    title="Insufficient Threat Scenario Coverage",
-                    description="Application design does not adequately address common mobile threat scenarios and attack vectors.",
-                    evidence=threat_gaps,
-                    recommendations=[
-                        "Implement comprehensive threat modeling for mobile-specific risks",
-                        "Add device integrity checks (root/jailbreak detection)",
-                        "Implement code obfuscation and anti-tampering controls",
-                        "Configure network security policies for threat protection",
-                        "Design with assumption of device compromise and plan accordingly",
-                    ],
-                )
-            )
-
-        return findings
+        return observed, missing

@@ -36,6 +36,10 @@ from ..core.base_classes import AnalysisSeverity
 from ..core.base_classes import BaseSecurityAssessment
 from ..core.base_classes import SecurityFinding
 from ..core.base_classes import register_assessment
+from .evidence import collect_weak_crypto_evidence
+from .evidence import list_sink_calls
+from .evidence import looks_like_type_descriptor
+from .evidence import matches_algorithm_token
 
 
 @register_assessment("mobile_specific")
@@ -354,17 +358,34 @@ class MobileSpecificAssessment(BaseSecurityAssessment):
         string_results = analysis_results.get("string_analysis", {})
         string_data = string_results.to_dict() if hasattr(string_results, "to_dict") else string_results
         all_strings = string_data.get("all_strings", [])
+        if not isinstance(all_strings, list):
+            all_strings = []
 
         storage_issues = []
 
-        # Check for insecure SharedPreferences usage
+        # World-readable/writable file modes are the genuinely dangerous storage
+        # signals - match them as whole-word tokens, not bare substrings, and skip
+        # type descriptors (e.g. Compose/media class names) entirely.
+        world_mode_tokens = ("MODE_WORLD_READABLE", "MODE_WORLD_WRITABLE")
         for string in all_strings:
-            if isinstance(string, str):
-                for category, patterns in self.insecure_storage_patterns.items():
-                    for pattern in patterns:
-                        if re.search(pattern, string, re.IGNORECASE):
-                            storage_issues.append(f"Insecure {category}: {string[:70]}...")
-                            break
+            if not isinstance(string, str) or looks_like_type_descriptor(string):
+                continue
+            for token in world_mode_tokens:
+                if matches_algorithm_token(string, token):
+                    storage_issues.append(f"World-accessible storage mode: {string[:70]}")
+                    break
+            # SharedPreferences persisting a secret needs both the API and a secret
+            # keyword in the same string - a real, specific pattern.
+            if matches_algorithm_token(string, "putString") and any(
+                matches_algorithm_token(string, kw) for kw in ("password", "token", "secret", "apikey")
+            ):
+                storage_issues.append(f"Secret stored in preferences: {string[:70]}")
+
+        # A real SQLite write/query API sink is stronger evidence than a substring.
+        for call in list_sink_calls(analysis_results, "sql"):
+            storage_issues.append(
+                f"SQLite data access: {call.get('called_class', '')}.{call.get('called_method', '')}"
+            )
 
         if storage_issues:
             findings.append(
@@ -374,6 +395,7 @@ class MobileSpecificAssessment(BaseSecurityAssessment):
                     title="Insecure Data Storage",
                     description="Application stores sensitive data insecurely, making it accessible to other applications or unauthorized users.",
                     evidence=storage_issues[:8],
+                    confidence=0.7,
                     recommendations=[
                         "Use Android Keystore for sensitive data storage",
                         "Avoid storing sensitive data in SharedPreferences without encryption",
@@ -395,25 +417,40 @@ class MobileSpecificAssessment(BaseSecurityAssessment):
         all_strings = string_data.get("all_strings", [])
         urls = string_data.get("urls", [])
 
+        if not isinstance(all_strings, list):
+            all_strings = []
+        if not isinstance(urls, list):
+            urls = []
+
         communication_issues = []
 
-        # Check for cleartext HTTP URLs
+        # Check for cleartext HTTP URLs (real evidence from extracted URLs).
         cleartext_urls = [
             url
             for url in urls
-            if url.startswith("http://") and not any(local in url for local in ["localhost", "127.0.0.1", "10.0.2.2"])
+            if isinstance(url, str)
+            and url.startswith("http://")
+            and not any(local in url for local in ["localhost", "127.0.0.1", "10.0.2.2"])
         ]
         if cleartext_urls:
             communication_issues.extend([f"Cleartext URL: {url}" for url in cleartext_urls[:3]])
 
-        # Check for SSL/TLS issues in code
+        # Only genuinely dangerous TLS patterns count. Bare "HttpURLConnection" /
+        # "DefaultHttpClient" substrings are present in most apps and are dropped;
+        # weak-protocol names are matched as whole-word tokens, not substrings.
+        trust_bypass_patterns = self.insecure_communication_patterns["ssl_issues"]
+        weak_protocol_tokens = ("SSLv3", "TLSv1.0", "TLSv1.1")
         for string in all_strings:
-            if isinstance(string, str):
-                for category, patterns in self.insecure_communication_patterns.items():
-                    for pattern in patterns:
-                        if re.search(pattern, string, re.IGNORECASE):
-                            communication_issues.append(f"SSL/TLS issue ({category}): {string[:60]}...")
-                            break
+            if not isinstance(string, str) or looks_like_type_descriptor(string):
+                continue
+            for pattern in trust_bypass_patterns:
+                if re.search(pattern, string, re.IGNORECASE):
+                    communication_issues.append(f"SSL/TLS trust bypass: {string[:60]}")
+                    break
+            for token in weak_protocol_tokens:
+                if matches_algorithm_token(string, token):
+                    communication_issues.append(f"Weak TLS protocol reference: {string[:60]}")
+                    break
 
         if communication_issues:
             findings.append(
@@ -423,6 +460,7 @@ class MobileSpecificAssessment(BaseSecurityAssessment):
                     title="Insecure Communication",
                     description="Application uses insecure communication channels or improperly implements SSL/TLS security.",
                     evidence=communication_issues[:8],
+                    confidence=0.7,
                     recommendations=[
                         "Use HTTPS for all network communications",
                         "Implement certificate pinning for critical connections",
@@ -490,17 +528,10 @@ class MobileSpecificAssessment(BaseSecurityAssessment):
         string_results = analysis_results.get("string_analysis", {})
         string_data = string_results.to_dict() if hasattr(string_results, "to_dict") else string_results
         all_strings = string_data.get("all_strings", [])
+        if not isinstance(all_strings, list):
+            all_strings = []
 
-        crypto_issues = []
-
-        # Check for weak cryptographic implementations
-        for string in all_strings:
-            if isinstance(string, str):
-                for category, patterns in self.crypto_patterns.items():
-                    for pattern in patterns:
-                        if re.search(pattern, string):
-                            crypto_issues.append(f"Cryptography issue ({category}): {string[:70]}...")
-                            break
+        crypto_issues = collect_weak_crypto_evidence(analysis_results, all_strings)
 
         if crypto_issues:
             findings.append(
@@ -510,6 +541,7 @@ class MobileSpecificAssessment(BaseSecurityAssessment):
                     title="Insufficient Cryptography",
                     description="Application uses weak cryptographic algorithms, implementations, or key management practices.",
                     evidence=crypto_issues[:8],
+                    confidence=0.7,
                     recommendations=[
                         "Use strong cryptographic algorithms (AES-256, RSA-2048+, SHA-256+)",
                         "Implement proper key management using Android Keystore",
@@ -602,33 +634,63 @@ class MobileSpecificAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_code_tampering_protection(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """M8: Assess code tampering protection."""
+        """M8 + M9: Report tampering / reverse-engineering hardening posture.
+
+        Previously M8 and M9 each emitted their own LOW finding asserting the app
+        had "no protection" whenever the literal marker strings were absent. That
+        is backwards for obfuscated apps (which strip the literal ``proguard`` /
+        ``obfuscat`` strings precisely because they ARE obfuscated). Both checks
+        are now folded into a single low-confidence posture note that reports the
+        *absence of explicit markers* rather than asserting the app is unprotected.
+        M9 (:meth:`_assess_reverse_engineering_protection`) is retained but folded
+        in here to avoid emitting a second, contradictory finding.
+        """
         findings = []
 
         string_results = analysis_results.get("string_analysis", {})
         string_data = string_results.to_dict() if hasattr(string_results, "to_dict") else string_results
         all_strings = string_data.get("all_strings", [])
+        if not isinstance(all_strings, list):
+            all_strings = []
 
-        # Check for anti-tampering measures
         has_anti_tampering = any(
             any(pattern.lower() in s.lower() for pattern in self.anti_tampering_patterns)
             for s in all_strings
             if isinstance(s, str)
         )
+        has_reverse_markers = any(
+            any(pattern.lower() in s.lower() for pattern in self.anti_reverse_patterns)
+            for s in all_strings
+            if isinstance(s, str)
+        )
 
+        posture_notes = []
         if not has_anti_tampering:
+            posture_notes.append("No explicit anti-tampering markers found (checksum/root/tamper detection)")
+        if not has_reverse_markers:
+            posture_notes.append(
+                "No explicit anti-reverse-engineering markers found. Note: absence of these markers does "
+                "not prove the app is unobfuscated - obfuscated apps typically strip such literals."
+            )
+
+        if posture_notes:
             findings.append(
                 SecurityFinding(
-                    category=f"{self.owasp_category} - M8",
+                    category=f"{self.owasp_category} - M8/M9",
                     severity=AnalysisSeverity.LOW,
-                    title="Insufficient Code Tampering Protection",
-                    description="Application lacks adequate protection against code tampering and runtime manipulation.",
-                    evidence=["No anti-tampering mechanisms detected"],
+                    title="Tampering & Reverse-Engineering Hardening Posture",
+                    description=(
+                        "Informational: no explicit anti-tampering or anti-reverse-engineering markers were "
+                        "detected. This is a posture note, not a confirmed weakness - marker absence is not "
+                        "proof that the protections are missing."
+                    ),
+                    evidence=posture_notes,
+                    confidence=0.2,
                     recommendations=[
                         "Implement runtime application self-protection (RASP)",
                         "Add checksum verification for critical application components",
                         "Implement root/jailbreak detection where appropriate",
-                        "Use signature verification to detect unauthorized modifications",
+                        "Use code obfuscation (ProGuard/DexGuard) and string encryption",
                         "Consider anti-debugging and anti-hooking measures for sensitive applications",
                     ],
                 )
@@ -637,39 +699,13 @@ class MobileSpecificAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_reverse_engineering_protection(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """M9: Assess reverse engineering protection."""
-        findings = []
+        """M9: Reverse-engineering posture.
 
-        string_results = analysis_results.get("string_analysis", {})
-        string_data = string_results.to_dict() if hasattr(string_results, "to_dict") else string_results
-        all_strings = string_data.get("all_strings", [])
-
-        # Check for obfuscation and anti-reverse engineering measures
-        has_protection = any(
-            any(pattern.lower() in s.lower() for pattern in self.anti_reverse_patterns)
-            for s in all_strings
-            if isinstance(s, str)
-        )
-
-        if not has_protection:
-            findings.append(
-                SecurityFinding(
-                    category=f"{self.owasp_category} - M9",
-                    severity=AnalysisSeverity.LOW,
-                    title="Insufficient Reverse Engineering Protection",
-                    description="Application lacks adequate protection against reverse engineering and code analysis.",
-                    evidence=["No code obfuscation or anti-reverse engineering measures detected"],
-                    recommendations=[
-                        "Implement code obfuscation using tools like ProGuard or DexGuard",
-                        "Use string encryption for sensitive strings and constants",
-                        "Consider native code implementation for critical algorithms",
-                        "Implement anti-debugging measures where appropriate",
-                        "Use control flow obfuscation for sensitive code paths",
-                    ],
-                )
-            )
-
-        return findings
+        Folded into :meth:`_assess_code_tampering_protection` (M8/M9 combined
+        posture) to avoid emitting a second, contradictory absence-based finding.
+        Retained as a no-op so the assessment surface is not removed.
+        """
+        return []
 
     def _assess_extraneous_functionality(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
         """M10: Assess extraneous functionality."""

@@ -401,16 +401,20 @@ class TestFullAnalysisResultsPrintSecurityAssessmentSummary:
         # Assert
         assert "🛡️  SECURITY ASSESSMENT" in output
         assert "Security Findings: 15" in output
-        assert "Risk Score: 75.50/100" in output
+        # PR-9: the risk score is now labelled a triage aid (and shows the score pair
+        # when risk_score_confirmed is present; here it is absent).
+        assert "Risk Score (triage aid): 75.50/100" in output
         assert "Severity Distribution: Critical: 2, High: 5, Medium: 6, Low: 2" in output
         assert "OWASP Categories: M1, M3, M7" in output
         assert "... and 1 more" in output  # Should truncate OWASP categories after 3
 
     def test_print_security_assessment_summary_displays_key_findings(self):
         """
-        Test that key security findings are displayed with proper formatting.
+        Test that key security findings are surfaced with proper formatting.
 
-        RED: This test will fail initially as the function doesn't exist yet.
+        PR-9: the old severity-only "Key Findings" block is replaced by a ranked
+        TOP RISKS section (severity · confidence, category: title). The findings are
+        still surfaced with their severity, category and title.
         """
         # Arrange
         results = FullAnalysisResults()
@@ -434,10 +438,16 @@ class TestFullAnalysisResultsPrintSecurityAssessmentSummary:
         # Act
         output = capture_print_output(results._print_security_assessment_summary)
 
-        # Assert
-        assert "Key Findings:" in output
-        assert "[HIGH] M10 - Extraneous Functionality: Hardcoded API Keys Detected" in output
-        assert "[MEDIUM] M4 - Insecure Communication: Insecure Network Communication" in output
+        # Assert (PR-9 ranked TOP RISKS format: "[SEV · conf X.XX] category: title")
+        assert "TOP RISKS" in output
+        assert "Hardcoded API Keys Detected" in output
+        assert "Insecure Network Communication" in output
+        assert "M10 - Extraneous Functionality" in output
+        assert "M4 - Insecure Communication" in output
+        # Severity is surfaced (the HIGH finding out-ranks the MEDIUM one).
+        assert "[HIGH" in output
+        assert "[MEDIUM" in output
+        assert output.index("Hardcoded API Keys Detected") < output.index("Insecure Network Communication")
 
     def test_print_security_assessment_summary_handles_no_security_data(self):
         """

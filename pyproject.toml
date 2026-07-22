@@ -103,7 +103,11 @@ version = {attr = "dexray_insight.about.__version__"}
 where = ["src"]
 
 [tool.setuptools.package-data]
-"*" = ["apk_overview/resources/*"]
+"*" = [
+    "apk_overview/resources/*",
+    "modules/string_analysis/resources/*.dat",
+    "security/data/*.yaml",
+]
 
 # Ruff configuration
 [tool.ruff]

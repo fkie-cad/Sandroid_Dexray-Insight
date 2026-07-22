@@ -77,9 +77,23 @@ class CodeContextAnalyzer:
     SOLID Principles: Single Responsibility (code context analysis only)
     """
 
-    def __init__(self):
-        """Initialize the code context analyzer with file type patterns."""
+    # Default cap on how many corpus strings the surrounding-context scan will
+    # examine per finding. The full string corpus can be ~174k entries; without a
+    # cap the postprocessor becomes O(findings x corpus). Overridable via config.
+    DEFAULT_MAX_CONTEXT_STRINGS = 5000
+
+    def __init__(self, max_context_strings: int | None = None):
+        """Initialize the code context analyzer with file type patterns.
+
+        Args:
+            max_context_strings: Upper bound on strings scanned per finding when
+                extracting surrounding context. Defaults to
+                ``DEFAULT_MAX_CONTEXT_STRINGS`` when not provided.
+        """
         self.logger = logging.getLogger(__name__)
+        self.max_context_strings = (
+            max_context_strings if max_context_strings is not None else self.DEFAULT_MAX_CONTEXT_STRINGS
+        )
 
         # File type patterns for location classification
         self.file_type_patterns = {
@@ -109,9 +123,16 @@ class CodeContextAnalyzer:
                 r"\.json$",
                 r"\.yml$",
                 r"\.yaml$",
-                r"config\." r"\.conf$",
+                # Two distinct patterns (previously accidentally concatenated into
+                # ``config\.\.conf$`` by adjacent-string-literal joining).
+                r"config\.",
+                r"\.conf$",
                 r"\.ini$",
                 r"\.cfg$",
+                # ProGuard/R8 rule files are treated as configuration (they hold
+                # keep/obfuscation rules, not build steps). See PR-7 note in report.
+                r"proguard.*\.pro$",
+                r"\.pro$",
             ],
             CodeLocation.BUILD_SCRIPT: [
                 r"build\.gradle$",
@@ -121,7 +142,6 @@ class CodeContextAnalyzer:
                 r"build\.xml$",
                 r"Makefile$",
                 r"gradle\.properties$",
-                r"proguard.*\.pro$",
             ],
         }
 
@@ -257,13 +277,20 @@ class CodeContextAnalyzer:
             if location_type in self.file_type_patterns:
                 patterns = self.file_type_patterns[location_type]
                 for pattern in patterns:
-                    if re.search(pattern, file_path_lower):
+                    # Patterns are authored with mixed case (e.g. ``Mock\w+\.java$``)
+                    # but file paths are compared lowercased; match case-insensitively
+                    # so those patterns still fire.
+                    if re.search(pattern, file_path_lower, re.IGNORECASE):
                         return location_type
 
         return CodeLocation.UNKNOWN
 
     def _extract_surrounding_context_from_strings(
-        self, target_string: str, string_data: dict[str, Any], context: CodeContext = None
+        self,
+        target_string: str,
+        string_data: dict[str, Any],
+        context: CodeContext = None,
+        max_context_strings: int | None = None,
     ) -> CodeContext:
         """
         Extract surrounding context by analyzing related strings from string analysis.
@@ -272,6 +299,7 @@ class CodeContextAnalyzer:
             target_string: The target string/secret to find context for
             string_data: String analysis results
             context: Existing context to enhance (or None to create new)
+            max_context_strings: Optional per-call override of the corpus scan cap.
 
         Returns:
             CodeContext with surrounding context information
@@ -296,6 +324,12 @@ class CodeContextAnalyzer:
                 if isinstance(strings, list):
                     all_strings.extend(strings)
 
+        # PERF GUARD: never iterate the full (potentially ~174k) corpus per finding.
+        # Enforce the cap at the scan entry point.
+        cap = max_context_strings if max_context_strings is not None else self.max_context_strings
+        if cap is not None and cap >= 0 and len(all_strings) > cap:
+            all_strings = all_strings[:cap]
+
         # Find strings that contain or are related to our target string
         related_strings = []
         target_lower = target_string.lower()
@@ -317,6 +351,11 @@ class CodeContextAnalyzer:
                 keyword in string_lower for keyword in ["key", "token", "secret", "api", "auth"]
             ):
                 related_strings.append(string_val)
+
+        # Parse code-like related strings (those containing whitespace/operators such
+        # as an assignment or a call) before bare token values, so the extracted
+        # surrounding context reflects real source lines rather than the raw secret.
+        related_strings.sort(key=lambda s: 0 if any(ch in s for ch in " =();") else 1)
 
         # Analyze related strings for context
         for related_string in related_strings[:20]:  # Limit to avoid performance issues
@@ -439,6 +478,20 @@ class CodeContextAnalyzer:
                     # Single capture group
                     context.variable_names.add(match)
 
+        # Receiver objects in method calls, e.g. ``apiClient`` in
+        # ``apiClient.createConnection(...)`` (the object before ``.method(``).
+        for receiver in re.findall(r"\b([a-zA-Z_]\w*)\.\w+\s*\(", code_line):
+            context.variable_names.add(receiver)
+
+        # Identifier arguments passed into method calls, e.g. ``url``/``apiKey`` in
+        # ``createConnection(url, apiKey)``. String literals and numeric literals
+        # are ignored (they are not variable references).
+        for arg_group in re.findall(r"\(([^)]*)\)", code_line):
+            for raw_arg in arg_group.split(","):
+                arg = raw_arg.strip()
+                if re.fullmatch(r"[a-zA-Z_]\w*", arg):
+                    context.variable_names.add(arg)
+
     def _parse_string_literals(self, code_line: str, context: CodeContext) -> None:
         """Parse security-relevant string literals into the context."""
         # 8. String literals and constants
@@ -477,6 +530,33 @@ class CodeContextAnalyzer:
         all_text.extend([str(var) for var in context.variable_names])
 
         combined_text = " ".join(all_text).lower()
+
+        # Precedence fix: bare "keystore" is an ENCRYPTION indicator, but a context
+        # that uses secure-storage APIs (SharedPreferences / KeyStore.getInstance /
+        # SecureRandom / KeyGenerator) WITHOUT any actual crypto operation is secure
+        # storage, not encryption. Only reclassify to SECURE_STORAGE when no genuine
+        # crypto operation is present (otherwise a real cipher/doFinal wins below).
+        crypto_operation_indicators = [
+            r"\bcipher\b",
+            r"\bencrypt\b",
+            r"\bdecrypt\b",
+            r"\baes\b",
+            r"\brsa\b",
+            r"\bsecretkey\b",
+            r"javax\.crypto",
+            r"\.dofinal\b",
+        ]
+        secure_storage_indicators = [
+            r"sharedpreferences",
+            r"encryptedsharedpreferences",
+            r"keystore\.getinstance",
+            r"securerandom",
+            r"keygenerator",
+        ]
+        has_crypto_operation = any(re.search(p, combined_text) for p in crypto_operation_indicators)
+        has_secure_storage = any(re.search(p, combined_text) for p in secure_storage_indicators)
+        if has_secure_storage and not has_crypto_operation:
+            return ProtectionLevel.SECURE_STORAGE
 
         # Check each protection level (in order of preference/security)
         for protection_level, indicators in self.protection_indicators.items():

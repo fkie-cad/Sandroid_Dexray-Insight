@@ -257,3 +257,13 @@ def dump_json(filename, data):
     # Assuming `data` is your Python dictionary
     with open(filename, "w") as json_file:
         json.dump(data, json_file, cls=CustomJSONEncoder, indent=4)
+
+
+def dump_text(filename, text):
+    """Write a plain-text string to a file (UTF-8).
+
+    Sibling of :func:`dump_json` for non-JSON artifacts such as the Markdown
+    security report.
+    """
+    with open(filename, "w", encoding="utf-8") as text_file:
+        text_file.write(text)

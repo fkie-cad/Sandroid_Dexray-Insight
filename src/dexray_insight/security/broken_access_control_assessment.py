@@ -34,6 +34,9 @@ from ..core.base_classes import AnalysisSeverity
 from ..core.base_classes import BaseSecurityAssessment
 from ..core.base_classes import SecurityFinding
 from ..core.base_classes import register_assessment
+from .evidence import carries_browsable_or_custom_scheme
+from .evidence import classify_component
+from .evidence import should_downrank  # noqa: F401  (public helper; used by callers/tests)
 
 
 @register_assessment("broken_access_control")
@@ -48,6 +51,13 @@ class BrokenAccessControlAssessment(BaseSecurityAssessment):
 
         self.check_exported_components = config.get("check_exported_components", True)
         self.check_permissions = config.get("check_permissions", True)
+
+        # First-party package prefixes let the exported-component triage treat the
+        # app's own code as first-party even when it is namespaced unusually. Read
+        # defensively from this assessment's own config (never from dexray.yaml
+        # directly). Accepts a list under either key for forward compatibility.
+        configured_prefixes = config.get("first_party_prefixes") or config.get("first_party_packages") or []
+        self.first_party_prefixes = [str(p) for p in configured_prefixes if p] if isinstance(configured_prefixes, (list, tuple)) else []
 
         # Dangerous permissions that may indicate access control issues
         self.dangerous_permissions = [
@@ -82,6 +92,8 @@ class BrokenAccessControlAssessment(BaseSecurityAssessment):
                 findings.extend(self._assess_dangerous_permissions(analysis_data))
 
             findings.extend(self._assess_intent_filter_risks(analysis_data))
+
+            findings.extend(self._assess_exported_deeplink_activities(analysis_data))
 
             self.logger.info(
                 f"Completed broken access control assessment. Found {len(findings)} potential issues in {self.owasp_category}"
@@ -175,35 +187,112 @@ class BrokenAccessControlAssessment(BaseSecurityAssessment):
                 "content_providers": _normalize_list("content_providers"),
             }
 
-            findings.extend(self._assess_exported_activities(components))
-            findings.extend(self._assess_exported_services(components))
-            findings.extend(self._assess_exported_receivers(components))
-            findings.extend(self._assess_potentially_exported_components(components))
+            ctx = self._build_triage_ctx(analysis_data)
+
+            findings.extend(self._assess_exported_activities(components, ctx))
+            findings.extend(self._assess_exported_services(components, ctx))
+            findings.extend(self._assess_exported_receivers(components, ctx))
+            findings.extend(self._assess_potentially_exported_components(components, ctx))
 
         except Exception as e:
             self.logger.error(f"Error assessing exported components: {e}")
 
         return findings
 
-    def _assess_exported_activities(self, components: dict[str, list]) -> list[SecurityFinding]:
+    @staticmethod
+    def _extract_package_name(analysis_data: dict[str, Any]) -> str | None:
+        """Read the app package name from apk_overview.general_info defensively.
+
+        apk_overview may be a dataclass/object or a dict, and general_info may be
+        nested as an attribute or key. Any shape we do not understand yields None
+        so the triage falls back to prefix/library classification only.
+        """
+        overview = analysis_data.get("apk_overview")
+        if overview is None:
+            return None
+        general = getattr(overview, "general_info", None)
+        if general is None and isinstance(overview, dict):
+            general = overview.get("general_info")
+        if general is None:
+            return None
+        pkg = getattr(general, "package_name", None)
+        if pkg is None and isinstance(general, dict):
+            pkg = general.get("package_name")
+        return str(pkg) if pkg else None
+
+    def _build_triage_ctx(self, analysis_data: dict[str, Any]) -> dict[str, Any]:
+        """Assemble the context used to classify exported components."""
+        return {
+            "package_name": self._extract_package_name(analysis_data),
+            "first_party_prefixes": self.first_party_prefixes,
+            "library_results": analysis_data.get("library_detection") or analysis_data.get("library_analysis"),
+        }
+
+    def _triage(
+        self,
+        component: dict[str, Any],
+        ctx: dict[str, Any],
+        base_severity: AnalysisSeverity,
+        has_permission: bool = False,
+    ) -> tuple[AnalysisSeverity, float, str]:
+        """Return (severity, confidence, classification) for an exported component.
+
+        Applies the package-allowlist down-rank: framework-owned components drop
+        to LOW/low-confidence, but a component that is a deep-link entry point
+        (BROWSABLE / custom URI scheme) is ALWAYS surfaced regardless of its
+        package name (repackaging can spoof a ``com.google.*`` name). A
+        permission-guarded component is down-ranked (protected) rather than
+        dropped.
+        """
+        name = self._component_name(component)
+        classification = classify_component(
+            name,
+            package_name=ctx.get("package_name"),
+            first_party_prefixes=ctx.get("first_party_prefixes"),
+            library_results=ctx.get("library_results"),
+        )
+        browsable = carries_browsable_or_custom_scheme(component.get("intent_filters"))
+
+        if has_permission:
+            # Protected by a permission: keep as a low-confidence posture note.
+            return AnalysisSeverity.LOW, 0.25, classification
+        if browsable:
+            # Externally reachable deep-link entry point: always surfaced.
+            return base_severity, 0.6, classification
+        if should_downrank(classification):  # framework, no deep link
+            return AnalysisSeverity.LOW, 0.25, classification
+        if classification == "first_party":
+            return base_severity, 0.6, classification
+        # unknown / third-party-but-not-allowlisted
+        return base_severity, 0.5, classification
+
+    def _assess_exported_activities(self, components: dict[str, list], ctx: dict[str, Any] | None = None) -> list[SecurityFinding]:
         """Assess exported activities for missing permission protection."""
         findings = []
+
+        ctx = ctx or {}
 
         # Check for exported activities
         activities = components.get("activities", [])
         for activity in activities:
             if activity.get("exported", False) and not activity.get("permission"):  # No permission protection
                 name = self._component_name(activity)
+                severity, confidence, classification = self._triage(activity, ctx, AnalysisSeverity.MEDIUM)
                 findings.append(
                         SecurityFinding(
                             title="Unprotected Exported Activity",
                             category=self.owasp_category,
-                            severity=AnalysisSeverity.MEDIUM,
+                            severity=severity,
+                            confidence=confidence,
                             description=(
                                 f"Activity '{name}' is exported but not protected with permissions. "
                                 "This could allow unauthorized access by other applications."
                             ),
-                            evidence=[f"Exported activity: {name}", "No permission protection found"],
+                            evidence=[
+                                f"Exported activity: {name}",
+                                "No permission protection found",
+                                f"Component classification: {classification}",
+                            ],
                             recommendations=[
                                 "Set android:exported=\"false\" unless the component must be public",
                                 "Protect exported components with signature-level permissions",
@@ -214,30 +303,38 @@ class BrokenAccessControlAssessment(BaseSecurityAssessment):
 
         return findings
 
-    def _assess_exported_services(self, components: dict[str, list]) -> list[SecurityFinding]:
+    def _assess_exported_services(self, components: dict[str, list], ctx: dict[str, Any] | None = None) -> list[SecurityFinding]:
         """Assess exported services for missing permission protection."""
         findings = []
+
+        ctx = ctx or {}
 
         # Check for exported services
         services = components.get("services", [])
         for service in services:
             if service.get("exported", False) and not service.get("permission"):
                 name = self._component_name(service)
-                severity = (
+                base_severity = (
                     AnalysisSeverity.HIGH
                     if "bind" in name.lower()
                     else AnalysisSeverity.MEDIUM
                 )
+                severity, confidence, classification = self._triage(service, ctx, base_severity)
                 findings.append(
                     SecurityFinding(
                         title="Unprotected Exported Service",
                         category=self.owasp_category,
                         severity=severity,
+                        confidence=confidence,
                         description=(
                             f"Service '{name}' is exported but not protected with permissions. "
                             "This could allow unauthorized binding or interaction by malicious applications."
                         ),
-                        evidence=[f"Exported service: {name}", "No permission protection found"],
+                        evidence=[
+                            f"Exported service: {name}",
+                            "No permission protection found",
+                            f"Component classification: {classification}",
+                        ],
                         recommendations=[
                             "Set android:exported=\"false\" unless the service must be public",
                             "Protect exported services with signature-level permissions",
@@ -248,25 +345,33 @@ class BrokenAccessControlAssessment(BaseSecurityAssessment):
 
         return findings
 
-    def _assess_exported_receivers(self, components: dict[str, list]) -> list[SecurityFinding]:
+    def _assess_exported_receivers(self, components: dict[str, list], ctx: dict[str, Any] | None = None) -> list[SecurityFinding]:
         """Assess exported broadcast receivers for missing permission protection."""
         findings = []
+
+        ctx = ctx or {}
 
         # Check for exported receivers
         receivers = components.get("receivers", [])
         for receiver in receivers:
             if receiver.get("exported", False) and not receiver.get("permission"):
                 name = self._component_name(receiver)
+                severity, confidence, classification = self._triage(receiver, ctx, AnalysisSeverity.MEDIUM)
                 findings.append(
                     SecurityFinding(
                         title="Unprotected Exported Broadcast Receiver",
                         category=self.owasp_category,
-                        severity=AnalysisSeverity.MEDIUM,
+                        severity=severity,
+                        confidence=confidence,
                         description=(
                             f"Broadcast receiver '{name}' is exported but not protected. "
                             "This could allow unauthorized broadcast injection."
                         ),
-                        evidence=[f"Exported receiver: {name}", "No permission protection found"],
+                        evidence=[
+                            f"Exported receiver: {name}",
+                            "No permission protection found",
+                            f"Component classification: {classification}",
+                        ],
                         recommendations=[
                             "Set android:exported=\"false\" unless the receiver must be public",
                             "Protect exported receivers with signature-level permissions",
@@ -277,28 +382,41 @@ class BrokenAccessControlAssessment(BaseSecurityAssessment):
 
         return findings
 
-    def _assess_potentially_exported_components(self, components: dict[str, list]) -> list[SecurityFinding]:
+    def _assess_potentially_exported_components(self, components: dict[str, list], ctx: dict[str, Any] | None = None) -> list[SecurityFinding]:
         """Assess components potentially exported via intent filters without explicit declaration."""
         findings = []
+
+        ctx = ctx or {}
 
         # Look for potentially exported components without explicit export declaration
         potentially_exported = self._find_potentially_exported_components(components)
         for component_type, component_list in potentially_exported.items():
             for component in component_list:
                 name = self._component_name(component)
+                has_permission = bool(component.get("permission"))
+                severity, confidence, classification = self._triage(
+                    component, ctx, AnalysisSeverity.MEDIUM, has_permission=has_permission
+                )
+                evidence = [
+                    f"Component: {name}",
+                    f"Intent filters present: {len(component.get('intent_filters', []))}",
+                    f"Component classification: {classification}",
+                ]
+                if has_permission:
+                    evidence.append(f"Permission guard present: {component.get('permission')}")
+                if carries_browsable_or_custom_scheme(component.get("intent_filters")):
+                    evidence.append("Exposes a deep-link entry point (BROWSABLE or custom URI scheme)")
                 findings.append(
                     SecurityFinding(
                         title=f"Potentially Exported {component_type.capitalize()[:-1]}",
                         category=self.owasp_category,
-                        severity=AnalysisSeverity.LOW,
+                        severity=severity,
+                        confidence=confidence,
                         description=(
                             f"{component_type.capitalize()[:-1]} '{name}' may be implicitly exported "
                             "due to intent filters without explicit export control."
                         ),
-                        evidence=[
-                            f"Component: {name}",
-                            f"Intent filters present: {len(component.get('intent_filters', []))}",
-                        ],
+                        evidence=evidence,
                         recommendations=[
                             "Explicitly set android:exported for components with intent filters",
                             "Add permission guards to components reachable via intent filters",
@@ -310,17 +428,29 @@ class BrokenAccessControlAssessment(BaseSecurityAssessment):
         return findings
 
     def _find_potentially_exported_components(self, components: dict[str, list]) -> dict[str, list]:
-        """Find components that might be implicitly exported due to intent filters."""
+        """Find components that might be implicitly exported due to intent filters.
+
+        A component is a candidate when it has at least one intent filter and is
+        NOT explicitly declared ``android:exported="false"``. Explicitly
+        non-exported components cannot be reached externally, so they are skipped
+        entirely (they previously flooded the report - e.g. 4 of Kik's exported
+        "findings" were ``exported="false"`` services). Permission-guarded and
+        framework-owned candidates are still returned here but are down-ranked in
+        :meth:`_assess_potentially_exported_components`.
+        """
         potentially_exported = {"activities": [], "services": [], "receivers": []}
 
         for component_type in potentially_exported:
             for component in components.get(component_type, []):
-                if (
-                    not component.get("exported", False)  # Not explicitly exported
-                    and component.get("intent_filters")
-                    and len(component["intent_filters"]) > 0
-                ):
-                    potentially_exported[component_type].append(component)
+                intent_filters = component.get("intent_filters")
+                if not intent_filters or len(intent_filters) == 0:
+                    continue
+                # Only components WITHOUT an explicit export declaration belong here.
+                # exported=True is handled by the explicit-export paths above;
+                # exported=False cannot be reached externally, so both are skipped.
+                if component.get("exported") is not None:
+                    continue
+                potentially_exported[component_type].append(component)
 
         return potentially_exported
 
@@ -493,3 +623,211 @@ class BrokenAccessControlAssessment(BaseSecurityAssessment):
 
         # Also risky: default handlers for sensitive actions
         return bool(has_default_category and has_risky_action)
+
+    # ------------------------------------------------------------------ #
+    # Deep-link / browsable exported activity detection (IPC attack surface)
+    # ------------------------------------------------------------------ #
+    @staticmethod
+    def _extract_apk_overview_dict(analysis_data: dict[str, Any]) -> dict[str, Any] | None:
+        """Return a plain-dict view of the apk_overview result, or None.
+
+        apk_overview may be a dataclass exposing ``to_dict()``, a raw dict, or
+        absent. Any shape we do not understand yields None so detection is a
+        no-op rather than crashing.
+        """
+        overview = analysis_data.get("apk_overview")
+        if overview is None:
+            return None
+        if isinstance(overview, dict):
+            return overview
+        to_dict = getattr(overview, "to_dict", None)
+        if callable(to_dict):
+            try:
+                return to_dict()
+            except Exception:
+                return None
+        return None
+
+    @staticmethod
+    def _deeplink_exported_names(overview: dict[str, Any]) -> set[str]:
+        """Collect the set of exported activity name strings from apk_overview."""
+        names: set[str] = set()
+        components = overview.get("components")
+        if isinstance(components, dict):
+            for entry in components.get("exported_activities") or []:
+                if isinstance(entry, dict):
+                    entry = entry.get("name")
+                if entry:
+                    names.add(str(entry))
+        return names
+
+    @staticmethod
+    def _deeplink_is_exported(name: str, data: dict[str, Any], exported_names: set[str]) -> bool:
+        """Decide whether a browsable activity is externally reachable.
+
+        An explicit ``exported`` flag on the entry wins; otherwise the activity
+        is treated as exported only when its name appears in apk_overview's
+        exported-activity list. A browsable activity that is not exported cannot
+        be reached from another app, so it is skipped.
+        """
+        exported = data.get("exported")
+        if exported is False:
+            return False
+        if exported is True:
+            return True
+        return name in exported_names
+
+    @staticmethod
+    def _deeplink_schemes(data: dict[str, Any]) -> list[str]:
+        """Return the declared URI schemes for a browsable-activity entry."""
+        schemes = data.get("schemes")
+        if isinstance(schemes, (list, tuple)):
+            return [str(s) for s in schemes if s]
+        if isinstance(schemes, str) and schemes:
+            return [schemes]
+        return []
+
+    @staticmethod
+    def _deeplink_filters_view(data: dict[str, Any]) -> dict[str, Any]:
+        """Build an intent-filter-shaped view for ``carries_browsable_or_custom_scheme``.
+
+        Entries in apk_overview.browsable_activities are browsable by
+        construction, so BROWSABLE is always present; schemes are forwarded so
+        the custom-scheme spoof-resistance override applies uniformly.
+        """
+        categories = data.get("categories") or ["android.intent.category.BROWSABLE"]
+        return {
+            "filters": {
+                "category": categories,
+                "scheme": BrokenAccessControlAssessment._deeplink_schemes(data),
+            }
+        }
+
+    @staticmethod
+    def _is_custom_scheme(scheme: str) -> bool:
+        """Return True when a scheme (e.g. ``kik://``) is a non-standard URI scheme."""
+        token = scheme.strip().rstrip(":/").lower()
+        standard = {"http", "https", "content", "file", "tel", "mailto", "sms", "smsto", "geo", "market"}
+        return bool(token) and token not in standard
+
+    def _assess_exported_deeplink_activities(self, analysis_data: dict[str, Any]) -> list[SecurityFinding]:
+        """Detect exported browsable/deep-link activities that lack permission protection.
+
+        Cross-references apk_overview.browsable_activities (per-activity deep-link
+        metadata) with the exported-activity list. Each exported, unprotected
+        deep-link entry point is surfaced. Severity/confidence follow the
+        package-allowlist classification (first-party -> MEDIUM/0.7, framework ->
+        LOW/0.3), but deep-link entry points are NEVER dropped by the allowlist
+        (spoof resistance via ``carries_browsable_or_custom_scheme``). Catch-all
+        VIEW+BROWSABLE filters (no ``<data>`` scheme) and custom URI schemes
+        escalate the description.
+        """
+        findings: list[SecurityFinding] = []
+
+        try:
+            overview = self._extract_apk_overview_dict(analysis_data)
+            if not overview:
+                return findings
+
+            browsable = overview.get("browsable_activities")
+            if not isinstance(browsable, dict) or not browsable:
+                return findings
+
+            exported_names = self._deeplink_exported_names(overview)
+            ctx = self._build_triage_ctx(analysis_data)
+
+            for name, raw in browsable.items():
+                data = raw if isinstance(raw, dict) else {}
+                if not self._deeplink_is_exported(str(name), data, exported_names):
+                    continue
+
+                finding = self._build_deeplink_finding(str(name), data, ctx)
+                if finding is not None:
+                    findings.append(finding)
+
+        except Exception as e:
+            self.logger.error(f"Error assessing exported deep-link activities: {e}")
+
+        return findings
+
+    def _build_deeplink_finding(
+        self, name: str, data: dict[str, Any], ctx: dict[str, Any]
+    ) -> SecurityFinding | None:
+        """Construct the finding for a single exported deep-link activity."""
+        permission = data.get("permission")
+        schemes = self._deeplink_schemes(data)
+        hosts = [str(h) for h in (data.get("hosts") or []) if h]
+        paths = [str(p) for p in (data.get("paths") or []) if p]
+        filters_view = self._deeplink_filters_view(data)
+
+        # Spoof resistance: a deep-link entry point is always surfaced, even when
+        # its package name would otherwise be down-ranked as framework.
+        is_deeplink = carries_browsable_or_custom_scheme(filters_view)
+
+        classification = classify_component(
+            name,
+            package_name=ctx.get("package_name"),
+            first_party_prefixes=ctx.get("first_party_prefixes"),
+            library_results=ctx.get("library_results"),
+        )
+
+        catch_all = not schemes  # VIEW+BROWSABLE with no <data> scheme
+        custom_schemes = [s for s in schemes if self._is_custom_scheme(s)]
+
+        if permission:
+            # Protected by a permission: keep as a low-confidence posture note.
+            severity, confidence = AnalysisSeverity.LOW, 0.3
+        elif classification == "first_party":
+            severity, confidence = AnalysisSeverity.MEDIUM, 0.7
+        elif classification == "framework":
+            # Down-ranked but still surfaced (never suppressed) because it is a
+            # deep-link entry point that repackaging could have spoofed.
+            severity, confidence = AnalysisSeverity.LOW, 0.3
+        else:
+            severity, confidence = AnalysisSeverity.MEDIUM, 0.5
+
+        description = (
+            f"Exported activity '{name}' is a deep-link entry point reachable by other "
+            "applications or the browser without permission protection. Unvalidated deep-link "
+            "input can drive unintended navigation or actions inside the app."
+        )
+        if catch_all:
+            description += (
+                " It uses a catch-all VIEW+BROWSABLE intent filter with no <data> scheme, so it "
+                "will handle arbitrary deep links."
+            )
+        if custom_schemes:
+            description += f" It registers custom URI scheme(s): {', '.join(custom_schemes)}."
+
+        evidence = [
+            f"Exported deep-link activity: {name}",
+            f"Component classification: {classification}",
+        ]
+        evidence.append(f"URI schemes: {', '.join(schemes)}" if schemes else "URI schemes: (none - catch-all filter)")
+        if hosts:
+            evidence.append(f"Hosts: {', '.join(hosts)}")
+        if paths:
+            evidence.append(f"Paths: {', '.join(paths)}")
+        if catch_all:
+            evidence.append("Catch-all VIEW+BROWSABLE intent filter with no <data> scheme")
+        if custom_schemes:
+            evidence.append(f"Custom URI scheme(s): {', '.join(custom_schemes)}")
+        if permission:
+            evidence.append(f"Permission guard present: {permission}")
+        if is_deeplink:
+            evidence.append("Deep-link entry point (always surfaced regardless of package allowlist)")
+
+        return SecurityFinding(
+            title="Exported Deep-Link Activity Without Permission Protection",
+            category=self.owasp_category,
+            severity=severity,
+            confidence=confidence,
+            description=description,
+            evidence=evidence,
+            recommendations=[
+                "Set android:exported=\"false\" if the activity does not need to handle external deep links",
+                "Protect the activity with a signature-level permission where external access is required",
+                "Rigorously validate and sanitize all deep-link URI data before acting on it",
+                "Avoid catch-all VIEW+BROWSABLE filters; scope intent filters to specific schemes/hosts/paths",
+            ],
+        )

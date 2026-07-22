@@ -34,6 +34,21 @@ from ..core.base_classes import AnalysisSeverity
 from ..core.base_classes import BaseSecurityAssessment
 from ..core.base_classes import SecurityFinding
 from ..core.base_classes import register_assessment
+from .evidence import is_probably_code_identifier
+from .evidence import list_sink_calls
+from .evidence import list_weak_command_signals
+from .evidence import looks_like_type_descriptor
+from .evidence.whole_word import matches_algorithm_token
+
+# SQL verbs / clauses used to recognise a *real* dynamic-query shape (as opposed
+# to a bare SQL keyword co-occurring with a "+" somewhere in a class descriptor).
+_SQL_VERBS = ("SELECT", "INSERT", "UPDATE", "DELETE", "DROP", "CREATE", "ALTER", "MERGE", "TRUNCATE", "UNION")
+_SQL_CLAUSES = ("FROM", "WHERE", "INTO", "VALUES", "SET", "TABLE", "JOIN")
+_SQL_CONCAT_HINTS = ("+", "||", "concat", "%s", "format", "{")
+
+# Shell metacharacters that indicate command chaining / interpolation.
+_SHELL_METACHARS = ("|", ";", "`", "&&", "$(", "$'", ">", "<")
+_SHELL_TOKENS = ("sh", "bash", "cmd", "exec", "system")
 
 
 @register_assessment("injection")
@@ -62,6 +77,46 @@ class InjectionAssessment(BaseSecurityAssessment):
 
         # NoSQL injection patterns
         self.nosql_patterns = ["$where", "$ne", "$gt", "$lt", "$regex", "find(", "aggregate("]
+
+        # Evidence gating: require a real API sink before promoting a string-only
+        # heuristic hit to MEDIUM/HIGH. When True (default) a string-only hit is
+        # DEMOTED to a LOW "unproven (review)" finding rather than dropped.
+        self.require_sink = bool(config.get("require_sink", True))
+
+    # -- helpers ---------------------------------------------------------------
+
+    @staticmethod
+    def _get_all_strings(analysis_results: dict[str, Any]) -> list:
+        string_results = analysis_results.get("string_analysis", {})
+        string_data = string_results.to_dict() if hasattr(string_results, "to_dict") else string_results
+        if not isinstance(string_data, dict):
+            return []
+        strings = string_data.get("all_strings", [])
+        return strings if isinstance(strings, list) else []
+
+    @staticmethod
+    def _looks_like_sql_query(string: str) -> bool:
+        """A real dynamic SQL query: verb + clause + concatenation, not a descriptor."""
+        if not isinstance(string, str) or " " not in string:
+            return False
+        if looks_like_type_descriptor(string):
+            return False
+        has_verb = any(matches_algorithm_token(string, verb) for verb in _SQL_VERBS)
+        has_clause = any(matches_algorithm_token(string, clause) for clause in _SQL_CLAUSES)
+        lower = string.lower()
+        has_concat = any(hint in string if hint in ("+", "||", "%s", "{") else hint in lower for hint in _SQL_CONCAT_HINTS)
+        return has_verb and has_clause and has_concat
+
+    @staticmethod
+    def _looks_like_shell_command(string: str) -> bool:
+        """A real shell command: shell token + metachar + whitespace, not a descriptor/identifier."""
+        if not isinstance(string, str) or " " not in string:
+            return False
+        if looks_like_type_descriptor(string) or is_probably_code_identifier(string):
+            return False
+        has_token = any(matches_algorithm_token(string, token) for token in _SHELL_TOKENS)
+        has_meta = any(meta in string for meta in _SHELL_METACHARS)
+        return has_token and has_meta
 
     def assess(self, analysis_results: dict[str, Any], context: AnalysisContext | None = None) -> list[SecurityFinding]:
         """Assess for injection vulnerabilities."""
@@ -103,106 +158,138 @@ class InjectionAssessment(BaseSecurityAssessment):
 
         return findings
 
+    _SQL_RECOMMENDATIONS = [
+        "Use parameterized queries or prepared statements",
+        "Validate and sanitize all user input before database operations",
+        "Use ORM frameworks with built-in injection protection",
+        "Implement strict input validation and type checking",
+        "Apply principle of least privilege for database access",
+        "Use stored procedures with proper parameter handling",
+    ]
+
+    _COMMAND_RECOMMENDATIONS = [
+        "Avoid executing system commands with user input",
+        "Use safe APIs instead of shell command execution",
+        "Validate and sanitize all input used in system commands",
+        "Use allowlists for permitted commands and parameters",
+        "Run with minimal privileges and sandboxing",
+        "Consider safer alternatives to Runtime.exec() or system calls",
+    ]
+
     def _assess_sql_injection(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """Assess for SQL injection vulnerabilities."""
-        findings = []
+        """Assess for SQL injection vulnerabilities.
 
-        string_results = analysis_results.get("string_analysis", {})
-        string_data = string_results.to_dict() if hasattr(string_results, "to_dict") else string_results
+        Primary evidence is a real SQLite API sink (rawQuery/execSQL/QueryBuilder).
+        Dynamic-query strings only corroborate; a string-only hit with no sink is
+        demoted to LOW "unproven (review)" (kept, not dropped) when require_sink.
+        """
+        sink_calls = list_sink_calls(analysis_results, "sql")
+        sink_evidence = [
+            f"SQL sink: {c.get('called_class', '')}.{c.get('called_method', '')}" for c in sink_calls
+        ]
 
-        all_strings = string_data.get("all_strings", [])
-        sql_risks = []
+        string_risks = [
+            f"Dynamic SQL query: {s[:80]}"
+            for s in self._get_all_strings(analysis_results)
+            if self._looks_like_sql_query(s)
+        ]
 
-        # Look for SQL injection patterns
-        for string in all_strings:
-            if isinstance(string, str):
-                # Check for dynamic SQL construction with user input
-                if any(sql_pattern in string.upper() for sql_pattern in self.sql_patterns) and any(
-                    user_input in string.lower() for user_input in ["user", "input", "+", "concat", "format"]
-                ):
-                    sql_risks.append(f"Potential SQL injection: {string[:80]}...")
-
-                # Check for specific dangerous patterns
-                dangerous_patterns = [
-                    r"SELECT.*\+.*",  # String concatenation in SQL
-                    r"WHERE.*\+.*",  # WHERE clause concatenation
-                    r"INSERT.*\+.*",  # INSERT concatenation
-                    r"UPDATE.*\+.*",  # UPDATE concatenation
-                ]
-
-                import re
-
-                for pattern in dangerous_patterns:
-                    if re.search(pattern, string, re.IGNORECASE):
-                        sql_risks.append(f"Dangerous SQL pattern: {string[:80]}...")
-                        break
-
-        if sql_risks:
-            findings.append(
-                SecurityFinding(
-                    category=self.owasp_category,
-                    severity=AnalysisSeverity.HIGH,
-                    title="SQL Injection Risk",
-                    description="Application may be vulnerable to SQL injection attacks through dynamic query construction.",
-                    evidence=sql_risks[:10],
-                    recommendations=[
-                        "Use parameterized queries or prepared statements",
-                        "Validate and sanitize all user input before database operations",
-                        "Use ORM frameworks with built-in injection protection",
-                        "Implement strict input validation and type checking",
-                        "Apply principle of least privilege for database access",
-                        "Use stored procedures with proper parameter handling",
-                    ],
-                )
-            )
-
-        return findings
+        return self._build_injection_finding(
+            title="SQL Injection",
+            description="Application may be vulnerable to SQL injection through dynamic query construction.",
+            sink_evidence=sink_evidence,
+            string_risks=string_risks,
+            recommendations=self._SQL_RECOMMENDATIONS,
+        )
 
     def _assess_command_injection(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """Assess for command injection vulnerabilities."""
-        findings = []
+        """Assess for command injection vulnerabilities.
 
-        string_results = analysis_results.get("string_analysis", {})
-        string_data = string_results.to_dict() if hasattr(string_results, "to_dict") else string_results
-        all_strings = string_data.get("all_strings", [])
+        Primary evidence is a Runtime.exec / ProcessBuilder sink. Reflection and
+        dynamic class-loading are treated as weaker corroborating signals so that
+        obfuscated malware hiding a real exec is not silently cleared.
+        """
+        sink_calls = list_sink_calls(analysis_results, "command")
+        sink_evidence = [
+            f"Command sink: {c.get('called_class', '')}.{c.get('called_method', '')}" for c in sink_calls
+        ]
 
-        command_risks = []
+        weak_signals = list_weak_command_signals(analysis_results)
 
-        for string in all_strings:
-            if isinstance(string, str):
-                # Check for command execution with user input
-                if any(cmd_pattern in string.lower() for cmd_pattern in self.command_patterns) and any(
-                    user_input in string.lower() for user_input in ["user", "input", "param", "arg", "+"]
-                ):
-                    command_risks.append(f"Potential command injection: {string[:80]}...")
+        string_risks = [
+            f"Shell command construction: {s[:80]}"
+            for s in self._get_all_strings(analysis_results)
+            if self._looks_like_shell_command(s)
+        ]
+        # Weak reflective/dynamic-loading signals corroborate command injection
+        # even without a hard sink (false-negative guard for obfuscated apps).
+        string_risks.extend(weak_signals)
 
-                # Check for dangerous shell operators
-                dangerous_operators = ["|", "&", ";", "`", "$", "(", ")", "{", "}", "<", ">"]
-                if any(op in string for op in dangerous_operators) and any(
-                    exec_term in string.lower() for exec_term in ["runtime", "exec", "system"]
-                ):
-                    command_risks.append(f"Shell injection risk: {string[:80]}...")
+        return self._build_injection_finding(
+            title="Command Injection",
+            description="Application may be vulnerable to command injection through system command execution.",
+            sink_evidence=sink_evidence,
+            string_risks=string_risks,
+            recommendations=self._COMMAND_RECOMMENDATIONS,
+        )
 
-        if command_risks:
-            findings.append(
+    def _build_injection_finding(
+        self,
+        title: str,
+        description: str,
+        sink_evidence: list[str],
+        string_risks: list[str],
+        recommendations: list[str],
+    ) -> list[SecurityFinding]:
+        """Assemble an injection finding with evidence-weighted severity/confidence."""
+        if sink_evidence:
+            # Sink present: HIGH if also corroborated by a query/command string,
+            # else MEDIUM. Confidence is high because a real API sink exists.
+            severity = AnalysisSeverity.HIGH if string_risks else AnalysisSeverity.MEDIUM
+            confidence = 0.85 if string_risks else 0.7
+            return [
                 SecurityFinding(
                     category=self.owasp_category,
-                    severity=AnalysisSeverity.HIGH,
-                    title="Command Injection Risk",
-                    description="Application may be vulnerable to command injection attacks through system command execution.",
-                    evidence=command_risks[:8],
-                    recommendations=[
-                        "Avoid executing system commands with user input",
-                        "Use safe APIs instead of shell command execution",
-                        "Validate and sanitize all input used in system commands",
-                        "Use allowlists for permitted commands and parameters",
-                        "Run with minimal privileges and sandboxing",
-                        "Consider safer alternatives to Runtime.exec() or system calls",
-                    ],
+                    severity=severity,
+                    title=f"{title} Risk",
+                    description=description,
+                    evidence=(sink_evidence + string_risks)[:10],
+                    recommendations=recommendations,
+                    confidence=confidence,
                 )
-            )
+            ]
 
-        return findings
+        if not string_risks:
+            return []
+
+        # No sink, only string heuristics.
+        if self.require_sink:
+            return [
+                SecurityFinding(
+                    category=self.owasp_category,
+                    severity=AnalysisSeverity.LOW,
+                    title=f"{title} Risk (unproven, review)",
+                    description=(
+                        f"{description} No supporting API sink was found; this is a string-only "
+                        "heuristic hit that requires manual review."
+                    ),
+                    evidence=string_risks[:10],
+                    recommendations=recommendations,
+                    confidence=0.35,
+                )
+            ]
+
+        return [
+            SecurityFinding(
+                category=self.owasp_category,
+                severity=AnalysisSeverity.MEDIUM,
+                title=f"{title} Risk",
+                description=description,
+                evidence=string_risks[:10],
+                recommendations=recommendations,
+                confidence=0.4,
+            )
+        ]
 
     def _assess_ldap_injection(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
         """Assess for LDAP injection vulnerabilities."""
@@ -215,29 +302,26 @@ class InjectionAssessment(BaseSecurityAssessment):
         ldap_risks = []
 
         for string in all_strings:
-            if isinstance(string, str):
-                # Check for LDAP operations with user input
-                if any(ldap_pattern in string for ldap_pattern in self.ldap_patterns) and any(
-                    user_input in string.lower() for user_input in ["user", "input", "+", "concat"]
-                ):
-                    ldap_risks.append(f"Potential LDAP injection: {string[:80]}...")
-
-                # Check for LDAP filter construction
-                if (
-                    "(" in string
-                    and "=" in string
-                    and any(ldap_term in string.lower() for ldap_term in ["ldap", "directory", "search"])
-                ) and any(user_input in string.lower() for user_input in ["user", "input", "param"]):
-                    ldap_risks.append(f"LDAP filter injection risk: {string[:80]}...")
+            if not isinstance(string, str) or looks_like_type_descriptor(string):
+                continue
+            # Require an actual LDAP URI scheme plus a dynamic-construction hint;
+            # a bare "search"/"directory" substring is not evidence.
+            has_ldap_uri = "ldap://" in string.lower() or "ldaps://" in string.lower()
+            has_dynamic = any(hint in string.lower() for hint in ["user", "input", "+", "concat"])
+            if has_ldap_uri and has_dynamic:
+                ldap_risks.append(f"Potential LDAP injection: {string[:80]}")
 
         if ldap_risks:
             findings.append(
                 SecurityFinding(
                     category=self.owasp_category,
-                    severity=AnalysisSeverity.MEDIUM,
-                    title="LDAP Injection Risk",
+                    # Demoted to LOW: no LDAP sink catalog exists, so even a URI +
+                    # dynamic hint is unproven without data-flow.
+                    severity=AnalysisSeverity.LOW,
+                    title="LDAP Injection Risk (unproven, review)",
                     description="Application may be vulnerable to LDAP injection through dynamic filter construction.",
                     evidence=ldap_risks[:5],
+                    confidence=0.3,
                     recommendations=[
                         "Use parameterized LDAP queries and filters",
                         "Validate and escape LDAP filter characters",
@@ -261,26 +345,27 @@ class InjectionAssessment(BaseSecurityAssessment):
         nosql_risks = []
 
         for string in all_strings:
-            if isinstance(string, str):
-                # Check for NoSQL operators with user input
-                if any(nosql_pattern in string for nosql_pattern in self.nosql_patterns) and any(
-                    user_input in string.lower() for user_input in ["user", "input", "param", "json"]
-                ):
-                    nosql_risks.append(f"Potential NoSQL injection: {string[:80]}...")
-
-                # Check for MongoDB-specific patterns
-                mongo_patterns = ["db.", "collection.", "find(", "update(", "insert(", "remove("]
-                if any(pattern in string for pattern in mongo_patterns) and ("+" in string or "concat" in string.lower()):
-                    nosql_risks.append(f"MongoDB injection risk: {string[:80]}...")
+            if not isinstance(string, str) or looks_like_type_descriptor(string):
+                continue
+            # Require a NoSQL operator token AND a dynamic-construction hint; drop
+            # bare-substring co-occurrence.
+            has_operator = any(nosql_pattern in string for nosql_pattern in self.nosql_patterns)
+            has_dynamic = ("+" in string) or ("concat" in string.lower())
+            if has_operator and has_dynamic and any(
+                hint in string.lower() for hint in ["user", "input", "param", "json"]
+            ):
+                nosql_risks.append(f"Potential NoSQL injection: {string[:80]}")
 
         if nosql_risks:
             findings.append(
                 SecurityFinding(
                     category=self.owasp_category,
-                    severity=AnalysisSeverity.MEDIUM,
-                    title="NoSQL Injection Risk",
+                    # Demoted to LOW: no NoSQL sink catalog, unproven without data-flow.
+                    severity=AnalysisSeverity.LOW,
+                    title="NoSQL Injection Risk (unproven, review)",
                     description="Application may be vulnerable to NoSQL injection through dynamic query construction.",
                     evidence=nosql_risks[:6],
+                    confidence=0.3,
                     recommendations=[
                         "Use parameterized NoSQL queries and operations",
                         "Validate and sanitize input used in NoSQL operations",

@@ -66,6 +66,12 @@ class SecurityAssessmentResults:
     summary: dict[str, Any]
     overall_risk_score: float
     owasp_categories_affected: list[str]
+    # Evidence-weighted scoring metadata (additive; default None keeps older constructors
+    # and consumers working). Populated by the engine when the v2 scorer runs.
+    risk_score_version: int = 1
+    overall_risk_score_raw: float | None = None
+    risk_score_confirmed: float | None = None
+    risk_score_legacy: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert security results to dictionary format."""
@@ -78,6 +84,11 @@ class SecurityAssessmentResults:
             "owasp_categories_affected": self.owasp_categories_affected,
             "total_findings": len(self.findings),
             "findings_by_severity": self._group_by_severity(),
+            # Additive scoring discriminators so downstream consumers can migrate.
+            "risk_score_version": self.risk_score_version,
+            "overall_risk_score_raw": self.overall_risk_score_raw,
+            "risk_score_confirmed": self.risk_score_confirmed,
+            "risk_score_legacy": self.risk_score_legacy,
         }
 
     def to_json(self) -> str:
@@ -107,6 +118,27 @@ class SecurityAssessmentEngine:
         self.security_config = config.get_security_config()
         self.logger = logging.getLogger(__name__)
         self.assessments = self._load_assessments()
+
+        # Evidence-weighted scoring config (v2 is the default; see MIGRATION notes).
+        scoring_cfg = self.security_config.get("risk_scoring", {}) or {}
+        self.scoring_version = int(scoring_cfg.get("version", 2))
+        self.scoring_denominator = float(scoring_cfg.get("denominator", 100.0))
+        self.confirmed_confidence_threshold = float(scoring_cfg.get("confirmed_threshold", 0.7))
+        # A single high-confidence CRITICAL must keep the app in the critical band,
+        # regardless of how few findings there are.
+        self.critical_floor = float(scoring_cfg.get("critical_floor", 75.0))
+        self.severity_default_confidence = {
+            AnalysisSeverity.CRITICAL: 0.8,
+            AnalysisSeverity.HIGH: 0.5,
+            AnalysisSeverity.MEDIUM: 0.4,
+            AnalysisSeverity.LOW: 0.3,
+        }
+        cfg_defaults = scoring_cfg.get("severity_defaults", {}) or {}
+        for sev_name, value in cfg_defaults.items():
+            try:
+                self.severity_default_confidence[AnalysisSeverity(sev_name)] = float(value)
+            except (ValueError, TypeError):
+                self.logger.debug(f"Ignoring invalid severity default confidence: {sev_name}={value}")
 
     def assess(
         self, analysis_results: dict[str, Any], context: AnalysisContext | None = None
@@ -171,8 +203,27 @@ class SecurityAssessmentEngine:
                     "error": str(e),
                 }
 
-        # Calculate overall risk score and create summary
-        overall_risk_score = self._calculate_risk_score(all_findings)
+        # PR-7: context-analysis / false-positive post-processing pass. Runs AFTER the
+        # assessment loop but BEFORE confidence backfill and scoring. Gated by config;
+        # a no-op (returns findings unchanged) when disabled.
+        all_findings = self._run_post_processing(all_findings, analysis_results)
+
+        # Backfill a severity-derived confidence for any finding an assessment did not
+        # score, so the scorer and report ranking always have a value (never None → 0).
+        self._backfill_confidence(all_findings)
+
+        # Calculate risk scores. v2 (evidence-weighted) is the default; v1 (legacy
+        # count-weighted) is always computed too and emitted as risk_score_legacy.
+        legacy_score = self._calculate_risk_score_v1(all_findings)
+        if self.scoring_version == 1:
+            overall_risk_score = legacy_score
+            raw_score = None
+            confirmed_score = None
+        else:
+            overall_risk_score, raw_score = self._calculate_risk_score_v2(all_findings)
+            confirmed_score, _ = self._calculate_risk_score_v2(
+                [f for f in all_findings if (f.confidence or 0.0) >= self.confirmed_confidence_threshold]
+            )
         owasp_categories = list({finding.category for finding in all_findings})
 
         summary = {
@@ -187,6 +238,10 @@ class SecurityAssessmentEngine:
             summary=summary,
             overall_risk_score=overall_risk_score,
             owasp_categories_affected=owasp_categories,
+            risk_score_version=self.scoring_version,
+            overall_risk_score_raw=raw_score,
+            risk_score_confirmed=confirmed_score,
+            risk_score_legacy=legacy_score,
         )
 
         self.logger.info(
@@ -231,34 +286,108 @@ class SecurityAssessmentEngine:
 
         return assessments
 
+    # Severity weights shared by both scorers.
+    _SEVERITY_WEIGHTS = {
+        AnalysisSeverity.CRITICAL: 10,
+        AnalysisSeverity.HIGH: 7,
+        AnalysisSeverity.MEDIUM: 4,
+        AnalysisSeverity.LOW: 1,
+    }
+
     def _calculate_risk_score(self, findings: list[SecurityFinding]) -> float:
-        """Calculate overall risk score based on findings.
+        """Dispatch to the configured scorer (kept for backward-compatible callers).
 
-        Risk score is calculated as:
-        - Critical: 10 points each
-        - High: 7 points each
-        - Medium: 4 points each
-        - Low: 1 point each
+        Returns the v1 legacy score when version==1, otherwise the v2 normalized score.
+        """
+        if self.scoring_version == 1:
+            return self._calculate_risk_score_v1(findings)
+        normalized, _ = self._calculate_risk_score_v2(findings)
+        return normalized
 
-        Max score is normalized to 100.
+    def _run_post_processing(
+        self, findings: list[SecurityFinding], analysis_results: dict[str, Any]
+    ) -> list[SecurityFinding]:
+        """Apply the PR-7 finding post-processing pass (FP confidence + dedup).
+
+        Gated by ``security.context_analysis.enabled``. When disabled (or on any
+        error) the original findings are returned unchanged so scoring behaviour is
+        never accidentally altered.
+        """
+        context_config = self.config.get_context_analysis_config()
+        if not context_config or not context_config.get("enabled", False):
+            return findings
+
+        try:
+            # Imported lazily to avoid importing the security context-analysis stack
+            # (and its heavier dependencies) when post-processing is disabled.
+            from ..security.finding_postprocessor import FindingPostProcessor
+
+            processor = FindingPostProcessor()
+            return processor.process(findings, analysis_results, context_config)
+        except Exception as e:
+            self.logger.error(f"Finding post-processing failed, using unprocessed findings: {str(e)}")
+            return findings
+
+    def _backfill_confidence(self, findings: list[SecurityFinding]) -> None:
+        """Assign a severity-derived default confidence to any unscored finding.
+
+        Producers (assessments) may set finding.confidence explicitly; those are left
+        untouched. This guarantees the scorer and report ranking always see a value.
+        """
+        for finding in findings:
+            if finding.confidence is None:
+                finding.confidence = self.severity_default_confidence.get(finding.severity, 0.3)
+
+    def _calculate_risk_score_v1(self, findings: list[SecurityFinding]) -> float:
+        """Legacy count-weighted risk score (Critical=10/High=7/Medium=4/Low=1, /500).
+
+        Preserved verbatim so consumers can pin the pre-2.0 score via risk_scoring.version=1
+        or read risk_score_legacy.
         """
         if not findings:
             return 0.0
 
-        severity_weights = {
-            AnalysisSeverity.CRITICAL: 10,
-            AnalysisSeverity.HIGH: 7,
-            AnalysisSeverity.MEDIUM: 4,
-            AnalysisSeverity.LOW: 1,
-        }
-
-        total_score = sum(severity_weights.get(finding.severity, 0) for finding in findings)
-
+        total_score = sum(self._SEVERITY_WEIGHTS.get(finding.severity, 0) for finding in findings)
         # Normalize to 0-100 scale (assuming max of 50 critical findings as worst case)
-        max_possible_score = 50 * severity_weights[AnalysisSeverity.CRITICAL]
+        max_possible_score = 50 * self._SEVERITY_WEIGHTS[AnalysisSeverity.CRITICAL]
         normalized_score = min(100.0, (total_score / max_possible_score) * 100)
-
         return round(normalized_score, 2)
+
+    def _calculate_risk_score_v2(self, findings: list[SecurityFinding]) -> tuple[float, float]:
+        """Evidence-weighted risk score: Σ (severity_weight × confidence).
+
+        Confidence (0-1) is the single likelihood axis — it already folds in any
+        false-positive probability applied by the post-processor. Severity is the stable
+        impact axis. There is no count_factor: severity × confidence already dampens
+        count-inflated low-confidence findings, and a per-finding cap avoids the six-figure
+        "174k leakage" distortion.
+
+        A single high-confidence CRITICAL floors the normalized score into the critical
+        band so a real critical is never diluted by aggregate arithmetic.
+
+        Returns (normalized_score 0-100, raw_weighted_sum).
+        """
+        if not findings:
+            return 0.0, 0.0
+
+        raw = 0.0
+        for finding in findings:
+            weight = self._SEVERITY_WEIGHTS.get(finding.severity, 0)
+            confidence = finding.confidence if finding.confidence is not None else 0.3
+            raw += weight * confidence
+
+        denominator = self.scoring_denominator if self.scoring_denominator > 0 else 100.0
+        normalized = min(100.0, (raw / denominator) * 100.0)
+
+        # Single high-confidence CRITICAL floor.
+        has_confirmed_critical = any(
+            f.severity == AnalysisSeverity.CRITICAL and (f.confidence or 0.0) >= self.confirmed_confidence_threshold
+            for f in findings
+        )
+        if has_confirmed_critical:
+            normalized = max(normalized, self.critical_floor)
+
+        return round(normalized, 2), round(raw, 2)
 
     def _calculate_risk_distribution(self, findings: list[SecurityFinding]) -> dict[str, dict[str, int]]:
         """Calculate risk distribution by severity and OWASP category."""

@@ -19,4 +19,4 @@
 # # limitations under the License.
 
 __author__ = "Daniel Baier, Jan-Niclas Hilgert, Jannis Finn Borg-Olivier"
-__version__ = "1.0.0.3"
+__version__ = "2.0.0"

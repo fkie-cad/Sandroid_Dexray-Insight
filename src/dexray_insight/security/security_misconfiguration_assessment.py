@@ -34,6 +34,7 @@ from ..core.base_classes import AnalysisSeverity
 from ..core.base_classes import BaseSecurityAssessment
 from ..core.base_classes import SecurityFinding
 from ..core.base_classes import register_assessment
+from .manifest_facts import get_manifest_facts
 
 
 @register_assessment("security_misconfiguration")
@@ -211,6 +212,12 @@ class SecurityMisconfigurationAssessment(BaseSecurityAssessment):
             crypto_findings = self._assess_crypto_configurations(analysis_results)
             findings.extend(crypto_findings)
 
+            # 7. WebView JavaScript bridge exposure (real API sinks)
+            findings.extend(self._assess_webview_js_bridges(analysis_results))
+
+            # 8. Manifest-driven cleartext traffic feeding first-party endpoints
+            findings.extend(self._assess_cleartext_traffic(analysis_results))
+
         except Exception as e:
             self.logger.error(f"Security misconfiguration assessment failed: {str(e)}")
 
@@ -316,10 +323,6 @@ class SecurityMisconfigurationAssessment(BaseSecurityAssessment):
         """Assess network security configurations."""
         findings = []
 
-        # Get manifest data for network security policy
-        manifest_results = analysis_results.get("manifest_analysis", {})
-        manifest_data = manifest_results.to_dict() if hasattr(manifest_results, "to_dict") else manifest_results
-
         # Get string analysis for network patterns
         string_results = analysis_results.get("string_analysis", {})
         string_data = string_results.to_dict() if hasattr(string_results, "to_dict") else string_results
@@ -327,9 +330,11 @@ class SecurityMisconfigurationAssessment(BaseSecurityAssessment):
 
         network_issues = []
 
-        # Check for missing network security config
-        network_config = manifest_data.get("network_security_config")
-        if not network_config:
+        # Check for missing network security config using authoritative manifest
+        # facts. Only flag when the manifest attribute is a KNOWN absence; skip
+        # when it is present or the fact is unavailable to avoid false positives.
+        manifest_facts = get_manifest_facts(analysis_results)
+        if manifest_facts["network_security_config_known"] and not manifest_facts["network_security_config"]:
             network_issues.append("No network security configuration detected")
 
         # Check for insecure connections
@@ -540,27 +545,32 @@ class SecurityMisconfigurationAssessment(BaseSecurityAssessment):
         """Assess security policy configurations."""
         findings = []
 
-        manifest_results = analysis_results.get("manifest_analysis", {})
-        manifest_data = manifest_results.to_dict() if hasattr(manifest_results, "to_dict") else manifest_results
-
         policy_issues = []
 
-        # Check for missing security policies
-        network_config = manifest_data.get("network_security_config")
-        if not network_config:
+        # Resolve authoritative manifest facts. Each check below is only emitted
+        # when the underlying fact is KNOWN, never on an unknown/default value,
+        # so unavailable data (failed apk_overview, split APK) cannot resurface
+        # as false positives such as "Target SDK 0" or "Backup is enabled".
+        manifest_facts = get_manifest_facts(analysis_results)
+
+        # Missing network security config: only when the manifest attribute is a
+        # known absence (present or unknown -> skip).
+        if manifest_facts["network_security_config_known"] and not manifest_facts["network_security_config"]:
             policy_issues.append("Missing network security configuration")
 
-        debug_flags = manifest_data.get("debug_flags", {})
-        if debug_flags.get("allow_backup", True):  # Default is true, which is often insecure
+        # Backup: only flag when allowBackup is explicitly enabled (False or
+        # unknown -> skip).
+        if manifest_facts["allow_backup"] is True:
             policy_issues.append("Backup is enabled without proper configuration")
 
-        # Check target SDK version for security policy enforcement
-        target_sdk = manifest_data.get("target_sdk_version", 0)
-        if target_sdk < 28:  # Android 9 (API 28) introduced stricter security policies
+        # Target SDK: only flag when known and actually below the threshold.
+        target_sdk = manifest_facts["target_sdk"]
+        if target_sdk is not None and target_sdk < 28:  # Android 9 (API 28) stricter policies
             policy_issues.append(f"Target SDK version {target_sdk} does not enforce modern security policies")
 
-        min_sdk = manifest_data.get("min_sdk_version", 0)
-        if min_sdk < 23:  # Android 6 (API 23) introduced runtime permissions
+        # Minimum SDK: only flag when known and actually below the threshold.
+        min_sdk = manifest_facts["min_sdk"]
+        if min_sdk is not None and min_sdk < 23:  # Android 6 (API 23) runtime permissions
             policy_issues.append(f"Minimum SDK version {min_sdk} does not support runtime permissions")
 
         if policy_issues:
@@ -648,3 +658,272 @@ class SecurityMisconfigurationAssessment(BaseSecurityAssessment):
             )
 
         return findings
+
+    # ------------------------------------------------------------------ #
+    # WebView JavaScript-bridge exposure (IPC / web attack surface)
+    # ------------------------------------------------------------------ #
+    @staticmethod
+    def _get_api_calls(analysis_results: dict[str, Any]) -> list:
+        """Return the ``api_invocation.api_calls`` list defensively."""
+        api_results = analysis_results.get("api_invocation", {}) if isinstance(analysis_results, dict) else {}
+        api_data = api_results.to_dict() if hasattr(api_results, "to_dict") else api_results
+        if not isinstance(api_data, dict):
+            return []
+        calls = api_data.get("api_calls", [])
+        return calls if isinstance(calls, list) else []
+
+    @staticmethod
+    def _normalize_api_token(text: Any) -> str:
+        """Normalise a smali/dotted class or method token to a slashed-lowercase form.
+
+        Handles ``Landroid/webkit/WebView;`` (smali), ``android.webkit.WebView``
+        (dotted), and combined ``...->addJavascriptInterface(...)`` signatures.
+        """
+        if not isinstance(text, str):
+            return ""
+        token = text.strip()
+        if token.startswith("L") and token.endswith(";"):
+            token = token[1:-1]
+        token = token.split("->")[-1].split("(")[0]
+        return token.replace(".", "/").lower()
+
+    def _assess_webview_js_bridges(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
+        """Flag real WebView JavaScript-bridge exposure from API invocations.
+
+        Counts genuine ``addJavascriptInterface`` and ``setJavaScriptEnabled``
+        invocations recorded by the api_invocation module (accepting smali and
+        dotted forms). When present, emits a single MEDIUM finding summarising the
+        counts - not one finding per call.
+        """
+        findings: list[SecurityFinding] = []
+
+        add_js_interface = 0
+        set_js_enabled = 0
+        for call in self._get_api_calls(analysis_results):
+            if not isinstance(call, dict):
+                continue
+            called_class = self._normalize_api_token(call.get("called_class", ""))
+            method = self._normalize_api_token(call.get("called_method", ""))
+            if method == "addjavascriptinterface" or "addjavascriptinterface" in called_class:
+                add_js_interface += 1
+            elif method == "setjavascriptenabled" or "setjavascriptenabled" in called_class:
+                set_js_enabled += 1
+
+        if add_js_interface == 0 and set_js_enabled == 0:
+            return findings
+
+        evidence = [
+            f"addJavascriptInterface ×{add_js_interface}",
+            f"setJavaScriptEnabled ×{set_js_enabled}",
+        ]
+        description = (
+            "The application exposes a JavaScript bridge into WebView content. "
+            "addJavascriptInterface makes native methods callable from JavaScript, and enabling "
+            "JavaScript widens the WebView attack surface. If any loaded content is attacker-influenced "
+            "(cleartext HTTP, third-party pages, deep-link supplied URLs), this can lead to code execution "
+            "or data exfiltration through the bridge."
+        )
+        findings.append(
+            SecurityFinding(
+                category=self.owasp_category,
+                severity=AnalysisSeverity.MEDIUM,
+                confidence=0.6,
+                title="WebView JavaScript Bridge Exposure",
+                description=description,
+                evidence=evidence,
+                recommendations=[
+                    "Only call addJavascriptInterface for trusted, first-party content loaded over HTTPS",
+                    "Restrict @JavascriptInterface methods to the minimum surface and validate all inputs",
+                    "Disable JavaScript (setJavaScriptEnabled(false)) in WebViews that do not require it",
+                    "Set a strict allowlist of loadable URLs and reject cleartext/untrusted origins",
+                ],
+            )
+        )
+        return findings
+
+    def _has_webview_js(self, analysis_results: dict[str, Any]) -> bool:
+        """Return True when WebView JS-bridge / setJavaScriptEnabled invocations exist."""
+        for call in self._get_api_calls(analysis_results):
+            if not isinstance(call, dict):
+                continue
+            method = self._normalize_api_token(call.get("called_method", ""))
+            if method in ("addjavascriptinterface", "setjavascriptenabled"):
+                return True
+            called_class = self._normalize_api_token(call.get("called_class", ""))
+            if "addjavascriptinterface" in called_class or "setjavascriptenabled" in called_class:
+                return True
+        return False
+
+    # ------------------------------------------------------------------ #
+    # Manifest-driven cleartext traffic into first-party endpoints/WebViews
+    # ------------------------------------------------------------------ #
+    _NON_APP_HOSTS = (
+        "schemas.android.com",
+        "www.w3.org",
+        "w3.org",
+        "xmlpull.org",
+        "apache.org",
+        "java.sun.com",
+        "ns.adobe.com",
+        "goo.gl",
+    )
+    _LOCAL_HOSTS = ("localhost", "127.0.0.1", "10.0.2.2", "0.0.0.0")  # noqa: S104  (denylist of local/dev URL hosts, not a bind address)
+    _PACKAGE_STOP_TOKENS = frozenset(
+        {"com", "org", "net", "io", "co", "android", "app", "apps", "www", "gov", "edu", "mobile", "free", "the"}
+    )
+
+    @staticmethod
+    def _package_name(analysis_results: dict[str, Any]) -> str | None:
+        """Read apk_overview.general_info.package_name defensively."""
+        overview = analysis_results.get("apk_overview") if isinstance(analysis_results, dict) else None
+        if overview is None:
+            return None
+        general = getattr(overview, "general_info", None)
+        if general is None:
+            if isinstance(overview, dict):
+                general = overview.get("general_info")
+            else:
+                to_dict = getattr(overview, "to_dict", None)
+                if callable(to_dict):
+                    try:
+                        general = to_dict().get("general_info")
+                    except Exception:
+                        general = None
+        if general is None:
+            return None
+        pkg = general.get("package_name") if isinstance(general, dict) else getattr(general, "package_name", None)
+        return str(pkg) if pkg else None
+
+    @staticmethod
+    def _url_host(url: str) -> str:
+        """Extract the lower-cased host from an http:// URL."""
+        rest = url[len("http://"):]
+        rest = rest.split("/")[0].split("?")[0].split("#")[0]
+        rest = rest.split("@")[-1]  # strip userinfo
+        rest = rest.split(":")[0]  # strip port
+        return rest.strip().lower()
+
+    def _package_tokens(self, package_name: str | None) -> set[str]:
+        """Derive meaningful package tokens (drops TLD-like/generic segments)."""
+        if not package_name:
+            return set()
+        return {t for t in package_name.lower().split(".") if t and t not in self._PACKAGE_STOP_TOKENS}
+
+    def _first_party_http_endpoints(self, analysis_results: dict[str, Any]) -> list[str]:
+        """Return first-party ``http://`` endpoints from string_analysis URLs.
+
+        A URL is treated as first-party when its host shares a meaningful token
+        with the app package name; when no usable package token exists, any
+        non-local, non-framework cleartext host is treated as a candidate.
+        Localhost/dev and well-known non-app (schema/xml) hosts are excluded.
+        """
+        string_results = analysis_results.get("string_analysis", {})
+        string_data = string_results.to_dict() if hasattr(string_results, "to_dict") else string_results
+        urls = string_data.get("urls", []) if isinstance(string_data, dict) else []
+
+        tokens = self._package_tokens(self._package_name(analysis_results))
+
+        first_party: list[str] = []
+        for url in urls:
+            if not isinstance(url, str) or not url.lower().startswith("http://"):
+                continue
+            host = self._url_host(url)
+            if not host or host in self._LOCAL_HOSTS:
+                continue
+            if any(host == h or host.endswith("." + h) for h in self._NON_APP_HOSTS):
+                continue
+            if tokens:
+                if any(tok in host for tok in tokens):
+                    first_party.append(url)
+            else:
+                first_party.append(url)
+        return first_party
+
+    def _assess_cleartext_traffic(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
+        """Flag manifest-permitted cleartext traffic feeding first-party endpoints/WebViews.
+
+        Emits only when ``usesCleartextTraffic`` is a KNOWN True AND first-party
+        ``http://`` endpoints exist AND a network security config does not
+        restrict cleartext. When the flag is unknown (None) or False, nothing is
+        emitted (unknown-sentinel guard). Escalated when a WebView JS bridge /
+        setJavaScriptEnabled is also present. This is manifest-attribute-driven
+        and complements (does not duplicate) the string-pattern insecure-connection
+        check.
+        """
+        findings: list[SecurityFinding] = []
+
+        facts = get_manifest_facts(analysis_results)
+        if facts.get("uses_cleartext_traffic") is not True:
+            # Unknown (None) or explicitly False -> do not emit.
+            return findings
+
+        # A network security config that restricts cleartext would override the
+        # global flag. We only treat cleartext as restricted with positive
+        # evidence; absent that, the global usesCleartextTraffic=True stands.
+        if self._nsc_restricts_cleartext(analysis_results):
+            return findings
+
+        first_party_http = self._first_party_http_endpoints(analysis_results)
+        if not first_party_http:
+            return findings
+
+        webview_js = self._has_webview_js(analysis_results)
+
+        description = (
+            "The manifest permits cleartext (HTTP) traffic (android:usesCleartextTraffic=\"true\") and the "
+            "app references first-party http:// endpoints. Cleartext traffic can be intercepted or modified "
+            "by a network attacker."
+        )
+        if webview_js:
+            description += (
+                " Because the app also loads WebView content with JavaScript enabled, an attacker who tampers "
+                "with cleartext content can inject script into the WebView (cleartext content into WebView)."
+            )
+
+        evidence = [
+            "Manifest: android:usesCleartextTraffic=\"true\"",
+        ]
+        evidence.extend(f"First-party cleartext endpoint: {url}" for url in first_party_http[:5])
+        if webview_js:
+            evidence.append("WebView JavaScript bridge / setJavaScriptEnabled present")
+
+        findings.append(
+            SecurityFinding(
+                category=self.owasp_category,
+                severity=AnalysisSeverity.MEDIUM,
+                confidence=0.7,
+                title="Cleartext Content Into WebView" if webview_js else "Cleartext Traffic Permitted",
+                description=description,
+                evidence=evidence,
+                recommendations=[
+                    "Set android:usesCleartextTraffic=\"false\" and migrate all endpoints to HTTPS",
+                    "Add a network security configuration that disallows cleartext for production domains",
+                    "Never load cleartext content into a JavaScript-enabled WebView",
+                    "Enforce TLS with certificate pinning for first-party endpoints",
+                ],
+            )
+        )
+        return findings
+
+    @staticmethod
+    def _nsc_restricts_cleartext(analysis_results: dict[str, Any]) -> bool:
+        """Return True only with positive evidence that an NSC forbids cleartext.
+
+        We cannot parse the referenced NSC XML content here, so absent explicit
+        parsed evidence we do not treat cleartext as restricted; the global
+        usesCleartextTraffic=\"true\" flag stands. This is a deliberately
+        conservative guard so the check is easy to strengthen later without
+        changing callers.
+        """
+        overview = analysis_results.get("apk_overview") if isinstance(analysis_results, dict) else None
+        network_security = None
+        if isinstance(overview, dict):
+            network_security = overview.get("network_security")
+        elif overview is not None:
+            network_security = getattr(overview, "network_security", None)
+
+        if isinstance(network_security, dict):
+            permitted = network_security.get("cleartext_traffic_permitted")
+            if permitted is False:
+                return True
+        return False

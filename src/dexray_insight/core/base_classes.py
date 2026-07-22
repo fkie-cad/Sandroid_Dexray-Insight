@@ -414,6 +414,11 @@ class SecurityFinding:
     cve_references: list[str] = None
     additional_data: dict[str, Any] = None
     file_location: FileLocation | None = None  # Precise file and line/offset information
+    # Confidence that this finding is a true positive (0.0-1.0). None = "not scored".
+    # Populated by the finding post-processor / per-assessment conventions; used by the
+    # evidence-weighted risk scorer and by report ranking. Stored as a first-class field
+    # (single source of truth) rather than mirrored into additional_data.
+    confidence: float | None = None
 
     def __post_init__(self):
         """Initialize optional fields after dataclass creation."""
@@ -433,10 +438,56 @@ class SecurityFinding:
             "recommendations": self.recommendations,
             "cve_references": self.cve_references,
             "additional_data": self.additional_data,
+            # Additive, backward compatible: consumers that ignore unknown keys are
+            # unaffected; the report field that showed "-" now shows a float or null.
+            "confidence": self.confidence,
         }
         if self.file_location:
             result["fileLocation"] = self.file_location.to_dict()
         return result
+
+    def dedup_key(self) -> str:
+        """Return a stable key identifying the same underlying issue across assessments.
+
+        Two findings that describe the same problem — even when raised by different
+        assessment modules with different titles/counts — should collapse to one. The
+        key is a sha1 digest of:
+
+        * the precise location (``file_location.uri`` plus start line) when available,
+          otherwise the finding's primary evidence value (first evidence entry), and
+        * a normalized "title stem" with leading counts, emoji and surrounding
+          punctuation/whitespace stripped, so cosmetic differences do not defeat dedup.
+
+        Category is intentionally NOT part of the key so that the same secret found by
+        two different OWASP categories merges. Count-bucket/aggregate findings are kept
+        distinct by the post-processor (which restricts their merge to their own
+        category); their stems differ by category-specific wording anyway.
+        """
+        import hashlib
+        import re
+
+        if self.file_location and self.file_location.uri:
+            location_part = self.file_location.uri
+            if self.file_location.start_line is not None:
+                location_part = f"{location_part}:{self.file_location.start_line}"
+        elif self.evidence:
+            # First evidence entry is, by convention, the primary matched value.
+            location_part = str(self.evidence[0]).strip()
+        else:
+            location_part = ""
+
+        # Normalize the title into a stable stem: drop emoji/non-word leading noise,
+        # collapse digit runs (counts like "173,456 findings"), lowercase, squeeze
+        # whitespace.
+        stem = self.title or ""
+        stem = re.sub(r"[\U0001F000-\U0001FAFF☀-➿]", "", stem)  # emoji ranges
+        stem = re.sub(r"[\d,]+", "#", stem)  # counts -> placeholder
+        stem = re.sub(r"[^\w\s]", " ", stem)  # punctuation -> space
+        stem = re.sub(r"\s+", " ", stem).strip().lower()
+
+        raw = f"{location_part}\x00{stem}"
+        # sha1 here is a non-cryptographic content digest for grouping, not security.
+        return hashlib.sha1(raw.encode("utf-8", errors="replace"), usedforsecurity=False).hexdigest()
 
 
 class BaseAnalysisModule(ABC):

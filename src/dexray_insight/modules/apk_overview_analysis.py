@@ -50,6 +50,10 @@ class APKOverviewResult(BaseResult):
     directory_listing: list[str] = field(default_factory=list)
     is_cross_platform: bool = False
     cross_platform_framework: str = ""
+    # Manifest-derived data previously discarded; surfaced for security assessments
+    browsable_activities: dict[str, Any] = field(default_factory=dict)
+    network_security: Any = field(default_factory=list)
+    manifest_security: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert result to dictionary."""
@@ -64,6 +68,9 @@ class APKOverviewResult(BaseResult):
                 "directory_listing": self.directory_listing,
                 "is_cross_platform": self.is_cross_platform,
                 "cross_platform_framework": self.cross_platform_framework,
+                "browsable_activities": self.browsable_activities,
+                "network_security": self.network_security,
+                "manifest_security": self.manifest_security,
             }
         )
         return base_dict
@@ -133,6 +140,9 @@ class APKOverviewModule(BaseAnalysisModule):
                 directory_listing=apk_analysis["directory_listing"],
                 is_cross_platform=apk_analysis["is_cross_platform"],
                 cross_platform_framework=apk_analysis["cross_platform_framework"],
+                browsable_activities=apk_analysis.get("browsable_activities", {}),
+                network_security=apk_analysis.get("network_security", []),
+                manifest_security=apk_analysis.get("manifest_security", {}),
             )
 
             self.logger.info(f"APK overview analysis completed successfully in {result.execution_time:.2f}s")

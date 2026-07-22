@@ -53,13 +53,14 @@ class SSRFAssessment(BaseSecurityAssessment):
             r"Intent\.setData\(Uri\.parse\([^)]*user[^)]*\)\)",
         ]
 
+        # NOTE: file:// and content:// were removed - they are present in ~100% of
+        # apps and are not SSRF indicators. Only HTTP(S) internal-host references
+        # remain, and even those are gated on URL provenance below.
         self.internal_service_patterns = [
             r"https?://(?:localhost|127\.0\.0\.1|10\.0\.2\.2)",
             r"https?://.*\.internal\.",
             r"https?://192\.168\.",
             r"https?://10\.",
-            r"file://",
-            r"content://",
         ]
 
     def assess(self, analysis_results: dict[str, Any], context: AnalysisContext | None = None) -> list[SecurityFinding]:
@@ -85,6 +86,7 @@ class SSRFAssessment(BaseSecurityAssessment):
                         title="Potential SSRF Vulnerability",
                         description="Application may be vulnerable to Server-Side Request Forgery (SSRF) attacks through user-controlled URLs.",
                         evidence=ssrf_risks[:10],  # Limit evidence items
+                        confidence=0.7,
                         recommendations=[
                             "Implement strict URL validation and allowlisting",
                             "Avoid using user input directly in URL construction",
@@ -97,13 +99,28 @@ class SSRFAssessment(BaseSecurityAssessment):
                 )
 
             if internal_access:
+                # Gate on provenance: an internal-host reference is only elevated to
+                # MEDIUM when a user-controlled-URL sink also exists (real SSRF
+                # surface). On its own it is a LOW, unprovable posture note - the
+                # mere presence of an internal URL is common and not a vulnerability.
+                has_user_controlled_url = bool(ssrf_risks)
                 findings.append(
                     SecurityFinding(
                         category=self.owasp_category,
-                        severity=AnalysisSeverity.MEDIUM,
-                        title="Internal Service Access Detected",
-                        description="Application accesses internal services which could be exploited in SSRF attacks.",
+                        severity=AnalysisSeverity.MEDIUM if has_user_controlled_url else AnalysisSeverity.LOW,
+                        title=(
+                            "Internal Service Access Detected"
+                            if has_user_controlled_url
+                            else "Internal Service Reference (unproven)"
+                        ),
+                        description=(
+                            "Application accesses internal services which could be exploited in SSRF attacks."
+                            if has_user_controlled_url
+                            else "Application references internal-host URLs. Without a user-controlled URL "
+                            "sink this is not proven exploitable; included for manual review."
+                        ),
                         evidence=internal_access[:8],
+                        confidence=0.6 if has_user_controlled_url else 0.2,
                         recommendations=[
                             "Restrict access to internal services and localhost",
                             "Use network segmentation to isolate internal services",
@@ -126,6 +143,7 @@ class SSRFAssessment(BaseSecurityAssessment):
                         title="WebView SSRF Risk",
                         description="WebView implementation may be vulnerable to SSRF through URL loading mechanisms.",
                         evidence=webview_ssrf[:5],
+                        confidence=0.4,
                         recommendations=[
                             "Implement URL allowlisting for WebView content",
                             "Validate all URLs before loading in WebView",

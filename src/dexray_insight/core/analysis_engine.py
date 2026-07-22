@@ -846,6 +846,9 @@ class AnalysisEngine:
                 "certificates",
                 "native_libs",
                 "directory_listing",
+                "browsable_activities",
+                "network_security",
+                "manifest_security",
             ]:
                 if hasattr(apk_overview_result, field_name):
                     setattr(apk_overview, field_name, getattr(apk_overview_result, field_name))

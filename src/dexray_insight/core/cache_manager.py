@@ -62,7 +62,10 @@ from pathlib import Path
 from typing import Any
 
 # Bump when the on-disk cache format changes in a backwards-incompatible way.
-CACHE_SCHEMA_VERSION = 1
+# v2: apk_overview now carries browsable_activities / network_security /
+#     manifest_security so security assessments no longer emit false positives
+#     from a thin manifest dict; stale caches must be invalidated.
+CACHE_SCHEMA_VERSION = 2
 
 
 def _dexray_version() -> str:

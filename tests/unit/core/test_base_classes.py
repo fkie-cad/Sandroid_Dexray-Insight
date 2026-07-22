@@ -254,3 +254,57 @@ class TestAnalysisStatus:
         assert success_result.status != failure_result.status
         assert success_result.status == AnalysisStatus.SUCCESS
         assert failure_result.status == AnalysisStatus.FAILURE
+
+
+class TestSecurityFindingDedupKey:
+    """Test SecurityFinding.dedup_key() (PR-7 cross-assessment dedup)."""
+
+    @staticmethod
+    def _finding(title, evidence, severity=None, file_location=None):
+        from src.dexray_insight.core.base_classes import AnalysisSeverity
+        from src.dexray_insight.core.base_classes import SecurityFinding
+
+        return SecurityFinding(
+            category="A02:2021-Cryptographic Failures",
+            severity=severity or AnalysisSeverity.HIGH,
+            title=title,
+            description="d",
+            evidence=evidence,
+            recommendations=[],
+            file_location=file_location,
+        )
+
+    @pytest.mark.unit
+    def test_same_location_and_stem_match(self):
+        from src.dexray_insight.core.base_classes import FileLocation
+
+        loc1 = FileLocation(uri="file:///app/A.java", start_line=5)
+        loc2 = FileLocation(uri="file:///app/A.java", start_line=5)
+        a = self._finding("🔴 Hardcoded Secret", ["v"], file_location=loc1)
+        b = self._finding("Hardcoded Secret!!!", ["v"], file_location=loc2)
+        # Emoji/punctuation stripped, same location -> identical dedup key.
+        assert a.dedup_key() == b.dedup_key()
+
+    @pytest.mark.unit
+    def test_count_and_emoji_normalized(self):
+        a = self._finding("173,456 Potential Secrets", ["v"])
+        b = self._finding("42 Potential Secrets", ["v"])
+        # Digit runs collapse to '#': same evidence + same stem -> same key.
+        assert a.dedup_key() == b.dedup_key()
+
+    @pytest.mark.unit
+    def test_different_evidence_differs(self):
+        a = self._finding("Hardcoded Secret", ["value_a"])
+        b = self._finding("Hardcoded Secret", ["value_b"])
+        assert a.dedup_key() != b.dedup_key()
+
+    @pytest.mark.unit
+    def test_location_preferred_over_evidence(self):
+        from src.dexray_insight.core.base_classes import FileLocation
+
+        loc = FileLocation(uri="file:///app/A.java", start_line=5)
+        a = self._finding("Hardcoded Secret", ["value_a"], file_location=loc)
+        b = self._finding("Hardcoded Secret", ["value_b"], file_location=loc)
+        # When a precise location is present it drives the key, so differing evidence
+        # still collapses to the same key.
+        assert a.dedup_key() == b.dedup_key()

@@ -55,6 +55,18 @@ class AuthenticationFailuresAssessment(BaseSecurityAssessment):
             "session_management": [r"HttpURLConnection.*(?:session|cookie|auth)", r"CookieManager", r"SessionManager"],
         }
 
+        # Concrete, evidence-backed signals of insecure session handling. Unlike
+        # the previous "class name lacks the substring 'timeout'" inference (which
+        # tripped nearly every app), these match an actual insecure configuration
+        # in the decompiled code: cookies explicitly marked non-secure, or
+        # setSecure(false) on a cookie/session.
+        self.insecure_session_patterns = [
+            r"setSecure\s*\(\s*false\s*\)",
+            r"setHttpOnly\s*\(\s*false\s*\)",
+            r"cookie[^\n]{0,40}secure\s*=\s*false",
+            r'"?\s*secure\s*"?\s*[:=]\s*false',  # Cookie/session config secure=false
+        ]
+
         self.session_management_checks = [
             "session timeout implementation",
             "secure session storage",
@@ -102,29 +114,52 @@ class AuthenticationFailuresAssessment(BaseSecurityAssessment):
                         self.logger.debug(f"Regex pattern error for pattern '{pattern}': {e}")
                         continue
 
-        # Check manifest for missing biometric permissions
-        manifest_results = analysis_results.get("manifest_analysis", {})
-        manifest_data = manifest_results.to_dict() if hasattr(manifest_results, "to_dict") else manifest_results
-        permissions = manifest_data.get("permissions", [])
-
-        has_biometric = any("FINGERPRINT" in p or "BIOMETRIC" in p for p in permissions)
-        if not has_biometric:
-            auth_issues.append("No biometric authentication permissions detected")
-
+        # Concrete weak-credential hits are evidence-backed: emit at MEDIUM with a
+        # moderate confidence. The absence of biometric permissions is NOT a
+        # vulnerability by itself (it tripped nearly every app), so it no longer
+        # contributes to this HIGH finding - see the demoted posture note below.
         if auth_issues:
             findings.append(
                 SecurityFinding(
                     category=self.owasp_category,
-                    severity=AnalysisSeverity.HIGH,
+                    severity=AnalysisSeverity.MEDIUM,
+                    confidence=0.5,
                     title="Weak Authentication Mechanisms",
                     description="Application uses weak authentication mechanisms or stores credentials insecurely.",
                     evidence=auth_issues[:8],
                     recommendations=[
                         "Implement strong authentication mechanisms",
-                        "Use biometric authentication for sensitive operations",
                         "Store credentials securely using Android Keystore",
                         "Implement proper password policies",
                         "Use multi-factor authentication where appropriate",
+                    ],
+                )
+            )
+
+        # Missing biometric permission is a low-value posture observation, not a
+        # HIGH finding. Demoted to a LOW note with low confidence so it never
+        # dominates the risk score while remaining discoverable.
+        manifest_results = analysis_results.get("manifest_analysis", {})
+        manifest_data = manifest_results.to_dict() if hasattr(manifest_results, "to_dict") else manifest_results
+        permissions = manifest_data.get("permissions", []) or []
+        try:
+            has_biometric = any("FINGERPRINT" in str(p) or "BIOMETRIC" in str(p) for p in permissions)
+        except TypeError:
+            has_biometric = False
+        if not has_biometric:
+            findings.append(
+                SecurityFinding(
+                    category=self.owasp_category,
+                    severity=AnalysisSeverity.LOW,
+                    confidence=0.2,
+                    title="Authentication Hardening Posture",
+                    description=(
+                        "No biometric authentication permission was observed. This is a posture "
+                        "observation, not a confirmed weakness - many apps legitimately do not use biometrics."
+                    ),
+                    evidence=["No biometric authentication permissions detected"],
+                    recommendations=[
+                        "Consider biometric authentication for sensitive operations where appropriate",
                     ],
                 )
             )
@@ -137,38 +172,42 @@ class AuthenticationFailuresAssessment(BaseSecurityAssessment):
         string_results = analysis_results.get("string_analysis", {})
         string_data = string_results.to_dict() if hasattr(string_results, "to_dict") else string_results
         all_strings = string_data.get("all_strings", [])
+        if not isinstance(all_strings, (list, tuple)):
+            all_strings = []
 
+        import re
+
+        # Only flag session management when there is a CONCRETE insecure signal
+        # (setSecure(false), non-secure cookie, etc.). The previous heuristic
+        # inferred insecurity from a class name merely lacking the substring
+        # "timeout", which false-positived on almost every app.
         session_issues = []
-        session_patterns = self.authentication_patterns["session_management"]
-
-        has_session_management = False
         for string in all_strings:
-            if isinstance(string, str):
-                for pattern in session_patterns:
-                    import re
-
+            if not isinstance(string, str):
+                continue
+            for pattern in self.insecure_session_patterns:
+                try:
                     if re.search(pattern, string, re.IGNORECASE):
-                        has_session_management = True
-                        # Check for insecure session handling
-                        if "timeout" not in string.lower() and "expire" not in string.lower():
-                            session_issues.append(f"Session management without timeout: {string[:80]}...")
+                        session_issues.append(f"Insecure session/cookie configuration: {string[:80]}...")
+                        break
+                except Exception as e:
+                    self.logger.debug(f"Regex pattern error for pattern '{pattern}': {e}")
+                    continue
 
-        if has_session_management and not session_issues:
-            # Session management detected but no obvious issues
-            pass
-        elif session_issues:
+        if session_issues:
             findings.append(
                 SecurityFinding(
                     category=self.owasp_category,
                     severity=AnalysisSeverity.MEDIUM,
+                    confidence=0.5,
                     title="Insecure Session Management",
-                    description="Application implements session management but lacks proper security controls.",
-                    evidence=session_issues,
+                    description="Application implements session management with concrete insecure configuration signals.",
+                    evidence=session_issues[:8],
                     recommendations=[
                         "Implement proper session timeout mechanisms",
                         "Use secure session storage practices",
                         "Implement session invalidation on logout",
-                        "Use secure cookie attributes for web sessions",
+                        "Use secure cookie attributes (Secure, HttpOnly) for web sessions",
                         "Monitor and log authentication events",
                     ],
                 )

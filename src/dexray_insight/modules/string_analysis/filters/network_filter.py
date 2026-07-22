@@ -29,9 +29,36 @@ including IP addresses (IPv4/IPv6) and URLs from string collections.
 Phase 8 TDD Refactoring: Extracted from monolithic string_analysis.py
 """
 
+import ipaddress
 import logging
 import re
 from urllib.parse import urlparse
+
+# Small allowlist of well-known public DNS resolvers. These are legitimate
+# routable IPs that also happen to look like ASN.1 OID roots (e.g. "1.1.1.1"),
+# so they are explicitly whitelisted before the OID heuristics run.
+PUBLIC_RESOLVER_ALLOWLIST = frozenset(
+    {
+        "1.1.1.1",
+        "1.0.0.1",
+        "8.8.8.8",
+        "8.8.4.4",
+        "9.9.9.9",
+    }
+)
+
+# Curated ASN.1 / X.509 OID arcs commonly mistaken for IPv4 addresses in APKs.
+# Any dotted-number token that is an extension (or prefix) of one of these arcs
+# is an object identifier, not an IP (e.g. "2.5.4.14", "2.5.29.28").
+_OID_ARCS = (
+    (2, 5, 4),  # X.520 DN attribute types (2.5.4.*)
+    (2, 5, 29),  # X.509 certificate extensions (2.5.29.*)
+    (1, 2, 840),  # US ANSI / RSA arc
+    (1, 2, 840, 113549),  # RSADSI (PKCS#*)
+    (1, 3, 6, 1),  # IANA / SNMP / Internet arc
+    (2, 16, 840, 1, 101, 3, 4),  # NIST algorithms
+    (1, 3, 14, 3, 2),  # OIW / secsig algorithms
+)
 
 
 class NetworkFilter:
@@ -72,16 +99,21 @@ class NetworkFilter:
             (r"^224\.", "Multicast"),
         ]
 
-    def filter_ip_addresses(self, strings: set[str]) -> list[str]:
+    def filter_ip_addresses(self, strings: set[str], trusted_ips: set[str] | None = None) -> list[str]:
         """
         Filter and validate IP addresses from string collection.
 
         Args:
             strings: Set of strings to filter
+            trusted_ips: Optional set of IPs already observed inside URL netlocs.
+                These are accepted unconditionally (provenance layer) so that an
+                IP embedded in a URL is never dropped by the OID/version
+                heuristics.
 
         Returns:
             List of valid IP addresses
         """
+        trusted_ips = trusted_ips or set()
         ip_addresses = []
 
         for string in strings:
@@ -89,7 +121,7 @@ class NetworkFilter:
             if self._contains_invalid_ip_characters(string):
                 continue
 
-            if self._is_valid_ipv4(string):
+            if self._is_valid_ipv4(string, trusted_ips):
                 ip_addresses.append(string)
                 self.logger.debug(f"Valid IPv4 found: {string}")
             elif self._is_valid_ipv6(string):
@@ -98,6 +130,43 @@ class NetworkFilter:
 
         self.logger.info(f"Extracted {len(ip_addresses)} valid IP addresses")
         return ip_addresses
+
+    def _matches_oid_arc(self, ip: str) -> bool:
+        """
+        Return True if the dotted-number token is an ASN.1/X.509 OID arc.
+
+        A candidate matches when it is an extension of a known arc
+        (e.g. "2.5.4.14" extends 2.5.4.*) or a prefix of one (e.g. "2.5.29").
+        """
+        try:
+            octets = tuple(int(part) for part in ip.split("."))
+        except ValueError:
+            return False
+
+        for arc in _OID_ARCS:
+            # candidate is an extension of the arc
+            if octets[: len(arc)] == arc:
+                return True
+            # candidate is a prefix of the arc
+            if arc[: len(octets)] == octets:
+                return True
+        return False
+
+    def _is_oid_root(self, ip: str) -> bool:
+        """
+        Return True if the token parses as a plausible ASN.1 OID root.
+
+        OIDs start with a first arc of 0, 1 or 2. For first arc 0 or 1 the
+        second arc is limited to 0-39. Tokens such as "1.2.2.3" satisfy this
+        (and are therefore OIDs), whereas "8.8.8.8" does not (first arc 8).
+        """
+        try:
+            octets = [int(part) for part in ip.split(".")]
+        except ValueError:
+            return False
+        if len(octets) < 2 or octets[0] not in (0, 1, 2):
+            return False
+        return not (octets[0] in (0, 1) and octets[1] > 39)
 
     def _contains_invalid_ip_characters(self, string: str) -> bool:
         """
@@ -188,12 +257,25 @@ class NetworkFilter:
 
         return urls
 
-    def _is_valid_ipv4(self, ip: str) -> bool:
+    def _is_valid_ipv4(self, ip: str, trusted_ips: set[str] | None = None) -> bool:
         """
         Validate IPv4 address format and ranges.
 
+        Layered validation (see PR-2 / WS2):
+          1. Structural: must be a dotted-quad with octets in 0-255.
+          2. Provenance: IPs observed inside URL netlocs are always accepted.
+          3. OID arc denylist: reject known ASN.1/X.509 arcs (e.g. "2.5.4.14").
+          4. OID root: reject bare OID-shaped tokens that are not well-known
+             public resolvers (e.g. "1.2.2.3").
+
+        IMPORTANT INVARIANT: a bare public *routable* IP is never dropped here
+        for merely resembling a version number. Version-number reasoning is kept
+        only as a secondary reclassifier (see _is_likely_version_number) and is
+        not allowed to reject routable addresses.
+
         Args:
             ip: String to validate as IPv4
+            trusted_ips: IPs observed inside URLs (provenance allowlist)
 
         Returns:
             True if valid IPv4 address
@@ -201,16 +283,25 @@ class NetworkFilter:
         if not self.ipv4_pattern.match(ip):
             return False
 
-        # Filter out common false positives that look like IPs but are version numbers
-        if self._is_likely_version_number(ip):
-            return False
-
-        # Additional validation - check octets are in valid range
+        # Structural check first - octets must be in range.
         try:
             octets = [int(octet) for octet in ip.split(".")]
-            return all(0 <= octet <= 255 for octet in octets)
         except (ValueError, AttributeError):
             return False
+        if len(octets) != 4 or not all(0 <= octet <= 255 for octet in octets):
+            return False
+
+        # Layer 2 - provenance: IPs seen inside a URL are trusted outright.
+        if trusted_ips and ip in trusted_ips:
+            return True
+
+        # Layer 3 - curated OID/ASN.1 arc denylist (drops "2.5.4.14", "2.5.29.28").
+        if self._matches_oid_arc(ip):
+            return False
+
+        # Layer 4 - bare OID-root tokens (e.g. "1.2.2.3") that are not on the
+        # public-resolver allowlist are object identifiers, not IPs.
+        return not (self._is_oid_root(ip) and ip not in PUBLIC_RESOLVER_ALLOWLIST)
 
     def _is_likely_version_number(self, ip: str) -> bool:
         """
@@ -430,7 +521,7 @@ class NetworkFilter:
 
     def _classify_ipv4(self, ip: str) -> str:
         """
-        Classify an IPv4 address by type.
+        Classify an IPv4 address by type using the stdlib ``ipaddress`` module.
 
         Args:
             ip: IPv4 address to classify
@@ -438,11 +529,80 @@ class NetworkFilter:
         Returns:
             Classification string
         """
-        for pattern, classification in self.private_ip_ranges:
-            if re.match(pattern, ip):
-                return classification
+        try:
+            addr = ipaddress.ip_address(ip)
+        except ValueError:
+            # Fall back to the legacy regex table (kept as a secondary layer).
+            for pattern, classification in self.private_ip_ranges:
+                if re.match(pattern, ip):
+                    return classification
+            return "Public"
 
-        return "Public"
+        if addr.is_loopback:
+            return "Loopback"
+        if addr.is_link_local:
+            return "Link-local"
+        if addr.is_multicast:
+            return "Multicast"
+        if addr.is_global:
+            return "Public"
+        if addr.is_private or addr.is_reserved or addr.is_unspecified:
+            return "Private"
+        return "Other"
+
+    def get_global_ips(self, ip_addresses: list[str]) -> list[str]:
+        """
+        Return only the globally routable (is_global) IPv4 addresses.
+
+        These are the "interesting" IPs to surface (potential C2 / IOCs). The
+        full list is preserved by the caller; this is a downranking helper, not
+        a filter that discards data.
+
+        Args:
+            ip_addresses: List of IP addresses
+
+        Returns:
+            List of globally routable IPv4 addresses (order preserved)
+        """
+        global_ips = []
+        for ip in ip_addresses:
+            try:
+                if ipaddress.ip_address(ip).version == 4 and ipaddress.ip_address(ip).is_global:
+                    global_ips.append(ip)
+            except ValueError:
+                continue
+        return global_ips
+
+    def extract_ips_from_urls(self, urls: list[str]) -> set[str]:
+        """
+        Extract IPv4 addresses that appear inside URL netlocs.
+
+        The orchestrator runs URL filtering before IP filtering and feeds the
+        result of this method into ``filter_ip_addresses`` as a provenance
+        allowlist, so an IP embedded in a URL is never dropped by the OID
+        heuristics.
+
+        Args:
+            urls: List of validated URLs
+
+        Returns:
+            Set of dotted-quad IPs found in the URL host portion
+        """
+        trusted = set()
+        for url in urls:
+            try:
+                host = urlparse(url).netloc.split("@")[-1].split(":")[0]
+            except Exception:  # noqa: BLE001, S112 - urlparse is best-effort here
+                continue
+            if not host:
+                continue
+            try:
+                addr = ipaddress.ip_address(host)
+            except ValueError:
+                continue
+            if addr.version == 4:
+                trusted.add(host)
+        return trusted
 
     def extract_domains_from_urls(self, urls: list[str]) -> list[str]:
         """

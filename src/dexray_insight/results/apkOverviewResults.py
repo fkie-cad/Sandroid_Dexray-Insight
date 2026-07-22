@@ -54,6 +54,10 @@ class APKOverview:
     directory_listing: list[str] = field(default_factory=list)
     is_cross_platform: bool = field(default_factory=bool)
     cross_platform_framework: str = field(default_factory=str)
+    # Manifest-derived data previously discarded; surfaced for security assessments
+    browsable_activities: dict[str, Any] = field(default_factory=dict)
+    network_security: Any = field(default_factory=list)
+    manifest_security: dict[str, Any] = field(default_factory=dict)
     permissions_details: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
@@ -79,6 +83,9 @@ class APKOverview:
             "directory_listing": self.directory_listing,
             "is_cross_platform": self.is_cross_platform,
             "cross_platform_framework": self.cross_platform_framework,
+            "browsable_activities": self.browsable_activities,
+            "network_security": self.network_security,
+            "manifest_security": self.manifest_security,
         }
         # Include `permissions_details` only if it exists
         if hasattr(self, "permissions_details"):
@@ -121,6 +128,12 @@ class APKOverview:
             self.is_cross_platform.extend(updates["is_cross_platform"])
         if "cross_platform_framework" in updates:
             self.cross_platform_framework.extend(updates["cross_platform_framework"])
+        if "browsable_activities" in updates:
+            self.browsable_activities.update(updates["browsable_activities"])
+        if "manifest_security" in updates:
+            self.manifest_security.update(updates["manifest_security"])
+        if "network_security" in updates:
+            self.network_security = updates["network_security"]
 
     def pretty_print(self):
         """

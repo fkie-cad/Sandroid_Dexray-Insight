@@ -29,6 +29,10 @@ from ..core.base_classes import AnalysisSeverity
 from ..core.base_classes import BaseSecurityAssessment
 from ..core.base_classes import SecurityFinding
 from ..core.base_classes import register_assessment
+from .evidence import WEAK_CRYPTO_TOKENS
+from .evidence import collect_weak_crypto_evidence
+from .evidence import matches_algorithm_token
+from .secret_validation import SecretValidator
 
 
 @register_assessment("sensitive_data")
@@ -61,6 +65,7 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
         self._setup_critical_security_patterns()
         self._setup_high_medium_severity_patterns()
         self._setup_low_severity_context_patterns()
+        self._setup_structural_client_patterns()
         self._setup_legacy_compatibility()
 
         # Assign detection_patterns for strategy pattern usage
@@ -157,9 +162,14 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
             },
             # AWS Credentials - Enhanced from secret-finder
             "aws_access_key": {
-                "pattern": r"(?:A3T[A-Z0-9]|AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}",
+                # Case-sensitive with word boundaries: AWS key-id prefixes are always
+                # uppercase. Without case_sensitive, re.IGNORECASE let the "AIDA" prefix
+                # match lowercase identifiers such as "aidAdRendererContainer" (Unity Ads
+                # event constants), producing the fake "10 CRITICAL secrets" finding.
+                "pattern": r"\b(?:A3T[A-Z0-9]|AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}\b",
                 "description": "AWS Access Key ID",
                 "severity": "CRITICAL",
+                "case_sensitive": True,
             },
             "aws_secret_key": {
                 "pattern": r'(?i)aws(?:.{0,20})?(?:secret|key|token).{0,20}?[\'"]([A-Za-z0-9/+=]{40})[\'"]',
@@ -190,7 +200,10 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
                 "severity": "CRITICAL",
             },
             "google_api_key_aiza": {
-                "pattern": r"AIza[0-9A-Za-z\\-_]{35}",
+                # Fixed character class: the previous r"[0-9A-Za-z\\-_]" contained a
+                # literal backslash followed by the range "\"-"_", which excluded the
+                # hyphen that real AIza keys contain, dropping valid keys.
+                "pattern": r"AIza[0-9A-Za-z_-]{35}",
                 "description": "Google API Key (AIza format)",
                 "severity": "CRITICAL",
                 "context_required": ["api", "key", "google"],  # Reduce false positives
@@ -503,6 +516,40 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
             "database": ["db", "database", "connection", "conn", "sql", "mysql", "postgres"],
         }
 
+    def _setup_structural_client_patterns(self):
+        """Set up structural client-credential patterns (PR-5).
+
+        Single Responsibility: Define distinctive prefix/format patterns for real
+        client keys that were previously MISSED (Branch, AdMob, Crashlytics). These
+        are surfaced at LOW because they are client-side keys (safe by design); the
+        SecretValidator reclassifies them via the known-safe-credentials registry.
+        """
+        if not hasattr(self, "key_detection_patterns"):
+            self.key_detection_patterns = {}
+        structural_patterns = {
+            # Branch.io client key: shipped in the app, public by design.
+            "branch_io_key": {
+                "pattern": r"\bkey_live_[0-9A-Za-z]{32}\b",
+                "description": "Branch.io Live Key (client-side)",
+                "severity": "LOW",
+            },
+            # Google AdMob application id: public client identifier.
+            "admob_app_id": {
+                "pattern": r"\bca-app-pub-\d{16}~\d{10}\b",
+                "description": "Google AdMob App ID (client-side)",
+                "severity": "LOW",
+            },
+            # Crashlytics / Fabric API key: 40-hex, anchored on a crashlytics/fabric
+            # co-location marker to avoid matching arbitrary SHA-1 hashes. The key
+            # itself is captured in group(1).
+            "crashlytics_api_key": {
+                "pattern": r"(?i)(?:crashlytics|fabric).{0,40}?\b([0-9a-fA-F]{40})\b",
+                "description": "Crashlytics/Fabric API Key (client-side)",
+                "severity": "LOW",
+            },
+        }
+        self.key_detection_patterns.update(structural_patterns)
+
     def _setup_legacy_compatibility(self):
         """Maintain backward compatibility with legacy patterns and permissions.
 
@@ -582,46 +629,37 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
         return findings
 
     def _assess_weak_cryptography(self, analysis_results: dict[str, Any]) -> list[SecurityFinding]:
-        """Assess for weak cryptographic algorithms."""
+        """Assess for weak cryptographic algorithms.
+
+        Algorithm tokens are matched only as a ``getInstance`` argument or as a
+        whole word (``\\bDES\\b``), never as a substring. This removes the former
+        false positives where ``des`` matched ``Descriptor`` / ``desktop`` and
+        ``adDescriptor.bids``.
+        """
         findings: list[SecurityFinding] = []
 
-        # Check API calls for weak crypto usage
         api_results = analysis_results.get("api_invocation", {})
         api_data = api_results.to_dict() if hasattr(api_results, "to_dict") else api_results
-
         if not isinstance(api_data, dict):
             return findings
 
-        weak_crypto_evidence = []
-        api_calls = api_data.get("api_calls", [])
-
-        for call in api_calls:
-            if isinstance(call, dict):
-                api_name = call.get("called_class", "") + "." + call.get("called_method", "")
-
-                # Check for weak algorithms
-                weak_algorithms = ["DES", "RC4", "MD5", "SHA1"]
-                for weak_algo in weak_algorithms:
-                    if weak_algo.lower() in api_name.lower():
-                        weak_crypto_evidence.append(f"Weak algorithm usage: {api_name}")
-                        break
-
-        # Also check strings for algorithm names
+        # Gather decompiled strings (full set, not just emails/urls/domains).
         string_results = analysis_results.get("string_analysis", {})
-        if hasattr(string_results, "to_dict"):
-            string_data = string_results.to_dict()
+        string_data = string_results.to_dict() if hasattr(string_results, "to_dict") else string_results
+        all_strings = string_data.get("all_strings", []) if isinstance(string_data, dict) else []
+        if not isinstance(all_strings, list):
             all_strings = []
-            for key in ["emails", "urls", "domains"]:
-                strings = string_data.get(key, [])
-                if isinstance(strings, list):
-                    all_strings.extend(strings)
 
-            for string in all_strings:
-                if isinstance(string, str):
-                    for weak_algo in ["DES", "RC4", "MD5", "SHA1"]:
-                        if weak_algo in string.upper():
-                            weak_crypto_evidence.append(f"Weak algorithm reference: {string[:50]}...")
-                            break
+        # Shared, evidence-required collector (crypto_usage + whole-word/arg on strings).
+        weak_crypto_evidence = collect_weak_crypto_evidence(analysis_results, all_strings)
+
+        # API calls: only flag when a weak token appears as a WHOLE WORD in the
+        # class/method name (e.g. Ldes/...;), never as a substring of Descriptor.
+        for call in api_data.get("api_calls", []):
+            if isinstance(call, dict):
+                api_name = f"{call.get('called_class', '')}.{call.get('called_method', '')}"
+                if any(matches_algorithm_token(api_name, token) for token in WEAK_CRYPTO_TOKENS):
+                    weak_crypto_evidence.append(f"Weak algorithm usage: {api_name}")
 
         if weak_crypto_evidence:
             findings.append(
@@ -631,6 +669,7 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
                     title="Weak Cryptographic Algorithms Detected",
                     description="Usage of weak or deprecated cryptographic algorithms that may be vulnerable to attacks.",
                     evidence=weak_crypto_evidence,
+                    confidence=0.7,
                     recommendations=[
                         "Replace weak algorithms with stronger alternatives (AES, SHA-256, etc.)",
                         "Use Android's recommended cryptographic libraries",
@@ -762,7 +801,18 @@ class SensitiveDataAssessment(BaseSecurityAssessment):
         # Initialize strategies for different aspects of secret detection
         string_collector = StringCollectionStrategy(self.logger)
         deep_analyzer = DeepAnalysisStrategy(self.logger)
-        pattern_detector = PatternDetectionStrategy(self.detection_patterns, self.logger)
+
+        # PR-5: build the precision/recall validator from this assessment's threshold
+        # configuration so the dexray.yaml knobs reach the active detection path.
+        validator = SecretValidator(
+            entropy_thresholds=self.entropy_thresholds,
+            length_filters=self.length_filters,
+            context_detection_enabled=self.context_detection_enabled,
+            context_strict_mode=self.context_strict_mode,
+            key_detection_config=self.key_detection_config,
+            logger=self.logger,
+        )
+        pattern_detector = PatternDetectionStrategy(self.detection_patterns, self.logger, validator=validator)
         result_classifier = ResultClassificationStrategy()
         finding_generator = FindingGenerationStrategy(self.owasp_category)
 
@@ -1181,17 +1231,30 @@ class PatternDetectionStrategy:
         "stripe_restricted_key": ["rk_live_"],
         "paypal_braintree_token": ["access_token$production$"],
         "s3_bucket_url": ["s3.amazonaws.com"],
+        # PR-5 structural client-credential patterns.
+        "branch_io_key": ["key_live_"],
+        "admob_app_id": ["ca-app-pub-"],
+        "crashlytics_api_key": ["crashlytics", "fabric"],
     }
 
-    def __init__(self, detection_patterns: dict[str, Any], logger):
+    def __init__(self, detection_patterns: dict[str, Any], logger, validator=None):
         """Initialize with detection patterns and logger.
 
         B2: Environment-dependent limits and the (~60) regex patterns are resolved once
         here instead of being recomputed for every scanned string. Patterns are
         pre-compiled with re.IGNORECASE and paired with cheap literal prefilters.
+
+        Args:
+            detection_patterns: The secret-detection pattern registry.
+            logger: Logger instance.
+            validator: Optional :class:`SecretValidator`. When None (the default) the
+                strategy behaves exactly as before (regex match -> append, no gating).
+                When provided, each match is validated/reclassified for precision and
+                recall before being reported.
         """
         self.detection_patterns = detection_patterns
         self.logger = logger
+        self.validator = validator
 
         # Determine environment-based limits once (env vars do not change at runtime).
         # These mirror the values previously computed per call in _safe_regex_search.
@@ -1222,7 +1285,11 @@ class PatternDetectionStrategy:
             regex = None
             if self._is_pattern_safe(pattern_str, pattern_name):
                 try:
-                    regex = re.compile(pattern_str, re.IGNORECASE)
+                    # Per-pattern case sensitivity. Most patterns stay case-insensitive,
+                    # but prefix-defined credentials (e.g. AWS key ids) set
+                    # case_sensitive=True so IGNORECASE cannot match lowercase look-alikes.
+                    flags = 0 if pattern_config.get("case_sensitive") else re.IGNORECASE
+                    regex = re.compile(pattern_str, flags)
                 except re.error as e:
                     self.logger.debug(f"Skipping uncompilable pattern {pattern_name}: {e}")
                     regex = None
@@ -1432,17 +1499,42 @@ class PatternDetectionStrategy:
                 match = regex.search(string_value)
                 if match:
                     pattern_config = entry["config"]
-                    matches.append(
-                        {
-                            "type": pattern_config.get("description", entry["name"]),
-                            "severity": pattern_config.get("severity", "MEDIUM"),
-                            "pattern_name": entry["name"],
-                            "value": match.group(),
-                            "location": string_data.get("location", ""),
-                            "file_path": string_data.get("file_path"),
-                            "line_number": string_data.get("line_number"),
-                        }
-                    )
+                    severity = pattern_config.get("severity", "MEDIUM")
+                    confidence = None
+                    classification_label = None
+                    classification_basis = None
+
+                    # PR-5: gate/reclassify the match when a validator is wired in.
+                    # Extract the capture group (the actual secret) when present so
+                    # entropy/allowlist checks run on the secret, not the wrapper text.
+                    if self.validator is not None:
+                        matched_value = match.group(1) if match.groups() else match.group(0)
+                        verdict = self.validator.evaluate(
+                            matched_value, string_value, entry["name"], pattern_config
+                        )
+                        if verdict.rejected:
+                            continue
+                        if verdict.severity:
+                            severity = verdict.severity
+                        confidence = verdict.confidence
+                        classification_label = verdict.classification_label
+                        classification_basis = verdict.classification_basis
+
+                    detection = {
+                        "type": pattern_config.get("description", entry["name"]),
+                        "severity": severity,
+                        "pattern_name": entry["name"],
+                        "value": match.group(),
+                        "full_context": string_value,
+                        "location": string_data.get("location", ""),
+                        "file_path": string_data.get("file_path"),
+                        "line_number": string_data.get("line_number"),
+                    }
+                    if confidence is not None:
+                        detection["confidence"] = confidence
+                        detection["classification_label"] = classification_label
+                        detection["classification_basis"] = classification_basis
+                    matches.append(detection)
 
             except Exception as e:
                 self.logger.warning(f"Error applying pattern {entry['name']}: {str(e)}")
@@ -1543,6 +1635,13 @@ class ResultClassificationStrategy:
                 "line_number": detection.get("line_number"),
                 "preview": detection["value"][:100] + ("..." if len(detection["value"]) > 100 else ""),
             }
+
+            # PR-5: thread the validator's confidence / classification into the
+            # evidence entry when present (absent when no validator was wired in).
+            if "confidence" in detection:
+                evidence_entry["confidence"] = detection["confidence"]
+                evidence_entry["classification_label"] = detection.get("classification_label")
+                evidence_entry["classification_basis"] = detection.get("classification_basis")
 
             # Format for terminal display with location info
             location_info = detection.get("location", "Unknown")

@@ -66,7 +66,10 @@ modules:
     filters:
       min_string_length: 2
       exclude_patterns: []  # No exclusion patterns by default
-      
+    # Cap on materialized samples surfaced per category (emails, IPs, URLs,
+    # domains, android_properties). True totals are preserved.
+    max_samples_per_category: 1000
+
   api_invocation:
     enabled: false
     priority: 40
@@ -352,6 +355,12 @@ security:
       enabled: true
       sql_patterns: ["SELECT", "INSERT", "UPDATE", "DELETE", "DROP"]
       command_patterns: ["exec", "system", "runtime"]
+      # Evidence gating (PR-3): require a real API sink (e.g. SQLiteDatabase.rawQuery,
+      # Runtime.exec) before promoting a string-only heuristic hit to MEDIUM/HIGH.
+      # When true (default), string-only hits are DEMOTED to a LOW "unproven (review)"
+      # finding rather than dropped. Set false to restore the older, noisier behaviour.
+      # Defaults also apply when this key is absent.
+      require_sink: true
     broken_authentication:
       enabled: true
       check_weak_crypto: true
@@ -388,6 +397,17 @@ security:
         context_detection:
           enabled: true               # Enable context-aware detection
           strict_mode: false          # Require context for all detections
+        # PR-5: precision/recall validation knobs (SecretValidator). All optional;
+        # defaults below also apply when the whole block is absent.
+        confidence:
+          enabled: true               # Enforce a minimum confidence on generic hits
+          min_confidence: 0.0         # Drop generic hits below this confidence (0 = keep all)
+        allowlist:
+          enabled: true               # Reclassify known credential shapes (public/private/restriction)
+        binary_filter:
+          enabled: true               # Reject base64 that decodes to a known binary blob (PNG/ICC/...)
+        jwt:
+          require_decodable_header: true  # A JWT match must have a decodable header with an 'alg' field
         # Deduplication settings (NEW - reduces duplicate findings)
         deduplication:
           enabled: true               # Enable deduplication of similar secrets
@@ -412,6 +432,25 @@ security:
       enabled: true
       check_logging_practices: true
 
+  # PR-7: Context analysis / false-positive post-processing pass.
+  # Runs after all assessments but before confidence backfill and scoring. It
+  # adjusts per-finding confidence using contextual false-positive probability and
+  # merges duplicate findings across assessments. Default ON; the pass is a safety
+  # no-op for non-secret findings and can be disabled here for byte-identical output.
+  context_analysis:
+    enabled: true
+    # When true, an FP-derived tier/adjusted_severity is recorded for DISPLAY only.
+    # The scorer always uses severity x confidence; finding.severity is never mutated.
+    allow_severity_downgrade: true
+    # Cap on corpus strings scanned per finding when extracting surrounding context.
+    max_context_strings: 5000
+    false_positive:
+      downgrade_high_threshold: 0.8    # fp_probability > this -> LOW tier (display)
+      downgrade_medium_threshold: 0.5  # fp_probability > this -> MEDIUM tier (display)
+    dedup:
+      enabled: true
+      merge_across_categories: true    # merge same location+value across OWASP categories
+
 # Output Configuration
 output:
   format: "json"
@@ -419,6 +458,17 @@ output:
   include_timestamps: true
   output_directory: "./results"
   filename_template: "dexray_{apk_name}_{timestamp}.json"
+
+  # Ranked / tiered security report (PR-9). Controls the terminal analyst summary's
+  # TOP-RISKS count and tier thresholds, and the optional Markdown report writer.
+  security_report:
+    top_n: 5                     # findings surfaced in the TOP RISKS section
+    tiers:
+      high_confidence_min: 0.75  # confirmed tier: confidence >= this AND critical/high severity
+      review_min: 0.40           # needs-review floor; findings below this are informational
+    show_informational: false    # print the informational tier in the terminal (or use -v)
+    markdown:
+      enabled: false             # write a Markdown security report file (--security-report-md)
 
 # Logging Configuration
 logging:

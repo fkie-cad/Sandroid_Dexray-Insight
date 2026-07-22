@@ -32,6 +32,8 @@ Phase 8 TDD Refactoring: Extracted from monolithic string_analysis.py
 import logging
 import re
 
+from .public_suffix import get_public_suffix_list
+
 
 class DomainFilter:
     """
@@ -41,12 +43,22 @@ class DomainFilter:
     comprehensive false positive filtering for mobile app analysis.
     """
 
-    def __init__(self):
-        """Initialize DomainFilter with configuration."""
+    def __init__(self, public_suffix_list=None):
+        """Initialize DomainFilter with configuration.
+
+        Args:
+            public_suffix_list: Optional PublicSuffixList instance. When omitted
+                the shared bundled singleton is used. Injecting a small fixture
+                list keeps tests deterministic.
+        """
         self.logger = logging.getLogger(__name__)
 
         # Domain pattern matching - for standalone domains or domains within text
         self.domain_pattern = re.compile(r"(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}")
+
+        # Public Suffix List: authoritative gate for "is this a real domain?".
+        # Loaded once from the bundled offline copy (never fetched at runtime).
+        self.public_suffix_list = public_suffix_list or get_public_suffix_list()
 
         # Comprehensive invalid patterns for mobile app analysis
         self._initialize_invalid_patterns()
@@ -699,12 +711,10 @@ class DomainFilter:
         if len(parts) < 2:  # Domains should have at least 2 parts
             return False
 
-        # Check for reasonable TLD (top-level domain)
+        # Cheap first-pass reject (kept as a secondary heuristic layer):
+        # a plausible TLD is short and alphabetic. This quickly discards obvious
+        # non-domains before the more expensive PSL lookup.
         tld = parts[-1].lower()
-        if len(tld) < 2 or len(tld) > 6:  # TLD should be reasonable length
-            return False
-
-        # Check if TLD contains only letters (no numbers in TLD)
         if not tld.isalpha():
             return False
 
@@ -715,8 +725,16 @@ class DomainFilter:
             if part.startswith("-") or part.endswith("-"):  # Invalid hyphen placement
                 return False
 
-        # Final check: domain shouldn't be too long overall (RFC 1035 limit)
-        return len(domain) <= 253
+        # RFC 1035 overall length limit
+        if len(domain) > 253:
+            return False
+
+        # Authoritative final gate: the domain must resolve to a real
+        # registrable domain under the Public Suffix List. This rejects code
+        # identifiers whose final label is not a public suffix
+        # (e.g. "ad.instance.ready", "shouldSkipUpdateUi.false") while keeping
+        # genuine domains such as "kik.com" and "example.co.uk".
+        return self.public_suffix_list.registrable_domain(domain) is not None
 
     def _is_java_package_name(self, domain: str) -> bool:
         """
@@ -942,10 +960,17 @@ class DomainFilter:
         root_domains = set()
 
         for domain in domains:
+            # Prefer the Public Suffix List so multi-label suffixes collapse
+            # correctly (e.g. "example.co.uk" stays intact instead of "co.uk").
+            registrable = self.public_suffix_list.registrable_domain(domain)
+            if registrable:
+                root_domains.add(registrable)
+                continue
+
+            # Secondary fallback: naive last-2-parts for anything the PSL does
+            # not recognise (keeps previous behaviour for edge cases).
             parts = domain.split(".")
             if len(parts) >= 2:
-                # Extract last 2 parts as root domain (e.g., example.com from sub.example.com)
-                root_domain = ".".join(parts[-2:])
-                root_domains.add(root_domain)
+                root_domains.add(".".join(parts[-2:]))
 
         return sorted(root_domains)

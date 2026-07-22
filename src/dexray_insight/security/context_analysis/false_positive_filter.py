@@ -96,9 +96,12 @@ class FalsePositiveFilter:
             r"(?i)_(here|placeholder|example|test|demo)$",
             r"\b[A-Z_]+_HERE\b",
             r"\bXXXX+\b",
-            # Development/debug patterns
-            r"(?i)\b(debug|dev|development|staging).*?(key|token|secret)",
-            r"(?i)\b(local|localhost|127\.0\.0\.1)",
+            # NOTE (PR-7 false-negative fix): the previous
+            #   r"(?i)\b(debug|dev|development|staging).*?(key|token|secret)"
+            #   r"(?i)\b(local|localhost|127\.0\.0\.1)"
+            # rules were REMOVED. dev/development/staging/local/localhost/127.0.0.1 are
+            # RISK signals (real non-prod endpoints/credentials), not placeholders, and
+            # must never be auto-downgraded as false positives.
             # Repeated character patterns (unlikely to be real secrets)
             r"^(.)\1{8,}$",  # Same character repeated 8+ times
             r"^(abc|123|xyz|test|null|none){2,}$",  # Simple repeated patterns
@@ -198,6 +201,20 @@ class FalsePositiveFilter:
             "general": 4.0,
         }
 
+        # Structural high-confidence credential shapes. A value matching one of these
+        # is a *provably-structured* secret (fixed prefix/format), so it must be EXEMPT
+        # from false-positive downgrading entirely — see is_structural_secret /
+        # filter_finding. Suppressing these would be a critical false negative.
+        self.structural_secret_patterns = [
+            r"AKIA[0-9A-Z]{16}",  # AWS access key id
+            r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----",  # PEM private key block
+            r"\bssh-(rsa|dss|ed25519|ecdsa)\b",  # SSH public/private key marker
+            r"\bghp_[A-Za-z0-9]{20,}",  # GitHub personal access token
+            r"\bsk_live_[A-Za-z0-9]{10,}",  # Stripe live secret key
+            r"\bkey_live_[A-Za-z0-9]{10,}",  # Generic *_live_ secret key
+            r"\bca-app-pub-[0-9]{10,}",  # AdMob application/unit id
+        ]
+
     def is_placeholder_value(self, value: str) -> bool:
         """
         Determine if a string value appears to be a placeholder.
@@ -273,38 +290,61 @@ class FalsePositiveFilter:
             if re.search(pattern, value):
                 return True
 
-        # Additional Android-specific checks
-        android_keywords = [
-            "android",
-            "androidx",
-            "dalvik",
-            "art",
-            "activity",
-            "service",
-            "receiver",
-            "provider",
-            "fragment",
-            "layout",
-            "drawable",
-            "string",
-            "color",
-            "dimen",
-            "style",
-            "permission",
-            "feature",
+        # PR-7 false-negative fix: only classify as an Android system string when the
+        # WHOLE value is an Android descriptor / fully-qualified package or a
+        # getter/lifecycle method name. The previous heuristic returned True whenever a
+        # value merely CONTAINED a '.'/'/' plus a common keyword (e.g. "art", "service",
+        # "string"), which wrongly suppressed real secrets, URLs and endpoints such as
+        # "https://api.example.com/v1/users" or "database_connection_string".
+        whole_value_android_patterns = [
+            r"^\[*L[\w/$]+;?$",  # Dalvik type descriptor (e.g. Landroid/view/View;)
+            r"^androidx?\.[\w.]+$",  # android.* / androidx.* FQN
+            r"^com\.android\.[\w.]+$",  # com.android.* FQN
+            r"^com\.google\.android\.[\w.]+$",  # com.google.android.* FQN
+            r"^java(x)?\.[\w.]+$",  # java.* / javax.* FQN
+            r"^(get|set|on|is|has)[A-Z][A-Za-z0-9]*$",  # getter/setter/lifecycle names
+            r"^(create|destroy|start|stop|pause|resume|bind|unbind)[A-Z][A-Za-z0-9]*$",
         ]
+        return any(re.match(pattern, value) for pattern in whole_value_android_patterns)
 
-        value_lower = value.lower()
+    def is_structural_secret(self, value: str, finding_type: str = "") -> bool:
+        """
+        Determine if a value is a provably-structured high-confidence credential.
 
-        # Check if it's a class name pattern with Android keywords
-        if ("/" in value or "." in value) and any(keyword in value_lower for keyword in android_keywords):
-            return True
+        Structural secrets (AWS AKIA keys, PEM private keys, SSH keys, GitHub/Stripe
+        tokens, AdMob ids, ...) have a fixed, recognisable shape and are therefore
+        exempt from false-positive downgrading — they must never be suppressed.
 
-        # Check for Android method signatures
-        if re.match(r"^[a-z][a-zA-Z0-9]*\([^)]*\).*$", value):
-            return any(keyword in value_lower for keyword in android_keywords)
+        Args:
+            value: The detected string value.
+            finding_type: The finding type/pattern name (used as a secondary hint).
 
-        return False
+        Returns:
+            True if the value is a structural high-confidence credential.
+        """
+        if not value:
+            return False
+
+        for pattern in self.structural_secret_patterns:
+            if re.search(pattern, value):
+                return True
+
+        # Secondary hint: an explicit structural pattern name on the finding itself.
+        type_lower = (finding_type or "").lower()
+        structural_type_hints = [
+            "aws",
+            "akia",
+            "pem",
+            "private key",
+            "ssh",
+            "github token",
+            "ghp_",
+            "stripe",
+            "sk_live",
+            "admob",
+            "ca-app-pub",
+        ]
+        return any(hint in type_lower for hint in structural_type_hints)
 
     def is_test_context(self, code_context: CodeContext) -> bool:
         """
@@ -708,6 +748,25 @@ class FalsePositiveFilter:
         Returns:
             ContextualFinding with enhanced false positive analysis
         """
+        # EXEMPTION (PR-7): provably-structured high-confidence credentials are never
+        # downgraded. Return immediately with a zero false-positive probability and no
+        # adjusted severity, so the post-processor keeps the finding at full strength.
+        value = finding.get("value", "")
+        finding_type = finding.get("type", "")
+        if self.is_structural_secret(value, finding_type):
+            context_metadata = ContextMetadata(
+                false_positive_probability=0.0,
+                analysis_confidence=ContextConfidence.VERY_HIGH,
+            )
+            self.logger.debug(
+                f"Structural secret exempt from FP filtering: {finding_type or 'Unknown'}"
+            )
+            return ContextualFinding(
+                original_finding=finding,
+                context_metadata=context_metadata,
+                false_positive_indicators=[],
+            )
+
         # Generate false positive indicators
         fp_indicators = self.get_false_positive_indicators(finding, code_context)
 
