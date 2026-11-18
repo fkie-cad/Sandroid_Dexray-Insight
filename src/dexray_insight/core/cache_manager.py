@@ -33,14 +33,14 @@ must never break an analysis):
 * Writes are best-effort: failures are logged and swallowed.
 * Artifacts are written to a temp file then atomically ``os.replace``d so an
   interrupted run never leaves a half-written file that later reads as valid.
-* The cache may live on a shared/network folder used by several hosts: temp
-  names carry hostname + PID + a UUID, and per-APK writes hold an advisory
-  ``<md5>/.lock`` file created with ``O_CREAT|O_EXCL`` (``fcntl`` locks are
-  unreliable on SMB/NFS). A lock older than ``LOCK_STALE_SECONDS`` is treated
-  as left behind by a crashed writer and broken; if the lock stays busy for
-  ``LOCK_WAIT_SECONDS`` the write is skipped. ``cache_metadata.json`` is only
-  an index: it is re-read and merged right before each write (last writer
-  wins) and drops entries whose APK directory no longer exists.
+* The cache may live on a shared/network folder used by several processes or
+  hosts. No cross-process lock is taken: an entry is a deterministic function
+  of (APK bytes, fingerprint, key), so concurrent writers produce the same
+  content, and each write goes to a unique temp file (hostname + PID + UUID)
+  that is atomically renamed into place. Within a process, writes for one APK
+  are serialized by an in-process lock. ``cache_metadata.json`` is only an
+  index: it is re-read and merged right before each write (last writer wins)
+  and drops entries whose APK directory no longer exists.
 * Validity is fingerprint-based (tool + androguard version + schema), not
   time-based: the cached data is a deterministic function of (bytes, versions),
   so a time TTL would add no correctness and is intentionally omitted for the
@@ -78,9 +78,7 @@ import os
 import re
 import socket
 import threading
-import time
 import uuid
-from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -101,15 +99,8 @@ ANALYSIS_SCHEMA_VERSION = "2026-07-22-security-overhaul"
 #: Prefix of the per-environment (fingerprint) subdirectories of ``cache_dir``.
 ENV_DIR_PREFIX = "env-"
 
-#: Per-APK advisory lock file (see the module docstring).
-LOCK_FILE_NAME = ".lock"
-
-#: Hostname as a file-name-safe token for temp and lock files.
+#: Hostname as a file-name-safe token for temp file names.
 _HOST = re.sub(r"[^A-Za-z0-9.-]", "_", socket.gethostname() or "unknown-host")
-
-
-class CacheLockTimeoutError(Exception):
-    """Raised when a per-APK cache lock stays busy for longer than the wait timeout."""
 
 
 #: Modules whose results depend on the tracker signature database.
@@ -178,12 +169,6 @@ def hash_config(config: Any) -> str:
 class AnalysisCacheManager:
     """Fingerprint-invalidated, MD5-keyed cache for analysis prerequisites."""
 
-    #: How long a writer waits for a busy per-APK lock before skipping the write.
-    LOCK_WAIT_SECONDS = 10.0
-    #: Age (by mtime) after which a lock is considered left behind by a crashed writer.
-    LOCK_STALE_SECONDS = 120.0
-    LOCK_POLL_SECONDS = 0.05
-
     def __init__(
         self,
         cache_dir: Path | str | None = None,
@@ -230,6 +215,9 @@ class AnalysisCacheManager:
 
         # Guards metadata read-modify-write across parallel module threads.
         self._metadata_lock = threading.Lock()
+        # Per-APK write locks for this process (module threads write in parallel).
+        self._apk_locks: dict[str, threading.Lock] = {}
+        self._apk_locks_guard = threading.Lock()
 
         # In-process memo of APK md5s whose on-disk manifest fingerprint has been
         # validated this run. The fingerprint (schema/tool/androguard version) is
@@ -328,46 +316,10 @@ class AnalysisCacheManager:
     def _full_result_path(self, md5: str, config_hash: str) -> Path:
         return self._apk_dir(md5) / f"full_result__{config_hash}-{self._signature_db_key()}.json"
 
-    @contextlib.contextmanager
-    def _apk_write_lock(self, md5: str) -> Iterator[None]:
-        """Hold the advisory per-APK lock file for the duration of a write.
-
-        Raises:
-            CacheLockTimeoutError: If the lock stays busy for ``LOCK_WAIT_SECONDS``.
-        """
-        lock_path = self._apk_dir(md5) / LOCK_FILE_NAME
-        lock_path.parent.mkdir(parents=True, exist_ok=True)
-        token = f"{_HOST} {os.getpid()} {uuid.uuid4().hex}"
-        deadline = time.monotonic() + self.LOCK_WAIT_SECONDS
-        while True:
-            try:
-                fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
-                break
-            except FileExistsError:
-                self._break_stale_lock(lock_path)
-                if time.monotonic() >= deadline:
-                    raise CacheLockTimeoutError(f"cache lock {lock_path} is busy") from None
-                time.sleep(self.LOCK_POLL_SECONDS)
-        with os.fdopen(fd, "w") as f:
-            f.write(token)
-        try:
-            yield
-        finally:
-            # Only remove the lock if it is still ours (it may have been broken as
-            # stale and re-acquired by another writer meanwhile).
-            with contextlib.suppress(OSError):
-                if lock_path.read_text() == token:
-                    lock_path.unlink()
-
-    def _break_stale_lock(self, lock_path: Path):
-        """Remove a lock file whose mtime is older than ``LOCK_STALE_SECONDS``."""
-        try:
-            age = time.time() - lock_path.stat().st_mtime
-            if age > self.LOCK_STALE_SECONDS:
-                lock_path.unlink()
-                self.logger.warning(f"Removed stale analysis cache lock {lock_path} ({age:.0f}s old)")
-        except OSError:
-            pass
+    def _apk_write_lock(self, md5: str) -> threading.Lock:
+        """Return the in-process lock serializing this process's writes for one APK."""
+        with self._apk_locks_guard:
+            return self._apk_locks.setdefault(md5, threading.Lock())
 
     def _fingerprint(self) -> dict[str, Any]:
         return {

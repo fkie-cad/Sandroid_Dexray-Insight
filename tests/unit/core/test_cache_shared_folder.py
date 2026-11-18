@@ -1,19 +1,17 @@
 #!/usr/bin/env python3
 """Analysis cache safety on a shared/network folder used by several processes or hosts.
 
-Covers host-unique temp file names, the advisory per-APK lock file (busy, stale,
-ownership) and the re-read-and-merge of the metadata index.
+Covers host-unique temp file names, per-environment subtrees, concurrent writers
+and the re-read-and-merge of the metadata index.
 """
 
 import json
 import os
 import re
 import threading
-import time
 from unittest import mock
 
 from dexray_insight.core import cache_manager
-from dexray_insight.core.cache_manager import LOCK_FILE_NAME
 from dexray_insight.core.cache_manager import AnalysisCacheManager
 
 MD5_A = "a" * 32
@@ -53,72 +51,45 @@ class TestTempFileNames:
         assert manager.get_module_result(MD5_A, "string_analysis", "cfg") == {"n": 2}
 
 
-class TestPerApkLock:
-    def _lock(self, tmp_path, md5=MD5_A):
-        return _manager(tmp_path).env_dir / md5 / LOCK_FILE_NAME
-
-    def test_lock_is_released_after_write(self, tmp_path):
+class TestConcurrentWrites:
+    def test_no_lock_or_temp_files_are_left(self, tmp_path):
         manager = _manager(tmp_path)
         manager.set_module_result(MD5_A, "string_analysis", "cfg", {"n": 1})
-        assert not self._lock(tmp_path).exists()
-        leftovers = [p.name for p in (tmp_path / "cache").rglob("*") if ".tmp." in p.name]
+        leftovers = [p.name for p in (tmp_path / "cache").rglob("*") if ".tmp." in p.name or p.name == ".lock"]
         assert leftovers == []
 
-    def test_busy_lock_skips_write_and_is_left_alone(self, tmp_path):
-        manager = _manager(tmp_path, LOCK_WAIT_SECONDS=0.2, LOCK_POLL_SECONDS=0.01)
-        lock = self._lock(tmp_path)
-        lock.parent.mkdir(parents=True)
-        lock.write_text("otherhost 1 token")
+    def test_writes_for_one_apk_share_an_in_process_lock(self, tmp_path):
+        manager = _manager(tmp_path)
+        assert manager._apk_write_lock(MD5_A) is manager._apk_write_lock(MD5_A)
+        assert manager._apk_write_lock(MD5_A) is not manager._apk_write_lock(MD5_B)
 
-        manager.set_module_result(MD5_A, "string_analysis", "cfg", {"n": 1})
-
-        assert manager.get_module_result(MD5_A, "string_analysis", "cfg") is None
-        assert lock.read_text() == "otherhost 1 token"
-
-    def test_stale_lock_is_broken(self, tmp_path):
-        manager = _manager(tmp_path, LOCK_WAIT_SECONDS=1.0, LOCK_STALE_SECONDS=60.0, LOCK_POLL_SECONDS=0.01)
-        lock = self._lock(tmp_path)
-        lock.parent.mkdir(parents=True)
-        lock.write_text("crashedhost 1 token")
-        old = time.time() - 3600
-        os.utime(lock, (old, old))
-
-        manager.set_module_result(MD5_A, "string_analysis", "cfg", {"n": 1})
-
+    def test_write_waits_for_the_in_process_lock(self, tmp_path):
+        manager = _manager(tmp_path)
+        lock = manager._apk_write_lock(MD5_A)
+        lock.acquire()
+        writer = threading.Thread(target=manager.set_module_result, args=(MD5_A, "string_analysis", "cfg", {"n": 1}))
+        writer.start()
+        writer.join(timeout=0.2)
+        assert writer.is_alive()  # blocked, not skipped
+        lock.release()
+        writer.join()
         assert manager.get_module_result(MD5_A, "string_analysis", "cfg") == {"n": 1}
-        assert not lock.exists()
 
-    def test_foreign_lock_is_not_removed_on_release(self, tmp_path):
-        manager = _manager(tmp_path)
-        lock = self._lock(tmp_path)
-        with manager._apk_write_lock(MD5_A):
-            assert lock.exists()
-            # Another writer broke our lock as stale and took it over.
-            lock.write_text("otherhost 2 token")
-        assert lock.read_text() == "otherhost 2 token"
-
-    def test_lock_uses_exclusive_create(self, tmp_path):
-        manager = _manager(tmp_path)
-        with mock.patch.object(cache_manager.os, "open", wraps=os.open) as os_open, manager._apk_write_lock(MD5_A):
-            pass
-        flags = os_open.call_args.args[1]
-        assert flags & os.O_CREAT and flags & os.O_EXCL
-
-    def test_concurrent_writers_serialize(self, tmp_path):
-        manager = _manager(tmp_path, LOCK_POLL_SECONDS=0.001)
+    def test_concurrent_writers_all_land(self, tmp_path):
+        writers = [_manager(tmp_path) for _ in range(2)]  # two "processes" sharing the folder
         modules = [f"module_{i}" for i in range(8)]
         threads = [
-            threading.Thread(target=manager.set_module_result, args=(MD5_A, name, "cfg", {"name": name}))
-            for name in modules
+            threading.Thread(target=writers[i % 2].set_module_result, args=(MD5_A, name, "cfg", {"name": name}))
+            for i, name in enumerate(modules)
         ]
         for thread in threads:
             thread.start()
         for thread in threads:
             thread.join()
 
+        reader = _manager(tmp_path)
         for name in modules:
-            assert manager.get_module_result(MD5_A, name, "cfg") == {"name": name}
-        assert not self._lock(tmp_path).exists()
+            assert reader.get_module_result(MD5_A, name, "cfg") == {"name": name}
 
 
 class TestMetadataMerge:
