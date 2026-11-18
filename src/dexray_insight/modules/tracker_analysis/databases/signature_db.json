@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "description": "Dexray Insight signature database: trackers (code + network), network recipients and anti-analysis/integrity protections. 'network_domains' are domain suffixes; 'confidence' (protections) is how reliably a match indicates the SDK is present.",
+  "description": "Dexray Insight signature database: trackers (code + network), network recipients and anti-analysis/integrity protections. 'network_domains' are domain suffixes; 'confidence' (protections) is how reliably a match indicates the SDK is present. Entries with \"source\": \"exodus\" were derived from Exodus Privacy research (exodus-privacy.eu.org; ODbL/DbCL).",
   "entries": {
     "google_admob": {
       "kind": "tracker",
@@ -424,6 +424,7 @@
     },
     "teemo": {
       "kind": "tracker",
+      "source": "exodus",
       "name": "Teemo",
       "label": "Teemo",
       "category": "Location Tracking",
@@ -446,6 +447,7 @@
     },
     "fidzup": {
       "kind": "tracker",
+      "source": "exodus",
       "name": "FidZup",
       "label": "FidZup",
       "category": "Location Tracking",
@@ -467,6 +469,7 @@
     },
     "krux": {
       "kind": "tracker",
+      "source": "exodus",
       "name": "Audience Studio (Krux)",
       "label": "Salesforce Audience Studio",
       "category": "Data Management",
@@ -488,6 +491,7 @@
     },
     "ad4screen": {
       "kind": "tracker",
+      "source": "exodus",
       "name": "Ad4Screen",
       "label": "Accengage",
       "category": "Advertising",

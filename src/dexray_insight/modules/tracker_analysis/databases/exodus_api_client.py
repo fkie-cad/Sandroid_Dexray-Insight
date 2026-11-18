@@ -32,8 +32,9 @@ be reached the cached copy is used; with ``exodus_offline: true`` only the
 cache is read and the network is never touched.
 
 The Exodus tracker data is published under the Open Database License (ODbL)
-v1.0, so no snapshot is shipped with Dexray Insight; the cache is filled from
-the API on first online use.
+v1.0, so no snapshot of the list is shipped with Dexray Insight; the cache is
+filled from the API on first online use. (A few built-in signature entries
+derived from Exodus research are marked ``"source": "exodus"``.)
 
 Phase 7 TDD Refactoring: Extracted from monolithic tracker_analysis.py
 """

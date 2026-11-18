@@ -264,7 +264,10 @@ human ``label`` only) and ``protection`` (anti-analysis / integrity SDKs with a
 with ``dexray_insight.modules.tracker_analysis.label_for_domain(host)``.
 
 The Exodus tracker data is published under the Open Database License (ODbL),
-so Dexray Insight does not ship a copy; the cache is filled on first online use.
+so Dexray Insight does not ship a copy of the Exodus list; the Exodus cache is
+filled on first online use. Four built-in signature entries (Teemo, FidZup,
+Audience Studio (Krux), Ad4Screen) were derived from Exodus Privacy research
+(https://exodus-privacy.eu.org, ODbL/DbCL) and are marked ``"source": "exodus"``.
 
 Changing the signature database (the built-in file or ``tracker_db_path``)
 invalidates the cached full result of runs that include ``tracker_analysis``

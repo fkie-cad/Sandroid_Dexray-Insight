@@ -55,6 +55,11 @@ class TestLoadSignatureDb:
                 assert entry["confidence"] in ("high", "medium", "low"), entry_id
                 assert entry.get("code_signature") or entry.get("native_libs"), entry_id
 
+    def test_exodus_derived_entries_carry_provenance(self):
+        entries = load_signature_db()
+        exodus = {entry_id for entry_id, entry in entries.items() if entry.get("source") == "exodus"}
+        assert exodus == {"teemo", "fidzup", "krux", "ad4screen"}
+
     def test_legacy_tracker_database_shape_is_kept(self):
         db = TrackerDatabase.get_tracker_database()
         assert len(db) == TrackerDatabase.get_tracker_count() == 22
