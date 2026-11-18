@@ -26,14 +26,29 @@ Exodus Privacy API Client.
 Client for fetching tracker patterns from the Exodus Privacy API.
 Handles API communication, caching, and error management.
 
+The downloaded list is cached on disk (config key ``exodus_cache_path``,
+default ``~/.dexray_insight/exodus_cache/trackers.json``). When the API cannot
+be reached the cached copy is used; with ``exodus_offline: true`` only the
+cache is read and the network is never touched.
+
+The Exodus tracker data is published under the Open Database License (ODbL)
+v1.0, so no snapshot is shipped with Dexray Insight; the cache is filled from
+the API on first online use.
+
 Phase 7 TDD Refactoring: Extracted from monolithic tracker_analysis.py
 """
 
+import contextlib
+import json
 import logging
+import os
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
 import requests
+
+DEFAULT_EXODUS_CACHE_PATH = Path.home() / ".dexray_insight" / "exodus_cache" / "trackers.json"
 
 
 class ExodusAPIClient:
@@ -50,6 +65,9 @@ class ExodusAPIClient:
         self.api_url = config.get("exodus_api_url", "https://reports.exodus-privacy.eu.org/api/trackers")
         self.timeout = config.get("api_timeout", 10)
         self.enabled = config.get("fetch_exodus_trackers", True)
+        self.offline = bool(config.get("exodus_offline", False))
+        cache_path = config.get("exodus_cache_path")
+        self.cache_path = Path(cache_path).expanduser() if cache_path else DEFAULT_EXODUS_CACHE_PATH
         self._cache: list[dict[str, Any]] | None = None
 
         # Validate API URL
@@ -69,11 +87,15 @@ class ExodusAPIClient:
         """
         Fetch tracker signatures from Exodus Privacy API.
 
+        Online, a successful download refreshes the on-disk cache and a failed
+        one falls back to it. In offline mode only the on-disk cache is used.
+
         Returns:
             List of tracker dictionaries with metadata
 
         Raises:
-            Exception: If API fetch fails and no cache is available
+            Exception: If the API fetch fails (or offline mode is on) and no
+                on-disk cache is available
         """
         if not self.enabled:
             self.logger.debug("Exodus tracker fetching disabled")
@@ -83,44 +105,83 @@ class ExodusAPIClient:
             self.logger.debug("Returning cached Exodus trackers")
             return self._cache
 
+        if self.offline:
+            data = self._read_disk_cache()
+            if data is None:
+                raise Exception(f"Exodus offline mode: no usable tracker cache at {self.cache_path}")
+            self.logger.debug(f"Exodus offline mode: using tracker cache {self.cache_path}")
+            self._cache = self._parse_trackers(data)
+            return self._cache
+
         try:
             self.logger.debug(f"Fetching trackers from Exodus Privacy API: {self.api_url}")
             response = requests.get(self.api_url, timeout=self.timeout)
             response.raise_for_status()
-
             data = response.json()
-            trackers = []
-
-            # Process the API response
-            if isinstance(data, dict) and "trackers" in data:
-                for tracker_id, tracker_info in data["trackers"].items():
-                    trackers.append(
-                        {
-                            "id": tracker_id,
-                            "name": tracker_info.get("name", f"Unknown Tracker {tracker_id}"),
-                            "description": tracker_info.get("description", ""),
-                            "category": tracker_info.get("category", "Unknown"),
-                            "website": tracker_info.get("website", ""),
-                            "code_signature": tracker_info.get("code_signature", ""),
-                            "network_signature": tracker_info.get("network_signature", ""),
-                        }
-                    )
-
-            self._cache = trackers
-            self.logger.info(f"Successfully fetched {len(trackers)} trackers from Exodus Privacy API")
-            return trackers
-
-        except requests.exceptions.RequestException as e:
-            error_msg = f"Failed to fetch Exodus trackers - network error: {str(e)}"
-            self.logger.error(error_msg)
-            raise Exception(error_msg) from e
+            trackers = self._parse_trackers(data)
         except Exception as e:
-            error_msg = f"Failed to fetch Exodus trackers - unexpected error: {str(e)}"
+            kind = "network error" if isinstance(e, requests.exceptions.RequestException) else "unexpected error"
+            error_msg = f"Failed to fetch Exodus trackers - {kind}: {str(e)}"
+            data = self._read_disk_cache()
+            if data is not None:
+                self.logger.warning(f"{error_msg}; using cached list from {self.cache_path}")
+                self._cache = self._parse_trackers(data)
+                return self._cache
             self.logger.error(error_msg)
             raise Exception(error_msg) from e
+
+        if trackers:
+            self._write_disk_cache(data)
+        self._cache = trackers
+        self.logger.info(f"Successfully fetched {len(trackers)} trackers from Exodus Privacy API")
+        return trackers
+
+    @staticmethod
+    def _parse_trackers(data: Any) -> list[dict[str, Any]]:
+        """Convert the API response (``{"trackers": {id: {...}}}``) into tracker dicts."""
+        trackers = []
+        if isinstance(data, dict) and isinstance(data.get("trackers"), dict):
+            for tracker_id, tracker_info in data["trackers"].items():
+                trackers.append(
+                    {
+                        "id": tracker_id,
+                        "name": tracker_info.get("name", f"Unknown Tracker {tracker_id}"),
+                        "description": tracker_info.get("description", ""),
+                        "category": tracker_info.get("category", "Unknown"),
+                        "website": tracker_info.get("website", ""),
+                        "code_signature": tracker_info.get("code_signature", ""),
+                        "network_signature": tracker_info.get("network_signature", ""),
+                    }
+                )
+        return trackers
+
+    def _read_disk_cache(self) -> dict[str, Any] | None:
+        """Return the cached API response, or None if missing or unreadable."""
+        try:
+            with self.cache_path.open(encoding="utf-8") as fh:
+                data = json.load(fh)
+        except FileNotFoundError:
+            return None
+        except (OSError, ValueError) as e:
+            self.logger.warning(f"Ignoring unreadable Exodus tracker cache {self.cache_path}: {e}")
+            return None
+        return data if self._parse_trackers(data) else None
+
+    def _write_disk_cache(self, data: dict[str, Any]) -> None:
+        """Atomically store the raw API response; failures are logged, not raised."""
+        tmp_path = self.cache_path.with_name(f".{self.cache_path.name}.{os.getpid()}.tmp")
+        try:
+            self.cache_path.parent.mkdir(parents=True, exist_ok=True)
+            with tmp_path.open("w", encoding="utf-8") as fh:
+                json.dump(data, fh)
+            os.replace(tmp_path, self.cache_path)
+        except OSError as e:
+            self.logger.warning(f"Could not write Exodus tracker cache {self.cache_path}: {e}")
+            with contextlib.suppress(OSError):
+                tmp_path.unlink(missing_ok=True)
 
     def clear_cache(self):
-        """Clear the cached tracker data."""
+        """Clear the in-memory tracker data (the on-disk cache is kept)."""
         self._cache = None
         self.logger.debug("Exodus tracker cache cleared")
 

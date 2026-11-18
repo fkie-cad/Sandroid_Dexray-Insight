@@ -1,18 +1,35 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""Tests for the shared signature database (loader, overrides, network labels)."""
+"""Tests for the shared signature database and the Exodus disk cache."""
 
 import json
+from unittest.mock import MagicMock
+from unittest.mock import patch
 
 import pytest
+import requests
 
+from dexray_insight.modules.tracker_analysis.databases.exodus_api_client import ExodusAPIClient
 from dexray_insight.modules.tracker_analysis.databases.tracker_database import ENTRY_KINDS
 from dexray_insight.modules.tracker_analysis.databases.tracker_database import PROTECTION_DEFEATS
 from dexray_insight.modules.tracker_analysis.databases.tracker_database import TrackerDatabase
 from dexray_insight.modules.tracker_analysis.databases.tracker_database import label_for_domain
 from dexray_insight.modules.tracker_analysis.databases.tracker_database import load_signature_db
 from dexray_insight.modules.tracker_analysis.tracker_analysis_module import TrackerAnalysisModule
+
+EXODUS_GET = "dexray_insight.modules.tracker_analysis.databases.exodus_api_client.requests.get"
+
+EXODUS_RESPONSE = {
+    "trackers": {
+        "27": {
+            "name": "Google Firebase Analytics",
+            "code_signature": "com.google.firebase.analytics.",
+            "network_signature": "firebase.com",
+            "website": "https://firebase.google.com/",
+        }
+    }
+}
 
 
 def _write_json(path, data):
@@ -148,3 +165,64 @@ class TestLabelForDomain:
             for domain in entry.get("network_domains", []):
                 assert domain not in seen, f"{domain} in {entry_id} and {seen.get(domain)}"
                 seen[domain] = entry_id
+
+
+class TestExodusCache:
+    def _client(self, tmp_path, **config):
+        return ExodusAPIClient({"exodus_cache_path": str(tmp_path / "exodus" / "trackers.json"), **config})
+
+    def test_default_cache_path(self):
+        client = ExodusAPIClient({})
+        assert client.cache_path.parts[-3:] == (".dexray_insight", "exodus_cache", "trackers.json")
+
+    def test_online_fetch_writes_cache(self, tmp_path):
+        client = self._client(tmp_path)
+        response = MagicMock()
+        response.json.return_value = EXODUS_RESPONSE
+        with patch(EXODUS_GET, return_value=response) as get:
+            trackers = client.fetch_trackers()
+
+        get.assert_called_once()
+        assert trackers[0]["name"] == "Google Firebase Analytics"
+        assert json.loads(client.cache_path.read_text()) == EXODUS_RESPONSE
+
+    def test_fetch_failure_falls_back_to_cache(self, tmp_path):
+        client = self._client(tmp_path)
+        client.cache_path.parent.mkdir(parents=True)
+        _write_json(client.cache_path, EXODUS_RESPONSE)
+        with patch(EXODUS_GET, side_effect=requests.exceptions.ConnectionError("offline")):
+            trackers = client.fetch_trackers()
+        assert [t["id"] for t in trackers] == ["27"]
+
+    def test_fetch_failure_without_cache_raises(self, tmp_path):
+        client = self._client(tmp_path)
+        with (
+            patch(EXODUS_GET, side_effect=requests.exceptions.Timeout("slow")),
+            pytest.raises(Exception, match="Failed to fetch"),
+        ):
+            client.fetch_trackers()
+
+    def test_corrupt_cache_is_ignored(self, tmp_path):
+        client = self._client(tmp_path)
+        client.cache_path.parent.mkdir(parents=True)
+        client.cache_path.write_text("{not json", encoding="utf-8")
+        with (
+            patch(EXODUS_GET, side_effect=requests.exceptions.ConnectionError("offline")),
+            pytest.raises(Exception, match="Failed to fetch"),
+        ):
+            client.fetch_trackers()
+
+    def test_offline_mode_uses_cache_only(self, tmp_path):
+        client = self._client(tmp_path, exodus_offline=True)
+        client.cache_path.parent.mkdir(parents=True)
+        _write_json(client.cache_path, EXODUS_RESPONSE)
+        with patch(EXODUS_GET) as get:
+            trackers = client.fetch_trackers()
+        get.assert_not_called()
+        assert trackers[0]["code_signature"] == "com.google.firebase.analytics."
+
+    def test_offline_mode_without_cache_never_fetches(self, tmp_path):
+        client = self._client(tmp_path, exodus_offline=True)
+        with patch(EXODUS_GET) as get, pytest.raises(Exception, match="no usable tracker cache"):
+            client.fetch_trackers()
+        get.assert_not_called()
