@@ -238,12 +238,33 @@ Identifies third-party tracking libraries using Exodus Privacy database:
        fetch_exodus_trackers: true  # Fetch latest tracker database
        exodus_api_url: "https://reports.exodus-privacy.eu.org/api/trackers"
        api_timeout: 10
+       exodus_cache_path: null  # default: ~/.dexray_insight/exodus_cache/trackers.json
+       exodus_offline: false
+       tracker_db_path: null
 
 **Configuration Options**:
 
 * ``fetch_exodus_trackers``: Download latest tracker signatures from Exodus
 * ``exodus_api_url``: Exodus Privacy API endpoint
 * ``api_timeout``: API request timeout (seconds)
+* ``exodus_cache_path``: On-disk copy of the Exodus list; refreshed after every
+  successful download and used when the API cannot be reached
+* ``exodus_offline``: Only read ``exodus_cache_path``, never contact the API
+* ``tracker_db_path``: JSON file (``{"entries": {"<id>": {...}}}``) whose entries
+  extend or override, field by field, the built-in signature database
+  ``modules/tracker_analysis/databases/signature_db.json``
+
+The built-in signature database holds three kinds of entries: ``tracker``
+(code and network signatures), ``recipient`` (network ``network_domains`` and a
+human ``label`` only) and ``protection`` (anti-analysis / integrity SDKs with a
+``code_signature`` class-prefix regex, ``native_libs``, a ``defeats`` hint from
+``root``, ``frida``, ``debug``, ``emulator``, ``integrity``, ``ssl`` and a
+``confidence``). Detected protections are reported under
+``tracker_analysis.detected_protections``. Other tools can label network hosts
+with ``dexray_insight.modules.tracker_analysis.label_for_domain(host)``.
+
+The Exodus tracker data is published under the Open Database License (ODbL),
+so Dexray Insight does not ship a copy; the cache is filled on first online use.
 
 Behavior Analysis Module
 ~~~~~~~~~~~~~~~~~~~~~~~~

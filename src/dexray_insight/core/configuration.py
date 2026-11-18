@@ -95,6 +95,12 @@ class Configuration:
                 "fetch_exodus_trackers": True,
                 "exodus_api_url": "https://reports.exodus-privacy.eu.org/api/trackers",
                 "api_timeout": 10,
+                # On-disk copy of the Exodus list (None -> ~/.dexray_insight/exodus_cache/trackers.json),
+                # used when the API is unreachable; exodus_offline=True never touches the network.
+                "exodus_cache_path": None,
+                "exodus_offline": False,
+                # Optional JSON file extending/overriding the built-in signature database by id.
+                "tracker_db_path": None,
                 # Expensive deep option: full second pass over all DEX bytecode to
                 # attribute each string to its method location(s). Not required for
                 # tracker detection; disabled by default.

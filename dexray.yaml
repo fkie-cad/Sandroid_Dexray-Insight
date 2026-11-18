@@ -91,6 +91,14 @@ modules:
     fetch_exodus_trackers: true
     exodus_api_url: "https://reports.exodus-privacy.eu.org/api/trackers"
     api_timeout: 10
+    # On-disk copy of the Exodus tracker list, refreshed on every successful fetch and
+    # used when the API is unreachable (null -> ~/.dexray_insight/exodus_cache/trackers.json)
+    exodus_cache_path: null
+    # true: use only the on-disk Exodus cache, never contact the API
+    exodus_offline: false
+    # Optional JSON file ({"entries": {id: {...}}}) whose entries extend or override the
+    # built-in signature database (trackers, network recipients, protections) by id
+    tracker_db_path: null
     # EXPENSIVE deep option: when true, performs a full second pass over ALL DEX
     # bytecode (every class -> method -> instruction operand) to map each string
     # to the method(s) it appears in. On large APKs this is a very slow second
