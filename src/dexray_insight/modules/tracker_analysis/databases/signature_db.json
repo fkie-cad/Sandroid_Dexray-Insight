@@ -1,0 +1,704 @@
+{
+  "schema_version": 1,
+  "description": "Dexray Insight signature database: trackers (code + network), network recipients and anti-analysis/integrity protections. 'network_domains' are domain suffixes; 'confidence' (protections) is how reliably a match indicates the SDK is present.",
+  "entries": {
+    "google_admob": {
+      "kind": "tracker",
+      "name": "Google AdMob",
+      "label": "Google Ads",
+      "category": "Advertising",
+      "description": "Google AdMob mobile advertising platform",
+      "website": "https://admob.google.com",
+      "patterns": [
+        "com\\.google\\.android\\.gms\\.ads",
+        "com\\.google\\.ads",
+        "googleads\\.g\\.doubleclick\\.net",
+        "admob\\.com"
+      ],
+      "version_patterns": [
+        "GoogleMobileAdsPlugin\\.(\\d+\\.\\d+\\.\\d+)",
+        "admob-(\\d+\\.\\d+\\.\\d+)",
+        "gms\\.ads\\.version\\.(\\d+\\.\\d+\\.\\d+)"
+      ],
+      "network_patterns": [
+        "googleads\\.g\\.doubleclick\\.net",
+        "admob\\.com"
+      ],
+      "network_domains": [
+        "admob.com"
+      ]
+    },
+    "google_analytics": {
+      "kind": "tracker",
+      "name": "Google Analytics",
+      "label": "Google Analytics",
+      "category": "Analytics",
+      "description": "Google Analytics mobile app analytics",
+      "website": "https://analytics.google.com",
+      "patterns": [
+        "com\\.google\\.android\\.gms\\.analytics",
+        "com\\.google\\.analytics",
+        "google-analytics\\.com"
+      ],
+      "version_patterns": [
+        "analytics\\.(\\d+\\.\\d+\\.\\d+)",
+        "gms\\.analytics\\.version\\.(\\d+\\.\\d+\\.\\d+)"
+      ],
+      "network_patterns": [
+        "google-analytics\\.com",
+        "ssl\\.google-analytics\\.com"
+      ],
+      "network_domains": [
+        "google-analytics.com"
+      ]
+    },
+    "google_firebase_analytics": {
+      "kind": "tracker",
+      "name": "Google Firebase Analytics",
+      "label": "Google Analytics",
+      "category": "Analytics",
+      "description": "Firebase Analytics for mobile apps",
+      "website": "https://firebase.google.com/products/analytics",
+      "patterns": [
+        "com\\.google\\.firebase\\.analytics",
+        "com\\.google\\.android\\.gms\\.measurement",
+        "firebase\\.google\\.com"
+      ],
+      "version_patterns": [
+        "firebase-analytics[_-](\\d+\\.\\d+\\.\\d+)",
+        "measurement\\.(\\d+\\.\\d+\\.\\d+)"
+      ],
+      "network_patterns": [
+        "firebase\\.google\\.com",
+        "app-measurement\\.com"
+      ],
+      "network_domains": [
+        "app-measurement.com",
+        "firebaselogging-pa.googleapis.com",
+        "firebaselogging.googleapis.com"
+      ]
+    },
+    "google_doubleclick": {
+      "kind": "tracker",
+      "name": "Google DoubleClick",
+      "label": "Google Ads",
+      "category": "Advertising",
+      "description": "Google DoubleClick ad serving platform",
+      "website": "https://marketingplatform.google.com/about/doubleclick/",
+      "patterns": [
+        "com\\.google\\.android\\.gms\\.ads\\.doubleclick",
+        "doubleclick\\.net",
+        "googlesyndication\\.com"
+      ],
+      "version_patterns": [
+        "doubleclick[_-](\\d+\\.\\d+\\.\\d+)"
+      ],
+      "network_patterns": [
+        "doubleclick\\.net",
+        "googlesyndication\\.com"
+      ],
+      "network_domains": [
+        "doubleclick.net",
+        "googleadservices.com",
+        "googlesyndication.com"
+      ]
+    },
+    "facebook_sdk": {
+      "kind": "tracker",
+      "name": "Facebook SDK",
+      "label": "Meta",
+      "category": "Social/Analytics",
+      "description": "Facebook SDK for Android",
+      "website": "https://developers.facebook.com/docs/android/",
+      "patterns": [
+        "com\\.facebook\\.android",
+        "com\\.facebook\\.sdk",
+        "graph\\.facebook\\.com"
+      ],
+      "version_patterns": [
+        "FacebookSdk[_-](\\d+\\.\\d+\\.\\d+)",
+        "facebook-android-sdk[_-](\\d+\\.\\d+\\.\\d+)"
+      ],
+      "network_patterns": [
+        "graph\\.facebook\\.com",
+        "connect\\.facebook\\.net"
+      ],
+      "network_domains": [
+        "facebook.com",
+        "facebook.net"
+      ]
+    },
+    "facebook_analytics": {
+      "kind": "tracker",
+      "name": "Facebook Analytics",
+      "label": "Meta",
+      "category": "Analytics",
+      "description": "Facebook Analytics and App Events",
+      "website": "https://developers.facebook.com/docs/app-events/",
+      "patterns": [
+        "com\\.facebook\\.appevents",
+        "com\\.facebook\\.analytics",
+        "graph\\.facebook\\.com.*events"
+      ],
+      "version_patterns": [
+        "facebook-analytics[_-](\\d+\\.\\d+\\.\\d+)"
+      ],
+      "network_patterns": [
+        "graph\\.facebook\\.com"
+      ],
+      "network_domains": []
+    },
+    "amazon_mobile_ads": {
+      "kind": "tracker",
+      "name": "Amazon Mobile Ads",
+      "label": "Amazon Ads",
+      "category": "Advertising",
+      "description": "Amazon Mobile Ad Network",
+      "website": "https://advertising.amazon.com/solutions/products/mobile-ads",
+      "patterns": [
+        "com\\.amazon\\.device\\.ads",
+        "amazon-adsystem\\.com"
+      ],
+      "version_patterns": [
+        "amazon-ads[_-](\\d+\\.\\d+\\.\\d+)"
+      ],
+      "network_patterns": [
+        "amazon-adsystem\\.com"
+      ],
+      "network_domains": [
+        "amazon-adsystem.com"
+      ]
+    },
+    "unity_ads": {
+      "kind": "tracker",
+      "name": "Unity Ads",
+      "label": "Unity Ads",
+      "category": "Advertising",
+      "description": "Unity Ads mobile advertising platform",
+      "website": "https://unity.com/products/unity-ads",
+      "patterns": [
+        "com\\.unity3d\\.ads",
+        "unityads\\.unity3d\\.com"
+      ],
+      "version_patterns": [
+        "unity-ads[_-](\\d+\\.\\d+\\.\\d+)",
+        "UnityAds\\.(\\d+\\.\\d+\\.\\d+)"
+      ],
+      "network_patterns": [
+        "unityads\\.unity3d\\.com"
+      ],
+      "network_domains": [
+        "unity3d.com"
+      ]
+    },
+    "unity_analytics": {
+      "kind": "tracker",
+      "name": "Unity Analytics",
+      "label": "Unity Analytics",
+      "category": "Analytics",
+      "description": "Unity Analytics for game analytics",
+      "website": "https://unity.com/products/unity-analytics",
+      "patterns": [
+        "com\\.unity3d\\.services\\.analytics",
+        "analytics\\.cloud\\.unity3d\\.com"
+      ],
+      "version_patterns": [
+        "unity-analytics[_-](\\d+\\.\\d+\\.\\d+)"
+      ],
+      "network_patterns": [
+        "analytics\\.cloud\\.unity3d\\.com"
+      ],
+      "network_domains": [
+        "analytics.cloud.unity3d.com"
+      ]
+    },
+    "applovin": {
+      "kind": "tracker",
+      "name": "AppLovin",
+      "label": "AppLovin",
+      "category": "Advertising",
+      "description": "AppLovin mobile advertising and analytics",
+      "website": "https://www.applovin.com/",
+      "patterns": [
+        "com\\.applovin",
+        "applovin\\.com"
+      ],
+      "version_patterns": [
+        "applovin[_-](\\d+\\.\\d+\\.\\d+)",
+        "AppLovinSdk[_-](\\d+\\.\\d+\\.\\d+)"
+      ],
+      "network_patterns": [
+        "applovin\\.com",
+        "ms\\.applovin\\.com"
+      ],
+      "network_domains": [
+        "applovin.com"
+      ]
+    },
+    "flurry_analytics": {
+      "kind": "tracker",
+      "name": "Flurry Analytics",
+      "label": "Flurry",
+      "category": "Analytics",
+      "description": "Flurry mobile analytics platform",
+      "website": "https://developer.yahoo.com/flurry/",
+      "patterns": [
+        "com\\.flurry\\.android",
+        "flurry\\.com"
+      ],
+      "version_patterns": [
+        "flurry[_-]analytics[_-](\\d+\\.\\d+\\.\\d+)",
+        "FlurryAgent[_-](\\d+\\.\\d+\\.\\d+)"
+      ],
+      "network_patterns": [
+        "flurry\\.com",
+        "data\\.flurry\\.com"
+      ],
+      "network_domains": [
+        "flurry.com"
+      ]
+    },
+    "mopub": {
+      "kind": "tracker",
+      "name": "MoPub",
+      "label": "MoPub",
+      "category": "Advertising",
+      "description": "MoPub mobile advertising platform",
+      "website": "https://www.mopub.com/",
+      "patterns": [
+        "com\\.mopub",
+        "mopub\\.com"
+      ],
+      "version_patterns": [
+        "mopub[_-](\\d+\\.\\d+\\.\\d+)",
+        "MoPubSdk[_-](\\d+\\.\\d+\\.\\d+)"
+      ],
+      "network_patterns": [
+        "mopub\\.com",
+        "ads\\.mopub\\.com"
+      ],
+      "network_domains": [
+        "mopub.com"
+      ]
+    },
+    "firebase_crashlytics": {
+      "kind": "tracker",
+      "name": "Firebase Crashlytics",
+      "label": "Crashlytics",
+      "category": "Crash Reporting",
+      "description": "Firebase Crashlytics crash reporting",
+      "website": "https://firebase.google.com/products/crashlytics",
+      "patterns": [
+        "com\\.google\\.firebase\\.crashlytics",
+        "com\\.crashlytics",
+        "crashlytics\\.com"
+      ],
+      "version_patterns": [
+        "crashlytics[_-](\\d+\\.\\d+\\.\\d+)",
+        "firebase-crashlytics[_-](\\d+\\.\\d+\\.\\d+)"
+      ],
+      "network_patterns": [
+        "crashlytics\\.com",
+        "firebase\\.google\\.com"
+      ],
+      "network_domains": [
+        "crashlytics.com"
+      ]
+    },
+    "adcolony": {
+      "kind": "tracker",
+      "name": "AdColony",
+      "label": "AdColony",
+      "category": "Advertising",
+      "description": "AdColony video advertising platform",
+      "website": "https://www.adcolony.com/",
+      "patterns": [
+        "com\\.adcolony",
+        "adcolony\\.com"
+      ],
+      "version_patterns": [
+        "adcolony[_-](\\d+\\.\\d+\\.\\d+)",
+        "AdColony[_-](\\d+\\.\\d+\\.\\d+)"
+      ],
+      "network_patterns": [
+        "adcolony\\.com",
+        "ads30\\.adcolony\\.com"
+      ],
+      "network_domains": [
+        "adcolony.com"
+      ]
+    },
+    "vungle": {
+      "kind": "tracker",
+      "name": "Vungle",
+      "label": "Vungle",
+      "category": "Advertising",
+      "description": "Vungle video advertising platform",
+      "website": "https://vungle.com/",
+      "patterns": [
+        "com\\.vungle",
+        "vungle\\.com"
+      ],
+      "version_patterns": [
+        "vungle[_-](\\d+\\.\\d+\\.\\d+)",
+        "VungleSDK[_-](\\d+\\.\\d+\\.\\d+)"
+      ],
+      "network_patterns": [
+        "vungle\\.com",
+        "api\\.vungle\\.com"
+      ],
+      "network_domains": [
+        "vungle.com"
+      ]
+    },
+    "chartboost": {
+      "kind": "tracker",
+      "name": "Chartboost",
+      "label": "Chartboost",
+      "category": "Advertising",
+      "description": "Chartboost mobile game advertising",
+      "website": "https://www.chartboost.com/",
+      "patterns": [
+        "com\\.chartboost",
+        "chartboost\\.com"
+      ],
+      "version_patterns": [
+        "chartboost[_-](\\d+\\.\\d+\\.\\d+)",
+        "Chartboost[_-](\\d+\\.\\d+\\.\\d+)"
+      ],
+      "network_patterns": [
+        "chartboost\\.com",
+        "live\\.chartboost\\.com"
+      ],
+      "network_domains": [
+        "chartboost.com"
+      ]
+    },
+    "ironsource": {
+      "kind": "tracker",
+      "name": "ironSource",
+      "label": "ironSource",
+      "category": "Advertising",
+      "description": "ironSource mobile advertising and monetization",
+      "website": "https://www.ironsrc.com/",
+      "patterns": [
+        "com\\.ironsource",
+        "ironsrc\\.com"
+      ],
+      "version_patterns": [
+        "ironsource[_-](\\d+\\.\\d+\\.\\d+)",
+        "IronSource[_-](\\d+\\.\\d+\\.\\d+)"
+      ],
+      "network_patterns": [
+        "ironsrc\\.com",
+        "init\\.supersonicads\\.com"
+      ],
+      "network_domains": [
+        "ironsrc.com",
+        "supersonicads.com"
+      ]
+    },
+    "tapjoy": {
+      "kind": "tracker",
+      "name": "Tapjoy",
+      "label": "Tapjoy",
+      "category": "Advertising",
+      "description": "Tapjoy mobile advertising and rewards",
+      "website": "https://www.tapjoy.com/",
+      "patterns": [
+        "com\\.tapjoy",
+        "tapjoy\\.com"
+      ],
+      "version_patterns": [
+        "tapjoy[_-](\\d+\\.\\d+\\.\\d+)",
+        "Tapjoy[_-](\\d+\\.\\d+\\.\\d+)"
+      ],
+      "network_patterns": [
+        "tapjoy\\.com",
+        "ws\\.tapjoyads\\.com"
+      ],
+      "network_domains": [
+        "tapjoy.com",
+        "tapjoyads.com"
+      ]
+    },
+    "teemo": {
+      "kind": "tracker",
+      "name": "Teemo",
+      "label": "Teemo",
+      "category": "Location Tracking",
+      "description": "Teemo geolocation tracking SDK",
+      "website": "https://www.teemo.co/",
+      "patterns": [
+        "com\\.databerries\\.",
+        "com\\.geolocstation\\.",
+        "databerries\\.com"
+      ],
+      "version_patterns": [
+        "teemo[_-](\\d+\\.\\d+\\.\\d+)"
+      ],
+      "network_patterns": [
+        "databerries\\.com"
+      ],
+      "network_domains": [
+        "databerries.com"
+      ]
+    },
+    "fidzup": {
+      "kind": "tracker",
+      "name": "FidZup",
+      "label": "FidZup",
+      "category": "Location Tracking",
+      "description": "FidZup sonic geolocation tracking",
+      "website": "https://www.fidzup.com/",
+      "patterns": [
+        "com\\.fidzup\\.",
+        "fidzup"
+      ],
+      "version_patterns": [
+        "fidzup[_-](\\d+\\.\\d+\\.\\d+)"
+      ],
+      "network_patterns": [
+        "fidzup\\.com"
+      ],
+      "network_domains": [
+        "fidzup.com"
+      ]
+    },
+    "krux": {
+      "kind": "tracker",
+      "name": "Audience Studio (Krux)",
+      "label": "Salesforce Audience Studio",
+      "category": "Data Management",
+      "description": "Salesforce Audience Studio (formerly Krux) data management platform",
+      "website": "https://www.salesforce.com/products/marketing-cloud/data-management/",
+      "patterns": [
+        "com\\.krux\\.androidsdk",
+        "krxd\\.net"
+      ],
+      "version_patterns": [
+        "krux[_-](\\d+\\.\\d+\\.\\d+)"
+      ],
+      "network_patterns": [
+        "krxd\\.net"
+      ],
+      "network_domains": [
+        "krxd.net"
+      ]
+    },
+    "ad4screen": {
+      "kind": "tracker",
+      "name": "Ad4Screen",
+      "label": "Accengage",
+      "category": "Advertising",
+      "description": "Ad4Screen (Accengage) mobile advertising and push notifications",
+      "website": "https://www.accengage.com/",
+      "patterns": [
+        "com\\.ad4screen\\.sdk",
+        "a4\\.tl",
+        "accengage\\.com",
+        "ad4push\\.com",
+        "ad4screen\\.com"
+      ],
+      "version_patterns": [
+        "ad4screen[_-](\\d+\\.\\d+\\.\\d+)"
+      ],
+      "network_patterns": [
+        "a4\\.tl",
+        "accengage\\.com",
+        "ad4push\\.com",
+        "ad4screen\\.com"
+      ],
+      "network_domains": [
+        "a4.tl",
+        "accengage.com",
+        "ad4push.com",
+        "ad4screen.com"
+      ]
+    },
+    "firebase": {
+      "kind": "recipient",
+      "name": "Firebase",
+      "label": "Firebase",
+      "category": "Backend",
+      "network_domains": [
+        "firebaseinstallations.googleapis.com",
+        "firebaseremoteconfig.googleapis.com",
+        "firebaseio.com",
+        "fcm.googleapis.com"
+      ]
+    },
+    "google": {
+      "kind": "recipient",
+      "name": "Google",
+      "label": "Google",
+      "category": "Platform",
+      "network_domains": [
+        "googleapis.com",
+        "gstatic.com",
+        "google.com"
+      ]
+    },
+    "meta": {
+      "kind": "recipient",
+      "name": "Meta",
+      "label": "Meta",
+      "category": "Social",
+      "network_domains": [
+        "fbcdn.net",
+        "instagram.com"
+      ]
+    },
+    "appsflyer": {
+      "kind": "recipient",
+      "name": "AppsFlyer",
+      "label": "AppsFlyer",
+      "category": "Attribution",
+      "network_domains": [
+        "appsflyer.com",
+        "appsflyersdk.com"
+      ]
+    },
+    "adjust": {
+      "kind": "recipient",
+      "name": "Adjust",
+      "label": "Adjust",
+      "category": "Attribution",
+      "network_domains": [
+        "adjust.com",
+        "adjust.io"
+      ]
+    },
+    "branch": {
+      "kind": "recipient",
+      "name": "Branch",
+      "label": "Branch",
+      "category": "Attribution",
+      "network_domains": [
+        "branch.io"
+      ]
+    },
+    "amplitude": {
+      "kind": "recipient",
+      "name": "Amplitude",
+      "label": "Amplitude",
+      "category": "Analytics",
+      "network_domains": [
+        "amplitude.com"
+      ]
+    },
+    "mixpanel": {
+      "kind": "recipient",
+      "name": "Mixpanel",
+      "label": "Mixpanel",
+      "category": "Analytics",
+      "network_domains": [
+        "mixpanel.com"
+      ]
+    },
+    "segment": {
+      "kind": "recipient",
+      "name": "Segment",
+      "label": "Segment",
+      "category": "Analytics",
+      "network_domains": [
+        "segment.io",
+        "segment.com"
+      ]
+    },
+    "sentry": {
+      "kind": "recipient",
+      "name": "Sentry",
+      "label": "Sentry",
+      "category": "Crash Reporting",
+      "network_domains": [
+        "sentry.io"
+      ]
+    },
+    "onesignal": {
+      "kind": "recipient",
+      "name": "OneSignal",
+      "label": "OneSignal",
+      "category": "Push Notifications",
+      "network_domains": [
+        "onesignal.com"
+      ]
+    },
+    "braze": {
+      "kind": "recipient",
+      "name": "Braze",
+      "label": "Braze",
+      "category": "Marketing Automation",
+      "network_domains": [
+        "braze.com",
+        "appboy.com"
+      ]
+    },
+    "usercentrics": {
+      "kind": "recipient",
+      "name": "Usercentrics",
+      "label": "Usercentrics",
+      "category": "Consent Management",
+      "network_domains": [
+        "usercentrics.eu"
+      ]
+    },
+    "onetrust": {
+      "kind": "recipient",
+      "name": "OneTrust",
+      "label": "OneTrust",
+      "category": "Consent Management",
+      "network_domains": [
+        "onetrust.com",
+        "cookielaw.org"
+      ]
+    },
+    "tiktok": {
+      "kind": "recipient",
+      "name": "TikTok",
+      "label": "TikTok",
+      "category": "Social",
+      "network_domains": [
+        "tiktokv.com",
+        "bytedance.com"
+      ]
+    },
+    "hotjar": {
+      "kind": "recipient",
+      "name": "Hotjar",
+      "label": "Hotjar",
+      "category": "Analytics",
+      "network_domains": [
+        "hotjar.com"
+      ]
+    },
+    "newrelic": {
+      "kind": "recipient",
+      "name": "New Relic",
+      "label": "New Relic",
+      "category": "Performance Monitoring",
+      "network_domains": [
+        "newrelic.com",
+        "nr-data.net"
+      ]
+    },
+    "datadog": {
+      "kind": "recipient",
+      "name": "Datadog",
+      "label": "Datadog",
+      "category": "Performance Monitoring",
+      "network_domains": [
+        "datadoghq.com"
+      ]
+    },
+    "bugsnag": {
+      "kind": "recipient",
+      "name": "Bugsnag",
+      "label": "Bugsnag",
+      "category": "Crash Reporting",
+      "network_domains": [
+        "bugsnag.com"
+      ]
+    }
+  }
+}

@@ -30,5 +30,7 @@ tracker database management and external data source integration.
 
 from .exodus_api_client import ExodusAPIClient
 from .tracker_database import TrackerDatabase
+from .tracker_database import label_for_domain
+from .tracker_database import load_signature_db
 
-__all__ = ["TrackerDatabase", "ExodusAPIClient"]
+__all__ = ["TrackerDatabase", "ExodusAPIClient", "load_signature_db", "label_for_domain"]

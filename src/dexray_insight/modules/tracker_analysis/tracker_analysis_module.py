@@ -97,8 +97,15 @@ class TrackerAnalysisModule(BaseAnalysisModule):
         super().__init__(config)
         self.logger = logging.getLogger(__name__)
 
-        # Initialize specialized components
-        self.tracker_database = TrackerDatabase()
+        # Initialize specialized components. ``tracker_db_path`` optionally points at a
+        # JSON file whose entries extend/override the built-in signature database.
+        self.tracker_db_error: str | None = None
+        try:
+            self.tracker_database = TrackerDatabase(config.get("tracker_db_path"))
+        except (OSError, ValueError) as e:
+            self.tracker_db_error = f"Could not load tracker_db_path {config.get('tracker_db_path')}: {str(e)}"
+            self.logger.error(f"{self.tracker_db_error} - using the built-in signature database")
+            self.tracker_database = TrackerDatabase()
         self.exodus_client = ExodusAPIClient(config)
         self.pattern_detector = PatternDetector()
         self.version_extractor = VersionExtractor()
@@ -140,6 +147,8 @@ class TrackerAnalysisModule(BaseAnalysisModule):
             analysis_errors = []
             exodus_trackers = []
             custom_detections = []
+            if self.tracker_db_error:
+                analysis_errors.append(self.tracker_db_error)
 
             # Extract strings from analysis context
             all_strings = self._extract_strings_from_context(context, analysis_errors)
@@ -289,7 +298,7 @@ class TrackerAnalysisModule(BaseAnalysisModule):
         """Detect trackers using built-in tracker database."""
         detected = []
 
-        tracker_database = self.tracker_database.get_tracker_database()
+        tracker_database = self.tracker_database.get_trackers()
 
         for tracker_name, tracker_info in tracker_database.items():
             detection_results = self.pattern_detector.detect_tracker_patterns(

@@ -35,10 +35,13 @@ Main Components:
 - TrackerAnalysisModule: Main analysis module
 - TrackerAnalysisResult: Result data structure
 - DetectedTracker: Individual tracker representation
+- load_signature_db / label_for_domain: shared signature database helpers
 """
 
 from .databases import ExodusAPIClient
 from .databases import TrackerDatabase
+from .databases import label_for_domain
+from .databases import load_signature_db
 from .detectors import PatternDetector
 from .detectors import TrackerDeduplicator
 from .detectors import VersionExtractor
@@ -55,4 +58,6 @@ __all__ = [
     "PatternDetector",
     "VersionExtractor",
     "TrackerDeduplicator",
+    "load_signature_db",
+    "label_for_domain",
 ]

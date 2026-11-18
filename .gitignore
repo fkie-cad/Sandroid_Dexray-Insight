@@ -11,6 +11,9 @@ obj/
 !tests/fixtures/security_scores/
 !tests/fixtures/security_scores/*.json
 
+# Shipped signature database (package data)
+!src/dexray_insight/modules/tracker_analysis/databases/signature_db.json
+
 #built application files
 *.apk
 *.ap_

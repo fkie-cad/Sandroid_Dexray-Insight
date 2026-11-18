@@ -107,6 +107,7 @@ where = ["src"]
     "apk_overview/resources/*",
     "modules/string_analysis/resources/*.dat",
     "security/data/*.yaml",
+    "modules/tracker_analysis/databases/*.json",
 ]
 
 # Ruff configuration
