@@ -103,18 +103,25 @@ class TestMetadataMerge:
         assert set(_metadata(tmp_path)) == {MD5_A, MD5_B}
         assert second.get_cache_stats()["cached_apks"] == 2
 
-    def test_entries_without_apk_dir_are_dropped(self, tmp_path):
+    def test_invalidated_entries_are_dropped(self, tmp_path):
         first = _manager(tmp_path)
         first.set_dex_strings(MD5_A, [["a"]])
         first.set_dex_strings(MD5_B, [["b"]])
 
         other = _manager(tmp_path)
         other.invalidate(MD5_A)
+        assert set(_metadata(tmp_path)) == {MD5_B}
 
-        assert set(_metadata(tmp_path)) == {MD5_B}
-        # A stale in-memory entry from `first` is not resurrected on its next save.
-        first._save_metadata()
-        assert set(_metadata(tmp_path)) == {MD5_B}
+        # Re-caching an invalidated APK lists it again.
+        other.set_dex_strings(MD5_A, [["a"]])
+        assert set(_metadata(tmp_path)) == {MD5_A, MD5_B}
+
+    def test_save_does_not_stat_apk_dirs(self, tmp_path):
+        manager = _manager(tmp_path)
+        manager.set_dex_strings(MD5_A, [["a"]])
+        with mock.patch.object(cache_manager.Path, "is_dir", side_effect=AssertionError("is_dir scan")):
+            manager._save_metadata()
+        assert set(_metadata(tmp_path)) == {MD5_A}
 
     def test_clear_cache_leaves_empty_index(self, tmp_path):
         first = _manager(tmp_path)

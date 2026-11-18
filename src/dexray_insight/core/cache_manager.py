@@ -39,8 +39,8 @@ must never break an analysis):
   content, and each write goes to a unique temp file (hostname + PID + UUID)
   that is atomically renamed into place. Within a process, writes for one APK
   are serialized by an in-process lock. ``cache_metadata.json`` is only an
-  index: it is re-read and merged right before each write (last writer wins)
-  and drops entries whose APK directory no longer exists.
+  index: it is re-read and merged right before each write (last writer wins),
+  minus the APKs this process invalidated.
 * Validity is fingerprint-based (tool + androguard version + schema), not
   time-based: the cached data is a deterministic function of (bytes, versions),
   so a time TTL would add no correctness and is intentionally omitted for the
@@ -215,6 +215,8 @@ class AnalysisCacheManager:
 
         # Guards metadata read-modify-write across parallel module threads.
         self._metadata_lock = threading.Lock()
+        # APKs invalidated by this process: removed from the index on every save.
+        self._removed_apks: set[str] = set()
         # Per-APK write locks for this process (module threads write in parallel).
         self._apk_locks: dict[str, threading.Lock] = {}
         self._apk_locks_guard = threading.Lock()
@@ -257,8 +259,7 @@ class AnalysisCacheManager:
         """Merge this process's index into the on-disk one and write it (last writer wins).
 
         Other processes/hosts may have added APKs since we loaded the index, so it
-        is re-read right before writing. Entries whose APK directory is gone
-        (invalidated or cleared) are dropped.
+        is re-read right before writing. APKs this process invalidated are dropped.
         """
         if not self.enabled:
             return
@@ -266,7 +267,8 @@ class AnalysisCacheManager:
             try:
                 on_disk = (self._read_metadata_file() or {}).get("apks", {})
                 merged = {**(on_disk if isinstance(on_disk, dict) else {}), **self.metadata.get("apks", {})}
-                merged = {md5: info for md5, info in merged.items() if self._apk_dir(md5).is_dir()}
+                for md5 in self._removed_apks:
+                    merged.pop(md5, None)
                 self.metadata["apks"] = merged
                 self._atomic_write_json(self.metadata_file, {"schema_version": CACHE_SCHEMA_VERSION, "apks": merged})
             except Exception as e:
@@ -274,6 +276,7 @@ class AnalysisCacheManager:
 
     def _touch_apk(self, md5: str):
         with self._metadata_lock:
+            self._removed_apks.discard(md5)
             apks = self.metadata.setdefault("apks", {})
             apks[md5] = {"tool_version": self._tool_version, "androguard_version": self._androguard_version}
 
@@ -523,6 +526,7 @@ class AnalysisCacheManager:
             self._validated_fingerprints.discard(md5)
             with self._metadata_lock:
                 self.metadata.get("apks", {}).pop(md5, None)
+                self._removed_apks.add(md5)
             self._save_metadata()
         except Exception as e:
             self.logger.warning(f"Could not invalidate cache for {md5}: {e}")
