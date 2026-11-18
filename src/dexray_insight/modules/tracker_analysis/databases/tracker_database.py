@@ -32,8 +32,9 @@ Each entry is keyed by a stable ``id`` and has a ``kind``:
 
 - ``tracker``: SDK with code ``patterns`` and network patterns/domains
 - ``recipient``: network endpoint only (``network_domains`` + ``label``)
-- ``protection``: anti-analysis / integrity SDK (``code_signature``,
-  ``native_libs``, ``defeats``, ``confidence``)
+- ``protection``: anti-analysis / integrity SDK (``code_signature`` package
+  regex, ``entry_points`` class regexes, ``native_libs``, ``defeats``,
+  ``confidence``)
 
 Entries from a user file (config key ``tracker_db_path``) extend the built-in
 ones or override them field by field, matched by id.
@@ -52,7 +53,17 @@ SIGNATURE_DB_PATH = Path(__file__).with_name("signature_db.json")
 ENTRY_KINDS = ("tracker", "recipient", "protection")
 PROTECTION_DEFEATS = ("root", "frida", "debug", "emulator", "integrity", "ssl")
 #: Entry fields that must be lists of strings
-LIST_FIELDS = ("patterns", "version_patterns", "network_patterns", "network_domains", "native_libs", "defeats")
+LIST_FIELDS = (
+    "patterns",
+    "version_patterns",
+    "network_patterns",
+    "network_domains",
+    "native_libs",
+    "defeats",
+    "entry_points",
+)
+#: Evidence levels of a detected protection
+EVIDENCE_LEVELS = ("sdk_present", "entry_point")
 
 
 @lru_cache(maxsize=1)

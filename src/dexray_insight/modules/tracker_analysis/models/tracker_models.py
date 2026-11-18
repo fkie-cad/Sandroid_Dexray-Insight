@@ -79,6 +79,7 @@ class DetectedProtection:
     website: str = ""
     defeats: list[str] = None
     confidence: str = ""
+    evidence: str = "sdk_present"  # "sdk_present" or "entry_point"
     matched_classes: list[str] = None
     matched_libs: list[str] = None
 
@@ -101,6 +102,7 @@ class DetectedProtection:
             "website": self.website,
             "defeats": self.defeats,
             "confidence": self.confidence,
+            "evidence": self.evidence,
             "matched_classes": self.matched_classes,
             "matched_libs": self.matched_libs,
         }

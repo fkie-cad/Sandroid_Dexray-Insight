@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "description": "Dexray Insight signature database: trackers (code + network), network recipients and anti-analysis/integrity protections. 'network_domains' are domain suffixes; 'confidence' (protections) is how reliably a match indicates the SDK is present. Entries with \"source\": \"exodus\" were derived from Exodus Privacy research (exodus-privacy.eu.org; ODbL/DbCL).",
+  "description": "Dexray Insight signature database: trackers (code + network), network recipients and anti-analysis/integrity protections. 'network_domains' are domain suffixes; Protections match 'code_signature' (SDK package, evidence 'sdk_present') and 'entry_points' (API entry-point classes, evidence 'entry_point'); 'confidence' is how reliably a match indicates the SDK is present. Entries with \"source\": \"exodus\" were derived from Exodus Privacy research (exodus-privacy.eu.org; ODbL/DbCL).",
   "entries": {
     "google_admob": {
       "kind": "tracker",
@@ -721,6 +721,9 @@
       "description": "Open-source root detection library",
       "website": "https://github.com/scottyab/rootbeer",
       "code_signature": "^com\\.scottyab\\.rootbeer\\.",
+      "entry_points": [
+        "^com\\.scottyab\\.rootbeer\\.RootBeer$"
+      ],
       "native_libs": [
         "libtoolChecker.so"
       ],
@@ -752,6 +755,9 @@
       "description": "Google Play automatic integrity protection (licence check / code protection)",
       "website": "https://developer.android.com/google/play/integrity/overview",
       "code_signature": "^com\\.pairip\\.licensecheck\\.",
+      "entry_points": [
+        "^com\\.pairip\\.licensecheck\\.LicenseClient$"
+      ],
       "native_libs": [
         "libpairipcore.so"
       ],
@@ -765,23 +771,29 @@
       "label": "Play Integrity API",
       "name": "Play Integrity API",
       "category": "Integrity",
-      "description": "Google Play Integrity API client (device/app attestation)",
+      "description": "Google Play Integrity API client (device/app attestation). Matched on its entry-point classes only, as the bare package is also pulled in by e.g. Firebase Auth / App Check, which may themselves be the caller",
       "website": "https://developer.android.com/google/play/integrity",
-      "code_signature": "^com\\.google\\.android\\.play\\.core\\.integrity\\.",
+      "code_signature": "",
+      "entry_points": [
+        "^com\\.google\\.android\\.play\\.core\\.integrity\\.(IntegrityManagerFactory|IntegrityTokenRequest|StandardIntegrityManager\\$(PrepareIntegrityTokenRequest|StandardIntegrityTokenRequest))$"
+      ],
       "native_libs": [],
       "defeats": [
         "integrity"
       ],
-      "confidence": "high"
+      "confidence": "medium"
     },
     "safetynet": {
       "kind": "protection",
       "label": "SafetyNet",
       "name": "SafetyNet",
       "category": "Integrity",
-      "description": "Google SafetyNet client; the package also carries Safe Browsing/reCAPTCHA, so presence does not prove attestation is used",
+      "description": "Google SafetyNet Attestation (deprecated). Matched on the attestation result classes only, as the package also carries reCAPTCHA and Safe Browsing",
       "website": "https://developer.android.com/privacy-and-security/safetynet",
-      "code_signature": "^com\\.google\\.android\\.gms\\.safetynet\\.",
+      "code_signature": "",
+      "entry_points": [
+        "^com\\.google\\.android\\.gms\\.safetynet\\.SafetyNetApi\\$Attestation(Response|Result)$"
+      ],
       "native_libs": [],
       "defeats": [
         "integrity",
@@ -797,6 +809,9 @@
       "description": "Talsec freeRASP runtime application self-protection",
       "website": "https://www.talsec.app/freerasp-in-app-protection-security-talsec",
       "code_signature": "^com\\.aheaditec\\.talsec_security\\.",
+      "entry_points": [
+        "^com\\.aheaditec\\.talsec_security\\.security\\.api\\.Talsec$"
+      ],
       "native_libs": [],
       "defeats": [
         "root",

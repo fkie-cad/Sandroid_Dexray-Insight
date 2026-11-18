@@ -257,10 +257,14 @@ Identifies third-party tracking libraries using Exodus Privacy database:
 The built-in signature database holds three kinds of entries: ``tracker``
 (code and network signatures), ``recipient`` (network ``network_domains`` and a
 human ``label`` only) and ``protection`` (anti-analysis / integrity SDKs with a
-``code_signature`` class-prefix regex, ``native_libs``, a ``defeats`` hint from
-``root``, ``frida``, ``debug``, ``emulator``, ``integrity``, ``ssl`` and a
-``confidence``). Detected protections are reported under
-``tracker_analysis.detected_protections``. Other tools can label network hosts
+``code_signature`` package regex, ``entry_points`` class regexes,
+``native_libs``, a ``defeats`` hint from ``root``, ``frida``, ``debug``,
+``emulator``, ``integrity``, ``ssl`` and a ``confidence``). Detected protections
+are reported under ``tracker_analysis.detected_protections`` with an
+``evidence`` level: ``entry_point`` when an API entry-point class was found,
+``sdk_present`` when only the package or a native library was. Play Integrity
+and SafetyNet match on entry points only, since their packages are also pulled
+in by Firebase Auth, reCAPTCHA and Safe Browsing. Other tools can label network hosts
 with ``dexray_insight.modules.tracker_analysis.label_for_domain(host)``.
 
 The Exodus tracker data is published under the Open Database License (ODbL),

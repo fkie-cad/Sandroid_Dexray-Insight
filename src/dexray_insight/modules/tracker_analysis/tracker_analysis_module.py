@@ -348,7 +348,10 @@ class TrackerAnalysisModule(BaseAnalysisModule):
             return []
 
         for protection in protections:
-            self.logger.info(f"Protection detected: {protection.name} (defeats: {', '.join(protection.defeats)})")
+            prefix = "Possible protection" if protection.confidence == "low" else "Protection detected"
+            self.logger.info(
+                f"{prefix}: {protection.name} ({protection.evidence}; defeats: {', '.join(protection.defeats)})"
+            )
         return protections
 
     def _log_detection_summary(self, trackers: list[DetectedTracker]):

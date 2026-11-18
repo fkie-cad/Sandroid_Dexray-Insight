@@ -257,14 +257,30 @@ class PatternDetector:
         except (OSError, zipfile.BadZipFile, TypeError, ValueError):
             return []
 
+    def _match_class_names(self, entry_id: str, signatures: list[str], class_names: set[str]) -> list[str]:
+        """Return the class names matching any of the (case-sensitive) regexes."""
+        regexes = []
+        for signature in signatures:
+            if not signature:
+                continue
+            try:
+                regexes.append(re.compile(signature))
+            except re.error as e:
+                self.logger.warning(f"Invalid protection regex for {entry_id}: {signature} - {str(e)}")
+        return [name for name in class_names if any(regex.search(name) for regex in regexes)] if regexes else []
+
     def detect_protections(
         self, protections: dict[str, dict[str, Any]], class_names: set[str], native_libs: list[str]
     ) -> list[DetectedProtection]:
         """
-        Detect anti-analysis / integrity SDKs by class-name prefix and native library name.
+        Detect anti-analysis / integrity SDKs by class name and native library name.
+
+        A match of an ``entry_points`` class (the SDK's API entry point) yields
+        evidence ``entry_point``; a match of only the package (``code_signature``)
+        or a native library yields ``sdk_present``.
 
         Args:
-            protections: Protection entries keyed by id (``code_signature``, ``native_libs``, ...)
+            protections: Protection entries keyed by id (``code_signature``, ``entry_points``, ``native_libs``, ...)
             class_names: Dotted class names present in the APK
             native_libs: Native library paths inside the APK (``lib/<abi>/libfoo.so``)
 
@@ -277,16 +293,10 @@ class PatternDetector:
             lib_names.setdefault(lib_path.rsplit("/", 1)[-1], []).append(lib_path)
 
         for entry_id, entry in protections.items():
-            matched_classes: list[str] = []
-            signature = entry.get("code_signature") or ""
-            if signature:
-                try:
-                    regex = re.compile(signature)
-                except re.error as e:
-                    self.logger.warning(f"Invalid protection regex for {entry_id}: {signature} - {str(e)}")
-                else:
-                    matched_classes = sorted(name for name in class_names if regex.search(name))
-
+            sdk_classes = self._match_class_names(entry_id, [entry.get("code_signature") or ""], class_names)
+            entry_point_classes = self._match_class_names(entry_id, entry.get("entry_points") or [], class_names)
+            # Entry points first so they survive the evidence limit
+            matched_classes = sorted(entry_point_classes) + sorted(set(sdk_classes) - set(entry_point_classes))
             matched_libs = sorted(path for lib in entry.get("native_libs") or [] for path in lib_names.get(lib, []))
 
             if matched_classes or matched_libs:
@@ -299,6 +309,7 @@ class PatternDetector:
                         website=entry.get("website", ""),
                         defeats=list(entry.get("defeats") or []),
                         confidence=entry.get("confidence", ""),
+                        evidence="entry_point" if entry_point_classes else "sdk_present",
                         matched_classes=matched_classes[:MAX_PROTECTION_EVIDENCE],
                         matched_libs=matched_libs,
                     )

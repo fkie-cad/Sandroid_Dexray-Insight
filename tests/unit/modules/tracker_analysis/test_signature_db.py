@@ -53,7 +53,7 @@ class TestLoadSignatureDb:
             if entry["kind"] == "protection":
                 assert set(entry["defeats"]) <= set(PROTECTION_DEFEATS), entry_id
                 assert entry["confidence"] in ("high", "medium", "low"), entry_id
-                assert entry.get("code_signature") or entry.get("native_libs"), entry_id
+                assert entry.get("code_signature") or entry.get("entry_points") or entry.get("native_libs"), entry_id
 
     def test_exodus_derived_entries_carry_provenance(self):
         entries = load_signature_db()
@@ -315,9 +315,50 @@ class TestProtectionDetection:
         assert by_id["rootbeer"].matched_classes == ["com.scottyab.rootbeer.RootBeer"]
         assert by_id["rootbeer"].matched_libs == ["lib/arm64-v8a/libtoolChecker.so"]
         assert by_id["rootbeer"].defeats == ["root"]
+        assert by_id["rootbeer"].evidence == "entry_point"
+        assert by_id["jailmonkey"].evidence == "sdk_present"
+        assert by_id["pairip"].evidence == "sdk_present"
         assert by_id["pairip"].matched_classes == []
         assert by_id["pairip"].matched_libs == ["lib/arm64-v8a/libpairipcore.so"]
         assert by_id["jailmonkey"].confidence == "high"
+
+    def test_integrity_sdks_need_an_entry_point(self):
+        protections = TrackerDatabase().get_protections()
+        detector = PatternDetector()
+        # Bare packages pulled in by Firebase Auth / reCAPTCHA / Safe Browsing
+        bare = {
+            "com.google.android.play.core.integrity.IntegrityManager",
+            "com.google.android.play.core.integrity.internal.Foo",
+            "com.google.android.gms.safetynet.SafetyNetClient",
+            "com.google.android.gms.safetynet.SafetyNetApi$RecaptchaTokenResponse",
+        }
+        assert detector.detect_protections(protections, bare, []) == []
+
+        found = detector.detect_protections(
+            protections,
+            bare
+            | {
+                "com.google.android.play.core.integrity.StandardIntegrityManager$PrepareIntegrityTokenRequest",
+                "com.google.android.gms.safetynet.SafetyNetApi$AttestationResponse",
+            },
+            [],
+        )
+        assert {(p.id, p.evidence) for p in found} == {
+            ("play_integrity", "entry_point"),
+            ("safetynet", "entry_point"),
+        }
+
+    def test_low_confidence_hits_are_logged_as_possible(self, tmp_path, caplog):
+        apk = tmp_path / "app.apk"
+        with zipfile.ZipFile(apk, "w") as zf:
+            zf.writestr("lib/arm64-v8a/libshield.so", b"")
+        context = AnalysisContext(apk_path=str(apk), config={}, androguard_obj=None)
+        module = TrackerAnalysisModule({"fetch_exodus_trackers": False})
+        with caplog.at_level("INFO"):
+            found = module._detect_protections(str(apk), context, [])
+        assert [p.id for p in found] == ["promon_shield"]
+        assert "Possible protection: Promon SHIELD" in caplog.text
+        assert "Protection detected" not in caplog.text
 
     def test_class_signature_is_case_sensitive_prefix(self):
         protections = TrackerDatabase().get_protections()
@@ -342,7 +383,7 @@ class TestProtectionDetection:
         dex = MagicMock()
         dex.get_strings.return_value = [
             "Lcom/scottyab/rootbeer/RootBeer;",
-            "Lcom/google/android/play/core/integrity/IntegrityManager;",
+            "Lcom/google/android/play/core/integrity/IntegrityManagerFactory;",
         ]
         androguard_obj = MagicMock()
         androguard_obj.get_androguard_dex.return_value = [dex]
@@ -357,6 +398,8 @@ class TestProtectionDetection:
         assert set(found) == {"rootbeer", "play_integrity"}
         assert found["rootbeer"]["matched_libs"] == ["lib/armeabi-v7a/libtoolChecker.so"]
         assert found["play_integrity"]["defeats"] == ["integrity"]
+        assert found["play_integrity"]["evidence"] == "entry_point"
+        assert found["rootbeer"]["evidence"] == "entry_point"
 
         exported = TrackerAnalysisResults(result).export_to_dict()
         assert exported["detected_protections"] == result_dict["detected_protections"]
