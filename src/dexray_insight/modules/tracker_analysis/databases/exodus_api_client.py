@@ -43,6 +43,9 @@ import contextlib
 import json
 import logging
 import os
+import re
+import socket
+import uuid
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -109,7 +112,10 @@ class ExodusAPIClient:
         if self.offline:
             data = self._read_disk_cache()
             if data is None:
-                raise Exception(f"Exodus offline mode: no usable tracker cache at {self.cache_path}")
+                raise Exception(
+                    f"Exodus offline mode: no usable tracker cache at {self.cache_path}; "
+                    "run once online (exodus_offline: false) to create it"
+                )
             self.logger.debug(f"Exodus offline mode: using tracker cache {self.cache_path}")
             self._cache = self._parse_trackers(data)
             return self._cache
@@ -131,18 +137,33 @@ class ExodusAPIClient:
             self.logger.error(error_msg)
             raise Exception(error_msg) from e
 
-        if trackers:
-            self._write_disk_cache(data)
+        if not trackers:
+            cached = self._read_disk_cache()
+            if cached is not None:
+                self.logger.warning(
+                    f"Exodus Privacy API returned no trackers; using cached list from {self.cache_path}"
+                )
+                self._cache = self._parse_trackers(cached)
+                return self._cache
+            self.logger.warning("Exodus Privacy API returned no trackers and no cached list is available")
+            return []
+
+        self._write_disk_cache(data)
         self._cache = trackers
         self.logger.info(f"Successfully fetched {len(trackers)} trackers from Exodus Privacy API")
         return trackers
 
     @staticmethod
     def _parse_trackers(data: Any) -> list[dict[str, Any]]:
-        """Convert the API response (``{"trackers": {id: {...}}}``) into tracker dicts."""
+        """Convert the API response (``{"trackers": {id: {...}}}``) into tracker dicts.
+
+        Malformed tracker records (not an object) are skipped.
+        """
         trackers = []
         if isinstance(data, dict) and isinstance(data.get("trackers"), dict):
             for tracker_id, tracker_info in data["trackers"].items():
+                if not isinstance(tracker_info, dict):
+                    continue
                 trackers.append(
                     {
                         "id": tracker_id,
@@ -166,11 +187,18 @@ class ExodusAPIClient:
         except (OSError, ValueError) as e:
             self.logger.warning(f"Ignoring unreadable Exodus tracker cache {self.cache_path}: {e}")
             return None
-        return data if self._parse_trackers(data) else None
+        try:
+            usable = bool(self._parse_trackers(data))
+        except (AttributeError, TypeError) as e:
+            self.logger.warning(f"Ignoring malformed Exodus tracker cache {self.cache_path}: {e}")
+            return None
+        return data if usable else None
 
     def _write_disk_cache(self, data: dict[str, Any]) -> None:
         """Atomically store the raw API response; failures are logged, not raised."""
-        tmp_path = self.cache_path.with_name(f".{self.cache_path.name}.{os.getpid()}.tmp")
+        # Unique across threads, processes and hosts sharing the cache folder
+        host = re.sub(r"[^A-Za-z0-9.-]", "_", socket.gethostname() or "unknown-host")
+        tmp_path = self.cache_path.with_name(f".{self.cache_path.name}.{host}.{os.getpid()}.{uuid.uuid4().hex}.tmp")
         try:
             self.cache_path.parent.mkdir(parents=True, exist_ok=True)
             with tmp_path.open("w", encoding="utf-8") as fh:

@@ -4,6 +4,9 @@
 """Tests for the shared signature database, Exodus disk cache and protection detection."""
 
 import json
+import os
+import re
+import socket
 import zipfile
 from unittest import mock
 from unittest.mock import MagicMock
@@ -279,6 +282,50 @@ class TestExodusCache:
         ):
             client.fetch_trackers()
 
+    def test_empty_response_falls_back_to_cache(self, tmp_path):
+        client = self._client(tmp_path)
+        client.cache_path.parent.mkdir(parents=True)
+        _write_json(client.cache_path, EXODUS_RESPONSE)
+        response = MagicMock()
+        response.json.return_value = {"trackers": {}}
+        with patch(EXODUS_GET, return_value=response):
+            trackers = client.fetch_trackers()
+        assert [t["id"] for t in trackers] == ["27"]
+        assert json.loads(client.cache_path.read_text()) == EXODUS_RESPONSE  # not overwritten
+
+    def test_empty_response_without_cache_returns_nothing(self, tmp_path):
+        client = self._client(tmp_path)
+        response = MagicMock()
+        response.json.return_value = {"trackers": {}}
+        with patch(EXODUS_GET, return_value=response):
+            assert client.fetch_trackers() == []
+        assert not client.cache_path.exists()
+
+    def test_malformed_cache_entries(self, tmp_path):
+        client = self._client(tmp_path, exodus_offline=True)
+        client.cache_path.parent.mkdir(parents=True)
+        _write_json(client.cache_path, {"trackers": {"1": "not an object", **EXODUS_RESPONSE["trackers"]}})
+        assert [t["id"] for t in client.fetch_trackers()] == ["27"]
+
+        client = self._client(tmp_path, exodus_offline=True)
+        _write_json(client.cache_path, {"trackers": {"1": ["nope"]}})
+        with pytest.raises(Exception, match="run once online"):
+            client.fetch_trackers()
+
+    def test_cache_temp_file_is_host_unique(self, tmp_path):
+        client = self._client(tmp_path)
+        replaced = []
+        real_replace = os.replace
+
+        def record(src, dst):
+            replaced.append(os.path.basename(src))
+            real_replace(src, dst)
+
+        with patch("os.replace", side_effect=record):
+            client._write_disk_cache(EXODUS_RESPONSE)
+        host = re.sub(r"[^A-Za-z0-9.-]", "_", socket.gethostname())
+        assert re.fullmatch(rf"\.trackers\.json\.{re.escape(host)}\.{os.getpid()}\.[0-9a-f]{{32}}\.tmp", replaced[0])
+
     def test_offline_mode_uses_cache_only(self, tmp_path):
         client = self._client(tmp_path, exodus_offline=True)
         client.cache_path.parent.mkdir(parents=True)
@@ -290,7 +337,7 @@ class TestExodusCache:
 
     def test_offline_mode_without_cache_never_fetches(self, tmp_path):
         client = self._client(tmp_path, exodus_offline=True)
-        with patch(EXODUS_GET) as get, pytest.raises(Exception, match="no usable tracker cache"):
+        with patch(EXODUS_GET) as get, pytest.raises(Exception, match="run once online"):
             client.fetch_trackers()
         get.assert_not_called()
 
