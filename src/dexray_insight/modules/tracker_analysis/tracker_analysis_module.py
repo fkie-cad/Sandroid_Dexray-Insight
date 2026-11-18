@@ -47,6 +47,7 @@ from .detectors import TrackerDeduplicator
 from .detectors import VersionExtractor
 
 # Import from submodules
+from .models import DetectedProtection
 from .models import DetectedTracker
 
 
@@ -58,6 +59,7 @@ class TrackerAnalysisResult(BaseResult):
     total_trackers: int = 0
     exodus_trackers: list[dict[str, Any]] = None
     custom_detections: list[DetectedTracker] = None
+    detected_protections: list[DetectedProtection] = None
     analysis_errors: list[str] = None
 
     def __post_init__(self):
@@ -66,6 +68,8 @@ class TrackerAnalysisResult(BaseResult):
             self.detected_trackers = []
         if self.custom_detections is None:
             self.custom_detections = []
+        if self.detected_protections is None:
+            self.detected_protections = []
         if self.analysis_errors is None:
             self.analysis_errors = []
         self.total_trackers = len(self.detected_trackers)
@@ -78,6 +82,7 @@ class TrackerAnalysisResult(BaseResult):
                 "detected_trackers": [tracker.to_dict() for tracker in self.detected_trackers],
                 "total_trackers": self.total_trackers,
                 "custom_detections": [tracker.to_dict() for tracker in self.custom_detections],
+                "detected_protections": [protection.to_dict() for protection in self.detected_protections],
                 "analysis_errors": self.analysis_errors,
             }
         )
@@ -177,6 +182,9 @@ class TrackerAnalysisModule(BaseAnalysisModule):
             # Phase 4: Remove duplicates and finalize results
             unique_trackers = self.deduplicator.deduplicate_trackers(detected_trackers)
 
+            # Phase 5: Detect anti-analysis / integrity protection SDKs
+            detected_protections = self._detect_protections(apk_path, context, analysis_errors)
+
             execution_time = time.time() - start_time
 
             # Log summary
@@ -189,6 +197,7 @@ class TrackerAnalysisModule(BaseAnalysisModule):
                 detected_trackers=unique_trackers,
                 total_trackers=len(unique_trackers),
                 custom_detections=custom_detections,
+                detected_protections=detected_protections,
                 analysis_errors=analysis_errors,
             )
 
@@ -321,6 +330,26 @@ class TrackerAnalysisModule(BaseAnalysisModule):
                 detected.extend(detection_results)
 
         return detected
+
+    def _detect_protections(
+        self, apk_path: str, context: AnalysisContext, analysis_errors: list[str]
+    ) -> list[DetectedProtection]:
+        """Detect protection SDKs from DEX class names and bundled native libraries."""
+        try:
+            class_names = self.pattern_detector.class_names_from_dex_strings(context.get_dex_strings())
+            native_libs = self.pattern_detector.native_libs_from_apk(apk_path)
+            protections = self.pattern_detector.detect_protections(
+                self.tracker_database.get_protections(), class_names, native_libs
+            )
+        except Exception as e:
+            error_msg = f"Protection detection failed: {str(e)}"
+            self.logger.warning(error_msg)
+            analysis_errors.append(error_msg)
+            return []
+
+        for protection in protections:
+            self.logger.info(f"Protection detected: {protection.name} (defeats: {', '.join(protection.defeats)})")
+        return protections
 
     def _log_detection_summary(self, trackers: list[DetectedTracker]):
         """Log a summary of detected trackers."""

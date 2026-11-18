@@ -699,6 +699,157 @@
       "network_domains": [
         "bugsnag.com"
       ]
+    },
+    "rootbeer": {
+      "kind": "protection",
+      "label": "RootBeer",
+      "name": "RootBeer",
+      "category": "Root Detection",
+      "description": "Open-source root detection library",
+      "website": "https://github.com/scottyab/rootbeer",
+      "code_signature": "^com\\.scottyab\\.rootbeer\\.",
+      "native_libs": [
+        "libtoolChecker.so"
+      ],
+      "defeats": [
+        "root"
+      ],
+      "confidence": "high"
+    },
+    "jailmonkey": {
+      "kind": "protection",
+      "label": "JailMonkey",
+      "name": "JailMonkey",
+      "category": "Root Detection",
+      "description": "React Native root/jailbreak, debug and mock-location detection",
+      "website": "https://github.com/GantMan/jail-monkey",
+      "code_signature": "^com\\.gantix\\.JailMonkey\\.",
+      "native_libs": [],
+      "defeats": [
+        "root",
+        "debug"
+      ],
+      "confidence": "high"
+    },
+    "pairip": {
+      "kind": "protection",
+      "label": "PairIP",
+      "name": "PairIP",
+      "category": "Integrity",
+      "description": "Google Play automatic integrity protection (licence check / code protection)",
+      "website": "https://developer.android.com/google/play/integrity/overview",
+      "code_signature": "^com\\.pairip\\.licensecheck\\.",
+      "native_libs": [
+        "libpairipcore.so"
+      ],
+      "defeats": [
+        "integrity"
+      ],
+      "confidence": "high"
+    },
+    "play_integrity": {
+      "kind": "protection",
+      "label": "Play Integrity API",
+      "name": "Play Integrity API",
+      "category": "Integrity",
+      "description": "Google Play Integrity API client (device/app attestation)",
+      "website": "https://developer.android.com/google/play/integrity",
+      "code_signature": "^com\\.google\\.android\\.play\\.core\\.integrity\\.",
+      "native_libs": [],
+      "defeats": [
+        "integrity"
+      ],
+      "confidence": "high"
+    },
+    "safetynet": {
+      "kind": "protection",
+      "label": "SafetyNet",
+      "name": "SafetyNet",
+      "category": "Integrity",
+      "description": "Google SafetyNet client; the package also carries Safe Browsing/reCAPTCHA, so presence does not prove attestation is used",
+      "website": "https://developer.android.com/privacy-and-security/safetynet",
+      "code_signature": "^com\\.google\\.android\\.gms\\.safetynet\\.",
+      "native_libs": [],
+      "defeats": [
+        "integrity",
+        "root"
+      ],
+      "confidence": "medium"
+    },
+    "talsec_freerasp": {
+      "kind": "protection",
+      "label": "Talsec freeRASP",
+      "name": "Talsec freeRASP",
+      "category": "RASP",
+      "description": "Talsec freeRASP runtime application self-protection",
+      "website": "https://www.talsec.app/freerasp-in-app-protection-security-talsec",
+      "code_signature": "^com\\.aheaditec\\.talsec_security\\.",
+      "native_libs": [],
+      "defeats": [
+        "root",
+        "frida",
+        "debug",
+        "emulator",
+        "integrity"
+      ],
+      "confidence": "high"
+    },
+    "dexguard": {
+      "kind": "protection",
+      "label": "GuardSquare DexGuard",
+      "name": "GuardSquare DexGuard",
+      "category": "RASP",
+      "description": "DexGuard runtime checks; usually obfuscated, so absence proves nothing",
+      "website": "https://www.guardsquare.com/dexguard",
+      "code_signature": "^(com\\.guardsquare\\.dexguard\\.runtime\\.|dexguard\\.util\\.)",
+      "native_libs": [],
+      "defeats": [
+        "root",
+        "frida",
+        "debug",
+        "emulator",
+        "integrity"
+      ],
+      "confidence": "medium"
+    },
+    "appdome": {
+      "kind": "protection",
+      "label": "Appdome",
+      "name": "Appdome",
+      "category": "RASP",
+      "description": "Appdome no-code mobile app protection (injected loader activity)",
+      "website": "https://www.appdome.com/",
+      "code_signature": "^runtime\\.loading\\.InjectedActivity$",
+      "native_libs": [],
+      "defeats": [
+        "root",
+        "frida",
+        "debug",
+        "emulator",
+        "integrity",
+        "ssl"
+      ],
+      "confidence": "medium"
+    },
+    "promon_shield": {
+      "kind": "protection",
+      "label": "Promon SHIELD",
+      "name": "Promon SHIELD",
+      "category": "RASP",
+      "description": "Promon SHIELD native app shielding; the library name alone is a weak indicator",
+      "website": "https://promon.co/",
+      "code_signature": "",
+      "native_libs": [
+        "libshield.so"
+      ],
+      "defeats": [
+        "root",
+        "frida",
+        "debug",
+        "emulator",
+        "integrity"
+      ],
+      "confidence": "low"
     }
   }
 }

@@ -27,6 +27,7 @@ Data models and result structures for tracker analysis.
 Extracted from monolithic tracker_analysis.py for better maintainability.
 """
 
+from .tracker_models import DetectedProtection
 from .tracker_models import DetectedTracker
 
-__all__ = ["DetectedTracker"]
+__all__ = ["DetectedTracker", "DetectedProtection"]

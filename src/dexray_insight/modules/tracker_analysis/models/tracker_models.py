@@ -66,3 +66,41 @@ class DetectedTracker:
             "locations": self.locations,
             "confidence": self.confidence,
         }
+
+
+@dataclass
+class DetectedProtection:
+    """Container for a detected anti-analysis / integrity protection SDK."""
+
+    id: str
+    name: str
+    category: str = ""
+    description: str = ""
+    website: str = ""
+    defeats: list[str] = None
+    confidence: str = ""
+    matched_classes: list[str] = None
+    matched_libs: list[str] = None
+
+    def __post_init__(self):
+        """Initialize default values for optional fields."""
+        if self.defeats is None:
+            self.defeats = []
+        if self.matched_classes is None:
+            self.matched_classes = []
+        if self.matched_libs is None:
+            self.matched_libs = []
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert protection to dictionary."""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "category": self.category,
+            "description": self.description,
+            "website": self.website,
+            "defeats": self.defeats,
+            "confidence": self.confidence,
+            "matched_classes": self.matched_classes,
+            "matched_libs": self.matched_libs,
+        }

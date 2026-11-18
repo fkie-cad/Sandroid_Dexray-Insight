@@ -32,6 +32,7 @@ class TrackerAnalysisResults:
     total_trackers: int
     exodus_trackers: list[dict[str, Any]]
     custom_detections: list[dict[str, Any]]
+    detected_protections: list[dict[str, Any]]
     analysis_errors: list[str]
     execution_time: float
 
@@ -41,6 +42,9 @@ class TrackerAnalysisResults:
         self.total_trackers = tracker_result.total_trackers
         self.exodus_trackers = tracker_result.exodus_trackers
         self.custom_detections = [tracker.to_dict() for tracker in tracker_result.custom_detections]
+        # Absent on results produced before protection detection existed
+        protections = getattr(tracker_result, "detected_protections", None)
+        self.detected_protections = [p.to_dict() for p in protections] if isinstance(protections, list) else []
         self.analysis_errors = tracker_result.analysis_errors
         self.execution_time = tracker_result.execution_time
 
@@ -144,6 +148,7 @@ class TrackerAnalysisResults:
             "total_trackers": self.total_trackers,
             "exodus_trackers": self.exodus_trackers,
             "custom_detections": self.custom_detections,
+            "detected_protections": self.detected_protections,
             "analysis_errors": self.analysis_errors,
             "execution_time": self.execution_time,
         }

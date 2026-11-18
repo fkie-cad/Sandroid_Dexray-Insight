@@ -31,11 +31,17 @@ Phase 7 TDD Refactoring: Extracted from monolithic tracker_analysis.py
 
 import logging
 import re
+import zipfile
+from collections.abc import Iterable
 from typing import Any
 
 from dexray_insight.core.base_classes import AnalysisContext
 
+from ..models import DetectedProtection
 from ..models import DetectedTracker
+
+#: Max matched class names reported as evidence per protection
+MAX_PROTECTION_EVIDENCE = 10
 
 
 class PatternDetector:
@@ -227,3 +233,75 @@ class PatternDetector:
             self.logger.warning(f"Invalid {pattern_type} regex pattern: {pattern} - {str(e)}")
 
         return matches
+
+    @staticmethod
+    def class_names_from_dex_strings(dex_strings: Iterable[str]) -> set[str]:
+        """
+        Extract dotted class names from DEX type descriptors (``Lcom/foo/Bar;``).
+
+        Every type referenced by a DEX file is in its string pool, so this
+        covers all defined and referenced classes.
+        """
+        return {
+            s[1:-1].replace("/", ".")
+            for s in dex_strings
+            if len(s) > 2 and s[0] == "L" and s[-1] == ";" and " " not in s
+        }
+
+    @staticmethod
+    def native_libs_from_apk(apk_path: str) -> list[str]:
+        """Return the ``lib/<abi>/*.so`` entries of the APK (empty on any error)."""
+        try:
+            with zipfile.ZipFile(apk_path) as apk:
+                return [n for n in apk.namelist() if n.startswith("lib/") and n.endswith(".so")]
+        except (OSError, zipfile.BadZipFile, TypeError, ValueError):
+            return []
+
+    def detect_protections(
+        self, protections: dict[str, dict[str, Any]], class_names: set[str], native_libs: list[str]
+    ) -> list[DetectedProtection]:
+        """
+        Detect anti-analysis / integrity SDKs by class-name prefix and native library name.
+
+        Args:
+            protections: Protection entries keyed by id (``code_signature``, ``native_libs``, ...)
+            class_names: Dotted class names present in the APK
+            native_libs: Native library paths inside the APK (``lib/<abi>/libfoo.so``)
+
+        Returns:
+            List of detected protections with the matched classes/libraries as evidence
+        """
+        detected = []
+        lib_names: dict[str, list[str]] = {}
+        for lib_path in native_libs:
+            lib_names.setdefault(lib_path.rsplit("/", 1)[-1], []).append(lib_path)
+
+        for entry_id, entry in protections.items():
+            matched_classes: list[str] = []
+            signature = entry.get("code_signature") or ""
+            if signature:
+                try:
+                    regex = re.compile(signature)
+                except re.error as e:
+                    self.logger.warning(f"Invalid protection regex for {entry_id}: {signature} - {str(e)}")
+                else:
+                    matched_classes = sorted(name for name in class_names if regex.search(name))
+
+            matched_libs = sorted(path for lib in entry.get("native_libs") or [] for path in lib_names.get(lib, []))
+
+            if matched_classes or matched_libs:
+                detected.append(
+                    DetectedProtection(
+                        id=entry_id,
+                        name=entry.get("name", entry_id),
+                        category=entry.get("category", ""),
+                        description=entry.get("description", ""),
+                        website=entry.get("website", ""),
+                        defeats=list(entry.get("defeats") or []),
+                        confidence=entry.get("confidence", ""),
+                        matched_classes=matched_classes[:MAX_PROTECTION_EVIDENCE],
+                        matched_libs=matched_libs,
+                    )
+                )
+
+        return detected

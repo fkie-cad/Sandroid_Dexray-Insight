@@ -1,22 +1,27 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""Tests for the shared signature database and the Exodus disk cache."""
+"""Tests for the shared signature database, Exodus disk cache and protection detection."""
 
 import json
+import zipfile
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
 import pytest
 import requests
 
+from dexray_insight.core.base_classes import AnalysisContext
+from dexray_insight.core.base_classes import AnalysisStatus
 from dexray_insight.modules.tracker_analysis.databases.exodus_api_client import ExodusAPIClient
 from dexray_insight.modules.tracker_analysis.databases.tracker_database import ENTRY_KINDS
 from dexray_insight.modules.tracker_analysis.databases.tracker_database import PROTECTION_DEFEATS
 from dexray_insight.modules.tracker_analysis.databases.tracker_database import TrackerDatabase
 from dexray_insight.modules.tracker_analysis.databases.tracker_database import label_for_domain
 from dexray_insight.modules.tracker_analysis.databases.tracker_database import load_signature_db
+from dexray_insight.modules.tracker_analysis.detectors.pattern_detector import PatternDetector
 from dexray_insight.modules.tracker_analysis.tracker_analysis_module import TrackerAnalysisModule
+from dexray_insight.results.TrackerAnalysisResults import TrackerAnalysisResults
 
 EXODUS_GET = "dexray_insight.modules.tracker_analysis.databases.exodus_api_client.requests.get"
 
@@ -226,3 +231,70 @@ class TestExodusCache:
         with patch(EXODUS_GET) as get, pytest.raises(Exception, match="no usable tracker cache"):
             client.fetch_trackers()
         get.assert_not_called()
+
+
+class TestProtectionDetection:
+    def test_class_names_from_dex_strings(self):
+        names = PatternDetector.class_names_from_dex_strings(
+            ["Lcom/scottyab/rootbeer/RootBeer;", "[Lcom/foo/Bar;", "Lcom/x;", "Hello", "L;", "Lnot a class;"]
+        )
+        assert names == {"com.scottyab.rootbeer.RootBeer", "com.x"}
+
+    def test_detects_by_class_and_native_lib(self):
+        protections = TrackerDatabase().get_protections()
+        detected = PatternDetector().detect_protections(
+            protections,
+            {"com.scottyab.rootbeer.RootBeer", "com.gantix.JailMonkey.JailMonkeyModule", "com.example.Main"},
+            ["lib/arm64-v8a/libtoolChecker.so", "lib/arm64-v8a/libpairipcore.so", "lib/x86/libfoo.so"],
+        )
+        by_id = {p.id: p for p in detected}
+
+        assert set(by_id) == {"rootbeer", "jailmonkey", "pairip"}
+        assert by_id["rootbeer"].matched_classes == ["com.scottyab.rootbeer.RootBeer"]
+        assert by_id["rootbeer"].matched_libs == ["lib/arm64-v8a/libtoolChecker.so"]
+        assert by_id["rootbeer"].defeats == ["root"]
+        assert by_id["pairip"].matched_classes == []
+        assert by_id["pairip"].matched_libs == ["lib/arm64-v8a/libpairipcore.so"]
+        assert by_id["jailmonkey"].confidence == "high"
+
+    def test_class_signature_is_case_sensitive_prefix(self):
+        protections = TrackerDatabase().get_protections()
+        detected = PatternDetector().detect_protections(
+            protections, {"com.gantix.jailmonkey.Other", "org.com.scottyab.rootbeer.X"}, []
+        )
+        assert detected == []
+
+    def test_native_libs_from_apk(self, tmp_path):
+        apk = tmp_path / "app.apk"
+        with zipfile.ZipFile(apk, "w") as zf:
+            zf.writestr("classes.dex", b"")
+            zf.writestr("lib/arm64-v8a/libshield.so", b"")
+        assert PatternDetector.native_libs_from_apk(str(apk)) == ["lib/arm64-v8a/libshield.so"]
+        assert PatternDetector.native_libs_from_apk(str(tmp_path / "missing.apk")) == []
+
+    def test_module_reports_detected_protections(self, tmp_path):
+        apk = tmp_path / "app.apk"
+        with zipfile.ZipFile(apk, "w") as zf:
+            zf.writestr("lib/armeabi-v7a/libtoolChecker.so", b"")
+
+        dex = MagicMock()
+        dex.get_strings.return_value = [
+            "Lcom/scottyab/rootbeer/RootBeer;",
+            "Lcom/google/android/play/core/integrity/IntegrityManager;",
+        ]
+        androguard_obj = MagicMock()
+        androguard_obj.get_androguard_dex.return_value = [dex]
+        context = AnalysisContext(apk_path=str(apk), config={}, androguard_obj=androguard_obj)
+
+        module = TrackerAnalysisModule({"fetch_exodus_trackers": False})
+        result = module.analyze(str(apk), context)
+
+        assert result.status == AnalysisStatus.SUCCESS
+        result_dict = result.to_dict()
+        found = {p["id"]: p for p in result_dict["detected_protections"]}
+        assert set(found) == {"rootbeer", "play_integrity"}
+        assert found["rootbeer"]["matched_libs"] == ["lib/armeabi-v7a/libtoolChecker.so"]
+        assert found["play_integrity"]["defeats"] == ["integrity"]
+
+        exported = TrackerAnalysisResults(result).export_to_dict()
+        assert exported["detected_protections"] == result_dict["detected_protections"]
