@@ -33,6 +33,14 @@ must never break an analysis):
 * Writes are best-effort: failures are logged and swallowed.
 * Artifacts are written to a temp file then atomically ``os.replace``d so an
   interrupted run never leaves a half-written file that later reads as valid.
+* The cache may live on a shared/network folder used by several hosts: temp
+  names carry hostname + PID + a UUID, and per-APK writes hold an advisory
+  ``<md5>/.lock`` file created with ``O_CREAT|O_EXCL`` (``fcntl`` locks are
+  unreliable on SMB/NFS). A lock older than ``LOCK_STALE_SECONDS`` is treated
+  as left behind by a crashed writer and broken; if the lock stays busy for
+  ``LOCK_WAIT_SECONDS`` the write is skipped. ``cache_metadata.json`` is only
+  an index: it is re-read and merged right before each write (last writer
+  wins) and drops entries whose APK directory no longer exists.
 * Validity is fingerprint-based (tool + androguard version + schema), not
   time-based: the cached data is a deterministic function of (bytes, versions),
   so a time TTL would add no correctness and is intentionally omitted for the
@@ -62,7 +70,12 @@ import hashlib
 import json
 import logging
 import os
+import re
+import socket
 import threading
+import time
+import uuid
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -79,6 +92,17 @@ CACHE_SCHEMA_VERSION = 2
 # fingerprint does not move during in-place development). This is the shallow-cache analog
 # of security/deep_cache.py's DEEP_SCHEMA_VERSION.
 ANALYSIS_SCHEMA_VERSION = "2026-07-22-security-overhaul"
+
+#: Per-APK advisory lock file (see the module docstring).
+LOCK_FILE_NAME = ".lock"
+
+#: Hostname as a file-name-safe token for temp and lock files.
+_HOST = re.sub(r"[^A-Za-z0-9.-]", "_", socket.gethostname() or "unknown-host")
+
+
+class CacheLockTimeoutError(Exception):
+    """Raised when a per-APK cache lock stays busy for longer than the wait timeout."""
+
 
 #: Modules whose results depend on the tracker signature database.
 SIGNATURE_DB_MODULES = frozenset({"tracker_analysis"})
@@ -146,6 +170,12 @@ def hash_config(config: Any) -> str:
 class AnalysisCacheManager:
     """Fingerprint-invalidated, MD5-keyed cache for analysis prerequisites."""
 
+    #: How long a writer waits for a busy per-APK lock before skipping the write.
+    LOCK_WAIT_SECONDS = 10.0
+    #: Age (by mtime) after which a lock is considered left behind by a crashed writer.
+    LOCK_STALE_SECONDS = 120.0
+    LOCK_POLL_SECONDS = 0.05
+
     def __init__(
         self,
         cache_dir: Path | str | None = None,
@@ -210,25 +240,37 @@ class AnalysisCacheManager:
     # ------------------------------------------------------------------ #
     # metadata
     # ------------------------------------------------------------------ #
+    def _read_metadata_file(self) -> dict[str, Any] | None:
+        """Return the on-disk metadata index, or None if missing/unreadable."""
+        if not self.enabled or not self.metadata_file.exists():
+            return None
+        try:
+            with open(self.metadata_file) as f:
+                data = json.load(f)
+            return data if isinstance(data, dict) else None
+        except Exception as e:
+            self.logger.warning(f"Could not load analysis cache metadata: {e}")
+            return None
+
     def _load_metadata(self) -> dict[str, Any]:
-        if self.enabled and self.metadata_file.exists():
-            try:
-                with open(self.metadata_file) as f:
-                    return json.load(f)
-            except Exception as e:
-                self.logger.warning(f"Could not load analysis cache metadata: {e}")
-        return {"schema_version": CACHE_SCHEMA_VERSION, "apks": {}}
+        return self._read_metadata_file() or {"schema_version": CACHE_SCHEMA_VERSION, "apks": {}}
 
     def _save_metadata(self):
+        """Merge this process's index into the on-disk one and write it (last writer wins).
+
+        Other processes/hosts may have added APKs since we loaded the index, so it
+        is re-read right before writing. Entries whose APK directory is gone
+        (invalidated or cleared) are dropped.
+        """
         if not self.enabled:
             return
         with self._metadata_lock:
             try:
-                snapshot = {
-                    "schema_version": CACHE_SCHEMA_VERSION,
-                    "apks": dict(self.metadata.get("apks", {})),
-                }
-                self._atomic_write_json(self.metadata_file, snapshot)
+                on_disk = (self._read_metadata_file() or {}).get("apks", {})
+                merged = {**(on_disk if isinstance(on_disk, dict) else {}), **self.metadata.get("apks", {})}
+                merged = {md5: info for md5, info in merged.items() if self._apk_dir(md5).is_dir()}
+                self.metadata["apks"] = merged
+                self._atomic_write_json(self.metadata_file, {"schema_version": CACHE_SCHEMA_VERSION, "apks": merged})
             except Exception as e:
                 self.logger.warning(f"Could not save analysis cache metadata: {e}")
 
@@ -254,9 +296,9 @@ class AnalysisCacheManager:
         from ..Utils.file_utils import CustomJSONEncoder
 
         path.parent.mkdir(parents=True, exist_ok=True)
-        # Include thread id so concurrent module writers (same PID under the
-        # ThreadPoolExecutor) never share a temp file for the same target.
-        tmp = path.with_suffix(path.suffix + f".tmp.{os.getpid()}.{threading.get_ident()}")
+        # Hostname + PID + UUID: unique across threads, processes and hosts sharing
+        # the cache folder (PIDs alone collide between machines).
+        tmp = path.with_name(f"{path.name}.tmp.{_HOST}.{os.getpid()}.{uuid.uuid4().hex}")
         try:
             with open(tmp, "w") as f:
                 json.dump(data, f, cls=CustomJSONEncoder)
@@ -275,6 +317,47 @@ class AnalysisCacheManager:
 
     def _full_result_path(self, md5: str, config_hash: str) -> Path:
         return self._apk_dir(md5) / f"full_result__{config_hash}-{self._signature_db_key()}.json"
+
+    @contextlib.contextmanager
+    def _apk_write_lock(self, md5: str) -> Iterator[None]:
+        """Hold the advisory per-APK lock file for the duration of a write.
+
+        Raises:
+            CacheLockTimeoutError: If the lock stays busy for ``LOCK_WAIT_SECONDS``.
+        """
+        lock_path = self._apk_dir(md5) / LOCK_FILE_NAME
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        token = f"{_HOST} {os.getpid()} {uuid.uuid4().hex}"
+        deadline = time.monotonic() + self.LOCK_WAIT_SECONDS
+        while True:
+            try:
+                fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+                break
+            except FileExistsError:
+                self._break_stale_lock(lock_path)
+                if time.monotonic() >= deadline:
+                    raise CacheLockTimeoutError(f"cache lock {lock_path} is busy") from None
+                time.sleep(self.LOCK_POLL_SECONDS)
+        with os.fdopen(fd, "w") as f:
+            f.write(token)
+        try:
+            yield
+        finally:
+            # Only remove the lock if it is still ours (it may have been broken as
+            # stale and re-acquired by another writer meanwhile).
+            with contextlib.suppress(OSError):
+                if lock_path.read_text() == token:
+                    lock_path.unlink()
+
+    def _break_stale_lock(self, lock_path: Path):
+        """Remove a lock file whose mtime is older than ``LOCK_STALE_SECONDS``."""
+        try:
+            age = time.time() - lock_path.stat().st_mtime
+            if age > self.LOCK_STALE_SECONDS:
+                lock_path.unlink()
+                self.logger.warning(f"Removed stale analysis cache lock {lock_path} ({age:.0f}s old)")
+        except OSError:
+            pass
 
     def _fingerprint(self) -> dict[str, Any]:
         return {
@@ -341,11 +424,12 @@ class AnalysisCacheManager:
         if not self.enabled or not self.tiers.get("dex_strings", True) or not md5:
             return
         try:
-            self._ensure_manifest(md5)
-            self._atomic_write_json(
-                self._apk_dir(md5) / "dex_strings.json",
-                {"dex_count": len(dex_strings), "dex_strings": dex_strings},
-            )
+            with self._apk_write_lock(md5):
+                self._ensure_manifest(md5)
+                self._atomic_write_json(
+                    self._apk_dir(md5) / "dex_strings.json",
+                    {"dex_count": len(dex_strings), "dex_strings": dex_strings},
+                )
             self.logger.debug(f"Analysis cache STORE (dex_strings) for {md5}")
         except Exception as e:
             self.logger.warning(f"Could not cache dex_strings for {md5}: {e}")
@@ -377,8 +461,9 @@ class AnalysisCacheManager:
         if not self.enabled or not self.tiers.get("library_signatures", True) or not md5:
             return
         try:
-            self._ensure_manifest(md5)
-            self._atomic_write_json(self._apk_dir(md5) / "library_signatures.json", {"signatures": signatures})
+            with self._apk_write_lock(md5):
+                self._ensure_manifest(md5)
+                self._atomic_write_json(self._apk_dir(md5) / "library_signatures.json", {"signatures": signatures})
             self.logger.debug(f"Analysis cache STORE (library_signatures) for {md5}")
         except Exception as e:
             self.logger.warning(f"Could not cache library_signatures for {md5}: {e}")
@@ -415,8 +500,9 @@ class AnalysisCacheManager:
         if not self.enabled or not self.tiers.get("full_result", True) or not md5:
             return
         try:
-            self._ensure_manifest(md5)
-            self._atomic_write_json(self._full_result_path(md5, config_hash), payload)
+            with self._apk_write_lock(md5):
+                self._ensure_manifest(md5)
+                self._atomic_write_json(self._full_result_path(md5, config_hash), payload)
             self.logger.debug(f"Analysis cache STORE (full_result) for {md5}")
         except Exception as e:
             self.logger.warning(f"Could not cache full_result for {md5}: {e}")
@@ -453,8 +539,9 @@ class AnalysisCacheManager:
         if not self.enabled or not self.tiers.get("module_results", True) or not md5:
             return
         try:
-            self._ensure_manifest(md5)
-            self._atomic_write_json(self._module_path(md5, module_name, config_hash), result_dict)
+            with self._apk_write_lock(md5):
+                self._ensure_manifest(md5)
+                self._atomic_write_json(self._module_path(md5, module_name, config_hash), result_dict)
         except Exception as e:
             self.logger.warning(f"Could not cache module result {module_name} for {md5}: {e}")
 
