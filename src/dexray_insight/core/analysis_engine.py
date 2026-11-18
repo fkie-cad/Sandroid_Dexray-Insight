@@ -268,6 +268,7 @@ class AnalysisEngine:
                 cache_dir=caching_cfg.get("cache_dir"),
                 enabled=caching_cfg.get("enabled", True),
                 tiers=caching_cfg.get("tiers"),
+                tracker_db_path=self.config.get_module_config("tracker_analysis").get("tracker_db_path"),
             )
         except Exception as e:
             self.logger.warning(f"Could not initialize analysis cache (continuing without it): {e}")

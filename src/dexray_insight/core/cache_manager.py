@@ -37,6 +37,10 @@ must never break an analysis):
   time-based: the cached data is a deterministic function of (bytes, versions),
   so a time TTL would add no correctness and is intentionally omitted for the
   derived-data tiers.
+* Results that depend on external data, not just config, fold a hash of that
+  data into their key: the tracker signature database (built-in JSON plus the
+  ``tracker_db_path`` override) keys ``tracker_analysis`` module results and
+  the full result, so editing the database invalidates them.
 * ``SKIPPED`` / ``FAILURE`` module or tool results are never persisted, so a
   later environment fix (e.g. a repaired YARA install, a newly installed
   radare2) is picked up automatically instead of being frozen.
@@ -49,7 +53,8 @@ Disk layout::
         manifest.json                       # version/env fingerprint
         dex_strings.json                    # Tier 1: [[str, ...], ...] per DEX
         modules/<module>__<confighash>.json # Tier 3: BaseResult.to_dict()
-        full_result.json                    # full-hit assembled report
+                                            # (tracker_analysis: <confighash>-<sigdbhash>)
+        full_result__<confighash>-<sigdbhash>.json  # full-hit assembled report
 """
 
 import contextlib
@@ -75,6 +80,9 @@ CACHE_SCHEMA_VERSION = 2
 # of security/deep_cache.py's DEEP_SCHEMA_VERSION.
 ANALYSIS_SCHEMA_VERSION = "2026-07-22-security-overhaul"
 
+#: Modules whose results depend on the tracker signature database.
+SIGNATURE_DB_MODULES = frozenset({"tracker_analysis"})
+
 
 def _dexray_version() -> str:
     """Best-effort dexray-insight package version for the cache fingerprint."""
@@ -94,6 +102,32 @@ def _androguard_version() -> str:
         return getattr(androguard, "__version__", "unknown")
     except Exception:
         return "unknown"
+
+
+def signature_db_digest(tracker_db_path: str | Path | None = None) -> str:
+    """Hash the effective tracker signature database.
+
+    Covers the built-in ``signature_db.json`` and the optional
+    ``tracker_db_path`` override file, so editing either changes the digest.
+    An unreadable file contributes a marker instead of failing.
+    """
+    try:
+        from ..modules.tracker_analysis.databases.tracker_database import SIGNATURE_DB_PATH
+
+        paths: list[Path | None] = [SIGNATURE_DB_PATH]
+    except Exception:
+        paths = [None]
+    if tracker_db_path:
+        paths.append(Path(tracker_db_path).expanduser())
+
+    digest = hashlib.md5(usedforsecurity=False)
+    for path in paths:
+        try:
+            digest.update(path.read_bytes() if path else b"<builtin unavailable>")
+        except OSError:
+            digest.update(f"<unreadable {path}>".encode())
+        digest.update(b"\0")
+    return digest.hexdigest()
 
 
 def hash_config(config: Any) -> str:
@@ -117,6 +151,7 @@ class AnalysisCacheManager:
         cache_dir: Path | str | None = None,
         enabled: bool = True,
         tiers: dict[str, bool] | None = None,
+        tracker_db_path: str | None = None,
     ):
         """Initialize the cache manager.
 
@@ -125,6 +160,9 @@ class AnalysisCacheManager:
             enabled: Master switch; when False every operation is a no-op/miss.
             tiers: Per-tier enable flags: ``dex_strings``, ``library_signatures``,
                 ``module_results``, ``full_result``. Missing keys default to True.
+            tracker_db_path: The ``tracker_analysis.tracker_db_path`` override, whose
+                content (with the built-in signature database) keys tracker and
+                full results.
         """
         self.logger = logging.getLogger(__name__)
         self.enabled = enabled
@@ -146,6 +184,9 @@ class AnalysisCacheManager:
         # Environment fingerprint recomputed once per process.
         self._tool_version = _dexray_version()
         self._androguard_version = _androguard_version()
+        # Signature database digest, computed lazily once per manager (run).
+        self.tracker_db_path = tracker_db_path
+        self._signature_db_hash: str | None = None
 
         # Guards metadata read-modify-write across parallel module threads.
         self._metadata_lock = threading.Lock()
@@ -225,6 +266,15 @@ class AnalysisCacheManager:
                 if tmp.exists():
                     tmp.unlink()
             raise
+
+    def _signature_db_key(self) -> str:
+        """Short digest of the effective tracker signature database (memoized)."""
+        if self._signature_db_hash is None:
+            self._signature_db_hash = signature_db_digest(self.tracker_db_path)[:16]
+        return self._signature_db_hash
+
+    def _full_result_path(self, md5: str, config_hash: str) -> Path:
+        return self._apk_dir(md5) / f"full_result__{config_hash}-{self._signature_db_key()}.json"
 
     def _fingerprint(self) -> dict[str, Any]:
         return {
@@ -348,7 +398,7 @@ class AnalysisCacheManager:
         if not self._fingerprint_valid(md5):
             return None
         try:
-            with open(self._apk_dir(md5) / f"full_result__{config_hash}.json") as f:
+            with open(self._full_result_path(md5, config_hash)) as f:
                 return json.load(f)
         except FileNotFoundError:
             return None
@@ -366,7 +416,7 @@ class AnalysisCacheManager:
             return
         try:
             self._ensure_manifest(md5)
-            self._atomic_write_json(self._apk_dir(md5) / f"full_result__{config_hash}.json", payload)
+            self._atomic_write_json(self._full_result_path(md5, config_hash), payload)
             self.logger.debug(f"Analysis cache STORE (full_result) for {md5}")
         except Exception as e:
             self.logger.warning(f"Could not cache full_result for {md5}: {e}")
@@ -375,6 +425,8 @@ class AnalysisCacheManager:
     # Tier 3: per-module result dicts (keyed by module + effective-config hash)
     # ------------------------------------------------------------------ #
     def _module_path(self, md5: str, module_name: str, config_hash: str) -> Path:
+        if module_name in SIGNATURE_DB_MODULES:
+            config_hash = f"{config_hash}-{self._signature_db_key()}"
         return self._apk_dir(md5) / "modules" / f"{module_name}__{config_hash}.json"
 
     def get_module_result(self, md5: str, module_name: str, config_hash: str) -> dict[str, Any] | None:
