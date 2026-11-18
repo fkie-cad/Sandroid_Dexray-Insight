@@ -45,6 +45,10 @@ must never break an analysis):
   time-based: the cached data is a deterministic function of (bytes, versions),
   so a time TTL would add no correctness and is intentionally omitted for the
   derived-data tiers.
+* Each fingerprint gets its own ``env-<hash>`` subtree, so hosts or venvs with
+  different versions sharing one ``cache_dir`` never read each other's results
+  (a single per-APK manifest would be overwritten back and forth). Entries of
+  the older flat ``<cache_dir>/<md5>/`` layout are not read (cache miss).
 * Results that depend on external data, not just config, fold a hash of that
   data into their key: the tracker signature database (built-in JSON plus the
   ``tracker_db_path`` override) keys ``tracker_analysis`` module results and
@@ -56,13 +60,14 @@ must never break an analysis):
 Disk layout::
 
     <cache_dir>/
-      cache_metadata.json
-      <md5>/
-        manifest.json                       # version/env fingerprint
-        dex_strings.json                    # Tier 1: [[str, ...], ...] per DEX
-        modules/<module>__<confighash>.json # Tier 3: BaseResult.to_dict()
-                                            # (tracker_analysis: <confighash>-<sigdbhash>)
-        full_result__<confighash>-<sigdbhash>.json  # full-hit assembled report
+      env-<fingerprint hash>/
+        cache_metadata.json
+        <md5>/
+          manifest.json                       # version/env fingerprint
+          dex_strings.json                    # Tier 1: [[str, ...], ...] per DEX
+          modules/<module>__<confighash>.json # Tier 3: BaseResult.to_dict()
+                                              # (tracker_analysis: <confighash>-<sigdbhash>)
+          full_result__<confighash>-<sigdbhash>.json  # full-hit assembled report
 """
 
 import contextlib
@@ -92,6 +97,9 @@ CACHE_SCHEMA_VERSION = 2
 # fingerprint does not move during in-place development). This is the shallow-cache analog
 # of security/deep_cache.py's DEEP_SCHEMA_VERSION.
 ANALYSIS_SCHEMA_VERSION = "2026-07-22-security-overhaul"
+
+#: Prefix of the per-environment (fingerprint) subdirectories of ``cache_dir``.
+ENV_DIR_PREFIX = "env-"
 
 #: Per-APK advisory lock file (see the module docstring).
 LOCK_FILE_NAME = ".lock"
@@ -214,6 +222,8 @@ class AnalysisCacheManager:
         # Environment fingerprint recomputed once per process.
         self._tool_version = _dexray_version()
         self._androguard_version = _androguard_version()
+        # Per-environment subtree: results of other versions are never visible.
+        self.env_dir = self.cache_dir / f"{ENV_DIR_PREFIX}{hash_config(self._fingerprint())[:12]}"
         # Signature database digest, computed lazily once per manager (run).
         self.tracker_db_path = tracker_db_path
         self._signature_db_hash: str | None = None
@@ -234,7 +244,7 @@ class AnalysisCacheManager:
                 self.logger.warning(f"Could not create analysis cache dir {self.cache_dir}: {e}")
                 self.enabled = False
 
-        self.metadata_file = self.cache_dir / "cache_metadata.json"
+        self.metadata_file = self.env_dir / "cache_metadata.json"
         self.metadata = self._load_metadata()
 
     # ------------------------------------------------------------------ #
@@ -283,7 +293,7 @@ class AnalysisCacheManager:
     # low-level helpers
     # ------------------------------------------------------------------ #
     def _apk_dir(self, md5: str) -> Path:
-        return self.cache_dir / md5
+        return self.env_dir / md5
 
     @staticmethod
     def _atomic_write_json(path: Path, data: Any):
@@ -573,8 +583,13 @@ class AnalysisCacheManager:
         try:
             for child in self.cache_dir.iterdir():
                 if child.is_dir():
+                    # An env-<hash> subtree holds one directory per APK; anything
+                    # else is a legacy flat-layout APK directory.
+                    if child.name.startswith(ENV_DIR_PREFIX):
+                        removed += sum(1 for apk_dir in child.iterdir() if apk_dir.is_dir())
+                    else:
+                        removed += 1
                     shutil.rmtree(child, ignore_errors=True)
-                    removed += 1
             self._validated_fingerprints.clear()
             self.metadata = {"schema_version": CACHE_SCHEMA_VERSION, "apks": {}}
             self._save_metadata()

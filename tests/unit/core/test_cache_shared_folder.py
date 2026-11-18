@@ -28,7 +28,7 @@ def _manager(tmp_path, **attrs):
 
 
 def _metadata(tmp_path):
-    return json.loads((tmp_path / "cache" / "cache_metadata.json").read_text())["apks"]
+    return json.loads(next((tmp_path / "cache").glob("env-*/cache_metadata.json")).read_text())["apks"]
 
 
 class TestTempFileNames:
@@ -55,7 +55,7 @@ class TestTempFileNames:
 
 class TestPerApkLock:
     def _lock(self, tmp_path, md5=MD5_A):
-        return tmp_path / "cache" / md5 / LOCK_FILE_NAME
+        return _manager(tmp_path).env_dir / md5 / LOCK_FILE_NAME
 
     def test_lock_is_released_after_write(self, tmp_path):
         manager = _manager(tmp_path)
@@ -152,3 +152,43 @@ class TestMetadataMerge:
 
         assert other.clear_cache() == 1
         assert _metadata(tmp_path) == {}
+
+
+class TestPerEnvironmentSubtree:
+    """Hosts/venvs with different versions sharing one cache_dir must not read each other's results."""
+
+    @staticmethod
+    def _env_manager(tmp_path, androguard_version):
+        with mock.patch.object(cache_manager, "_androguard_version", return_value=androguard_version):
+            return _manager(tmp_path)
+
+    def test_environments_do_not_share_results(self, tmp_path):
+        host_b = self._env_manager(tmp_path, "4.1.3")
+        host_a = self._env_manager(tmp_path, "4.1.2")
+        assert host_a.env_dir != host_b.env_dir
+
+        host_b.set_module_result(MD5_A, "string_analysis", "cfg", {"from": "b"})
+        host_a.set_module_result(MD5_A, "manifest_analysis", "cfg", {"from": "a"})
+
+        assert host_a.get_module_result(MD5_A, "string_analysis", "cfg") is None
+        assert host_b.get_module_result(MD5_A, "string_analysis", "cfg") == {"from": "b"}
+        # A fresh process of environment B still trusts its own subtree.
+        assert self._env_manager(tmp_path, "4.1.3").get_module_result(MD5_A, "string_analysis", "cfg") == {"from": "b"}
+
+    def test_legacy_flat_layout_is_a_miss(self, tmp_path):
+        manager = _manager(tmp_path)
+        legacy = tmp_path / "cache" / MD5_A
+        (legacy / "modules").mkdir(parents=True)
+        (legacy / "manifest.json").write_text(json.dumps(manager._fingerprint()))
+        (legacy / "modules" / "string_analysis__cfg.json").write_text('{"legacy": true}')
+
+        assert manager.get_module_result(MD5_A, "string_analysis", "cfg") is None
+
+    def test_clear_cache_counts_apks_across_layouts(self, tmp_path):
+        manager = _manager(tmp_path)
+        manager.set_dex_strings(MD5_A, [["a"]])
+        manager.set_dex_strings(MD5_B, [["b"]])
+        (tmp_path / "cache" / ("c" * 32)).mkdir()  # legacy flat-layout entry
+
+        assert manager.clear_cache() == 3
+        assert [p for p in (tmp_path / "cache").iterdir() if p.is_dir()] == [manager.env_dir]
