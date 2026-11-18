@@ -319,13 +319,15 @@ class AnalysisEngine:
 
         key = "full_hit:" + ",".join(sorted(requested_modules))
         if key not in self._config_hash_cache:
-            self._config_hash_cache[key] = hash_config(
-                {
-                    "config": self.config.to_dict(),
-                    "modules": sorted(requested_modules),
-                    "schema": ANALYSIS_SCHEMA_VERSION,
-                }
-            )
+            keyed = {
+                "config": self.config.to_dict(),
+                "modules": sorted(requested_modules),
+                "schema": ANALYSIS_SCHEMA_VERSION,
+            }
+            # Tracker results depend on the signature database, not just config.
+            if "tracker_analysis" in requested_modules and self.cache_manager is not None:
+                keyed["signature_db"] = self.cache_manager.signature_db_key()
+            self._config_hash_cache[key] = hash_config(keyed)
         return self._config_hash_cache[key]
 
     def _is_deep_mode(self) -> bool:

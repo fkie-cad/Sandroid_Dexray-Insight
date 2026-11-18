@@ -266,6 +266,12 @@ with ``dexray_insight.modules.tracker_analysis.label_for_domain(host)``.
 The Exodus tracker data is published under the Open Database License (ODbL),
 so Dexray Insight does not ship a copy; the cache is filled on first online use.
 
+Changing the signature database (the built-in file or ``tracker_db_path``)
+invalidates the cached full result of runs that include ``tracker_analysis``
+and the cached deep ``pii_flow`` findings. Entries cached under the previous
+keys are not deleted; they stay in the analysis cache until it is cleared
+with ``--clear-analysis-cache``.
+
 Behavior Analysis Module
 ~~~~~~~~~~~~~~~~~~~~~~~~
 

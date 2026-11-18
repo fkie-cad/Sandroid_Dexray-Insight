@@ -205,10 +205,17 @@ class PIIFlowAssessment(BaseSecurityAssessment):
         if not self._is_deep(context):
             return []
 
+        # The findings depend on the detected trackers, so the signature database
+        # (built-in + tracker_db_path override) is part of the cache key.
+        signature_db_key = getattr(getattr(context, "cache_manager", None), "signature_db_key", None)
+        cache_key_config = {
+            "config": self.config,
+            "signature_db": signature_db_key() if callable(signature_db_key) else None,
+        }
         return cached_deep_findings(
             context,
             "pii_flow",
-            self.config,
+            cache_key_config,
             lambda: self._assess_deep(analysis_results, context),
         )
 

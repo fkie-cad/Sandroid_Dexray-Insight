@@ -51,8 +51,10 @@ must never break an analysis):
   the older flat ``<cache_dir>/<md5>/`` layout are not read (cache miss).
 * Results that depend on external data, not just config, fold a hash of that
   data into their key: the tracker signature database (built-in JSON plus the
-  ``tracker_db_path`` override) keys ``tracker_analysis`` module results and
-  the full result, so editing the database invalidates them.
+  ``tracker_db_path`` override, see :meth:`AnalysisCacheManager.signature_db_key`)
+  keys the full result when ``tracker_analysis`` runs and the deep ``pii_flow``
+  findings, so editing the database invalidates them. Entries under superseded
+  keys are not deleted; they stay on disk until the cache is cleared.
 * ``SKIPPED`` / ``FAILURE`` module or tool results are never persisted, so a
   later environment fix (e.g. a repaired YARA install, a newly installed
   radare2) is picked up automatically instead of being frozen.
@@ -66,8 +68,7 @@ Disk layout::
           manifest.json                       # version/env fingerprint
           dex_strings.json                    # Tier 1: [[str, ...], ...] per DEX
           modules/<module>__<confighash>.json # Tier 3: BaseResult.to_dict()
-                                              # (tracker_analysis: <confighash>-<sigdbhash>)
-          full_result__<confighash>-<sigdbhash>.json  # full-hit assembled report
+          full_result__<confighash>.json      # full-hit assembled report
 """
 
 import contextlib
@@ -101,10 +102,6 @@ ENV_DIR_PREFIX = "env-"
 
 #: Hostname as a file-name-safe token for temp file names.
 _HOST = re.sub(r"[^A-Za-z0-9.-]", "_", socket.gethostname() or "unknown-host")
-
-
-#: Modules whose results depend on the tracker signature database.
-SIGNATURE_DB_MODULES = frozenset({"tracker_analysis"})
 
 
 def _dexray_version() -> str:
@@ -183,9 +180,9 @@ class AnalysisCacheManager:
             enabled: Master switch; when False every operation is a no-op/miss.
             tiers: Per-tier enable flags: ``dex_strings``, ``library_signatures``,
                 ``module_results``, ``full_result``. Missing keys default to True.
-            tracker_db_path: The ``tracker_analysis.tracker_db_path`` override, whose
-                content (with the built-in signature database) keys tracker and
-                full results.
+            tracker_db_path: The ``tracker_analysis.tracker_db_path`` override; its
+                content, with the built-in signature database, makes up
+                :meth:`signature_db_key`.
         """
         self.logger = logging.getLogger(__name__)
         self.enabled = enabled
@@ -310,14 +307,17 @@ class AnalysisCacheManager:
                     tmp.unlink()
             raise
 
-    def _signature_db_key(self) -> str:
-        """Short digest of the effective tracker signature database (memoized)."""
+    def signature_db_key(self) -> str:
+        """Short digest of the effective tracker signature database (memoized per run).
+
+        Callers fold it into the key of results that depend on tracker detection.
+        """
         if self._signature_db_hash is None:
             self._signature_db_hash = signature_db_digest(self.tracker_db_path)[:16]
         return self._signature_db_hash
 
     def _full_result_path(self, md5: str, config_hash: str) -> Path:
-        return self._apk_dir(md5) / f"full_result__{config_hash}-{self._signature_db_key()}.json"
+        return self._apk_dir(md5) / f"full_result__{config_hash}.json"
 
     def _apk_write_lock(self, md5: str) -> threading.Lock:
         """Return the in-process lock serializing this process's writes for one APK."""
@@ -476,8 +476,6 @@ class AnalysisCacheManager:
     # Tier 3: per-module result dicts (keyed by module + effective-config hash)
     # ------------------------------------------------------------------ #
     def _module_path(self, md5: str, module_name: str, config_hash: str) -> Path:
-        if module_name in SIGNATURE_DB_MODULES:
-            config_hash = f"{config_hash}-{self._signature_db_key()}"
         return self._apk_dir(md5) / "modules" / f"{module_name}__{config_hash}.json"
 
     def get_module_result(self, md5: str, module_name: str, config_hash: str) -> dict[str, Any] | None:

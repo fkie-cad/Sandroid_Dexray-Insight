@@ -59,7 +59,7 @@ class TestAnalysisSchemaVersionInCacheKey:
 
 
 class TestSignatureDbInCacheKey:
-    """Editing the tracker signature database must invalidate tracker and full results."""
+    """Editing the tracker signature database must invalidate tracker-dependent results."""
 
     MD5 = "0123456789abcdef0123456789abcdef"
 
@@ -87,29 +87,59 @@ class TestSignatureDbInCacheKey:
             patched = cache_manager.signature_db_digest(None)
         assert patched != cache_manager.signature_db_digest(None)
 
-    def test_db_change_invalidates_tracker_and_full_results_only(self, tmp_path):
-        db_path = self._override(tmp_path, "A")
-        writer = self._manager(tmp_path, db_path)
-        writer.set_module_result(self.MD5, "tracker_analysis", "cfg", {"total_trackers": 1})
-        writer.set_module_result(self.MD5, "string_analysis", "cfg", {"urls": []})
-        writer.set_full_result(self.MD5, "cfg", {"main": {}, "security": None})
-
-        same = self._manager(tmp_path, db_path)
-        assert same.get_module_result(self.MD5, "tracker_analysis", "cfg") == {"total_trackers": 1}
-        assert same.get_full_result(self.MD5, "cfg") == {"main": {}, "security": None}
-
-        self._override(tmp_path, "B")
-        changed = self._manager(tmp_path, db_path)
-        assert changed.get_module_result(self.MD5, "tracker_analysis", "cfg") is None
-        assert changed.get_full_result(self.MD5, "cfg") is None
-        assert changed.get_module_result(self.MD5, "string_analysis", "cfg") == {"urls": []}
-
-    def test_engine_passes_tracker_db_path(self, tmp_path):
-        db_path = self._override(tmp_path, "A")
+    def _engine(self, tmp_path, db_path):
         config = Configuration(
             config_dict={
                 "caching": {"cache_dir": str(tmp_path / "cache")},
                 "modules": {"tracker_analysis": {"tracker_db_path": db_path}},
             }
         )
-        assert AnalysisEngine(config).cache_manager.tracker_db_path == db_path
+        return AnalysisEngine(config)
+
+    def test_full_result_key_follows_db_when_tracker_analysis_runs(self, tmp_path):
+        db_path = self._override(tmp_path, "A")
+        with_tracker = ["string_analysis", "tracker_analysis"]
+        without_tracker = ["string_analysis"]
+        before = self._engine(tmp_path, db_path)
+        before_keys = (before._full_hit_config_hash(with_tracker), before._full_hit_config_hash(without_tracker))
+
+        self._override(tmp_path, "B")
+        after = self._engine(tmp_path, db_path)
+
+        assert after._full_hit_config_hash(with_tracker) != before_keys[0]
+        assert after._full_hit_config_hash(without_tracker) == before_keys[1]
+
+    def test_pii_flow_deep_cache_key_includes_db(self):
+        from dexray_insight.security import pii_flow_assessment
+
+        keys = []
+
+        def fake_cached(context, name, config, build_fn):
+            keys.append(cache_manager.hash_config(config))
+            return []
+
+        def assess(db_key):
+            manager = mock.Mock()
+            manager.signature_db_key.return_value = db_key
+            context = mock.Mock(config={"deep_mode": True}, cache_manager=manager)
+            pii_flow_assessment.PIIFlowAssessment({}).assess({}, context)
+
+        with mock.patch.object(pii_flow_assessment, "cached_deep_findings", side_effect=fake_cached):
+            assess("db-a")
+            assess("db-a")
+            assess("db-b")
+        assert keys[0] == keys[1] != keys[2]
+
+    def test_module_results_are_not_keyed_by_db(self, tmp_path):
+        db_path = self._override(tmp_path, "A")
+        writer = self._manager(tmp_path, db_path)
+        writer.set_module_result(self.MD5, "string_analysis", "cfg", {"urls": []})
+        writer_key = writer.signature_db_key()
+        self._override(tmp_path, "B")
+        reader = self._manager(tmp_path, db_path)
+        assert reader.signature_db_key() != writer_key
+        assert reader.get_module_result(self.MD5, "string_analysis", "cfg") == {"urls": []}
+
+    def test_engine_passes_tracker_db_path(self, tmp_path):
+        db_path = self._override(tmp_path, "A")
+        assert self._engine(tmp_path, db_path).cache_manager.tracker_db_path == db_path
