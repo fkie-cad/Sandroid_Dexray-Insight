@@ -51,6 +51,8 @@ logger = logging.getLogger(__name__)
 SIGNATURE_DB_PATH = Path(__file__).with_name("signature_db.json")
 ENTRY_KINDS = ("tracker", "recipient", "protection")
 PROTECTION_DEFEATS = ("root", "frida", "debug", "emulator", "integrity", "ssl")
+#: Entry fields that must be lists of strings
+LIST_FIELDS = ("patterns", "version_patterns", "network_patterns", "network_domains", "native_libs", "defeats")
 
 
 @lru_cache(maxsize=1)
@@ -66,9 +68,9 @@ def load_signature_db(path: str | None = None) -> dict[str, dict[str, Any]]:
     Args:
         path: Optional JSON file with the same layout as the built-in
             ``signature_db.json`` (``{"entries": {id: {...}}}``). Its entries
-            are merged onto the built-in ones by id: new ids are added, and
-            fields of existing ids are overridden. Entries without ``kind``
-            default to ``tracker``.
+            are merged onto the built-in ones by id: new ids are added,
+            fields of existing ids are overridden, and ``"disabled": true``
+            removes an entry. Entries without ``kind`` default to ``tracker``.
 
     Returns:
         Dict mapping entry id to entry (a fresh copy; safe to modify).
@@ -89,11 +91,30 @@ def load_signature_db(path: str | None = None) -> dict[str, dict[str, Any]]:
     for entry_id, fields in overrides.items():
         if not isinstance(fields, dict):
             raise ValueError(f"Signature DB {path}: entry '{entry_id}' must be an object")
-        merged = {**entries.get(entry_id, {}), **fields}
+        if fields.get("disabled") is True:
+            entries.pop(entry_id, None)
+            continue
+        for field in LIST_FIELDS:
+            value = fields.get(field)
+            if value is not None and not (isinstance(value, list) and all(isinstance(v, str) for v in value)):
+                raise ValueError(f"Signature DB {path}: '{entry_id}.{field}' must be a list of strings")
+        merged = {**entries.get(entry_id, {}), **fields, "override": True}
         merged.setdefault("kind", "tracker")
         if merged["kind"] not in ENTRY_KINDS:
             raise ValueError(f"Signature DB {path}: entry '{entry_id}' has unknown kind '{merged['kind']}'")
         entries[entry_id] = merged
+
+    names: dict[str, str] = {}
+    for entry_id, entry in entries.items():
+        if entry.get("kind") != "tracker":
+            continue
+        name = entry.get("name", entry_id)
+        if name in names:
+            logger.warning(
+                f"Signature DB {path}: trackers '{names[name]}' and '{entry_id}' share the name '{name}'; "
+                f"only '{entry_id}' is used for tracker detection"
+            )
+        names[name] = entry_id
     logger.debug(f"Loaded {len(overrides)} signature entries from {path}")
     return entries
 
@@ -162,12 +183,15 @@ class TrackerDatabase:
     with metadata for advertising, analytics, and tracking SDKs.
 
     The class-level API (``TRACKER_DATABASE`` and the classmethods) reflects
-    the built-in database. An instance additionally applies the optional
-    user file passed as ``db_path`` (see :func:`load_signature_db`).
+    the built-in trackers, including entries added to, replaced in or removed
+    from ``TRACKER_DATABASE`` at runtime. An instance additionally applies the
+    optional user file passed as ``db_path`` (see :func:`load_signature_db`);
+    its :meth:`get_trackers` honours runtime changes to ``TRACKER_DATABASE``
+    for names the user file does not override.
     """
 
     # Built-in trackers keyed by name: patterns, version patterns and metadata
-    TRACKER_DATABASE: dict[str, dict[str, Any]] = _trackers_by_name(_load_builtin_entries())
+    TRACKER_DATABASE: dict[str, dict[str, Any]] = copy.deepcopy(_trackers_by_name(_load_builtin_entries()))
 
     def __init__(self, db_path: str | None = None):
         """Initialize with the built-in database plus optional overrides from ``db_path``."""
@@ -175,7 +199,17 @@ class TrackerDatabase:
 
     def get_trackers(self) -> dict[str, dict[str, Any]]:
         """Get the trackers of this instance's database, keyed by name."""
-        return _trackers_by_name(self.entries)
+        trackers = _trackers_by_name(self.entries)
+        builtin = _trackers_by_name(_load_builtin_entries())
+        overridden = {name for name, info in trackers.items() if info.get("override")}
+        legacy = type(self).TRACKER_DATABASE
+        # Legacy extension point: code that edits TrackerDatabase.TRACKER_DATABASE
+        for name in builtin.keys() - legacy.keys() - overridden:
+            trackers.pop(name, None)
+        for name, info in legacy.items():
+            if name not in overridden and info != builtin.get(name):
+                trackers[name] = info
+        return trackers
 
     def get_protections(self) -> dict[str, dict[str, Any]]:
         """Get the protection entries of this instance's database, keyed by id."""

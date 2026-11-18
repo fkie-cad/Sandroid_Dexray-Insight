@@ -5,6 +5,7 @@
 
 import json
 import zipfile
+from unittest import mock
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
@@ -95,6 +96,42 @@ class TestLoadSignatureDb:
     def test_malformed_override_raises(self, tmp_path, data):
         with pytest.raises(ValueError):
             load_signature_db(_write_json(tmp_path / "bad.json", data))
+
+    def test_disabled_removes_entry(self, tmp_path):
+        path = _write_json(tmp_path / "db.json", {"entries": {"google_admob": {"disabled": True}}})
+        entries = load_signature_db(path)
+        assert "google_admob" not in entries
+        assert "Google AdMob" not in TrackerDatabase(path).get_trackers()
+
+    @pytest.mark.parametrize("field", ["network_domains", "patterns", "native_libs", "defeats"])
+    def test_list_fields_must_be_lists_of_strings(self, tmp_path, field):
+        path = _write_json(tmp_path / "db.json", {"entries": {"acme": {field: "acme.com"}}})
+        with pytest.raises(ValueError, match=field):
+            load_signature_db(path)
+
+    def test_duplicate_tracker_names_warn(self, tmp_path, caplog):
+        path = _write_json(tmp_path / "db.json", {"entries": {"admob_copy": {"name": "Google AdMob"}}})
+        with caplog.at_level("WARNING"):
+            load_signature_db(path)
+        assert "share the name 'Google AdMob'" in caplog.text
+
+    def test_runtime_edits_to_tracker_database_are_honoured(self, tmp_path):
+        added = {"patterns": [r"com\.acme\."], "category": "Analytics"}
+        replaced = {"patterns": [r"com\.custom\.admob"], "category": "Advertising"}
+        with mock.patch.dict(TrackerDatabase.TRACKER_DATABASE, {"Acme": added, "Google AdMob": replaced}):
+            del TrackerDatabase.TRACKER_DATABASE["Vungle"]
+            trackers = TrackerDatabase().get_trackers()
+            assert trackers["Acme"] is added
+            assert trackers["Google AdMob"] is replaced
+            assert "Vungle" not in trackers
+            assert "Acme" in TrackerDatabase.get_tracker_database()
+            assert TrackerDatabase.get_tracker_count() == 22
+
+            # A user file overriding a tracker wins over the runtime edit.
+            path = _write_json(tmp_path / "db.json", {"entries": {"google_admob": {"label": "AdMob"}}})
+            assert TrackerDatabase(path).get_trackers()["Google AdMob"]["label"] == "AdMob"
+        assert "Vungle" in TrackerDatabase().get_trackers()
+        assert "Acme" not in TrackerDatabase().get_trackers()
 
     def test_module_falls_back_to_builtin_on_bad_override(self):
         module = TrackerAnalysisModule({"fetch_exodus_trackers": False, "tracker_db_path": "/nonexistent/db.json"})
