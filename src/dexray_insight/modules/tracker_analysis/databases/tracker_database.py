@@ -119,22 +119,40 @@ def load_signature_db(path: str | None = None) -> dict[str, dict[str, Any]]:
     return entries
 
 
-def _build_domain_index(entries: dict[str, dict[str, Any]]) -> list[tuple[str, str, str]]:
-    """Return (suffix, label, entry_id) sorted most specific (most labels) first."""
-    index = []
+def _build_domain_index(entries: dict[str, dict[str, Any]]) -> list[tuple[str, bool, str, str]]:
+    """Return (suffix, subdomains_only, label, entry_id), most specific first.
+
+    Specificity is the number of labels, then the length; on a tie a domain
+    from the user override file (``tracker_db_path``) beats a built-in one.
+    ``*.x.com`` matches subdomains of ``x.com`` only.
+    """
+    ranked = []
     for entry_id, entry in entries.items():
         label = entry.get("label") or entry.get("name") or entry_id
         for domain in entry.get("network_domains") or []:
             suffix = domain.strip().lower().strip(".")
+            subdomains_only = suffix.startswith("*.")
+            suffix = suffix.removeprefix("*.")
             if suffix:
-                index.append((suffix, label, entry_id))
-    index.sort(key=lambda item: (-item[0].count("."), -len(item[0])))
-    return index
+                rank = (-suffix.count("."), -len(suffix), not entry.get("override"))
+                ranked.append((rank, (suffix, subdomains_only, label, entry_id)))
+    ranked.sort(key=lambda item: item[0])
+    return [item for _, item in ranked]
 
 
 @lru_cache(maxsize=1)
-def _builtin_domain_index() -> tuple[tuple[str, str, str], ...]:
+def _builtin_domain_index() -> tuple[tuple[str, bool, str, str], ...]:
     return tuple(_build_domain_index(_load_builtin_entries()))
+
+
+def _normalize_host(host: str) -> str:
+    """Lower-case a host and strip brackets, a port and the trailing dot."""
+    host = host.strip().lower()
+    if host.startswith("["):  # [IPv6]:port
+        return host[1:].split("]", 1)[0]
+    if host.count(":") == 1:  # host:port (a bare IPv6 address has several colons)
+        host = host.split(":", 1)[0]
+    return host.rstrip(".")
 
 
 def label_for_domain(host: str, entries: dict[str, dict[str, Any]] | None = None) -> tuple[str, str] | None:
@@ -144,10 +162,10 @@ def label_for_domain(host: str, entries: dict[str, dict[str, Any]] | None = None
     The most specific matching suffix wins, so ``firebaselogging.googleapis.com``
     resolves to Google Analytics rather than the generic ``googleapis.com``.
     A suffix matches the host itself or any subdomain of it (``evilgoogle.com``
-    does not match ``google.com``).
+    does not match ``google.com``); a ``*.x.com`` suffix matches subdomains only.
 
     Args:
-        host: Hostname (a trailing port or dot is ignored).
+        host: Hostname (a port, brackets and the trailing dot are ignored).
         entries: Optional database from :func:`load_signature_db`; defaults
             to the built-in database.
 
@@ -156,12 +174,10 @@ def label_for_domain(host: str, entries: dict[str, dict[str, Any]] | None = None
     """
     if not host:
         return None
-    host = host.strip().lower().rstrip(".")
-    if ":" in host and not host.startswith("["):
-        host = host.rsplit(":", 1)[0]
+    host = _normalize_host(host)
     index = _builtin_domain_index() if entries is None else _build_domain_index(entries)
-    for suffix, label, entry_id in index:
-        if host == suffix or host.endswith("." + suffix):
+    for suffix, subdomains_only, label, entry_id in index:
+        if host.endswith("." + suffix) or (host == suffix and not subdomains_only):
             return label, entry_id
     return None
 

@@ -152,12 +152,16 @@ class TestLabelForDomain:
             ("scontent.fbcdn.net", ("Meta", "meta")),
             ("api2.amplitude.com", ("Amplitude", "amplitude")),
             ("analytics.cloud.unity3d.com", ("Unity Analytics", "unity_analytics")),
-            ("config.unity3d.com", ("Unity Ads", "unity_ads")),
+            ("config.unity3d.com", ("Unity", "unity")),
+            ("auction.unityads.unity3d.com", ("Unity Ads", "unity_ads")),
             ("APPSFLYER.COM.", ("AppsFlyer", "appsflyer")),
             ("sentry.io:443", ("Sentry", "sentry")),
+            ("app-measurement.com.:443", ("Google Analytics", "google_firebase_analytics")),
+            ("[2001:db8::1]:443", None),
+            ("2001:db8::1", None),
         ],
     )
-    def test_most_specific_suffix_wins(self, host, expected):
+    def test_host_lookup(self, host, expected):
         assert label_for_domain(host) == expected
 
     @pytest.mark.parametrize("host", ["", "example.org", "evilgoogle.com", "google.com.evil.org"])
@@ -173,8 +177,24 @@ class TestLabelForDomain:
         assert label_for_domain("x.t.googleapis.com", entries) == ("Acme", "acme")
         assert label_for_domain("x.t.googleapis.com") == ("Google", "google")
 
+    def test_wildcard_matches_subdomains_only(self, tmp_path):
+        path = _write_json(
+            tmp_path / "db.json",
+            {"entries": {"acme": {"kind": "recipient", "label": "Acme", "network_domains": ["*.acme.example"]}}},
+        )
+        entries = load_signature_db(path)
+        assert label_for_domain("api.acme.example", entries) == ("Acme", "acme")
+        assert label_for_domain("acme.example", entries) is None
+
+    def test_override_domain_wins_tie_with_builtin(self, tmp_path):
+        path = _write_json(
+            tmp_path / "db.json",
+            {"entries": {"my_sentry": {"kind": "recipient", "label": "Our Sentry", "network_domains": ["sentry.io"]}}},
+        )
+        assert label_for_domain("o1.ingest.sentry.io", load_signature_db(path)) == ("Our Sentry", "my_sentry")
+
     def test_sandroid_recipient_parity(self):
-        """Every domain of Sandroid's former recipient list keeps its label."""
+        """Every domain of Sandroid's former recipient list keeps its label (except unity3d.com)."""
         sandroid_recipients = {
             "app-measurement.com": "Google Analytics",
             "google-analytics.com": "Google Analytics",
@@ -192,7 +212,7 @@ class TestLabelForDomain:
             "appboy.com": "Braze",
             "cookielaw.org": "OneTrust",
             "applovin.com": "AppLovin",
-            "unity3d.com": "Unity Ads",
+            "unity3d.com": "Unity",  # was "Unity Ads"; only unityads.unity3d.com is ads-specific
             "bytedance.com": "TikTok",
             "nr-data.net": "New Relic",
             "datadoghq.com": "Datadog",

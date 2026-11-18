@@ -188,7 +188,7 @@
         "unityads\\.unity3d\\.com"
       ],
       "network_domains": [
-        "unity3d.com"
+        "unityads.unity3d.com"
       ]
     },
     "unity_analytics": {
@@ -547,6 +547,15 @@
       "network_domains": [
         "fbcdn.net",
         "instagram.com"
+      ]
+    },
+    "unity": {
+      "kind": "recipient",
+      "name": "Unity",
+      "label": "Unity",
+      "category": "Platform",
+      "network_domains": [
+        "unity3d.com"
       ]
     },
     "appsflyer": {
