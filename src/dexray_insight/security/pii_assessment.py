@@ -524,10 +524,17 @@ class PIIAssessment(BaseSecurityAssessment):
 
     @staticmethod
     def _api_call_text(call: Any) -> str:
-        """Lowercased text of an api_invocation call (string or dict shape)."""
+        """Lowercased text of the *called* API of an api_invocation call.
+
+        For the dict shape only ``called_class``/``called_method`` count: the
+        caller's own class or method name (e.g. an app method that happens to
+        be named ``getLastKnownLocation``) must not satisfy a sink.
+        """
         if isinstance(call, str):
             return call.lower()
         if isinstance(call, dict):
+            if "called_class" in call or "called_method" in call:
+                return f"{call.get('called_class', '')} {call.get('called_method', '')}".lower()
             return " ".join(str(v) for v in call.values()).lower()
         return str(call).lower()
 

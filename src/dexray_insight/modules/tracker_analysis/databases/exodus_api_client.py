@@ -62,9 +62,7 @@ def _tracker_categories(tracker_info: dict[str, Any]) -> list[str]:
     ``["Analytics", "Ads"]``); a singular ``category`` string is accepted too
     for older caches and hand-written records.
     """
-    raw = tracker_info.get("categories")
-    if raw is None:
-        raw = tracker_info.get("category")
+    raw = tracker_info.get("categories") or tracker_info.get("category")
     if isinstance(raw, str):
         raw = [raw]
     if not isinstance(raw, list):

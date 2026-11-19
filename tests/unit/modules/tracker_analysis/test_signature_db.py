@@ -253,6 +253,7 @@ class TestExodusCache:
             ({"categories": []}, "Unknown", []),
             ({}, "Unknown", []),
             ({"categories": "Ads"}, "Ads", ["Ads"]),
+            ({"categories": [], "category": "Analytics"}, "Analytics", ["Analytics"]),
         ],
     )
     def test_parse_reads_the_categories_list(self, record, category, categories):

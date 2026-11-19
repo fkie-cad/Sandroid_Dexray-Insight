@@ -120,6 +120,7 @@ class APIInvocationAnalysisModule(BaseAnalysisModule):
         "Lnet/sqlcipher/",
         "Lnet/zetetic/database/sqlcipher/",
     )
+    _SDK_VENDOR_ROOTS = ("Lcom/google/android/gms/", "Lcom/google/firebase/", "Lcom/facebook/")
 
     def __init__(self, config: dict[str, Any]):
         """Initialize APIInvocationAnalysisModule with configuration."""
@@ -266,7 +267,8 @@ class APIInvocationAnalysisModule(BaseAnalysisModule):
                         full_method_name = f"{called_class}.{called_method.get_method().get_name()}"
 
                         for pattern in reflection_patterns:
-                            if pattern in full_method_name:
+                            # Exact match: "Field.get" must not match getName/getType.
+                            if full_method_name == pattern:
                                 reflection_usage.append(
                                     {
                                         "caller_class": method.get_method().get_class_name(),
@@ -343,7 +345,11 @@ class APIInvocationAnalysisModule(BaseAnalysisModule):
             return True
         for prefix in cls.PRIVACY_SDK_API_PREFIXES:
             if called_class.startswith(prefix):
-                return not caller_class.startswith(prefix)
+                # Google SDKs call their public APIs from shared internal
+                # packages (gms/internal/..., gms/measurement/...), so treat the
+                # whole vendor tree as "inside the SDK".
+                vendor = next((v for v in cls._SDK_VENDOR_ROOTS if prefix.startswith(v)), prefix)
+                return not caller_class.startswith(vendor)
         return False
 
     @staticmethod

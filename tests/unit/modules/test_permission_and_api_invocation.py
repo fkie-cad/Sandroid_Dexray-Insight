@@ -103,3 +103,36 @@ class TestApiInvocation:
         caller = _method("Lcom/google/android/gms/ads/identifier/AdvertisingIdClient;", "getAdvertisingIdInfo", [ad_id])
 
         assert self._run([caller]).api_calls == []
+
+    def test_skips_google_internal_packages_calling_public_apis(self):
+        fused = _method("Lcom/google/android/gms/location/FusedLocationProviderClient;", "getLastLocation")
+        internal = _method("Lcom/google/android/gms/internal/location/zzbe;", "zza", calls=[fused])
+        measurement = _method("Lcom/google/android/gms/measurement/internal/zzk;", "run", calls=[fused])
+
+        assert self._run([internal, measurement]).api_calls == []
+
+    def test_reflection_patterns_match_exact_methods_only(self):
+        get_name = _method("Ljava/lang/reflect/Field;", "getName")
+        get_type = _method("Ljava/lang/reflect/Field;", "getType")
+        field_get = _method("Ljava/lang/reflect/Field;", "get")
+        caller = _method("Lcom/example/app/Loader;", "load", calls=[get_name, get_type, field_get])
+
+        result = self._run([caller])
+
+        assert [r["reflection_api"] for r in result.reflection_usage] == ["java.lang.reflect.Field.get"]
+
+
+class TestPiiCorrelationUsesCalledApiOnly:
+    def test_caller_method_name_does_not_satisfy_a_sink(self):
+        from dexray_insight.security.pii_assessment import PIIAssessment
+
+        call = {
+            "caller_class": "Lcom/example/app/Geo;",
+            "caller_method": "getLastKnownLocation",
+            "called_class": "Landroid/util/Log;",
+            "called_method": "d",
+        }
+        assert "getlastknownlocation" not in PIIAssessment._api_call_text(call)
+        assert PIIAssessment._api_call_text({**call, "called_method": "getLastKnownLocation"}).endswith(
+            "getlastknownlocation"
+        )
