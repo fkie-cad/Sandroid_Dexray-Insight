@@ -9,6 +9,49 @@ and this project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0
 [Unreleased]
 ------------
 
+[2.1.0] - 2026-11-19
+--------------------
+
+Added
+~~~~~
+- **Shared tracker signature database**: tracker signatures ship as a JSON
+  database (``TRACKER_DATABASE``) shared with Sandroid; runtime edits are honoured
+  and overrides are validated
+- Tracker detection for **anti-analysis and integrity-protection SDKs** (Play
+  Integrity / SafetyNet require real entry points, with evidence)
+- **Exodus tracker list cached on disk** with an offline mode; the
+  Exodus-derived built-in entries are marked with their source
+- ``label_for_domain`` for labelling tracker hosts (used by Sandroid's Network lens)
+- ``api_invocation_analysis`` records calls into privacy-relevant third-party SDKs
+  (Google Play services, Firebase, Facebook) as ``third_party_sdk``
+- Documentation of the signature database and Exodus cache options
+
+Changed
+~~~~~~~
+- The analysis cache is safe on shared and network folders: one cache subtree per
+  environment fingerprint, an in-process lock instead of a lock file, and a
+  metadata index merged with tombstones instead of directory scans
+- Tracker results, full results and deep ``pii_flow`` findings are keyed by the
+  signature database, so a database update invalidates them
+- Cache schema version bumped (``2026-11-19-permissions-api-invocation-exodus-categories``):
+  results cached by 2.0.0 are recomputed
+
+Fixed
+~~~~~
+- ``permission_analysis`` returned no permissions whenever an androguard object was
+  present (placeholder list); this also silenced the PII permission/API pairing
+- ``api_invocation_analysis`` dropped calls into third-party SDKs and compared
+  dotted with slash-form class names
+- The Exodus parser read ``category`` instead of the API's ``categories`` list, and
+  an empty list now falls back correctly
+- PII API matching uses only the called class and method (not the caller's method
+  name); reflection patterns match exactly; SDK-internal callers are not counted
+  as app use
+- ``label_for_domain`` host parsing and Unity labels; Exodus disk cache hardening
+
+[2.0.0] - 2026-07-22
+--------------------
+
 Added
 ~~~~~
 - **Verification status** on every finding (``confirmed`` / ``needs_review`` /
