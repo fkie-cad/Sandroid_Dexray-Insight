@@ -245,6 +245,22 @@ class TestExodusCache:
         client = ExodusAPIClient({})
         assert client.cache_path.parts[-3:] == (".dexray_insight", "exodus_cache", "trackers.json")
 
+    @pytest.mark.parametrize(
+        ("record", "category", "categories"),
+        [
+            ({"categories": ["Analytics", "Ads"]}, "Analytics, Ads", ["Analytics", "Ads"]),
+            ({"category": "Analytics"}, "Analytics", ["Analytics"]),
+            ({"categories": []}, "Unknown", []),
+            ({}, "Unknown", []),
+            ({"categories": "Ads"}, "Ads", ["Ads"]),
+        ],
+    )
+    def test_parse_reads_the_categories_list(self, record, category, categories):
+        """The Exodus API publishes ``categories`` (a list), not ``category``."""
+        parsed = ExodusAPIClient._parse_trackers({"trackers": {"69": {"name": "Facebook Places", **record}}})
+        assert parsed[0]["category"] == category
+        assert parsed[0]["categories"] == categories
+
     def test_online_fetch_writes_cache(self, tmp_path):
         client = self._client(tmp_path)
         response = MagicMock()

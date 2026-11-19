@@ -55,6 +55,23 @@ import requests
 DEFAULT_EXODUS_CACHE_PATH = Path.home() / ".dexray_insight" / "exodus_cache" / "trackers.json"
 
 
+def _tracker_categories(tracker_info: dict[str, Any]) -> list[str]:
+    """Return a tracker's categories from an Exodus record.
+
+    The Exodus API publishes ``categories`` as a list of strings (e.g.
+    ``["Analytics", "Ads"]``); a singular ``category`` string is accepted too
+    for older caches and hand-written records.
+    """
+    raw = tracker_info.get("categories")
+    if raw is None:
+        raw = tracker_info.get("category")
+    if isinstance(raw, str):
+        raw = [raw]
+    if not isinstance(raw, list):
+        return []
+    return [c.strip() for c in raw if isinstance(c, str) and c.strip()]
+
+
 class ExodusAPIClient:
     """
     Client for Exodus Privacy tracker API integration.
@@ -164,12 +181,14 @@ class ExodusAPIClient:
             for tracker_id, tracker_info in data["trackers"].items():
                 if not isinstance(tracker_info, dict):
                     continue
+                categories = _tracker_categories(tracker_info)
                 trackers.append(
                     {
                         "id": tracker_id,
                         "name": tracker_info.get("name", f"Unknown Tracker {tracker_id}"),
                         "description": tracker_info.get("description", ""),
-                        "category": tracker_info.get("category", "Unknown"),
+                        "category": ", ".join(categories) if categories else "Unknown",
+                        "categories": categories,
                         "website": tracker_info.get("website", ""),
                         "code_signature": tracker_info.get("code_signature", ""),
                         "network_signature": tracker_info.get("network_signature", ""),
