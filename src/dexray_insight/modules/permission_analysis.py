@@ -198,15 +198,12 @@ class PermissionAnalysisModule(BaseAnalysisModule):
         start_time = time.time()
 
         try:
-            # Use existing androguard object if available
-            if context.androguard_obj:
-                # Try to get permissions from the existing androguard object
-                # This would need to be adapted based on the actual interface
-                all_permissions = []  # Placeholder - would extract from androguard_obj
-            else:
-                # Create new APK instance
+            # Reuse the already-parsed APK when the engine provides one; only
+            # parse the file again when no androguard object is available.
+            apk = context.androguard_obj.get_androguard_apk() if context.androguard_obj else None
+            if apk is None:
                 apk = APK(apk_path)
-                all_permissions = apk.get_permissions()
+            all_permissions = list(apk.get_permissions() or [])
 
             # Find critical permissions
             found_critical_permissions = []

@@ -96,6 +96,31 @@ class APIInvocationAnalysisModule(BaseAnalysisModule):
         "java.lang.reflect",
     ]
 
+    # Bundled third-party SDK APIs that read or transmit personal data. These
+    # classes ship inside the APK (they are not framework classes), so they
+    # are recorded explicitly; calls made from inside the same SDK are skipped
+    # to keep the result to the app's (or another SDK's) use of the API.
+    PRIVACY_SDK_API_PREFIXES = (
+        "Lcom/google/android/gms/ads/identifier/",  # AdvertisingIdClient
+        "Lcom/google/android/gms/appset/",  # App Set ID
+        "Lcom/google/android/gms/location/",  # FusedLocationProviderClient
+        "Lcom/google/android/gms/auth/api/signin/",  # Google account sign-in
+        "Lcom/google/firebase/analytics/",
+        "Lcom/google/firebase/crashlytics/",
+        "Lcom/google/firebase/installations/",
+        "Lcom/huawei/hms/ads/identifier/",  # OAID
+        "Lcom/facebook/appevents/",
+        "Lcom/appsflyer/",
+        "Lcom/adjust/sdk/",
+        "Lio/branch/referral/",
+        "Lcom/mixpanel/android/",
+        "Lcom/amplitude/",
+        "Lcom/segment/analytics/",
+        "Landroidx/security/crypto/",  # EncryptedSharedPreferences / EncryptedFile
+        "Lnet/sqlcipher/",
+        "Lnet/zetetic/database/sqlcipher/",
+    )
+
     def __init__(self, config: dict[str, Any]):
         """Initialize APIInvocationAnalysisModule with configuration."""
         super().__init__(config)
@@ -198,10 +223,7 @@ class APIInvocationAnalysisModule(BaseAnalysisModule):
                         called_class = called_method.get_method().get_class_name()
                         called_method_name = called_method.get_method().get_name()
 
-                        # Check if this is an external API call
-                        if (
-                            called_class.startswith(("Landroid/", "Ljava/", "Ljavax/"))
-                        ):
+                        if self._is_recorded_call(class_name, called_class):
                             api_calls.append(
                                 {
                                     "caller_class": class_name,
@@ -240,9 +262,8 @@ class APIInvocationAnalysisModule(BaseAnalysisModule):
                     # Check for reflection API usage
                     for call in method.get_xref_to():
                         called_method = call[1]
-                        full_method_name = (
-                            f"{called_method.get_method().get_class_name()}.{called_method.get_method().get_name()}"
-                        )
+                        called_class = self._dotted_class_name(called_method.get_method().get_class_name())
+                        full_method_name = f"{called_class}.{called_method.get_method().get_name()}"
 
                         for pattern in reflection_patterns:
                             if pattern in full_method_name:
@@ -295,7 +316,7 @@ class APIInvocationAnalysisModule(BaseAnalysisModule):
         suspicious_calls = []
 
         for api_call in api_calls:
-            full_api_name = f"{api_call['called_class']}.{api_call['called_method']}"
+            full_api_name = f"{self._dotted_class_name(api_call['called_class'])}.{api_call['called_method']}"
 
             for suspicious_pattern in self.SUSPICIOUS_API_PATTERNS:
                 if suspicious_pattern in full_api_name:
@@ -310,8 +331,38 @@ class APIInvocationAnalysisModule(BaseAnalysisModule):
 
         return suspicious_calls
 
+    @classmethod
+    def _is_recorded_call(cls, caller_class: str, called_class: str) -> bool:
+        """Return True if a call should be recorded in ``api_calls``.
+
+        Framework calls (android/java/javax) are always recorded. Calls into a
+        privacy-relevant bundled SDK are recorded unless the caller is that
+        same SDK.
+        """
+        if called_class.startswith(("Landroid/", "Ljava/", "Ljavax/")):
+            return True
+        for prefix in cls.PRIVACY_SDK_API_PREFIXES:
+            if called_class.startswith(prefix):
+                return not caller_class.startswith(prefix)
+        return False
+
+    @staticmethod
+    def _dotted_class_name(class_name: str) -> str:
+        """Turn a smali descriptor into a Java-style dotted name.
+
+        ``Landroid/provider/Settings$Secure;`` -> ``android.provider.Settings.Secure``.
+        The pattern lists use this form; comparing them against raw descriptors
+        never matched.
+        """
+        name = class_name.strip()
+        if name.startswith("L") and name.endswith(";"):
+            name = name[1:-1]
+        return name.replace("/", ".").replace("$", ".")
+
     def _classify_api_type(self, class_name: str) -> str:
         """Classify the type of API based on class name."""
+        if class_name.startswith(self.PRIVACY_SDK_API_PREFIXES):
+            return "third_party_sdk"
         if class_name.startswith("Landroid/"):
             if "telephony" in class_name:
                 return "telephony"
