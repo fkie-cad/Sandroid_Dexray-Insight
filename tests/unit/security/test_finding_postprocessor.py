@@ -247,3 +247,51 @@ class TestFalsePositiveFilterUnitFixes:
         # Genuine descriptors/packages still detected.
         assert fpf.is_android_system_string("Landroid/view/View") is True
         assert fpf.is_android_system_string("androidx.core.content.ContextCompat") is True
+
+
+class TestBehaviourResultsDataclass:
+    """The engine passes the live BehaviourAnalysisResults dataclass, not a dict.
+
+    Regression: ``'BehaviourAnalysisResults' object has no attribute 'get'`` made the
+    whole post-processing pass fall back to unprocessed findings.
+    """
+
+    @staticmethod
+    def _behaviour(androguard_objects):
+        from src.dexray_insight.core.base_classes import AnalysisStatus
+        from src.dexray_insight.results.BehaviourAnalysisResults import BehaviourAnalysisResults
+
+        return BehaviourAnalysisResults(
+            module_name="behaviour_analysis",
+            status=AnalysisStatus.SUCCESS,
+            androguard_objects=androguard_objects,
+        )
+
+    def test_postprocessing_accepts_the_dataclass(self):
+        findings = [_secret_finding("your_api_key_here")]
+        for objects in ({"mode": "fast"}, {"mode": "deep"}, None):
+            analysis_results = {"behaviour_analysis": self._behaviour(objects)}
+            result = FindingPostProcessor().process(findings, analysis_results, _config())
+            assert result and result[0].confidence is not None
+
+    def test_analyzer_reads_androguard_objects_from_both_shapes(self):
+        analyzer = CodeContextAnalyzer()
+        assert analyzer._androguard_objects_of(self._behaviour({"mode": "deep"})) == {"mode": "deep"}
+        assert analyzer._androguard_objects_of(self._behaviour(None)) == {}
+        assert analyzer._androguard_objects_of({"androguard_objects": {"mode": "fast"}}) == {"mode": "fast"}
+        assert analyzer._androguard_objects_of({}) == {}
+
+    def test_security_engine_does_not_log_a_postprocessing_failure(self, caplog):
+        import logging
+        from unittest.mock import MagicMock
+
+        from src.dexray_insight.core.security_engine import SecurityAssessmentEngine
+
+        engine = SecurityAssessmentEngine.__new__(SecurityAssessmentEngine)
+        engine.config = MagicMock()
+        engine.config.get_context_analysis_config.return_value = _config()
+        engine.logger = logging.getLogger("test.security_engine")
+        findings = [_secret_finding("your_api_key_here")]
+        with caplog.at_level(logging.ERROR, logger="test.security_engine"):
+            engine._run_post_processing(findings, {"behaviour_analysis": self._behaviour({"mode": "fast"})})
+        assert "post-processing failed" not in caplog.text

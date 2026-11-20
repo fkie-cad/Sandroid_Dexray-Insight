@@ -581,21 +581,36 @@ class CodeContextAnalyzer:
         # No protection detected
         return ProtectionLevel.NONE
 
-    def _enhance_context_with_behavior_analysis(
-        self, context: CodeContext, behavior_analysis: dict[str, Any]
-    ) -> CodeContext:
+    @staticmethod
+    def _androguard_objects_of(behavior_analysis: Any) -> dict[str, Any]:
+        """Return the ``androguard_objects`` mapping of a behaviour result.
+
+        The analysis engine hands security assessments the live
+        ``BehaviourAnalysisResults`` dataclass (``androguard_objects`` is an
+        attribute there and is dropped by ``to_dict``); tests and older callers
+        pass a plain dict. Both shapes are accepted; a missing or ``None`` value
+        reads as an empty mapping.
+        """
+        if isinstance(behavior_analysis, dict):
+            objects = behavior_analysis.get("androguard_objects")
+        else:
+            objects = getattr(behavior_analysis, "androguard_objects", None)
+        return objects if isinstance(objects, dict) else {}
+
+    def _enhance_context_with_behavior_analysis(self, context: CodeContext, behavior_analysis: Any) -> CodeContext:
         """
         Enhance context with information from behavior analysis.
 
         Args:
             context: Existing code context
-            behavior_analysis: Behavior analysis results
+            behavior_analysis: Behavior analysis results, either the
+                ``BehaviourAnalysisResults`` dataclass or its dict form
 
         Returns:
             Enhanced CodeContext
         """
         # Check if we have androguard objects for deep analysis
-        androguard_objects = behavior_analysis.get("androguard_objects", {})
+        androguard_objects = self._androguard_objects_of(behavior_analysis)
 
         if androguard_objects.get("mode") == "deep":
             # Deep analysis mode - can extract more detailed context
