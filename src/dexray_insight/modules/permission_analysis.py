@@ -27,6 +27,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from ..apk_overview.requested_permissions import requested_permission_names
 from ..core.base_classes import AnalysisContext
 from ..core.base_classes import AnalysisStatus
 from ..core.base_classes import BaseAnalysisModule
@@ -203,7 +204,7 @@ class PermissionAnalysisModule(BaseAnalysisModule):
             apk = context.androguard_obj.get_androguard_apk() if context.androguard_obj else None
             if apk is None:
                 apk = APK(apk_path)
-            all_permissions = list(apk.get_permissions() or [])
+            all_permissions = requested_permission_names(apk)
 
             # Find critical permissions
             found_critical_permissions = []

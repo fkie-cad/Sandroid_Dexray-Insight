@@ -439,13 +439,20 @@ class APK_Overview:
                 self.package = self.get_attribute_value("manifest", "package")
                 self.androidversion["Code"] = self.get_attribute_value("manifest", "versionCode")
                 self.androidversion["Name"] = self.get_attribute_value("manifest", "versionName")
+                # <uses-permission-sdk-23> requests a permission just like
+                # <uses-permission> (on API 23+ only), so both count as requested.
                 permission = list(self.get_all_attribute_value("uses-permission", "name"))
+                permission += list(self.get_all_attribute_value("uses-permission-sdk-23", "name"))
                 self.permissions = list(set(self.permissions + permission))
 
-                for uses_permission in self.find_tags("uses-permission"):
-                    self.uses_permissions.append(
-                        [self.get_value_from_tag(uses_permission, "name"), self._get_permission_maxsdk(uses_permission)]
-                    )
+                for tag_name in ("uses-permission", "uses-permission-sdk-23"):
+                    for uses_permission in self.find_tags(tag_name):
+                        self.uses_permissions.append(
+                            [
+                                self.get_value_from_tag(uses_permission, "name"),
+                                self._get_permission_maxsdk(uses_permission),
+                            ]
+                        )
 
                 # getting details of the declared permissions
                 for d_perm_item in self.find_tags("permission"):

@@ -95,7 +95,7 @@ CACHE_SCHEMA_VERSION = 2
 # on the same tool version silently serves stale results (the package `tool_version` in the
 # fingerprint does not move during in-place development). This is the shallow-cache analog
 # of security/deep_cache.py's DEEP_SCHEMA_VERSION.
-ANALYSIS_SCHEMA_VERSION = "2026-11-19-permissions-api-invocation-exodus-categories"
+ANALYSIS_SCHEMA_VERSION = "2026-11-20-requested-permissions-sdk23-maxsdk"
 
 #: Prefix of the per-environment (fingerprint) subdirectories of ``cache_dir``.
 ENV_DIR_PREFIX = "env-"

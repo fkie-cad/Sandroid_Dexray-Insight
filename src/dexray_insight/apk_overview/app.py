@@ -36,6 +36,7 @@ from .apk import show_Certificate
 from .manifest_analysis import manifest_analysis
 from .manifest_utils import get_manifest
 from .manifest_utils import manifest_data
+from .requested_permissions import requested_permission_entries
 
 logger = logging.getLogger(__name__)
 logger.setLevel(level=logging.ERROR)
@@ -431,8 +432,12 @@ def analyze_apk(apk_path, apk_overview, app_dic, permissions_details=False):
     is_cross_platform = is_crossplatform(native_libs, directory_listing)
     cross_platform_framework = detect_framework(native_libs, directory_listing)
 
-    # all permissions declared in the APK
-    permission_listing = apk_overview.get_permissions()
+    # Every permission the manifest requests (<uses-permission> and
+    # <uses-permission-sdk-23>), unique names in manifest order, plus one entry per
+    # request with its tag and maxSdkVersion. The permissions the app defines
+    # itself (<permission>) are listed separately.
+    requested_permissions = requested_permission_entries(apk_overview)
+    permission_listing = list(dict.fromkeys(entry["name"] for entry in requested_permissions))
     declared_permission_listing = apk_overview.get_declared_permissions()
 
     # further analysis
@@ -462,6 +467,7 @@ def analyze_apk(apk_path, apk_overview, app_dic, permissions_details=False):
         "permissions": {
             "declared_permissions": declared_permission_listing,
             "permissions": permission_listing,
+            "requested_permissions": requested_permissions,
         },
         "certificates": {},  # Initialized as empty; updated below
         "native_libs": native_libs,

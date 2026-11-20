@@ -26,6 +26,7 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
+from ..apk_overview.requested_permissions import requested_permission_names
 from ..core.base_classes import AnalysisContext
 from ..core.base_classes import AnalysisStatus
 from ..core.base_classes import BaseAnalysisModule
@@ -123,7 +124,7 @@ class ManifestAnalysisModule(BaseAnalysisModule):
             # Extract basic information
             package_name = apk.get_package() or ""
             main_activity = apk.get_main_activity() or ""
-            permissions = list(apk.get_permissions()) or []
+            permissions = requested_permission_names(apk)
             activities = list(apk.get_activities()) or []
             services = list(apk.get_services()) or []
             receivers = list(apk.get_receivers()) or []
