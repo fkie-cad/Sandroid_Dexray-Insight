@@ -126,12 +126,12 @@ Analysis Control Options
 
    .. note::
 
-      With the shipped ``dexray.yaml`` (``security.cve_scanning.enabled: true``),
-      CVE scanning against the key-less **OSV** database already runs on every
-      ``-s`` run — the ``--cve`` flag is not required to trigger it. This makes
-      outbound network calls for any library that carries a detected version. CVE
-      scanning is now un-gated for Java/Android libraries (previously native-only).
-      Set ``security.cve_scanning.enabled: false`` to run offline.
+      CVE scanning is opt-in: the shipped ``dexray.yaml`` has
+      ``security.cve_scanning.enabled: false``, so a plain ``-s`` run makes no CVE
+      lookups. ``-s --cve`` (or ``enabled: true`` in your config) scans every
+      library that carries a detected version against the key-less **OSV**
+      database, which makes outbound network calls. CVE scanning covers
+      Java/Android libraries too (previously native-only).
 
    **Features**:
    

@@ -874,12 +874,10 @@ Dexray Insight includes comprehensive CVE (Common Vulnerabilities and Exposures)
 
    **Behavior change (v2).** CVE scanning is now **un-gated for Java/Android
    libraries** — previously it was native-only and, in practice, found nothing.
-   Because ``cve_scanning.enabled`` defaults to ``true`` in the shipped
-   ``dexray.yaml``, CVE scanning against OSV runs on **every** ``-s`` security
-   run for any library that carries a detected version. This makes outbound
-   network calls to the OSV API. To disable it, set
-   ``security.cve_scanning.enabled: false`` (or trim
-   ``security.cve_scanning.sources``).
+   CVE scanning is opt-in: ``cve_scanning.enabled`` is ``false`` in the shipped
+   ``dexray.yaml``. With ``-s --cve`` (or ``enabled: true``) it scans every
+   library that carries a detected version against OSV, which makes outbound
+   network calls to the OSV API.
 
 **Data-source defaults**:
 
@@ -890,17 +888,15 @@ Dexray Insight includes comprehensive CVE (Common Vulnerabilities and Exposures)
 
 **Enabling CVE Scanning**:
 
-CVE scanning is part of the security assessment. With the shipped configuration
-it already runs under ``-s`` (OSV source). The ``--cve`` flag remains available
-to force CVE scanning on and still requires security to be enabled (via ``-s``
-or a config file):
+CVE scanning is part of the security assessment and opt-in. The ``--cve`` flag
+turns it on and requires security to be enabled (via ``-s`` or a config file):
 
 .. code-block:: bash
 
-   # Security assessment — CVE scanning against OSV runs by default
+   # Security assessment without CVE lookups
    dexray-insight app.apk -s
 
-   # Explicitly force CVE scanning
+   # Security assessment with CVE scanning against OSV
    dexray-insight app.apk --sec --cve
 
    # With custom configuration

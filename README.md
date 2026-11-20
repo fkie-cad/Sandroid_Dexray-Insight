@@ -228,7 +228,7 @@ dexray-insight <path_to_apk> | less
 
 When we just interested in the security of an app we can use the `-s` flag in order to extend the analysis with security scanning:
 
-> **Note:** With the shipped `dexray.yaml`, a `-s` run performs **CVE scanning against the OSV database**, which makes outbound network calls for any detected library that carries a version. Set `security.cve_scanning.enabled: false` to run offline. The headline `overall_risk_score` reports the confirmed-subset score; NVD is off by default (needs an API key). See `docs/advanced/security_assessment.rst` and `MIGRATION.md` for details.
+> **Note:** CVE scanning is opt-in: `-s --cve` (or `security.cve_scanning.enabled: true`) scans detected libraries that carry a version against the **OSV database**, which makes outbound network calls. A plain `-s` run, also with the shipped `dexray.yaml`, does not. The headline `overall_risk_score` reports the confirmed-subset score; NVD is off by default (needs an API key). See `docs/advanced/security_assessment.rst` and `MIGRATION.md` for details.
 
 ```bash
 dexray-insight -d DEBUG -s 67673216-93c35cc190d1713fb37f9b04894a4c1e.apk

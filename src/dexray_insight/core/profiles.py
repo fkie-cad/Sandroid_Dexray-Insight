@@ -32,10 +32,11 @@ Profiles:
 Neither profile turns the security assessment itself on or off; that stays the
 caller's choice (``security.enable_owasp_assessment`` / ``-s``).
 
-A profile also lists *requirements*: when a setting switches on a feature that needs
-parts the profile turned off (``--cve`` needs library versions from apktool, native
-analysis and the similarity engine), those parts are switched back on, unless they
-were set explicitly; then a warning says the feature is limited.
+A profile also lists *requirements*: when the caller or a CLI flag switches on a
+feature that needs parts the profile turned off (``--cve`` needs library versions
+from apktool, native analysis and the similarity engine), those parts are switched
+back on, unless they were set explicitly; then a warning says the feature is limited.
+A feature switched on only by a ``-c`` file does not pull its prerequisites back.
 """
 
 from __future__ import annotations
@@ -61,10 +62,11 @@ class AnalysisProfile:
     title: str
     description: str
     overrides: dict[str, Any] = field(default_factory=dict)
-    #: ``(feature, {trigger_path: value}, {path: value})``: when the configuration
-    #: has every trigger value, every ``path`` that was not set explicitly is set
-    #: to ``value``.
-    requirements: tuple[tuple[str, dict[tuple[str, ...], Any], dict[tuple[str, ...], Any]], ...] = ()
+    #: ``(feature, switch_path, {trigger_path: value}, {path: value})``: when the
+    #: configuration has every trigger value and ``switch_path`` was set by the
+    #: caller (``config_dict``) or a CLI flag (not by a ``-c`` file), every
+    #: ``path`` that was not set explicitly is set to ``value``.
+    requirements: tuple[tuple[str, tuple[str, ...], dict[tuple[str, ...], Any], dict[tuple[str, ...], Any]], ...] = ()
 
 
 _OFF = {"enabled": False}
@@ -115,6 +117,7 @@ _PRIVACY_REQUIREMENTS = (
     # needs versioned libraries.
     (
         "CVE scanning",
+        ("security", "cve_scanning", "enabled"),
         {("security", "enable_owasp_assessment"): True, ("security", "cve_scanning", "enabled"): True},
         {
             ("modules", "native_analysis", "enabled"): True,

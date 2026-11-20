@@ -330,8 +330,9 @@ class Configuration:
         nothing set explicitly. Explicit keys are those of ``config_path`` whose
         value differs from the built-in defaults (a full copy of the shipped
         ``dexray.yaml`` changes nothing), every key of ``config_dict`` and every CLI
-        flag. A profile's requirements are re-applied after every later merge, for
-        keys that were not set explicitly.
+        flag. A profile's requirements apply when the caller or a CLI flag switches
+        the feature on, are re-applied after every later merge, and only touch keys
+        that were not set explicitly.
 
         Args:
             config_path: Path to configuration file (JSON or YAML)
@@ -348,6 +349,8 @@ class Configuration:
         self.profile: str | None = None
         #: Leaf key paths a user set explicitly; a profile never overrides them.
         self._explicit: set[tuple[str, ...]] = set()
+        #: The subset set by the caller (``config_dict``) or CLI flags.
+        self._explicit_by_caller: set[tuple[str, ...]] = set()
         self._warned_requirements: set[str] = set()
 
         # Try to load default config file first
@@ -457,6 +460,8 @@ class Configuration:
             for path, value in _leaves(new_config):
                 if explicit == "all" or _default_at(self.DEFAULT_CONFIG, path) != value:
                     self._explicit.add(path)
+                if explicit == "all":
+                    self._explicit_by_caller.add(path)
         merge_dict(self.config, new_config)
         if getattr(self, "profile", None):
             self._apply_profile_requirements()
@@ -472,7 +477,9 @@ class Configuration:
         """
         from .profiles import get_profile
 
-        for feature, triggers, required in get_profile(self.profile).requirements:
+        for feature, switch, triggers, required in get_profile(self.profile).requirements:
+            if switch not in self._explicit_by_caller:
+                continue  # switched on only by a -c file (or not at all)
             if any(self._get_nested(path) != value for path, value in triggers.items()):
                 continue
             kept_off = []
@@ -485,9 +492,7 @@ class Configuration:
                     self._set_nested_value(list(path), value)
             if kept_off and feature not in self._warned_requirements:
                 self._warned_requirements.add(feature)
-                logging.getLogger(__name__).warning(
-                    f"{feature} is limited: {', '.join(kept_off)} stay as configured"
-                )
+                logging.getLogger(__name__).warning(f"{feature} is limited: {', '.join(kept_off)} stay as configured")
 
     def _get_nested(self, path) -> Any:
         node: Any = self.config

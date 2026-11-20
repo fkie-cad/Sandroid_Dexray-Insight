@@ -763,15 +763,15 @@ See :doc:`advanced/security_assessment` for the full scoring model.
 CVE Scanning Configuration
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-CVE scanning is part of the security assessment and, with the shipped
-configuration, runs on every ``-s`` run against the key-less OSV database. This
-makes outbound network calls.
+CVE scanning is part of the security assessment and opt-in: ``-s --cve`` (or
+``enabled: true`` below) scans against the key-less OSV database, which makes
+outbound network calls. The shipped ``dexray.yaml`` leaves it off.
 
 .. code-block:: yaml
 
    security:
      cve_scanning:
-       enabled: true  # Runs under -s; set false to disable network CVE lookups
+       enabled: false  # Opt-in (--cve with -s); true runs network CVE lookups under -s
        sources:
          osv:            # Key-less default backend (Java + native libraries)
            enabled: true
@@ -787,7 +787,7 @@ makes outbound network calls.
 
 **Configuration Options**:
 
-* ``enabled``: Enable CVE scanning (default ``true``; performs network calls)
+* ``enabled``: Enable CVE scanning under ``-s`` (default ``false``; performs network calls)
 * ``sources.osv.enabled``: Key-less default source, on by default
 * ``sources.nvd.enabled``: NVD source, off by default (requires an API key)
 * ``sources.github.enabled``: GitHub Advisory source, off by default

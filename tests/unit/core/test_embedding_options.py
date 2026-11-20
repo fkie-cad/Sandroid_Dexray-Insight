@@ -331,9 +331,7 @@ class TestScratchFilesStayOutOfTheWorkingDirectory:
         context = MagicMock()
         context.androguard_obj.androguard_apk.get_file.return_value = b"data"
         files = ["assemblies/assemblies.blob", "assemblies/assemblies.manifest"]
-        module._discover_dotnet_files(
-            context, files, r"App.*\.dll$", r"(assemblies)\.blob", r"assemblies.manifest"
-        )
+        module._discover_dotnet_files(context, files, r"App.*\.dll$", r"(assemblies)\.blob", r"assemblies.manifest")
         assert (tmp_path / "work" / ".blobs" / "assemblies.blob").exists()
         assert list(cwd.iterdir()) == []
 
@@ -421,6 +419,42 @@ class TestProfileLayering:
         warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
         assert warnings == ["CVE scanning is limited: tools.apktool.enabled stay as configured"]
 
+    @staticmethod
+    def _cli_config(*flags):
+        shipped = Path(asam.__file__).resolve().parents[2] / "dexray.yaml"
+        with patch("sys.argv", ["dexray-insight", "app.apk", "-c", str(shipped), *flags]):
+            args = asam.parse_arguments()
+        config, error = asam._load_or_create_configuration(args)
+        assert error == 0
+        return config
+
+    def test_shipped_yaml_privacy_and_security_stays_lean(self):
+        config = self._cli_config("--profile", "privacy", "-s")
+        assert config.enable_security_assessment is True
+        assert config.get_security_config()["cve_scanning"]["enabled"] is False
+        assert config.get_tool_config("apktool")["enabled"] is False
+        assert config.get_module_config("native_analysis")["enabled"] is False
+
+    def test_shipped_yaml_privacy_with_cve_gets_its_requirements(self):
+        config = self._cli_config("--profile", "privacy", "-s", "--cve")
+        assert config.get_security_config()["cve_scanning"]["enabled"] is True
+        assert config.get_tool_config("apktool")["enabled"] is True
+        assert config.get_module_config("native_analysis")["enabled"] is True
+        assert config.get_temporal_analysis_config()["enabled"] is True
+        assert config.get_module_config("library_detection")["enable_similarity"] is True
+        assert config.get_security_config()["assessments"]["vulnerable_components"]["enabled"] is True
+
+    def test_cve_enabled_only_by_a_config_file_does_not_pull_requirements(self, tmp_path):
+        config_file = tmp_path / "my.yaml"
+        config_file.write_text("security:\n  cve_scanning:\n    enabled: true\n")
+        config = Configuration(
+            config_path=str(config_file),
+            profile="privacy",
+            config_dict={"security": {"enable_owasp_assessment": True}},
+        )
+        assert config.get_security_config()["cve_scanning"]["enabled"] is True
+        assert config.get_tool_config("apktool")["enabled"] is False
+
     def test_cve_without_security_changes_nothing(self):
         config = Configuration(profile="privacy", config_dict={"security": {"cve_scanning": {"enabled": True}}})
         assert config.get_module_config("native_analysis")["enabled"] is False
@@ -449,7 +483,9 @@ class TestApktoolDetails:
         manager = TemporalDirectoryManager(config, MagicMock())
         out = tmp_path / "out"
         out.mkdir()
-        with patch("dexray_insight.core.temporal_directory.subprocess.run", return_value=MagicMock(returncode=0)) as run:
+        with patch(
+            "dexray_insight.core.temporal_directory.subprocess.run", return_value=MagicMock(returncode=0)
+        ) as run:
             manager.run_apktool(str(tmp_path / "app.apk"), out)
         assert run.call_args[0][0][0] == str(wrapper)
         assert "-Xmx3g" in run.call_args.kwargs["env"]["JAVA_TOOL_OPTIONS"]

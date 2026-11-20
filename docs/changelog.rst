@@ -35,8 +35,11 @@ Changed
   settings, logging), so a per-run work directory no longer defeats the cache
 - A profile applies to every key nothing set explicitly (``-c`` keys that differ from
   the defaults, ``config_dict`` keys, CLI flags); enabling CVE scanning under
-  ``privacy`` switches its prerequisites back on unless they were set explicitly,
-  then a warning says the scan is limited
+  ``privacy`` through ``--cve`` or ``config_dict`` switches its prerequisites back on
+  unless they were set explicitly, then a warning says the scan is limited
+- The shipped ``dexray.yaml`` no longer enables CVE scanning: it is opt-in through
+  ``--cve`` (with ``-s``) or ``security.cve_scanning.enabled: true``, so a plain
+  ``-s`` run makes no OSV lookups
 - Library definitions are fetched on first use by pattern detection, never when a
   module is constructed; the dependency resolver passes the real module config
 - .NET analysis keeps blobs, unpacked assemblies and decompiled DLLs in a private

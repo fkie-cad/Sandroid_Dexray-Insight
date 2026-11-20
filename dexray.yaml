@@ -298,7 +298,7 @@ security:
   
   # CVE Vulnerability Scanning Configuration
   cve_scanning:
-    enabled: true  # Enable CVE scanner
+    enabled: false  # Opt-in: --cve (with -s) or set true; performs network lookups (OSV)
     
     # CVE Data Sources Configuration
     sources:
