@@ -110,7 +110,7 @@ def create_configuration_from_args(args) -> Configuration:
 
     # Apply configuration updates if any were generated
     if config_updates:
-        config._merge_config(config_updates)
+        config.merge_explicit(config_updates)
 
     return config
 
@@ -862,7 +862,7 @@ def _load_or_create_configuration(parsed_args):
         # explicit flags (-s, --cve, --deep, --debug, --no-cache, ...) win over
         # the file, matching the DEFAULT -> dexray.yaml -> file -> dict layering.
         # Pass the loaded config so --cve can see file-enabled security.
-        config._merge_config(_build_configuration_updates(parsed_args, existing_config=config))
+        config.merge_explicit(_build_configuration_updates(parsed_args, existing_config=config))
 
     return config, 0
 

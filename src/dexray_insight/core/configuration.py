@@ -23,9 +23,33 @@
 
 import copy
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Any
+
+
+def _leaves(tree: dict[str, Any], prefix: tuple[str, ...] = ()):
+    """Yield ``(path, value)`` for every non-dict value of a nested dict."""
+    for key, value in tree.items():
+        path = (*prefix, key)
+        if isinstance(value, dict) and value:
+            yield from _leaves(value, path)
+        else:
+            yield path, value
+
+
+_MISSING = object()
+
+
+def _default_at(tree: dict[str, Any], path: tuple[str, ...]) -> Any:
+    """The value at ``path`` in ``tree``, or a sentinel when absent."""
+    node: Any = tree
+    for key in path:
+        if not isinstance(node, dict) or key not in node:
+            return _MISSING
+        node = node[key]
+    return node
 
 
 class Configuration:
@@ -300,10 +324,14 @@ class Configuration:
         """
         Initialize configuration.
 
-        Layering, lowest to highest: built-in defaults, ``dexray.yaml``, the
-        ``profile`` overrides, ``config_path``, ``config_dict``, environment (and
-        CLI flags merged afterwards). A profile's requirements are re-applied after
-        every later merge, so an explicitly enabled feature gets what it needs.
+        Layering, lowest to highest: built-in defaults, ``dexray.yaml``,
+        ``config_path``, ``config_dict``, environment, then CLI flags merged with
+        :meth:`merge_explicit`. The ``profile`` overrides apply to every key that
+        nothing set explicitly. Explicit keys are those of ``config_path`` whose
+        value differs from the built-in defaults (a full copy of the shipped
+        ``dexray.yaml`` changes nothing), every key of ``config_dict`` and every CLI
+        flag. A profile's requirements are re-applied after every later merge, for
+        keys that were not set explicitly.
 
         Args:
             config_path: Path to configuration file (JSON or YAML)
@@ -317,19 +345,22 @@ class Configuration:
         # Deep copy so that per-instance mutations (env overrides, merged file
         # or dict config) never leak into the shared class-level DEFAULT_CONFIG.
         self.config = copy.deepcopy(self.DEFAULT_CONFIG)
+        self.profile: str | None = None
+        #: Leaf key paths a user set explicitly; a profile never overrides them.
+        self._explicit: set[tuple[str, ...]] = set()
+        self._warned_requirements: set[str] = set()
 
         # Try to load default config file first
         self._load_default_config()
 
-        self.profile: str | None = None
-        if profile:
-            self.apply_profile(profile)
-
         if config_path:
-            self._load_from_file(config_path)
+            self._load_from_file(config_path, explicit="changed")
 
         if config_dict:
-            self._merge_config(config_dict)
+            self._merge_config(config_dict, explicit="all")
+
+        if profile:
+            self.apply_profile(profile)
 
         # Load environment variables (highest priority)
         self._load_from_environment()
@@ -356,7 +387,7 @@ class Configuration:
                 except Exception as e:
                     print(f"Warning: Could not load config from {cwd_config}: {e}")
 
-    def _load_from_file(self, config_path: str):
+    def _load_from_file(self, config_path: str, explicit: str | None = None):
         """Load configuration from file."""
         path = Path(config_path)
         if not path.exists():
@@ -375,7 +406,7 @@ class Configuration:
                 else:
                     file_config = json.load(f)
 
-            self._merge_config(file_config)
+            self._merge_config(file_config, explicit=explicit)
         except Exception as e:
             raise ValueError(f"Failed to load configuration from {config_path}: {str(e)}") from e
 
@@ -405,8 +436,15 @@ class Configuration:
         if output_dir:
             self.config["output"]["output_directory"] = output_dir
 
-    def _merge_config(self, new_config: dict[str, Any]):
-        """Recursively merge new configuration with existing."""
+    def _merge_config(self, new_config: dict[str, Any], explicit: str | None = None):
+        """Recursively merge new configuration with existing.
+
+        Args:
+            new_config: Partial configuration.
+            explicit: ``"all"`` marks every leaf key as set explicitly,
+                ``"changed"`` only those whose value differs from the built-in
+                defaults, ``None`` none (defaults, ``dexray.yaml``).
+        """
 
         def merge_dict(base: dict[str, Any], update: dict[str, Any]):
             for key, value in update.items():
@@ -415,20 +453,41 @@ class Configuration:
                 else:
                     base[key] = value
 
+        if explicit and isinstance(new_config, dict):
+            for path, value in _leaves(new_config):
+                if explicit == "all" or _default_at(self.DEFAULT_CONFIG, path) != value:
+                    self._explicit.add(path)
         merge_dict(self.config, new_config)
         if getattr(self, "profile", None):
             self._apply_profile_requirements()
 
+    def merge_explicit(self, updates: dict[str, Any]) -> None:
+        """Merge settings the user stated explicitly (CLI flags); a profile never overrides them."""
+        self._merge_config(updates, explicit="all")
+
     def _apply_profile_requirements(self) -> None:
-        """Switch on what an explicitly enabled feature needs (see ``AnalysisProfile.requirements``)."""
+        """Switch on what an enabled feature needs (see ``AnalysisProfile.requirements``).
+
+        Keys set explicitly are left alone; one warning then says the feature is limited.
+        """
         from .profiles import get_profile
 
-        for trigger_path, trigger_value, required in get_profile(self.profile).requirements:
-            if self._get_nested(trigger_path) != trigger_value:
+        for feature, triggers, required in get_profile(self.profile).requirements:
+            if any(self._get_nested(path) != value for path, value in triggers.items()):
                 continue
+            kept_off = []
             for path, value in required.items():
-                if self._get_nested(path) != value:
+                if self._get_nested(path) == value:
+                    continue
+                if path in self._explicit:
+                    kept_off.append(".".join(path))
+                else:
                     self._set_nested_value(list(path), value)
+            if kept_off and feature not in self._warned_requirements:
+                self._warned_requirements.add(feature)
+                logging.getLogger(__name__).warning(
+                    f"{feature} is limited: {', '.join(kept_off)} stay as configured"
+                )
 
     def _get_nested(self, path) -> Any:
         node: Any = self.config
@@ -448,7 +507,10 @@ class Configuration:
 
         profile = get_profile(name)
         self.profile = profile.name
-        self._merge_config(copy.deepcopy(profile.overrides))
+        for path, value in _leaves(profile.overrides):
+            if path not in self._explicit:
+                self._set_nested_value(list(path), copy.deepcopy(value))
+        self._apply_profile_requirements()
 
     def get_module_config(self, module_name: str) -> dict[str, Any]:
         """Get configuration for a specific module."""

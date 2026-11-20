@@ -11,6 +11,7 @@
 import json
 import os
 import stat
+from pathlib import Path
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
@@ -369,12 +370,28 @@ class TestScratchFilesStayOutOfTheWorkingDirectory:
 
 
 class TestProfileLayering:
-    def test_config_file_wins_over_the_profile(self, tmp_path):
+    def test_shipped_dexray_yaml_does_not_cancel_the_profile(self):
+        shipped = Path(asam.__file__).resolve().parents[2] / "dexray.yaml"
+        config = Configuration(config_path=str(shipped), profile="privacy")
+        assert config.get_module_config("native_analysis")["enabled"] is False
+        assert config.get_module_config("library_detection")["enable_similarity"] is False
+        assert config.get_tool_config("apktool")["enabled"] is False
+        assert config.get_temporal_analysis_config()["enabled"] is False
+        assert config.get_security_config()["assessments"]["injection"]["enabled"] is False
+
+    def test_file_keys_that_differ_from_the_defaults_win(self, tmp_path):
         config_file = tmp_path / "my.yaml"
-        config_file.write_text("modules:\n  native_analysis:\n    enabled: true\n")
+        config_file.write_text(
+            "modules:\n  tracker_analysis:\n    enabled: false\n  native_analysis:\n    enabled: true\n"
+        )
         config = Configuration(config_path=str(config_file), profile="privacy")
+        assert config.get_module_config("tracker_analysis")["enabled"] is False  # differs: explicit
+        assert config.get_module_config("native_analysis")["enabled"] is False  # same as default: profile
+        assert config.get_module_config("signature_detection")["enabled"] is False
+
+    def test_config_dict_keys_always_win(self):
+        config = Configuration(profile="privacy", config_dict={"modules": {"native_analysis": {"enabled": True}}})
         assert config.get_module_config("native_analysis")["enabled"] is True
-        assert config.get_module_config("signature_detection")["enabled"] is False  # rest of the profile
 
     def test_cve_flag_brings_its_prerequisites_back(self):
         with patch("sys.argv", ["dexray-insight", "app.apk", "--profile", "privacy", "-s", "--cve"]):
@@ -386,6 +403,27 @@ class TestProfileLayering:
         assert config.get_tool_config("apktool")["enabled"] is True
         assert config.get_temporal_analysis_config()["enabled"] is True
         assert config.get_security_config()["assessments"]["vulnerable_components"]["enabled"] is True
+
+    def test_explicitly_disabled_prerequisites_stay_off_with_one_warning(self, tmp_path, caplog):
+        import logging
+
+        config_file = tmp_path / "my.yaml"
+        config_file.write_text("tools:\n  apktool:\n    enabled: false\n")
+        with caplog.at_level(logging.WARNING, logger="dexray_insight.core.configuration"):
+            config = Configuration(
+                config_path=str(config_file),
+                profile="privacy",
+                config_dict={"security": {"enable_owasp_assessment": True, "cve_scanning": {"enabled": True}}},
+            )
+            config.merge_explicit({"logging": {"level": "INFO"}})  # a later merge re-checks
+        assert config.get_tool_config("apktool")["enabled"] is False  # explicit: kept
+        assert config.get_module_config("native_analysis")["enabled"] is True  # not explicit: back on
+        warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+        assert warnings == ["CVE scanning is limited: tools.apktool.enabled stay as configured"]
+
+    def test_cve_without_security_changes_nothing(self):
+        config = Configuration(profile="privacy", config_dict={"security": {"cve_scanning": {"enabled": True}}})
+        assert config.get_module_config("native_analysis")["enabled"] is False
 
     def test_without_cve_the_profile_stays_lean(self):
         with patch("sys.argv", ["dexray-insight", "app.apk", "--profile", "privacy", "-s"]):

@@ -33,8 +33,10 @@ Changed
 - Cache keys leave out path-only and operational settings (temporal directory and
   its cleanup, library-definition paths, kavanoz output dir, cache dir, output file
   settings, logging), so a per-run work directory no longer defeats the cache
-- A profile now sits below ``-c`` files and explicit settings; enabling CVE scanning
-  under ``privacy`` switches its prerequisites back on
+- A profile applies to every key nothing set explicitly (``-c`` keys that differ from
+  the defaults, ``config_dict`` keys, CLI flags); enabling CVE scanning under
+  ``privacy`` switches its prerequisites back on unless they were set explicitly,
+  then a warning says the scan is limited
 - Library definitions are fetched on first use by pattern detection, never when a
   module is constructed; the dependency resolver passes the real module config
 - .NET analysis keeps blobs, unpacked assemblies and decompiled DLLs in a private

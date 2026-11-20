@@ -66,10 +66,10 @@ Configuration files can be loaded in several ways:
 Analysis Profiles
 ~~~~~~~~~~~~~~~~~
 
-A profile is a named set of overrides for a common goal. It sits above the built-in
-defaults and ``dexray.yaml`` and below everything stated explicitly: a ``-c`` file, a
-``config_dict``, the environment and CLI flags. A module your ``-c`` file enables stays
-enabled, and any single key can be overridden:
+A profile is a named set of overrides for a common goal. It applies to every key
+nothing set explicitly. Explicit are: keys of a ``-c`` file whose value differs from
+the built-in defaults (so ``-c`` with a full copy of the shipped ``dexray.yaml`` still
+gets the profile), every key of a ``config_dict`` and every CLI flag:
 
 .. code-block:: bash
 
@@ -94,11 +94,13 @@ enabled, and any single key can be overridden:
 
 A profile never switches the security assessment itself on or off.
 
-When an explicit setting turns on a feature that needs parts the profile switched
-off, those parts come back on. With ``privacy``, CVE scanning (``-s --cve`` or
-``security.cve_scanning.enabled``) re-enables native analysis, apktool, the temporal
-directory, library similarity and version analysis, and the vulnerable-components
-and CVE assessments, so the scan has versioned libraries to look up.
+When a setting turns on a feature that needs parts the profile switched off, those
+parts come back on. With ``privacy``, CVE scanning (security analysis on plus
+``--cve`` or ``security.cve_scanning.enabled``) re-enables native analysis, apktool,
+the temporal directory, library similarity and version analysis, and the
+vulnerable-components and CVE assessments, so the scan has versioned libraries to
+look up. A part you switched off explicitly stays off, and a warning says CVE
+scanning is limited.
 
 Analysis Configuration
 ----------------------
