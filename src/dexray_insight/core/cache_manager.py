@@ -72,6 +72,7 @@ Disk layout::
 """
 
 import contextlib
+import copy
 import hashlib
 import json
 import logging
@@ -161,6 +162,40 @@ def hash_config(config: Any) -> str:
     except Exception:
         encoded = repr(config)
     return hashlib.md5(encoded.encode("utf-8"), usedforsecurity=False).hexdigest()
+
+
+#: Config keys that only say *where* files go or *how* a run is operated
+#: (paths, cleanup, logging, output files). They never change an analysis
+#: result, so they are left out of cache keys: an embedding tool that passes a
+#: fresh work directory per run must still hit the cache.
+CACHE_KEY_EXCLUDED_PATHS: tuple[tuple[str, ...], ...] = (
+    ("temporal_analysis", "base_directory"),
+    ("temporal_analysis", "cleanup_after_analysis"),
+    ("temporal_analysis", "preserve_on_error"),
+    ("modules", "library_detection", "apktool_detection", "libsmali_path"),
+    ("modules", "library_detection", "apktool_detection", "libinfo_path"),
+    ("modules", "library_detection", "apktool_detection", "auto_update_definitions"),
+    ("tools", "kavanoz", "output_dir"),
+    ("caching", "cache_dir"),
+    ("output", "output_directory"),
+    ("output", "filename_template"),
+    ("output", "security_report", "markdown"),
+    ("logging",),
+)
+
+
+def cache_key_config(config: dict[str, Any]) -> dict[str, Any]:
+    """Return a copy of ``config`` without the keys in :data:`CACHE_KEY_EXCLUDED_PATHS`."""
+    keyed = copy.deepcopy(config) if isinstance(config, dict) else {}
+    for path in CACHE_KEY_EXCLUDED_PATHS:
+        node = keyed
+        for part in path[:-1]:
+            node = node.get(part) if isinstance(node, dict) else None
+            if not isinstance(node, dict):
+                break
+        else:
+            node.pop(path[-1], None)
+    return keyed
 
 
 class AnalysisCacheManager:

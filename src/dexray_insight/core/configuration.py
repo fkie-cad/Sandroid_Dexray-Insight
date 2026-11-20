@@ -300,8 +300,10 @@ class Configuration:
         """
         Initialize configuration.
 
-        Layering, lowest to highest: built-in defaults, ``dexray.yaml``,
-        ``config_path``, the ``profile`` overrides, ``config_dict``, environment.
+        Layering, lowest to highest: built-in defaults, ``dexray.yaml``, the
+        ``profile`` overrides, ``config_path``, ``config_dict``, environment (and
+        CLI flags merged afterwards). A profile's requirements are re-applied after
+        every later merge, so an explicitly enabled feature gets what it needs.
 
         Args:
             config_path: Path to configuration file (JSON or YAML)
@@ -319,12 +321,12 @@ class Configuration:
         # Try to load default config file first
         self._load_default_config()
 
-        if config_path:
-            self._load_from_file(config_path)
-
         self.profile: str | None = None
         if profile:
             self.apply_profile(profile)
+
+        if config_path:
+            self._load_from_file(config_path)
 
         if config_dict:
             self._merge_config(config_dict)
@@ -414,6 +416,27 @@ class Configuration:
                     base[key] = value
 
         merge_dict(self.config, new_config)
+        if getattr(self, "profile", None):
+            self._apply_profile_requirements()
+
+    def _apply_profile_requirements(self) -> None:
+        """Switch on what an explicitly enabled feature needs (see ``AnalysisProfile.requirements``)."""
+        from .profiles import get_profile
+
+        for trigger_path, trigger_value, required in get_profile(self.profile).requirements:
+            if self._get_nested(trigger_path) != trigger_value:
+                continue
+            for path, value in required.items():
+                if self._get_nested(path) != value:
+                    self._set_nested_value(list(path), value)
+
+    def _get_nested(self, path) -> Any:
+        node: Any = self.config
+        for key in path:
+            if not isinstance(node, dict) or key not in node:
+                return None
+            node = node[key]
+        return node
 
     def apply_profile(self, name: str) -> None:
         """Merge the overrides of analysis profile ``name`` into this configuration.
@@ -424,8 +447,8 @@ class Configuration:
         from .profiles import get_profile
 
         profile = get_profile(name)
-        self._merge_config(copy.deepcopy(profile.overrides))
         self.profile = profile.name
+        self._merge_config(copy.deepcopy(profile.overrides))
 
     def get_module_config(self, module_name: str) -> dict[str, Any]:
         """Get configuration for a specific module."""

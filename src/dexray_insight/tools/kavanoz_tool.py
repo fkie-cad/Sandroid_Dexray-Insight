@@ -48,6 +48,7 @@ import json
 import logging
 import os
 import platform
+import shutil
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -80,6 +81,7 @@ class KavanozTool(BaseExternalTool):
         Returns:
             Dictionary containing Kavanoz analysis results
         """
+        temp_dir = None
         try:
             # Determine output directory
             if output_dir:
@@ -88,7 +90,7 @@ class KavanozTool(BaseExternalTool):
                 work_output_dir = self.output_dir
             else:
                 # Create temporary directory
-                work_output_dir = tempfile.mkdtemp(prefix="kavanoz_")
+                work_output_dir = temp_dir = tempfile.mkdtemp(prefix="kavanoz_")
                 self.logger.info(f"Created temporary output directory: {work_output_dir}")
 
             # Ensure output directory exists
@@ -102,6 +104,12 @@ class KavanozTool(BaseExternalTool):
             else:
                 results = self._analyze_with_kavanoz(apk_path, work_output_dir)
 
+            # A temporary directory is removed unless it holds an unpacked payload,
+            # which is the result the caller reports (unpacked_file_path).
+            if temp_dir and not getattr(results, "unpacked", False):
+                shutil.rmtree(temp_dir, ignore_errors=True)
+                work_output_dir = None
+
             return {
                 "status": "success",
                 "results": results,
@@ -110,6 +118,8 @@ class KavanozTool(BaseExternalTool):
             }
 
         except Exception as e:
+            if temp_dir:
+                shutil.rmtree(temp_dir, ignore_errors=True)
             error_msg = f"Kavanoz execution failed: {str(e)}"
             self.logger.error(error_msg)
             return {"status": "failure", "error": error_msg, "results": None, "output_directory": None}

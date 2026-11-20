@@ -30,6 +30,19 @@ Changed
 - The IzzyOnDroid library definitions (``libsmali.jsonl`` / ``libinfo.jsonl``) default
   to ``~/.dexray_insight/library_definitions/`` instead of the working directory
 - Analysis cache schema bumped (``requested-permissions-sdk23-maxsdk``)
+- Cache keys leave out path-only and operational settings (temporal directory and
+  its cleanup, library-definition paths, kavanoz output dir, cache dir, output file
+  settings, logging), so a per-run work directory no longer defeats the cache
+- A profile now sits below ``-c`` files and explicit settings; enabling CVE scanning
+  under ``privacy`` switches its prerequisites back on
+- Library definitions are fetched on first use by pattern detection, never when a
+  module is constructed; the dependency resolver passes the real module config
+- .NET analysis keeps blobs, unpacked assemblies and decompiled DLLs in a private
+  directory below the temporal directory (removed afterwards), not in the working
+  directory; kavanoz removes its temporary directory unless it holds an unpacked
+  payload
+- Debug logging only moves the file handler Insight's CLI created; an embedding
+  application's root-logger handlers are never removed
 
 Fixed
 ~~~~~

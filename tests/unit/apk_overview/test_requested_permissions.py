@@ -104,3 +104,18 @@ def test_permission_module_counts_sdk23_requests():
         result = PermissionAnalysisModule({}).analyze("/tmp/app.apk", context)
 
     assert result.permissions_used == 36
+
+
+def test_sdk23_requests_only_apply_from_api_23_and_zero_max_sdk_is_no_limit():
+    apk = _FakeApk(
+        [
+            ("uses-permission", _Tag(name="android.permission.CAMERA", maxSdkVersion="0")),
+            ("uses-permission-sdk-23", _Tag(name="android.permission.REQUEST_INSTALL_PACKAGES")),
+        ]
+    )
+    entries = requested_permission_entries(apk)
+    assert entries[0]["max_sdk_version"] is None
+    assert effective_permission_names(entries, 22) == ["android.permission.CAMERA"]
+    assert len(effective_permission_names(entries, 35)) == 2
+    raw = [{"name": "x", "tag": "uses-permission", "max_sdk_version": 0}]
+    assert effective_permission_names(raw, 35) == ["x"]

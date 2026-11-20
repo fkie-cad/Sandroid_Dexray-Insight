@@ -8,9 +8,10 @@
 
 """Named analysis profiles: ready-made configuration overrides for common goals.
 
-A profile is a partial configuration merged on top of the defaults (and an optional
-config file) but below an explicit ``config_dict`` and the environment, so a caller
-can still override any single key::
+A profile is a partial configuration merged on top of the defaults and ``dexray.yaml``
+but *below* everything the user states explicitly: a ``-c`` config file, a
+``config_dict``, the environment and CLI flags. So any single key can still be
+overridden, and a file that enables a module keeps it enabled::
 
     Configuration(profile="privacy")
     Configuration(profile="privacy", config_dict={"modules": {"tracker_analysis": {"enabled": False}}})
@@ -29,6 +30,11 @@ Profiles:
 
 Neither profile turns the security assessment itself on or off; that stays the
 caller's choice (``security.enable_owasp_assessment`` / ``-s``).
+
+A profile also lists *requirements*: when an explicit setting switches on a feature
+that needs parts the profile turned off (``--cve`` needs library versions from
+apktool, native analysis and the similarity engine), those parts are switched back
+on, so an explicit request is never silently a no-op.
 """
 
 from __future__ import annotations
@@ -54,6 +60,9 @@ class AnalysisProfile:
     title: str
     description: str
     overrides: dict[str, Any] = field(default_factory=dict)
+    #: ``(trigger_path, trigger_value, {path: value})``: when the configuration
+    #: has ``trigger_value`` at ``trigger_path``, every ``path`` is set to ``value``.
+    requirements: tuple[tuple[tuple[str, ...], Any, dict[tuple[str, ...], Any]], ...] = ()
 
 
 _OFF = {"enabled": False}
@@ -99,6 +108,23 @@ _PRIVACY_OVERRIDES: dict[str, Any] = {
     },
 }
 
+_PRIVACY_REQUIREMENTS = (
+    # CVE scanning (--cve / security.cve_scanning.enabled) needs versioned libraries.
+    (
+        ("security", "cve_scanning", "enabled"),
+        True,
+        {
+            ("modules", "native_analysis", "enabled"): True,
+            ("modules", "library_detection", "enable_similarity"): True,
+            ("modules", "library_detection", "version_analysis", "enabled"): True,
+            ("tools", "apktool", "enabled"): True,
+            ("temporal_analysis", "enabled"): True,
+            ("security", "assessments", "vulnerable_components", "enabled"): True,
+            ("security", "assessments", "cve_scanning", "enabled"): True,
+        },
+    ),
+)
+
 ANALYSIS_PROFILES: dict[str, AnalysisProfile] = {
     "generic": AnalysisProfile(
         name="generic",
@@ -114,6 +140,7 @@ ANALYSIS_PROFILES: dict[str, AnalysisProfile] = {
             "skips native, decompilation and unrelated security checks."
         ),
         overrides=_PRIVACY_OVERRIDES,
+        requirements=_PRIVACY_REQUIREMENTS,
     ),
 }
 

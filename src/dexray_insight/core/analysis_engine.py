@@ -112,13 +112,16 @@ class DependencyResolver:
     SOLID Principles: Single Responsibility (only handles dependency resolution)
     """
 
-    def __init__(self, registry_instance):
+    def __init__(self, registry_instance, config: Any | None = None):
         """Initialize dependency resolver with registry instance.
 
         Args:
             registry_instance: Module registry for dependency lookups.
+            config: Optional ``Configuration``; the temporary module instances used
+                to read dependencies get their real module config from it.
         """
         self.registry = registry_instance
+        self.config = config
 
     def resolve_dependencies(self, requested_modules: list[str]) -> ExecutionPlan:
         """Resolve module dependencies and create execution plan.
@@ -137,7 +140,8 @@ class DependencyResolver:
         for module_name in list(all_modules):
             module_class = self.registry.get_module(module_name)
             if module_class:
-                instance = module_class({})  # Temporary instance for dependency info
+                module_config = self.config.get_module_config(module_name) if self.config is not None else {}
+                instance = module_class(module_config)  # Temporary instance for dependency info
                 deps = instance.get_dependencies()
                 dependency_graph[module_name] = deps
                 all_modules.update(deps)
@@ -247,7 +251,7 @@ class AnalysisEngine:
         """
         self.config = config
         self.registry = registry
-        self.dependency_resolver = DependencyResolver(self.registry)
+        self.dependency_resolver = DependencyResolver(self.registry, config)
         self.security_engine = SecurityAssessmentEngine(config) if config.enable_security_assessment else None
         self.logger = logging.getLogger(__name__)
         # Single shared cache manager (thread-safe) reused across modules.
@@ -315,12 +319,14 @@ class AnalysisEngine:
 
     def _full_hit_config_hash(self, requested_modules: list[str]) -> str:
         """Hash the full effective config + requested module set (memoized per run)."""
-        from .cache_manager import ANALYSIS_SCHEMA_VERSION, hash_config
+        from .cache_manager import ANALYSIS_SCHEMA_VERSION
+        from .cache_manager import cache_key_config
+        from .cache_manager import hash_config
 
         key = "full_hit:" + ",".join(sorted(requested_modules))
         if key not in self._config_hash_cache:
             keyed = {
-                "config": self.config.to_dict(),
+                "config": cache_key_config(self.config.to_dict()),
                 "modules": sorted(requested_modules),
                 "schema": ANALYSIS_SCHEMA_VERSION,
             }
@@ -414,12 +420,14 @@ class AnalysisEngine:
         return mapping.get(module_name)
 
     def _module_cache_key_hash(self) -> str:
-        """Hash the full effective config for per-module cache keying (memoized)."""
-        from .cache_manager import ANALYSIS_SCHEMA_VERSION, hash_config
+        """Hash the effective config (without path-only keys) for per-module cache keying (memoized)."""
+        from .cache_manager import ANALYSIS_SCHEMA_VERSION
+        from .cache_manager import cache_key_config
+        from .cache_manager import hash_config
 
         if "module" not in self._config_hash_cache:
             self._config_hash_cache["module"] = hash_config(
-                {"config": self.config.to_dict(), "schema": ANALYSIS_SCHEMA_VERSION}
+                {"config": cache_key_config(self.config.to_dict()), "schema": ANALYSIS_SCHEMA_VERSION}
             )
         return self._config_hash_cache["module"]
 

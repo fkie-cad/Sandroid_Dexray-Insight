@@ -107,9 +107,11 @@ class ApktoolDetectionEngine:
         # Initialize version analyzer (will be updated with security context later)
         self.version_analyzer = get_version_analyzer(config)
 
-        # Check for newer library definitions on startup
-        if self.config.get("auto_update_definitions", True):
-            self._update_library_definitions()
+        # Newer library definitions are fetched on first use (pattern detection),
+        # never at construction: the dependency resolver and other callers build
+        # throw-away instances, which must not touch the network or the disk.
+        self.auto_update_definitions = bool(self.config.get("auto_update_definitions", True))
+        self._definitions_update_checked = False
 
     def is_available(self, context) -> bool:
         """Check if apktool extraction results are available for analysis.
@@ -264,6 +266,10 @@ class ApktoolDetectionEngine:
         """Load library definitions from JSONL files."""
         if self._libs_by_path is not None:
             return  # Already loaded
+
+        if self.auto_update_definitions and not self._definitions_update_checked:
+            self._definitions_update_checked = True
+            self._update_library_definitions()
 
         self._libs_by_path = {}
         self._id_to_paths = {}

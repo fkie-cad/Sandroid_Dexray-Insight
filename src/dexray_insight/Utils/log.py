@@ -102,6 +102,12 @@ class FileFormatter(logging.Formatter):
         return logging.Formatter.format(self, record)
 
 
+#: Attribute marking the debug FileHandler that Insight's own CLI installed. Only
+#: handlers carrying it are ever moved or closed by Insight; handlers of an
+#: embedding application (for example Sandroid's session logs) are never touched.
+INSIGHT_HANDLER_MARK = "_dexray_insight_debug_handler"
+
+
 def set_logger(args, config=None):
     """Configure logging based on command line arguments and config."""
     log_level = logging.ERROR  # Default to ERROR
@@ -166,6 +172,7 @@ def _create_debug_file_handler(args, config=None) -> logging.FileHandler | None:
         file_handler = logging.FileHandler(log_file_path, mode="w", encoding="utf-8")
         file_handler.setLevel(logging.DEBUG)
         file_handler.setFormatter(FileFormatter())
+        setattr(file_handler, INSIGHT_HANDLER_MARK, True)
 
         print(f"[*] Debug logs will be written to: {log_file_path}")
         return file_handler
@@ -223,7 +230,11 @@ def setup_apk_specific_debug_logging(apk_name: str, temporal_paths=None) -> bool
     Update debug logging to use APK-specific log file in temporal directory.
 
     This should be called after the temporal directory structure is created
-    to move debug logging to the APK-specific logs folder.
+    to move debug logging to the APK-specific logs folder. Only the debug file
+    handler that Insight's CLI installed (marked with
+    :data:`INSIGHT_HANDLER_MARK`) is moved; when Insight is embedded in another
+    application there is no such handler and the application's logging is left
+    exactly as it is.
 
     Args:
         apk_name: Name of the APK being analyzed
@@ -241,8 +252,12 @@ def setup_apk_specific_debug_logging(apk_name: str, temporal_paths=None) -> bool
         if logger.level != logging.DEBUG:
             return True
 
-        # Find existing file handlers
-        file_handlers = [h for h in logger.handlers if isinstance(h, logging.FileHandler)]
+        # Find Insight's own debug file handler(s); never anyone else's.
+        file_handlers = [
+            h
+            for h in logger.handlers
+            if isinstance(h, logging.FileHandler) and getattr(h, INSIGHT_HANDLER_MARK, False)
+        ]
 
         if not file_handlers:
             return True  # No file handlers to update
@@ -269,6 +284,7 @@ def setup_apk_specific_debug_logging(apk_name: str, temporal_paths=None) -> bool
         new_file_handler = logging.FileHandler(new_log_path, mode="w", encoding="utf-8")
         new_file_handler.setLevel(logging.DEBUG)
         new_file_handler.setFormatter(FileFormatter())
+        setattr(new_file_handler, INSIGHT_HANDLER_MARK, True)
         logger.addHandler(new_file_handler)
 
         print(f"[*] Debug logging updated to: {new_log_path}")

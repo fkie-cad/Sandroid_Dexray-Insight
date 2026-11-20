@@ -26,6 +26,7 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -107,6 +108,30 @@ class DotnetAnalysisModule(BaseAnalysisModule):
         return []
 
     def analyze(self, apk_path: str, context: AnalysisContext) -> DotnetAnalysisResult:
+        """Perform .NET analysis in a private scratch directory that is removed afterwards.
+
+        Extracted blobs, unpacked assemblies and decompiled DLLs go below the run's
+        temporal directory when there is one, else below the system temp directory;
+        never into the working directory.
+        """
+        temporal_paths = getattr(context, "temporal_paths", None)
+        base_dir = getattr(temporal_paths, "base_dir", None)
+        parent = str(base_dir) if base_dir and Path(base_dir).is_dir() else None
+        self._work_dir = tempfile.mkdtemp(prefix="dotnet-", dir=parent)
+        try:
+            return self._analyze(apk_path, context)
+        finally:
+            shutil.rmtree(self._work_dir, ignore_errors=True)
+
+    @property
+    def _blobs_dir(self) -> str:
+        return os.path.join(getattr(self, "_work_dir", None) or ".", ".blobs")
+
+    @property
+    def _unpacked_dir(self) -> str:
+        return os.path.join(getattr(self, "_work_dir", None) or ".", ".unpacked_blobs") + os.sep
+
+    def _analyze(self, apk_path: str, context: AnalysisContext) -> DotnetAnalysisResult:
         """
         Perform .NET analysis on the APK.
 
@@ -153,7 +178,9 @@ class DotnetAnalysisModule(BaseAnalysisModule):
             assembly_manifest_pattern = r"assemblies.manifest"
 
             # Set up decompile target directory
-            self.decompile_target = get_parent_directory(context.unzip_path or os.getcwd())
+            self.decompile_target = (
+                get_parent_directory(context.unzip_path) if context.unzip_path else self._work_dir
+            )
 
             self.logger.debug(f"Searching for .NET files with pattern: {dll_pattern}")
             self.logger.debug(f"Total files in APK: {len(file_names)}")
@@ -227,15 +254,14 @@ class DotnetAnalysisModule(BaseAnalysisModule):
                 if re.search(blob_pattern, name) or re.search(assembly_manifest_pattern, name):
                     blob_files.append(name)
 
-                    if not os.path.exists(".blobs"):
-                        os.makedirs(".blobs", mode=0o766, exist_ok=True)
+                    os.makedirs(self._blobs_dir, mode=0o766, exist_ok=True)
 
                     # Handle assembly manifest
                     if re.search(assembly_manifest_pattern, name):
                         manifest_found = True
                         self.logger.debug(f"Found assembly manifest: {name}")
                         assembly_manifest_file = context.androguard_obj.androguard_apk.get_file(name)
-                        with open(f".blobs/{assembly_manifest_pattern}", "wb") as f:
+                        with open(os.path.join(self._blobs_dir, assembly_manifest_pattern), "wb") as f:
                             f.write(assembly_manifest_file)
                         used_assemblies = self._filter_manifest()
 
@@ -244,7 +270,7 @@ class DotnetAnalysisModule(BaseAnalysisModule):
                         self.logger.debug(f"Found blob file: {name}")
                         blob_file = context.androguard_obj.androguard_apk.get_file(name)
                         filename = name.split("/")[-1] if name != "assemblies.blob" else name
-                        with open(f".blobs/{filename}", "wb") as f:
+                        with open(os.path.join(self._blobs_dir, filename), "wb") as f:
                             f.write(blob_file)
 
         return dll_found, target_dll, manifest_found, blob_files, used_assemblies
@@ -286,7 +312,7 @@ class DotnetAnalysisModule(BaseAnalysisModule):
             extraction_method = "blob_unpacking"
 
             if self._unpack_blob():
-                self._collect_dlls(".unpacked_blobs/", dll_pattern)
+                self._collect_dlls(self._unpacked_dir, dll_pattern)
                 self._decompile_dlls(context.unzip_path or "")
                 analysis_results = self._analyze_dlls(app_name)
                 found_strings = analysis_results.get("found_strings", [])
@@ -382,7 +408,7 @@ class DotnetAnalysisModule(BaseAnalysisModule):
                 ]
 
             used_assemblies = []
-            manifest_path = ".blobs/assemblies.manifest"
+            manifest_path = os.path.join(self._blobs_dir, "assemblies.manifest")
 
             try:
                 with open(manifest_path) as m:
@@ -417,7 +443,9 @@ class DotnetAnalysisModule(BaseAnalysisModule):
         """Unpack .blob files using the blob unpacker."""
         try:
             self.logger.debug(f"Unpacking blobs with architecture: {self.force_architecture}")
-            blobUnpack.do_unpack(".blobs/", self.force_architecture, force=True)
+            blobUnpack.do_unpack(
+                self._blobs_dir + os.sep, self.force_architecture, force=True, out_directory=self._unpacked_dir
+            )
             return True
         except Exception as e:
             self.logger.error(f"Exception when unpacking .blob files: {e}")
@@ -477,10 +505,8 @@ class DotnetAnalysisModule(BaseAnalysisModule):
         try:
             results = {"found_strings": []}
 
-            if is_macos():
-                decompile_dir = os.path.join(self.decompile_target, "decompiled_dlls")
-            else:
-                decompile_dir = "./.decompiled_dlls"
+            # _decompile_dlls writes here on every platform.
+            decompile_dir = os.path.join(self.decompile_target, "decompiled_dlls")
 
             if not os.path.exists(decompile_dir):
                 self.logger.warning(f"Decompiled directory not found: {decompile_dir}")

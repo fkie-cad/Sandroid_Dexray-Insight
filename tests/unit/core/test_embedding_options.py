@@ -174,3 +174,244 @@ class TestOutputDir:
             )
         assert main.startswith(str(out)) and os.path.exists(main)
         assert sec.startswith(str(out)) and os.path.exists(sec)
+
+
+# ------------------------------------------------------------------- cache keys
+
+
+class TestCacheKeysIgnorePaths:
+    @staticmethod
+    def _keys(config_dict):
+        from dexray_insight.core.analysis_engine import AnalysisEngine
+
+        engine = AnalysisEngine(Configuration(config_dict=config_dict))
+        return engine._full_hit_config_hash(["apk_overview", "string_analysis"]), engine._module_cache_key_hash()
+
+    @staticmethod
+    def _run_config(work_dir, definitions_dir, level):
+        return {
+            "caching": {"enabled": True, "cache_dir": str(work_dir) + "-cache"},
+            "temporal_analysis": {"base_directory": str(work_dir), "cleanup_after_analysis": True},
+            "modules": {
+                "library_detection": {
+                    "apktool_detection": {
+                        "libsmali_path": str(definitions_dir / "libsmali.jsonl"),
+                        "libinfo_path": str(definitions_dir / "libinfo.jsonl"),
+                    }
+                }
+            },
+            "logging": {"level": level},
+        }
+
+    def test_two_runs_with_different_work_dirs_share_the_keys(self, tmp_path):
+        first = self._keys(self._run_config(tmp_path / "run-1", tmp_path / "a", "INFO"))
+        second = self._keys(self._run_config(tmp_path / "run-2", tmp_path / "b", "DEBUG"))
+        assert first == second
+
+    def test_a_real_setting_still_changes_the_keys(self, tmp_path):
+        base = self._run_config(tmp_path / "run", tmp_path / "a", "INFO")
+        changed = self._run_config(tmp_path / "run", tmp_path / "a", "INFO")
+        changed["modules"]["string_analysis"] = {"min_string_length": 9}
+        assert self._keys(base) != self._keys(changed)
+
+
+# ---------------------------------------------------------------------- logging
+
+
+class TestEmbeddedLogging:
+    def test_foreign_root_file_handlers_are_never_touched(self, tmp_path):
+        import logging
+
+        from dexray_insight.Utils.log import INSIGHT_HANDLER_MARK
+        from dexray_insight.Utils.log import setup_apk_specific_debug_logging
+
+        root = logging.getLogger()
+        old_level = root.level
+        host = logging.FileHandler(tmp_path / "host.log")
+        mine = logging.FileHandler(tmp_path / "insight.log")
+        setattr(mine, INSIGHT_HANDLER_MARK, True)
+        root.addHandler(host)
+        root.addHandler(mine)
+        root.setLevel(logging.DEBUG)
+        paths = MagicMock(logs_dir=tmp_path / "logs")
+        try:
+            assert setup_apk_specific_debug_logging("app", paths)
+            assert host in root.handlers  # the embedding app's handler stays
+            assert mine not in root.handlers  # Insight's own is moved
+            moved = [h for h in root.handlers if getattr(h, INSIGHT_HANDLER_MARK, False)]
+            assert moved and str(tmp_path / "logs") in moved[0].baseFilename
+        finally:
+            for handler in list(root.handlers):
+                if handler is host or getattr(handler, INSIGHT_HANDLER_MARK, False):
+                    root.removeHandler(handler)
+                    handler.close()
+            root.setLevel(old_level)
+
+    def test_without_insight_handler_nothing_changes(self, tmp_path):
+        import logging
+
+        from dexray_insight.Utils.log import setup_apk_specific_debug_logging
+
+        root = logging.getLogger()
+        old_level = root.level
+        host = logging.FileHandler(tmp_path / "host.log")
+        root.addHandler(host)
+        root.setLevel(logging.DEBUG)
+        try:
+            before = list(root.handlers)
+            setup_apk_specific_debug_logging("app", MagicMock(logs_dir=tmp_path / "logs"))
+            assert root.handlers == before
+            assert not (tmp_path / "logs").exists()
+        finally:
+            root.removeHandler(host)
+            host.close()
+            root.setLevel(old_level)
+
+
+# ---------------------------------------------------------- library definitions
+
+
+class TestLibraryDefinitionsAreLazy:
+    def test_construction_never_downloads(self, tmp_path, monkeypatch):
+        from dexray_insight.modules.library_detection.engines import apktool_detection_engine as engine_module
+
+        monkeypatch.chdir(tmp_path)
+        with patch.object(engine_module.ApktoolDetectionEngine, "_update_library_definitions") as update:
+            engine = engine_module.ApktoolDetectionEngine({}, MagicMock())
+            update.assert_not_called()
+            engine._load_library_definitions()
+            update.assert_called_once()
+            engine._libs_by_path = None
+            engine._load_library_definitions()
+            update.assert_called_once()  # checked once per engine
+        assert list(tmp_path.iterdir()) == []
+
+    def test_offline_config_never_downloads(self):
+        from dexray_insight.modules.library_detection.engines import apktool_detection_engine as engine_module
+
+        with patch.object(engine_module.ApktoolDetectionEngine, "_update_library_definitions") as update:
+            engine = engine_module.ApktoolDetectionEngine(
+                {"apktool_detection": {"auto_update_definitions": False}}, MagicMock()
+            )
+            engine._load_library_definitions()
+        update.assert_not_called()
+
+    def test_dependency_resolver_passes_the_real_module_config(self):
+        from dexray_insight.core.analysis_engine import DependencyResolver
+
+        seen = {}
+
+        class _Module:
+            def __init__(self, config):
+                seen["config"] = config
+
+            def get_dependencies(self):
+                return []
+
+        registry = MagicMock()
+        registry.get_module.return_value = _Module
+        config = Configuration(config_dict={"modules": {"library_detection": {"marker": 1}}})
+        DependencyResolver(registry, config).resolve_dependencies(["library_detection"])
+        assert seen["config"]["marker"] == 1
+
+
+# ---------------------------------------------------------- .NET and kavanoz
+
+
+class TestScratchFilesStayOutOfTheWorkingDirectory:
+    def test_dotnet_blobs_go_to_the_private_work_dir(self, tmp_path, monkeypatch):
+        from dexray_insight.modules.dotnet_analysis import DotnetAnalysisModule
+
+        cwd = tmp_path / "cwd"
+        cwd.mkdir()
+        monkeypatch.chdir(cwd)
+        module = DotnetAnalysisModule({})
+        module._work_dir = str(tmp_path / "work")
+        context = MagicMock()
+        context.androguard_obj.androguard_apk.get_file.return_value = b"data"
+        files = ["assemblies/assemblies.blob", "assemblies/assemblies.manifest"]
+        module._discover_dotnet_files(
+            context, files, r"App.*\.dll$", r"(assemblies)\.blob", r"assemblies.manifest"
+        )
+        assert (tmp_path / "work" / ".blobs" / "assemblies.blob").exists()
+        assert list(cwd.iterdir()) == []
+
+    def test_dotnet_work_dir_is_removed(self, tmp_path):
+        from dexray_insight.modules.dotnet_analysis import DotnetAnalysisModule
+
+        module = DotnetAnalysisModule({})
+        context = MagicMock(temporal_paths=MagicMock(base_dir=tmp_path))
+        with patch.object(DotnetAnalysisModule, "_analyze", return_value="result"):
+            assert module.analyze("app.apk", context) == "result"
+        assert module._work_dir.startswith(str(tmp_path))
+        assert not os.path.exists(module._work_dir)
+
+    def test_kavanoz_temp_dir_is_removed_when_nothing_was_unpacked(self, tmp_path):
+        from dexray_insight.tools.kavanoz_tool import KavanozTool
+
+        tool = KavanozTool({})
+        created = []
+
+        def fake_analyze(apk, out):
+            created.append(out)
+            return MagicMock(unpacked=False)
+
+        with (
+            patch("dexray_insight.tools.kavanoz_tool.platform.machine", return_value="x86_64"),
+            patch.object(KavanozTool, "_analyze_with_kavanoz", side_effect=fake_analyze),
+        ):
+            result = tool.execute(str(tmp_path / "app.apk"))
+        assert created and not os.path.exists(created[0])
+        assert result["output_directory"] is None
+
+
+# ------------------------------------------------------------- profile layering
+
+
+class TestProfileLayering:
+    def test_config_file_wins_over_the_profile(self, tmp_path):
+        config_file = tmp_path / "my.yaml"
+        config_file.write_text("modules:\n  native_analysis:\n    enabled: true\n")
+        config = Configuration(config_path=str(config_file), profile="privacy")
+        assert config.get_module_config("native_analysis")["enabled"] is True
+        assert config.get_module_config("signature_detection")["enabled"] is False  # rest of the profile
+
+    def test_cve_flag_brings_its_prerequisites_back(self):
+        with patch("sys.argv", ["dexray-insight", "app.apk", "--profile", "privacy", "-s", "--cve"]):
+            args = asam.parse_arguments()
+        config = asam.create_configuration_from_args(args)
+        assert config.get_security_config()["cve_scanning"]["enabled"] is True
+        assert config.get_module_config("native_analysis")["enabled"] is True
+        assert config.get_module_config("library_detection")["enable_similarity"] is True
+        assert config.get_tool_config("apktool")["enabled"] is True
+        assert config.get_temporal_analysis_config()["enabled"] is True
+        assert config.get_security_config()["assessments"]["vulnerable_components"]["enabled"] is True
+
+    def test_without_cve_the_profile_stays_lean(self):
+        with patch("sys.argv", ["dexray-insight", "app.apk", "--profile", "privacy", "-s"]):
+            args = asam.parse_arguments()
+        config = asam.create_configuration_from_args(args)
+        assert config.get_module_config("native_analysis")["enabled"] is False
+
+
+# -------------------------------------------------------------- apktool nits
+
+
+class TestApktoolDetails:
+    def test_directory_and_uppercase_jar(self, tmp_path):
+        from dexray_insight.core.temporal_directory import is_jar
+
+        assert is_jar("/x/APKTOOL.JAR")
+        with patch.dict(os.environ, {"PATH": str(tmp_path / "empty")}):
+            assert resolve_apktool(str(tmp_path)) is None  # a directory does not count
+
+    def test_wrapper_gets_java_options_via_java_tool_options(self, tmp_path):
+        wrapper = _executable(tmp_path / "apktool")
+        config = Configuration(config_dict={"tools": {"apktool": {"path": str(wrapper), "java_options": ["-Xmx3g"]}}})
+        manager = TemporalDirectoryManager(config, MagicMock())
+        out = tmp_path / "out"
+        out.mkdir()
+        with patch("dexray_insight.core.temporal_directory.subprocess.run", return_value=MagicMock(returncode=0)) as run:
+            manager.run_apktool(str(tmp_path / "app.apk"), out)
+        assert run.call_args[0][0][0] == str(wrapper)
+        assert "-Xmx3g" in run.call_args.kwargs["env"]["JAVA_TOOL_OPTIONS"]

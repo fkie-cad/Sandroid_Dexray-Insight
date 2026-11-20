@@ -66,9 +66,10 @@ Configuration files can be loaded in several ways:
 Analysis Profiles
 ~~~~~~~~~~~~~~~~~
 
-A profile is a named set of overrides for a common goal. It sits above the
-configuration file and below CLI flags (or a ``config_dict``), so any single key can
-still be overridden:
+A profile is a named set of overrides for a common goal. It sits above the built-in
+defaults and ``dexray.yaml`` and below everything stated explicitly: a ``-c`` file, a
+``config_dict``, the environment and CLI flags. A module your ``-c`` file enables stays
+enabled, and any single key can be overridden:
 
 .. code-block:: bash
 
@@ -92,6 +93,12 @@ still be overridden:
   SSRF, integrity and insecure-design assessments are off.
 
 A profile never switches the security assessment itself on or off.
+
+When an explicit setting turns on a feature that needs parts the profile switched
+off, those parts come back on. With ``privacy``, CVE scanning (``-s --cve`` or
+``security.cve_scanning.enabled``) re-enables native analysis, apktool, the temporal
+directory, library similarity and version analysis, and the vulnerable-components
+and CVE assessments, so the scan has versioned libraries to look up.
 
 Analysis Configuration
 ----------------------
@@ -452,8 +459,9 @@ For APK disassembly and resource extraction:
 **Configuration Options**:
 
 * ``path``: apktool JAR (run with ``java -jar`` and ``java_options``) or executable.
-  When empty or missing, ``apktool`` is looked up on ``PATH`` (the Homebrew and Linux
-  wrappers), which runs with its own Java settings
+  When empty, missing or a directory, ``apktool`` is looked up on ``PATH`` (the
+  Homebrew and Linux wrappers). A wrapper picks its own Java; ``java_options`` reach
+  it through ``JAVA_TOOL_OPTIONS``
 * ``timeout``: Maximum execution time (seconds)
 * ``java_options``: JVM memory and runtime options
 * ``options``: APKTool command-line options

@@ -71,9 +71,14 @@ def resolve_apktool(configured_path: str | None) -> str | None:
     """
     if configured_path:
         expanded = os.path.expanduser(str(configured_path))
-        if Path(expanded).exists():
+        if Path(expanded).is_file():
             return expanded
     return shutil.which("apktool")
+
+
+def is_jar(path: str) -> bool:
+    """True for a ``.jar`` path (case-insensitive)."""
+    return str(path).lower().endswith(".jar")
 
 
 @dataclass
@@ -354,13 +359,17 @@ class TemporalDirectoryManager:
         try:
             # Build apktool command: a JAR runs under java with the configured
             # java_options; an executable (the PATH wrapper) runs as is, since
-            # it picks its own Java.
-            if apktool_path.endswith(".jar"):
+            # it picks its own Java, and gets java_options via JAVA_TOOL_OPTIONS,
+            # which every JVM reads.
+            java_options = apktool_config.get("java_options", ["-Xmx2g"])
+            wrapper_java_options = None
+            if is_jar(apktool_path):
                 cmd = ["java"]
-                cmd.extend(apktool_config.get("java_options", ["-Xmx2g"]))
+                cmd.extend(java_options)
                 cmd.extend(["-jar", apktool_path, "decode"])
             else:
                 cmd = [apktool_path, "decode"]
+                wrapper_java_options = java_options
             cmd.extend(apktool_config.get("options", []))
             cmd.extend(["-f"])  # Force overwrite if directory exists
             cmd.extend(["--output", str(output_dir), apk_path])
@@ -376,6 +385,9 @@ class TemporalDirectoryManager:
 
             # Set up environment - fix JAVA_HOME if needed for Java tools
             env = self._build_java_env()
+            if wrapper_java_options:
+                existing = env.get("JAVA_TOOL_OPTIONS", "")
+                env["JAVA_TOOL_OPTIONS"] = " ".join([existing, *wrapper_java_options]).strip()
 
             with open(log_file, "w") if log_file else open(os.devnull, "w") as log_f:
                 result = subprocess.run(

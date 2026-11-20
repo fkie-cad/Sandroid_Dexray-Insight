@@ -424,15 +424,15 @@ def usage():
     return 0
 
 
-def do_unpack(in_directory, in_arch, force):
-    """Unpack a assemblies.blob/manifest."""
+def do_unpack(in_directory, in_arch, force, out_directory=".unpacked_blobs/"):
+    """Unpack a assemblies.blob/manifest into ``out_directory``."""
     arch_assemblies = False
 
-    if force and os.path.isdir(".unpacked_blobs/"):
-        shutil.rmtree(".unpacked_blobs/")
+    if force and os.path.isdir(out_directory):
+        shutil.rmtree(out_directory)
 
     # First check if all files exist.
-    if os.path.isdir(".unpacked_blobs/"):
+    if os.path.isdir(out_directory):
         print("Out directory already exists!")
         return 3
 
@@ -459,7 +459,7 @@ def do_unpack(in_directory, in_arch, force):
     json_data["stores"] = []
     json_data["assemblies"] = []
 
-    os.mkdir(".unpacked_blobs/")
+    os.makedirs(out_directory)
 
     assembly_store = AssemblyStore(assemblies_path, manifest_entries)
 
@@ -468,17 +468,17 @@ def do_unpack(in_directory, in_arch, force):
         debug("There are more assemblies to unpack here!")
 
     # Do extraction.
-    json_data = assembly_store.extract_all(json_data)
+    json_data = assembly_store.extract_all(json_data, outpath=out_directory.rstrip("/"))
 
     # What about architecture assemblies?
     if arch_assemblies:
         arch_assemblies_path = os.path.join(in_directory, ARCHITECTURE_MAP[in_arch])
 
         arch_assembly_store = AssemblyStore(arch_assemblies_path, manifest_entries, primary=False)
-        json_data = arch_assembly_store.extract_all(json_data)
+        json_data = arch_assembly_store.extract_all(json_data, outpath=out_directory.rstrip("/"))
 
     # Save the large config out.
-    with open(FILE_ASSEMBLIES_JSON, "w") as assembly_file:
+    with open(os.path.join(out_directory, os.path.basename(FILE_ASSEMBLIES_JSON)), "w") as assembly_file:
         assembly_file.write(json.dumps(json_data, indent=4))
 
 

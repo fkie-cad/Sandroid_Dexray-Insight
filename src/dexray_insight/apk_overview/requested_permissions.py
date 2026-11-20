@@ -48,10 +48,12 @@ def _max_sdk(apk: Any, tag: Any) -> int | None:
     if value is None or value == "":
         return None
     try:
-        return int(str(value).strip())
+        number = int(str(value).strip())
     except (TypeError, ValueError):
         logger.debug(f"Ignoring invalid maxSdkVersion {value!r} on a permission request")
         return None
+    # The package manager treats 0 (and anything below 1) as "no limit".
+    return number if number > 0 else None
 
 
 def _parser_permission_names(apk: Any) -> list[str]:
@@ -123,8 +125,10 @@ def effective_permission_names(entries: list[dict[str, Any]], api_level: int) ->
     """Unique names a device on ``api_level`` keeps from the given request entries.
 
     A request with ``maxSdkVersion`` below ``api_level`` is ignored by the package
-    manager. Permissions the platform adds on its own (split permissions for old
-    target SDKs) are not part of the manifest and therefore not included.
+    manager, and ``<uses-permission-sdk-23>`` only applies from API 23 on; a
+    ``maxSdkVersion`` of 0 or less means no limit. Permissions the platform adds on
+    its own (split permissions for old target SDKs) are not part of the manifest and
+    therefore not included.
 
     Args:
         entries: Output of :func:`requested_permission_entries` (or the
@@ -138,8 +142,10 @@ def effective_permission_names(entries: list[dict[str, Any]], api_level: int) ->
     for entry in entries or []:
         if not isinstance(entry, dict) or not entry.get("name"):
             continue
+        if entry.get("tag") == "uses-permission-sdk-23" and api_level < 23:
+            continue
         max_sdk = entry.get("max_sdk_version")
-        if isinstance(max_sdk, int) and max_sdk < api_level:
+        if isinstance(max_sdk, int) and 0 < max_sdk < api_level:
             continue
         kept.append(str(entry["name"]))
     return _unique(kept)
