@@ -84,8 +84,20 @@ class TestApktoolDetectionEngine(unittest.TestCase):
         self.assertTrue(engine.enable_pattern_detection)
         self.assertTrue(engine.enable_properties_detection)
         self.assertTrue(engine.enable_buildconfig_detection)
-        self.assertEqual(engine.libsmali_path, "./libsmali.jsonl")
-        self.assertEqual(engine.libinfo_path, "./libinfo.jsonl")
+        # Definitions default to the per-user cache, never the working directory.
+        definitions_dir = Path.home() / ".dexray_insight" / "library_definitions"
+        self.assertEqual(engine.libsmali_path, str(definitions_dir / "libsmali.jsonl"))
+        self.assertEqual(engine.libinfo_path, str(definitions_dir / "libinfo.jsonl"))
+
+    def test_init_null_paths_use_user_cache(self):
+        """A config with null paths (as dexray.yaml ships) still avoids the working directory."""
+        engine = ApktoolDetectionEngine(
+            {"apktool_detection": {"auto_update_definitions": False, "libsmali_path": None, "libinfo_path": None}},
+            self.mock_logger,
+        )
+        self.assertFalse(Path(engine.libsmali_path).is_relative_to(Path.cwd()))
+        self.assertTrue(engine.libsmali_path.endswith("library_definitions/libsmali.jsonl"))
+        self.assertTrue(engine.libinfo_path.endswith("library_definitions/libinfo.jsonl"))
 
     def test_init_custom_config(self):
         """Test initialization with custom configuration"""

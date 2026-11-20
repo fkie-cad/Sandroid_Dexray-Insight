@@ -55,6 +55,27 @@ from pathlib import Path
 from .configuration import Configuration
 
 
+def resolve_apktool(configured_path: str | None) -> str | None:
+    """Return the apktool to run: a JAR or an executable, or ``None`` if none is found.
+
+    An explicitly configured path that exists always wins (JAR or executable). When the
+    configured path is empty or points to a file that no longer exists (for example a
+    versioned Homebrew JAR after an upgrade), ``apktool`` is looked up on ``PATH``;
+    the Homebrew and Linux install scripts provide such a wrapper.
+
+    Args:
+        configured_path: ``tools.apktool.path`` from the configuration.
+
+    Returns:
+        The path to run, or ``None`` when apktool is not available.
+    """
+    if configured_path:
+        expanded = os.path.expanduser(str(configured_path))
+        if Path(expanded).exists():
+            return expanded
+    return shutil.which("apktool")
+
+
 @dataclass
 class TemporalDirectoryPaths:
     """Container for temporal directory paths."""
@@ -132,17 +153,25 @@ class TemporalDirectoryManager:
             return
 
         tool_path = tool_config.get("path")
-        if not tool_path:
+        if tool_name == "apktool":
+            resolved = resolve_apktool(tool_path)
+            if tool_path and resolved != os.path.expanduser(str(tool_path)):
+                if resolved:
+                    self.logger.info(f"apktool not found at configured path {tool_path}, using {resolved} from PATH")
+                else:
+                    self.logger.warning(f"apktool not found at configured path {tool_path} nor on PATH")
+            elif not resolved:
+                self.logger.info("apktool not configured and not on PATH - tool will be skipped during analysis")
+            else:
+                self.logger.debug(f"apktool configuration validated: {resolved}")
+        elif not tool_path:
             self.logger.info(f"{tool_name} path not configured - tool will be skipped during analysis")
             return
-
         # Check if tool executable exists
-        if not Path(tool_path).exists():
+        elif not Path(tool_path).exists():
             self.logger.warning(f"{tool_name} executable not found at configured path: {tool_path}")
         elif not os.access(tool_path, os.X_OK) and tool_name == "jadx":
             self.logger.warning(f"{tool_name} executable at {tool_path} is not executable")
-        elif tool_name == "apktool" and not tool_path.endswith(".jar"):
-            self.logger.warning(f"Apktool path should point to a JAR file: {tool_path}")
         else:
             self.logger.debug(f"{tool_name} configuration validated: {tool_path}")
 
@@ -317,20 +346,21 @@ class TemporalDirectoryManager:
             self.logger.debug("Apktool is disabled in configuration")
             return False
 
-        apktool_path = apktool_config.get("path")
+        apktool_path = resolve_apktool(apktool_config.get("path"))
         if not apktool_path:
-            self.logger.warning("Apktool path not configured, skipping apktool analysis")
-            return False
-
-        if not Path(apktool_path).exists():
-            self.logger.warning(f"Apktool JAR not found at {apktool_path}, skipping analysis")
+            self.logger.warning("Apktool not configured and not found on PATH, skipping apktool analysis")
             return False
 
         try:
-            # Build apktool command
-            cmd = ["java"]
-            cmd.extend(apktool_config.get("java_options", ["-Xmx2g"]))
-            cmd.extend(["-jar", apktool_path, "decode"])
+            # Build apktool command: a JAR runs under java with the configured
+            # java_options; an executable (the PATH wrapper) runs as is, since
+            # it picks its own Java.
+            if apktool_path.endswith(".jar"):
+                cmd = ["java"]
+                cmd.extend(apktool_config.get("java_options", ["-Xmx2g"]))
+                cmd.extend(["-jar", apktool_path, "decode"])
+            else:
+                cmd = [apktool_path, "decode"]
             cmd.extend(apktool_config.get("options", []))
             cmd.extend(["-f"])  # Force overwrite if directory exists
             cmd.extend(["--output", str(output_dir), apk_path])
@@ -439,6 +469,8 @@ class TemporalDirectoryManager:
             return False
 
         tool_path = tool_config.get("path")
+        if tool_name == "apktool":
+            return resolve_apktool(tool_path) is not None
         if not tool_path:
             return False
 

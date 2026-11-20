@@ -49,6 +49,10 @@ from dexray_insight.results.LibraryDetectionResults import RiskLevel
 
 from ..utils.version_analyzer import get_version_analyzer
 
+#: Where the IzzyOnDroid library definitions (libsmali.jsonl / libinfo.jsonl) are
+#: downloaded to and read from unless ``libsmali_path`` / ``libinfo_path`` is set.
+DEFAULT_DEFINITIONS_DIR = Path.home() / ".dexray_insight" / "library_definitions"
+
 # Marker appended to a library's evidence when its version was recovered by
 # scraping a directory-path segment rather than read from a declared field.
 # Downstream CVE assessment keys on this token to flag such findings for review.
@@ -87,9 +91,10 @@ class ApktoolDetectionEngine:
             "libinfo_url", "https://gitlab.com/IzzyOnDroid/repo/-/raw/master/lib/libinfo.jsonl"
         )
 
-        # Local file paths (can be overridden in config)
-        self.libsmali_path = self.config.get("libsmali_path", "./libsmali.jsonl")
-        self.libinfo_path = self.config.get("libinfo_path", "./libinfo.jsonl")
+        # Local file paths (can be overridden in config). Unset/None keeps the
+        # downloaded definitions in the per-user cache, never the working directory.
+        self.libsmali_path = str(self.config.get("libsmali_path") or DEFAULT_DEFINITIONS_DIR / "libsmali.jsonl")
+        self.libinfo_path = str(self.config.get("libinfo_path") or DEFAULT_DEFINITIONS_DIR / "libinfo.jsonl")
 
         # Cache for library definitions
         self._libs_by_path: dict[str, dict] | None = None
@@ -250,7 +255,7 @@ class ApktoolDetectionEngine:
         response.raise_for_status()
 
         # Ensure directory exists
-        os.makedirs(os.path.dirname(local_path), exist_ok=True)
+        os.makedirs(os.path.dirname(local_path) or ".", exist_ok=True)
 
         with open(local_path, "w", encoding="utf-8") as f:
             f.write(response.text)

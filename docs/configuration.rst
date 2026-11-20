@@ -63,6 +63,36 @@ Configuration files can be loaded in several ways:
    ``dexray-insight app.apk -c dexray.yaml --deep`` keeps every setting from
    ``dexray.yaml`` and additionally enables deep mode.
 
+Analysis Profiles
+~~~~~~~~~~~~~~~~~
+
+A profile is a named set of overrides for a common goal. It sits above the
+configuration file and below CLI flags (or a ``config_dict``), so any single key can
+still be overridden:
+
+.. code-block:: bash
+
+   dexray-insight app.apk --profile privacy
+   dexray-insight app.apk --profile privacy -s   # plus the privacy-relevant assessments
+
+.. code-block:: python
+
+   from dexray_insight.core import Configuration, list_profiles
+
+   list_profiles()  # {"generic": "...", "privacy": "..."}
+   config = Configuration(profile="privacy", config_dict={"modules": {"tracker_analysis": {"enabled": False}}})
+
+* ``generic``: the full analysis; no overrides.
+* ``privacy``: manifest, permissions, API invocation, strings, trackers, behaviour (fast
+  mode) and library detection without the similarity engine. Native analysis,
+  signature lookups, .NET analysis, APK diffing, apktool/JADX/kavanoz and the temporal
+  directory are switched off. With ``-s``, only the privacy-relevant assessments run
+  (PII, PII flows, sensitive data, provider paths, ad-SDK surface, access control,
+  misconfiguration); injection, authentication, logging, vulnerable components, CVE,
+  SSRF, integrity and insecure-design assessments are off.
+
+A profile never switches the security assessment itself on or off.
+
 Analysis Configuration
 ----------------------
 
@@ -414,14 +444,16 @@ For APK disassembly and resource extraction:
    tools:
      apktool:
        enabled: true
-       path: "/opt/homebrew/Cellar/apktool/2.12.0/libexec/apktool_2.12.0.jar"
+       path: null  # JAR or executable; null = `apktool` from PATH
        timeout: 600  # 10 minutes
        java_options: ["-Xmx2g"]  # Java heap options
        options: ["--no-debug-info"]
 
 **Configuration Options**:
 
-* ``path``: Full path to apktool JAR file
+* ``path``: apktool JAR (run with ``java -jar`` and ``java_options``) or executable.
+  When empty or missing, ``apktool`` is looked up on ``PATH`` (the Homebrew and Linux
+  wrappers), which runs with its own Java settings
 * ``timeout``: Maximum execution time (seconds)
 * ``java_options``: JVM memory and runtime options
 * ``options``: APKTool command-line options

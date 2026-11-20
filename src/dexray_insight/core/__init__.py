@@ -39,6 +39,9 @@ from .base_classes import register_module
 from .base_classes import register_tool
 from .base_classes import registry
 from .configuration import Configuration
+from .profiles import ANALYSIS_PROFILES
+from .profiles import get_profile
+from .profiles import list_profiles
 from .security_engine import SecurityAssessmentEngine
 from .security_engine import SecurityAssessmentResults
 
@@ -56,6 +59,9 @@ __all__ = [
     "register_module",
     "register_tool",
     "register_assessment",
+    "ANALYSIS_PROFILES",
+    "get_profile",
+    "list_profiles",
     "AnalysisEngine",
     "ExecutionPlan",
     "DependencyResolver",

@@ -44,6 +44,7 @@
 import argparse
 import contextlib
 import logging
+import os
 import sys
 import time
 from datetime import datetime
@@ -101,8 +102,8 @@ def create_configuration_from_args(args) -> Configuration:
     Returns:
         Configuration object with applied command line overrides
     """
-    # Create base configuration
-    config = Configuration()
+    # Create base configuration (with the named analysis profile, if any)
+    config = Configuration(profile=getattr(args, "profile", None))
 
     # Build configuration updates using refactored single-purpose functions
     config_updates = _build_configuration_updates(args)
@@ -316,7 +317,11 @@ def _print_analysis_results_to_terminal(results, verbose: bool, config=None):
 
 
 def start_apk_static_analysis_new(
-    apk_file_path: str, config: Configuration, print_results_to_terminal: bool = False, verbose: bool = False
+    apk_file_path: str,
+    config: Configuration,
+    print_results_to_terminal: bool = False,
+    verbose: bool = False,
+    output_dir: str | None = None,
 ):
     """Perform APK static analysis with new engine architecture.
 
@@ -325,9 +330,13 @@ def start_apk_static_analysis_new(
         config: Configuration object
         print_results_to_terminal: Whether to print results to terminal
         verbose: Whether to use verbose output (full JSON) or analyst summary
+        output_dir: Directory for the result files (JSON and the optional Markdown
+            report). ``None`` keeps the historic behaviour: the current working
+            directory, with bare file names returned.
 
     Returns:
-        Tuple of (results, result_file_name, security_result_file_name)
+        Tuple of (results, result_file_name, security_result_file_name); the file
+        names include ``output_dir`` when one was given.
     """
     try:
         # Create analysis engine first (needed for the full-hit cache gate)
@@ -352,10 +361,12 @@ def start_apk_static_analysis_new(
             main_dict = cached_payload.get("main", {})
             security_dict = cached_payload.get("security")
 
-            result_file_name = dump_results_as_json_file(main_dict, name, timestamp)
+            result_file_name = dump_results_as_json_file(main_dict, name, timestamp, output_dir=output_dir)
             security_result_file_name = ""
             if security_dict:
-                security_result_file_name = dump_security_results_as_json_file(security_dict, name, timestamp)
+                security_result_file_name = dump_security_results_as_json_file(
+                    security_dict, name, timestamp, output_dir=output_dir
+                )
 
                 # Re-emit the optional Markdown security report so a cached re-run
                 # produces the same artifacts as a fresh run. Reconstruct a minimal
@@ -366,7 +377,7 @@ def start_apk_static_analysis_new(
                 recon_for_md.security_assessment = security_dict
                 with contextlib.suppress(Exception):
                     recon_for_md.apk_overview.update_from_dict(main_dict.get("apk_overview", {}) or {})
-                _maybe_dump_security_markdown(recon_for_md, config, name, timestamp)
+                _maybe_dump_security_markdown(recon_for_md, config, name, timestamp, output_dir=output_dir)
 
             if print_results_to_terminal:
                 _print_cached_summary(main_dict, security_dict, verbose=verbose, config=config)
@@ -392,15 +403,17 @@ def start_apk_static_analysis_new(
             _print_analysis_results_to_terminal(results, verbose, config)
 
         # Save results to file
-        result_file_name = dump_results_as_json_file(results, name, timestamp)
+        result_file_name = dump_results_as_json_file(results, name, timestamp, output_dir=output_dir)
 
         security_result_file_name = ""
         # Save separate security results file if security assessment was performed
         if hasattr(results, "security_assessment") and results.security_assessment:
-            security_result_file_name = dump_security_results_as_json_file(results, name, timestamp)
+            security_result_file_name = dump_security_results_as_json_file(
+                results, name, timestamp, output_dir=output_dir
+            )
 
             # Optional human-readable Markdown security report (config-gated).
-            _maybe_dump_security_markdown(results, config, name, timestamp)
+            _maybe_dump_security_markdown(results, config, name, timestamp, output_dir=output_dir)
 
         return results, result_file_name, security_result_file_name
 
@@ -419,8 +432,16 @@ def start_apk_static_analysis_new(
         return None, "", ""
 
 
-def dump_results_as_json_file(results, filename: str, timestamp: str = None) -> str:
-    """Save analysis results to JSON file."""
+def _output_path(safe_filename: str, output_dir: str | None) -> str:
+    """Join a result file name onto ``output_dir`` (created on demand); bare name when None."""
+    if not output_dir:
+        return safe_filename
+    os.makedirs(output_dir, exist_ok=True)
+    return os.path.join(output_dir, safe_filename)
+
+
+def dump_results_as_json_file(results, filename: str, timestamp: str = None, output_dir: str | None = None) -> str:
+    """Save analysis results to JSON file (in ``output_dir``, else the working directory)."""
     if timestamp is None:
         current_time = datetime.now()
         timestamp = current_time.strftime("%Y-%m-%d_%H-%M-%S")
@@ -438,12 +459,15 @@ def dump_results_as_json_file(results, filename: str, timestamp: str = None) -> 
     else:
         results_dict = {"results": str(results)}
 
-    dump_json(safe_filename, results_dict)
-    return safe_filename
+    target = _output_path(safe_filename, output_dir)
+    dump_json(target, results_dict)
+    return target
 
 
-def dump_security_results_as_json_file(results, filename: str, timestamp: str = None) -> str:
-    """Save security assessment results to separate JSON file."""
+def dump_security_results_as_json_file(
+    results, filename: str, timestamp: str = None, output_dir: str | None = None
+) -> str:
+    """Save security assessment results to a separate JSON file (in ``output_dir`` if given)."""
     if timestamp is None:
         current_time = datetime.now()
         timestamp = current_time.strftime("%Y-%m-%d_%H-%M-%S")
@@ -464,12 +488,15 @@ def dump_security_results_as_json_file(results, filename: str, timestamp: str = 
 
     # Only save if there are actual security results
     if security_dict:
-        dump_json(safe_filename, security_dict)
-        return safe_filename
+        target = _output_path(safe_filename, output_dir)
+        dump_json(target, security_dict)
+        return target
     return ""
 
 
-def dump_security_report_as_markdown(results, filename: str, timestamp: str = None, config=None) -> str:
+def dump_security_report_as_markdown(
+    results, filename: str, timestamp: str = None, config=None, output_dir: str | None = None
+) -> str:
     """Save a human-readable Markdown security report beside the JSON writers.
 
     Uses :class:`MarkdownSecurityReporter` to render a ranked / tiered report from
@@ -481,6 +508,7 @@ def dump_security_report_as_markdown(results, filename: str, timestamp: str = No
         filename: Base APK name used to build the output filename.
         timestamp: Shared run timestamp; generated when omitted.
         config: Optional Configuration controlling report thresholds and top_n.
+        output_dir: Directory for the report; the working directory when ``None``.
     """
     from .results.reporting.markdown_report import MarkdownSecurityReporter
 
@@ -507,11 +535,12 @@ def dump_security_report_as_markdown(results, filename: str, timestamp: str = No
 
     base_filename = filename.replace(" ", "_")
     safe_filename = f"dexray_{base_filename}_security_{timestamp}.md"
-    dump_text(safe_filename, markdown)
-    return safe_filename
+    target = _output_path(safe_filename, output_dir)
+    dump_text(target, markdown)
+    return target
 
 
-def _maybe_dump_security_markdown(results, config, name: str, timestamp: str) -> str:
+def _maybe_dump_security_markdown(results, config, name: str, timestamp: str, output_dir: str | None = None) -> str:
     """Write the Markdown security report if output.security_report.markdown.enabled.
 
     Returns the written filename (or "") and never raises: a report-rendering
@@ -524,7 +553,7 @@ def _maybe_dump_security_markdown(results, config, name: str, timestamp: str) ->
         markdown_cfg = (output_cfg.get("security_report", {}) or {}).get("markdown", {}) or {}
         if not markdown_cfg.get("enabled", False):
             return ""
-        report_file = dump_security_report_as_markdown(results, name, timestamp, config)
+        report_file = dump_security_report_as_markdown(results, name, timestamp, config, output_dir=output_dir)
         if report_file:
             print(f"[*] Markdown security report saved to: {report_file}")
         return report_file
@@ -734,6 +763,20 @@ def _add_security_arguments(args_group):
 
 def _add_module_control_arguments(args_group):
     """Add module control arguments for trackers, API analysis, etc."""
+    from .core.profiles import ANALYSIS_PROFILES
+
+    args_group.add_argument(
+        "--profile",
+        required=False,
+        default=None,
+        choices=sorted(ANALYSIS_PROFILES),
+        help=(
+            "Analysis profile: a preset of modules for a goal. 'privacy' runs permissions, "
+            "trackers, privacy-relevant APIs, strings and behaviour and skips native, "
+            "decompilation and unrelated security checks; 'generic' is the full analysis. "
+            "Other flags still override the profile."
+        ),
+    )
     args_group.add_argument(
         "-t",
         "--tracker",
@@ -806,7 +849,7 @@ def _load_or_create_configuration(parsed_args):
     config = None
     if hasattr(parsed_args, "config") and parsed_args.config:
         try:
-            config = Configuration(config_path=parsed_args.config)
+            config = Configuration(config_path=parsed_args.config, profile=getattr(parsed_args, "profile", None))
             print(f"[*] Loaded configuration from: {parsed_args.config}")
         except Exception as e:
             print(f"[-] Failed to load configuration file: {str(e)}", file=sys.stderr)

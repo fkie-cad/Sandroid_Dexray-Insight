@@ -9,6 +9,36 @@ and this project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0
 [Unreleased]
 ------------
 
+Added
+~~~~~
+- **Analysis profiles**: ``Configuration(profile="privacy")`` / ``--profile privacy``
+  runs the privacy-relevant modules (permissions, API invocation, strings, trackers,
+  behaviour, library detection without similarity) and skips native analysis,
+  signature lookups, decompilation and unrelated security assessments;
+  ``generic`` is the full analysis. ``dexray_insight.core.list_profiles()`` lists them
+- ``start_apk_static_analysis_new(..., output_dir=...)`` writes the result files
+  (JSON and Markdown report) to that directory instead of the working directory
+- ``apk_overview.permissions.requested_permissions``: one entry per manifest
+  request with its tag and ``maxSdkVersion``
+  (``dexray_insight.apk_overview.requested_permissions``)
+
+Changed
+~~~~~~~
+- apktool is resolved from ``PATH`` (e.g. the Homebrew or Linux wrapper) when
+  ``tools.apktool.path`` is empty or points to a missing file; a configured JAR or
+  executable still wins. ``dexray.yaml`` no longer pins a versioned Homebrew JAR
+- The IzzyOnDroid library definitions (``libsmali.jsonl`` / ``libinfo.jsonl``) default
+  to ``~/.dexray_insight/library_definitions/`` instead of the working directory
+- Analysis cache schema bumped (``requested-permissions-sdk23-maxsdk``)
+
+Fixed
+~~~~~
+- ``Finding post-processing failed: 'BehaviourAnalysisResults' object has no
+  attribute 'get'``: the context analyzer now accepts the behaviour result dataclass,
+  so the false-positive / dedup pass runs again instead of being skipped
+- Permissions requested with ``<uses-permission-sdk-23>`` were not counted
+  (``apk_overview``, ``manifest_analysis``, ``permission_analysis``)
+
 [2.1.0] - 2026-11-19
 --------------------
 

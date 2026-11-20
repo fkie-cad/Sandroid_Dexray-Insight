@@ -291,13 +291,26 @@ class Configuration:
         },
     }
 
-    def __init__(self, config_path: str | None = None, config_dict: dict[str, Any] | None = None):
+    def __init__(
+        self,
+        config_path: str | None = None,
+        config_dict: dict[str, Any] | None = None,
+        profile: str | None = None,
+    ):
         """
         Initialize configuration.
 
+        Layering, lowest to highest: built-in defaults, ``dexray.yaml``,
+        ``config_path``, the ``profile`` overrides, ``config_dict``, environment.
+
         Args:
             config_path: Path to configuration file (JSON or YAML)
-            config_dict: Configuration dictionary (overrides file)
+            config_dict: Configuration dictionary (overrides file and profile)
+            profile: Name of an analysis profile (see
+                :mod:`dexray_insight.core.profiles`), e.g. ``"privacy"``.
+
+        Raises:
+            ValueError: For an unknown profile name.
         """
         # Deep copy so that per-instance mutations (env overrides, merged file
         # or dict config) never leak into the shared class-level DEFAULT_CONFIG.
@@ -308,6 +321,10 @@ class Configuration:
 
         if config_path:
             self._load_from_file(config_path)
+
+        self.profile: str | None = None
+        if profile:
+            self.apply_profile(profile)
 
         if config_dict:
             self._merge_config(config_dict)
@@ -397,6 +414,18 @@ class Configuration:
                     base[key] = value
 
         merge_dict(self.config, new_config)
+
+    def apply_profile(self, name: str) -> None:
+        """Merge the overrides of analysis profile ``name`` into this configuration.
+
+        Raises:
+            ValueError: For an unknown profile name.
+        """
+        from .profiles import get_profile
+
+        profile = get_profile(name)
+        self._merge_config(copy.deepcopy(profile.overrides))
+        self.profile = profile.name
 
     def get_module_config(self, module_name: str) -> dict[str, Any]:
         """Get configuration for a specific module."""
