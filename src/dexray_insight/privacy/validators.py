@@ -53,16 +53,16 @@ DATA_TYPE_OF_KIND: dict[str, str] = {
     "email": "personal.email_address",
 }
 
-_NON_DIGIT = re.compile(r"\D")
-_E164_RE = re.compile(r"^\+[1-9]\d{7,14}$")
+_NON_DIGIT = re.compile(r"\D", re.ASCII)
+_E164_RE = re.compile(r"^\+[1-9]\d{7,14}$", re.ASCII)
 _ANDROID_ID_RE = re.compile(r"^[0-9a-fA-F]{16}$")
 _UUID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 _MAC_RE = re.compile(r"^[0-9a-fA-F]{2}([:-])[0-9a-fA-F]{2}(?:\1[0-9a-fA-F]{2}){4}$")
-_IBAN_RE = re.compile(r"^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$")
+_IBAN_RE = re.compile(r"^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$", re.ASCII)
 _EMAIL_RE = re.compile(
     r"^[A-Za-z0-9._%+\-]+@[A-Za-z0-9](?:[A-Za-z0-9\-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9\-]+)*\.[A-Za-z]{2,}$"
 )
-_SSN_RE = re.compile(r"^(\d{3})-(\d{2})-(\d{4})$")
+_SSN_RE = re.compile(r"^(\d{3})-(\d{2})-(\d{4})$", re.ASCII)
 _PLACEHOLDER_MACS = {"02:00:00:00:00:00", "00:00:00:00:00:00", "ff:ff:ff:ff:ff:ff"}
 
 
@@ -79,7 +79,7 @@ def luhn_ok(digits: str) -> bool:
     Returns:
         True when the checksum is valid.
     """
-    if not digits or not digits.isdigit():
+    if not digits or not (digits.isascii() and digits.isdigit()):
         return False
     total = 0
     parity = len(digits) % 2
@@ -96,7 +96,7 @@ def luhn_ok(digits: str) -> bool:
 def validate_card(value: str) -> Verdict:
     """Payment card number: 13-19 digits (spaces and hyphens allowed) with a valid Luhn digit."""
     digits = _NON_DIGIT.sub("", value or "")
-    if re.search(r"[^\d \-]", (value or "").strip()):
+    if re.search(r"[^\d \-]", (value or "").strip(), re.ASCII):
         return _verdict("card", False, reason="charset")
     if not 13 <= len(digits) <= 19:
         return _verdict("card", False, reason="length")
@@ -111,7 +111,7 @@ def validate_e164(value: str) -> Verdict:
     if not compact.startswith("+"):
         return _verdict("e164", False, reason="no_plus")
     digits = compact[1:]
-    if not digits.isdigit() or not 8 <= len(digits) <= 15:
+    if not (digits.isascii() and digits.isdigit()) or not 8 <= len(digits) <= 15:
         return _verdict("e164", False, reason="length")
     if not _E164_RE.match(compact):
         return _verdict("e164", False, reason="shape")
@@ -166,7 +166,7 @@ def validate_ssn(value: str) -> Verdict:
 def validate_imei(value: str) -> Verdict:
     """IMEI: exactly 15 digits (spaces, hyphens and slashes allowed) with a valid Luhn digit."""
     raw = (value or "").strip()
-    if re.search(r"[^\d \-/]", raw):
+    if re.search(r"[^\d \-/]", raw, re.ASCII):
         return _verdict("imei", False, reason="charset")
     digits = _NON_DIGIT.sub("", raw)
     if len(digits) != 15:

@@ -102,3 +102,10 @@ def test_pii_validator_behaviour_unchanged():
     assert val.evaluate("666-12-3456", "", by_name["ssn_us"]).basis == "ssn:structure"
     assert val.evaluate("666-12-3456", "ssn", by_name["ssn_us"]).basis == "ssn:context"
     assert PIIValidator._luhn_ok("79927398713")
+
+
+def test_only_ascii_digits():
+    """Review-2 N4: Unicode digits are not card or IMEI digits, and luhn_ok never raises."""
+    assert v.validate("card", "٤١١١١١١١١١١١١١١١").valid is False
+    assert v.luhn_ok("1²") is False
+    assert v.validate("imei", "４９０１５４２０３２３７５１８").valid is False
