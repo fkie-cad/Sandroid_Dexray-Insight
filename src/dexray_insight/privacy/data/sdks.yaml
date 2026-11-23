@@ -1,0 +1,889 @@
+# sdks.yaml: curated SDKs (attribution prefixes, anchors, documented collects) and manifest switches.
+# SPDX: facts only; see NOTICE for licences and attribution.
+meta:
+  file: sdks
+  format_version: 1
+  catalogue_version: 2026.11.0
+  licence: LicenseRef-own-curation
+  attribution: 'Own curation. Every SDK prefix, anchor and collects fact cites its source: a vendor document (Google/Firebase pages CC BY 4.0; other vendor pages are cited as references and their facts
+    are restated in our own words) or an observation in a corpus APK (sha256 recorded). No Exodus data.'
+  sources:
+  - {id: admob-play-data-disclosure, title: 'Google Mobile Ads SDK: Prepare for Google Play''s Data safety section', url: 'https://developers.google.com/admob/android/privacy/play-data-disclosure', licence: CC-BY-4.0,
+    retrieved: '2026-11-23', use: facts_cited}
+  - {id: admob-quick-start, title: 'Google Mobile Ads SDK: Android quick start (APPLICATION_ID meta-data)', url: 'https://developers.google.com/admob/android/quick-start', licence: CC-BY-4.0, retrieved: '2026-11-23',
+    use: facts_cited}
+  - {id: appmetrica-google-data-safety, title: 'AppMetrica: Google Play data safety (default configuration table; facts in our own words)', url: 'https://appmetrica.yandex.com/docs/en/data-security/google-data-safety',
+    licence: LicenseRef-vendor-terms, retrieved: '2026-11-23', use: facts_cited}
+  - {id: braze-changelog, title: 'Braze braze-android-sdk (vendor GitHub): CHANGELOG (Appboy -> Braze renames)', url: 'https://github.com/braze-inc/braze-android-sdk/blob/master/CHANGELOG.md', licence: NOASSERTION,
+    retrieved: '2026-11-23', use: facts_cited}
+  - {id: crashlytics-customize-reports, title: 'Firebase: Customize your Crashlytics crash reports (Android)', url: 'https://firebase.google.com/docs/crashlytics/android/customize-crash-reports', licence: CC-BY-4.0,
+    retrieved: '2026-11-23', use: facts_cited}
+  - {id: firebase-configure-data-collection, title: 'Firebase: Configure Analytics data collection and usage (Android)', url: 'https://firebase.google.com/docs/analytics/android/configure-data-collection',
+    licence: CC-BY-4.0, retrieved: '2026-11-23', use: facts_cited}
+  - {id: firebase-fcm-client, title: 'Firebase: Set up a Firebase Cloud Messaging client app on Android', url: 'https://firebase.google.com/docs/cloud-messaging/android/client', licence: CC-BY-4.0, retrieved: '2026-11-23',
+    use: facts_cited}
+  - {id: firebase-play-data-disclosure, title: 'Firebase: Data disclosure for Google Play''s Data safety section', url: 'https://firebase.google.com/docs/android/play-data-disclosure', licence: CC-BY-4.0,
+    retrieved: '2026-11-23', use: facts_cited}
+  - {id: firebase-ref-analytics, title: 'Firebase reference: FirebaseAnalytics', url: 'https://firebase.google.com/docs/reference/android/com/google/firebase/analytics/FirebaseAnalytics', licence: CC-BY-4.0,
+    retrieved: '2026-11-23', use: facts_cited}
+  - {id: google-analytics-data-disclosure, title: 'Google Analytics Help 11582702: Google Analytics for Firebase data disclosure (facts in our own words)', url: 'https://support.google.com/analytics/answer/11582702',
+    licence: LicenseRef-Google-ToS, retrieved: '2026-11-23', use: facts_cited}
+  - {id: google-consent-mode-app, title: 'Google tag platform: Consent mode for apps (Android)', url: 'https://developers.google.com/tag-platform/security/guides/app-consent?platform=android', licence: CC-BY-4.0,
+    retrieved: '2026-11-23', use: facts_cited}
+  - {id: meta-app-events-android, title: 'Meta: Getting started with App Events (Android)', url: 'https://developers.facebook.com/docs/app-events/getting-started-app-events-android', licence: LicenseRef-vendor-terms,
+    retrieved: '2026-11-23', use: facts_cited}
+  - {id: meta-user-settings-src, title: 'Meta facebook-android-sdk (vendor GitHub): UserSettingsManager.kt (flag defaults)', url: 'https://github.com/facebook/facebook-android-sdk/blob/main/facebook-core/src/main/java/com/facebook/UserSettingsManager.kt',
+    licence: NOASSERTION, retrieved: '2026-11-23', use: facts_cited}
+  - {id: observed-spin-amplitude, title: Observed in corpus APK Spin 2.21.0 (amplitude), url: null, licence: null, retrieved: '2026-11-23', use: observed, apk_sha256: 1d071823330f7eb42f3bde562ff4abbf026606cd133d0aa24a9068862a88bd2d,
+    apk_label: Spin 2.21.0, example_class: Lcom/amplitude/api/Amplitude;}
+  - {id: observed-spin-appcenter, title: Observed in corpus APK Spin 2.21.0 (appcenter), url: null, licence: null, retrieved: '2026-11-23', use: observed, apk_sha256: 1d071823330f7eb42f3bde562ff4abbf026606cd133d0aa24a9068862a88bd2d,
+    apk_label: Spin 2.21.0, example_class: Lcom/microsoft/appcenter/AppCenter;}
+  - {id: observed-spin-appsflyer, title: Observed in corpus APK Spin 2.21.0 (appsflyer), url: null, licence: null, retrieved: '2026-11-23', use: observed, apk_sha256: 1d071823330f7eb42f3bde562ff4abbf026606cd133d0aa24a9068862a88bd2d,
+    apk_label: Spin 2.21.0, example_class: Lcom/appsflyer/AppsFlyerLib;}
+  - {id: observed-spin-braze, title: Observed in corpus APK Spin 2.21.0 (braze), url: null, licence: null, retrieved: '2026-11-23', use: observed, apk_sha256: 1d071823330f7eb42f3bde562ff4abbf026606cd133d0aa24a9068862a88bd2d,
+    apk_label: Spin 2.21.0, example_class: Lcom/appboy/Appboy;}
+  - {id: observed-spin-bugsnag, title: Observed in corpus APK Spin 2.21.0 (bugsnag), url: null, licence: null, retrieved: '2026-11-23', use: observed, apk_sha256: 1d071823330f7eb42f3bde562ff4abbf026606cd133d0aa24a9068862a88bd2d,
+    apk_label: Spin 2.21.0, example_class: Lcom/bugsnag/android/Bugsnag;}
+  - {id: observed-spin-firebase_messaging, title: Observed in corpus APK Spin 2.21.0 (firebase_messaging), url: null, licence: null, retrieved: '2026-11-23', use: observed, apk_sha256: 1d071823330f7eb42f3bde562ff4abbf026606cd133d0aa24a9068862a88bd2d,
+    apk_label: Spin 2.21.0, example_class: Lcom/google/firebase/messaging/FirebaseMessaging;}
+  - {id: observed-spin-meta_app_events, title: Observed in corpus APK Spin 2.21.0 (meta_app_events), url: null, licence: null, retrieved: '2026-11-23', use: observed, apk_sha256: 1d071823330f7eb42f3bde562ff4abbf026606cd133d0aa24a9068862a88bd2d,
+    apk_label: Spin 2.21.0, example_class: Lcom/facebook/appevents/AppEventsLogger;}
+  - {id: observed-spin-meta_login, title: Observed in corpus APK Spin 2.21.0 (meta_login), url: null, licence: null, retrieved: '2026-11-23', use: observed, apk_sha256: 1d071823330f7eb42f3bde562ff4abbf026606cd133d0aa24a9068862a88bd2d,
+    apk_label: Spin 2.21.0, example_class: Lcom/facebook/login/LoginManager;}
+  - {id: observed-voi-adjust, title: Observed in corpus APK VOI 2.24.2 (adjust), url: null, licence: null, retrieved: '2026-11-23', use: observed, apk_sha256: 007820849853392bdaa57d45ee46c0410da936542349d73188a42ff80357a23a,
+    apk_label: VOI 2.24.2, example_class: Lcom/adjust/sdk/Adjust;}
+  - {id: observed-voi-braze, title: Observed in corpus APK VOI 2.24.2 (braze), url: null, licence: null, retrieved: '2026-11-23', use: observed, apk_sha256: 007820849853392bdaa57d45ee46c0410da936542349d73188a42ff80357a23a,
+    apk_label: VOI 2.24.2, example_class: Lbo/app/a;}
+  - {id: observed-voi-fabric_crashlytics, title: Observed in corpus APK VOI 2.24.2 (fabric_crashlytics), url: null, licence: null, retrieved: '2026-11-23', use: observed, apk_sha256: 007820849853392bdaa57d45ee46c0410da936542349d73188a42ff80357a23a,
+    apk_label: VOI 2.24.2, example_class: Lcom/crashlytics/android/CrashlyticsInitProvider;}
+  - {id: observed-voi-firebase_analytics, title: Observed in corpus APK VOI 2.24.2 (firebase_analytics), url: null, licence: null, retrieved: '2026-11-23', use: observed, apk_sha256: 007820849853392bdaa57d45ee46c0410da936542349d73188a42ff80357a23a,
+    apk_label: VOI 2.24.2, example_class: Lcom/google/android/gms/measurement/AppMeasurement;}
+  - {id: observed-voi-firebase_messaging, title: Observed in corpus APK VOI 2.24.2 (firebase_messaging), url: null, licence: null, retrieved: '2026-11-23', use: observed, apk_sha256: 007820849853392bdaa57d45ee46c0410da936542349d73188a42ff80357a23a,
+    apk_label: VOI 2.24.2, example_class: Lcom/google/firebase/messaging/FirebaseMessagingService;}
+  - {id: observed-voi-onesignal, title: Observed in corpus APK VOI 2.24.2 (onesignal), url: null, licence: null, retrieved: '2026-11-23', use: observed, apk_sha256: 007820849853392bdaa57d45ee46c0410da936542349d73188a42ff80357a23a,
+    apk_label: VOI 2.24.2, example_class: Lcom/onesignal/PermissionsActivity;}
+  - {id: perf-disable-sdk, title: 'Firebase: Disable Firebase Performance Monitoring (Android)', url: 'https://firebase.google.com/docs/perf-mon/disable-sdk?platform=android', licence: CC-BY-4.0, retrieved: '2026-11-23',
+    use: facts_cited}
+  - {id: vendor-adjust-android, title: 'Adjust: Android SDK integration (com.adjust.sdk.Adjust)', url: 'https://dev.adjust.com/en/sdk/android/', licence: LicenseRef-vendor-terms, retrieved: '2026-11-23',
+    use: facts_cited}
+  - {id: vendor-adjust-readme-v4, title: 'Adjust android_sdk v4.29.0 README (vendor GitHub): AdjustReferrerReceiver', url: 'https://github.com/adjust/android_sdk/blob/v4.29.0/README.md', licence: NOASSERTION,
+    retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-admob-quickstart-sample, title: 'Firebase quickstart-android (Google GitHub): AdMob sample AndroidManifest.xml (AdActivity, APPLICATION_ID)', url: 'https://github.com/firebase/quickstart-android/blob/9e0029ceccc8f90e9abf81ec4bb78ae62adf848c/admob/app/src/main/AndroidManifest.xml',
+    licence: Apache-2.0, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-admob-ref, title: 'Google Play services reference: com.google.android.gms.ads package', url: 'https://developers.google.com/android/reference/com/google/android/gms/ads/package-summary',
+    licence: CC-BY-4.0, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-amplitude-android, title: 'Amplitude: Android SDK (legacy, com.amplitude.api)', url: 'https://amplitude.com/docs/sdks/analytics/android/android-sdk', licence: LicenseRef-vendor-terms, retrieved: '2026-11-23',
+    use: facts_cited}
+  - {id: vendor-amplitude-kotlin, title: 'Amplitude: Android Kotlin SDK (com.amplitude.android)', url: 'https://amplitude.com/docs/sdks/analytics/android/android-kotlin-sdk', licence: LicenseRef-vendor-terms,
+    retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-appcenter-android, title: 'Microsoft Learn: App Center SDK, getting started on Android', url: 'https://learn.microsoft.com/en-us/appcenter/sdk/getting-started/android', licence: CC-BY-4.0,
+    retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-appmetrica-migration, title: 'AppMetrica: migration to io.appmetrica.analytics 6.0.0 (com.yandex.metrica -> io.appmetrica.analytics, YandexMetrica -> AppMetrica)', url: 'https://appmetrica.yandex.com/docs/en/sdk/android/analytics/migration-io-6-0-0',
+    licence: LicenseRef-vendor-terms, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-appsflyer-integrate, title: 'AppsFlyer: Integrate the Android SDK (com.appsflyer.AppsFlyerLib)', url: 'https://dev.appsflyer.com/hc/docs/integrate-android-sdk', licence: LicenseRef-vendor-terms,
+    retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-branch-integration, title: 'Branch: Android basic integration (io.branch.referral.Branch, io.branch.sdk.BranchKey)', url: 'https://help.branch.io/developers-hub/docs/android-basic-integration',
+    licence: LicenseRef-vendor-terms, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-braze-push, title: 'Braze: Android push notifications (com.braze.push.BrazeFirebaseMessagingService)', url: 'https://www.braze.com/docs/developer_guide/push_notifications/?sdktab=android',
+    licence: LicenseRef-vendor-terms, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-bugsnag-android, title: 'Bugsnag: Android integration (com.bugsnag.android.API_KEY)', url: 'https://docs.bugsnag.com/platforms/android/', licence: LicenseRef-vendor-terms, retrieved: '2026-11-23',
+    use: facts_cited}
+  - {id: vendor-bugsnag-src, title: 'Bugsnag bugsnag-android (vendor GitHub): Bugsnag.java', url: 'https://github.com/bugsnag/bugsnag-android/blob/main/bugsnag-android-core/src/main/java/com/bugsnag/android/Bugsnag.java',
+    licence: NOASSERTION, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-clevertap-quickstart, title: 'CleverTap: Android quickstart (CLEVERTAP_ACCOUNT_ID meta-data)', url: 'https://developer.clevertap.com/docs/android-quickstart-guide', licence: LicenseRef-vendor-terms,
+    retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-clevertap-src, title: 'CleverTap clevertap-android-sdk (vendor GitHub): CleverTapAPI.java', url: 'https://github.com/CleverTap/clevertap-android-sdk/blob/master/clevertap-core/src/main/java/com/clevertap/android/sdk/CleverTapAPI.java',
+    licence: NOASSERTION, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-firebase-analytics-ref, title: 'Firebase reference: com.google.firebase.analytics package', url: 'https://firebase.google.com/docs/reference/android/com/google/firebase/analytics/package-summary',
+    licence: CC-BY-4.0, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-firebase-crashlytics-ref, title: 'Firebase reference: com.google.firebase.crashlytics package', url: 'https://firebase.google.com/docs/reference/android/com/google/firebase/crashlytics/package-summary',
+    licence: CC-BY-4.0, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-firebase-iid-ref, title: 'Firebase reference: com.google.firebase.iid package (deprecated)', url: 'https://firebase.google.com/docs/reference/android/com/google/firebase/iid/package-summary',
+    licence: CC-BY-4.0, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-firebase-installations-ref, title: 'Firebase reference: com.google.firebase.installations package', url: 'https://firebase.google.com/docs/reference/android/com/google/firebase/installations/package-summary',
+    licence: CC-BY-4.0, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-firebase-messaging-ref, title: 'Firebase reference: com.google.firebase.messaging package', url: 'https://firebase.google.com/docs/reference/android/com/google/firebase/messaging/package-summary',
+    licence: CC-BY-4.0, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-firebase-perf-ref, title: 'Firebase reference: com.google.firebase.perf package', url: 'https://firebase.google.com/docs/reference/android/com/google/firebase/perf/package-summary', licence: CC-BY-4.0,
+    retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-gms-measurement-ref, title: 'Firebase reference: com.google.android.gms.measurement package', url: 'https://firebase.google.com/docs/reference/android/com/google/android/gms/measurement/package-summary',
+    licence: CC-BY-4.0, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-instabug-sample, title: 'Instabug-Android (vendor GitHub): SampleApplication.java (com.instabug.library.Instabug)', url: 'https://github.com/Instabug/Instabug-Android/blob/master/app/src/main/java/com/example/instabug/SampleApplication.java',
+    licence: NOASSERTION, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-kochava-using-sdk, title: 'Kochava: Android SDK, using the SDK (package rename com.kochava.tracker -> com.kochava.measurement)', url: 'https://support.kochava.com/sdk-integration/android-sdk-integration/android-using-the-sdk/',
+    licence: LicenseRef-vendor-terms, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-luciq-migration, title: 'Luciq (formerly Instabug): Android migration guide (com.instabug -> ai.luciq)', url: 'https://docs.luciq.ai/docs/android-luciq-migration', licence: LicenseRef-vendor-terms,
+    retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-meta-audience-network, title: 'Meta Audience Network: Android interstitial setup (AudienceNetworkAds, AudienceNetworkActivity)', url: 'https://developers.facebook.com/documentation/audience-network/setting-up/ad-setup/android/interstitial.md',
+    licence: LicenseRef-vendor-terms, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-meta-login, title: 'Meta: Facebook Login for Android (FacebookActivity, ApplicationId meta-data)', url: 'https://developers.facebook.com/docs/facebook-login/android', licence: LicenseRef-vendor-terms,
+    retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-meta-login-src, title: 'Meta facebook-android-sdk (vendor GitHub): LoginManager.kt', url: 'https://github.com/facebook/facebook-android-sdk/blob/main/facebook-common/src/main/java/com/facebook/login/LoginManager.kt',
+    licence: NOASSERTION, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-meta-sdk-core-src, title: 'Meta facebook-android-sdk (vendor GitHub): facebook-core sources', url: 'https://github.com/facebook/facebook-android-sdk/blob/main/facebook-core/src/main/java/com/facebook/appevents/AppEventsLogger.kt',
+    licence: NOASSERTION, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-mixpanel-android, title: 'Mixpanel: Android SDK (com.mixpanel.android.mpmetrics.MixpanelAPI)', url: 'https://docs.mixpanel.com/docs/tracking-methods/sdks/android', licence: LicenseRef-vendor-terms,
+    retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-moengage-init, title: 'MoEngage: Android SDK initialization (com.moengage.core.MoEngage)', url: 'https://www.moengage.com/docs/developer-guide/android-sdk/sdk-integration/basic-integration/sdk-initialization',
+    licence: LicenseRef-vendor-terms, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-moengage-sample, title: 'MoEngage Android-Sample (vendor GitHub): AndroidManifest.xml (MoEFireBaseMessagingService)', url: 'https://github.com/moengage/Android-Sample/blob/master/app/src/main/AndroidManifest.xml',
+    licence: NOASSERTION, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-onesignal-setup, title: 'OneSignal: Android SDK setup (com.onesignal.OneSignal)', url: 'https://documentation.onesignal.com/docs/en/android-sdk-setup.md', licence: LicenseRef-vendor-terms,
+    retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-segment-android-src, title: 'Segment analytics-android (vendor GitHub): Analytics.java', url: 'https://github.com/segmentio/analytics-android/blob/master/analytics/src/main/java/com/segment/analytics/Analytics.java',
+    licence: NOASSERTION, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-segment-kotlin-src, title: 'Segment analytics-kotlin (vendor GitHub): core Analytics.kt', url: 'https://github.com/segmentio/analytics-kotlin/blob/main/core/src/main/java/com/segment/analytics/kotlin/core/Analytics.kt',
+    licence: NOASSERTION, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-sentry-manual-setup, title: 'Sentry: Android manual setup (io.sentry.auto-init, SentryInitProvider, SentryAndroid)', url: 'https://docs.sentry.io/platforms/android/manual-setup/', licence: LicenseRef-vendor-terms,
+    retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-sentry-options, title: 'Sentry: Android options (sendDefaultPii default false)', url: 'https://docs.sentry.io/platforms/android/configuration/options/', licence: LicenseRef-vendor-terms,
+    retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-sentry-src, title: 'Sentry sentry-java (vendor GitHub): ManifestMetadataReader.java (meta-data keys and defaults)', url: 'https://github.com/getsentry/sentry-java/blob/main/sentry-android-core/src/main/java/io/sentry/android/core/ManifestMetadataReader.java',
+    licence: MIT, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-singular-sample, title: 'Singular android-sample-app (vendor GitHub): MainActivity (com.singular.sdk.Singular)', url: 'https://github.com/singular-labs/android-sample-app/blob/master/singular-sample-app/app/src/main/java/net/singular/singularsampleapp/MainActivity.java',
+    licence: NOASSERTION, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-smartlook-cordova, title: 'Smartlook cordova-smartlook (vendor GitHub): SmartlookPlugin.kt (com.smartlook.android.core.api.Smartlook)', url: 'https://github.com/smartlook/cordova-smartlook/blob/master/src/android/com/smartlook/cordovaplugin/SmartlookPlugin.kt',
+    licence: NOASSERTION, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-smartlook-unity, title: 'Smartlook unity-bridge (vendor GitHub): Smartlook.Android.cs (com.smartlook.sdk.smartlook.Smartlook)', url: 'https://github.com/smartlook/unity-bridge', licence: NOASSERTION,
+    retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-uxcam-android, title: 'UXCam: Android SDK (com.uxcam.UXCam)', url: 'https://developer.uxcam.com/docs/android', licence: LicenseRef-vendor-terms, retrieved: '2026-11-23', use: facts_cited}
+entries:
+- id: firebase_analytics
+  name: Google Analytics for Firebase
+  role: analytics
+  tracker_db_ids: [google_firebase_analytics]
+  prefixes:
+  - {prefix: com.google.firebase.analytics., source: vendor-firebase-analytics-ref}
+  - {prefix: com.google.android.gms.measurement., source: vendor-gms-measurement-ref}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: com.google.firebase.analytics.FirebaseAnalytics, source: vendor-firebase-analytics-ref}
+  - {kind: manifest_component, value: com.google.android.gms.measurement.AppMeasurementService, source: vendor-gms-measurement-ref}
+  - {kind: manifest_component, value: com.google.android.gms.measurement.AppMeasurementReceiver, source: vendor-gms-measurement-ref}
+  - {kind: manifest_meta_data, value: 'com.google.firebase.components:com.google.firebase.analytics.connector.internal.AnalyticsConnectorRegistrar', source: observed-voi-firebase_analytics}
+  string_anchors: []
+  hosts: []
+  collects:
+  - {data_type: identifiers.other, item: app_instance_id, mode: auto, requires_permission: null, source: google-analytics-data-disclosure}
+  - {data_type: identifiers.other, item: advertising_id, mode: auto, requires_permission: com.google.android.gms.permission.AD_ID, source: google-analytics-data-disclosure}
+  - {data_type: location.approx_location, item: masked_ip_address, mode: auto, requires_permission: null, source: google-analytics-data-disclosure, note: Coarse location derived from the masked IP address.}
+  - {data_type: financial.purchase_history, item: in_app_purchases, mode: auto, requires_permission: null, source: google-analytics-data-disclosure}
+  - {data_type: actions_in_app.user_interaction, item: app_lifecycle_events, mode: auto, requires_permission: null, source: google-analytics-data-disclosure, note: Screen views and sessions.}
+  - {data_type: personal.personal_identifiers, item: user_id, mode: depends_on_usage, requires_permission: null, source: google-analytics-data-disclosure, note: Only when the app sets a user ID.}
+  first_party_source: true
+  sharing_override: null
+  references: {vendor_disclosure: 'https://support.google.com/analytics/answer/11582702', play_sdk_index: null}
+  sources: [vendor-firebase-analytics-ref, vendor-gms-measurement-ref, observed-voi-firebase_analytics, google-analytics-data-disclosure]
+- id: firebase_crashlytics
+  name: Firebase Crashlytics
+  role: crash
+  tracker_db_ids: [firebase_crashlytics]
+  prefixes:
+  - {prefix: com.google.firebase.crashlytics., source: vendor-firebase-crashlytics-ref}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: com.google.firebase.crashlytics.FirebaseCrashlytics, source: vendor-firebase-crashlytics-ref}
+  string_anchors: []
+  hosts: []
+  collects:
+  - {data_type: app_performance.crash_logs, item: null, mode: auto, requires_permission: null, source: firebase-play-data-disclosure, note: Stack traces and relevant application state.}
+  - {data_type: app_performance.performance_diagnostics, item: device_metadata, mode: auto, requires_permission: null, source: firebase-play-data-disclosure}
+  - {data_type: identifiers.other, item: crashlytics_installation_uuid, mode: auto, requires_permission: null, source: firebase-play-data-disclosure}
+  - {data_type: personal.personal_identifiers, item: user_id, mode: depends_on_usage, requires_permission: null, source: firebase-play-data-disclosure, note: 'Developer-defined keys, logs and user IDs.'}
+  first_party_source: true
+  sharing_override: null
+  references: {vendor_disclosure: 'https://firebase.google.com/docs/android/play-data-disclosure', play_sdk_index: null}
+  sources: [vendor-firebase-crashlytics-ref, firebase-play-data-disclosure]
+- id: fabric_crashlytics
+  name: Crashlytics (Fabric, legacy)
+  role: crash
+  tracker_db_ids: []
+  prefixes:
+  - {prefix: com.crashlytics.android., source: observed-voi-fabric_crashlytics}
+  - {prefix: io.fabric.sdk.android., source: observed-voi-fabric_crashlytics}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: manifest_component, value: com.crashlytics.android.CrashlyticsInitProvider, source: observed-voi-fabric_crashlytics}
+  string_anchors: []
+  hosts: []
+  collects: []
+  first_party_source: false
+  sharing_override: null
+  references: {vendor_disclosure: null, play_sdk_index: null}
+  sources: [observed-voi-fabric_crashlytics]
+  note: Legacy Fabric SDK; the Firebase Crashlytics disclosure does not apply to it.
+- id: firebase_installations
+  name: Firebase Installations
+  role: infra
+  tracker_db_ids: []
+  prefixes:
+  - {prefix: com.google.firebase.installations., source: vendor-firebase-installations-ref}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: com.google.firebase.installations.FirebaseInstallations, source: vendor-firebase-installations-ref}
+  string_anchors: []
+  hosts: []
+  collects:
+  - {data_type: identifiers.other, item: firebase_installation_id, mode: auto, requires_permission: null, source: firebase-play-data-disclosure}
+  - {data_type: app_performance.other, item: firebase_user_agent, mode: auto, requires_permission: null, source: firebase-play-data-disclosure, note: 'OS version, device model and Firebase SDK versions.'}
+  first_party_source: true
+  sharing_override: null
+  references: {vendor_disclosure: 'https://firebase.google.com/docs/android/play-data-disclosure', play_sdk_index: null}
+  sources: [vendor-firebase-installations-ref, firebase-play-data-disclosure]
+- id: firebase_messaging
+  name: Firebase Cloud Messaging
+  role: messaging
+  tracker_db_ids: []
+  prefixes:
+  - {prefix: com.google.firebase.messaging., source: vendor-firebase-messaging-ref}
+  - {prefix: com.google.firebase.iid., source: vendor-firebase-iid-ref}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: com.google.firebase.messaging.FirebaseMessaging, source: vendor-firebase-messaging-ref}
+  - {kind: class_anchor, value: com.google.firebase.iid.FirebaseInstanceId, source: vendor-firebase-iid-ref}
+  - {kind: manifest_component, value: com.google.firebase.messaging.FirebaseMessagingService, source: observed-voi-firebase_messaging}
+  string_anchors: []
+  hosts: []
+  collects:
+  - {data_type: app_performance.other, item: application_version, mode: auto, requires_permission: null, source: firebase-play-data-disclosure}
+  - {data_type: app_performance.other, item: firebase_user_agent, mode: auto, requires_permission: null, source: firebase-play-data-disclosure}
+  first_party_source: true
+  sharing_override: null
+  references: {vendor_disclosure: 'https://firebase.google.com/docs/android/play-data-disclosure', play_sdk_index: null}
+  sources: [vendor-firebase-messaging-ref, vendor-firebase-iid-ref, observed-voi-firebase_messaging, firebase-play-data-disclosure, observed-spin-firebase_messaging]
+- id: firebase_performance
+  name: Firebase Performance Monitoring
+  role: diagnostics
+  tracker_db_ids: []
+  prefixes:
+  - {prefix: com.google.firebase.perf., source: vendor-firebase-perf-ref}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: com.google.firebase.perf.FirebasePerformance, source: vendor-firebase-perf-ref}
+  string_anchors: []
+  hosts: []
+  collects:
+  - {data_type: app_performance.performance_diagnostics, item: null, mode: auto, requires_permission: null, source: firebase-play-data-disclosure, note: 'Start-up time, network latency, CPU and memory use.'}
+  - {data_type: location.approx_location, item: ip_address, mode: auto, requires_permission: null, source: firebase-play-data-disclosure}
+  first_party_source: true
+  sharing_override: null
+  references: {vendor_disclosure: 'https://firebase.google.com/docs/android/play-data-disclosure', play_sdk_index: null}
+  sources: [vendor-firebase-perf-ref, firebase-play-data-disclosure]
+- id: google_mobile_ads
+  name: Google Mobile Ads (AdMob)
+  role: ads
+  tracker_db_ids: [google_admob, google_doubleclick]
+  prefixes:
+  - {prefix: com.google.android.gms.ads., source: vendor-admob-ref}
+  exclude_prefixes: [com.google.android.gms.ads.identifier.]
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: com.google.android.gms.ads.MobileAds, source: vendor-admob-ref}
+  - {kind: manifest_component, value: com.google.android.gms.ads.AdActivity, source: vendor-admob-quickstart-sample}
+  - {kind: manifest_meta_data, value: com.google.android.gms.ads.APPLICATION_ID, source: admob-quick-start}
+  string_anchors: []
+  hosts: []
+  collects:
+  - {data_type: location.approx_location, item: ip_address, mode: auto, requires_permission: null, source: admob-play-data-disclosure}
+  - {data_type: actions_in_app.user_interaction, item: product_interactions, mode: auto, requires_permission: null, source: admob-play-data-disclosure}
+  - {data_type: app_performance.performance_diagnostics, item: null, mode: auto, requires_permission: null, source: admob-play-data-disclosure}
+  - {data_type: identifiers.other, item: advertising_id, mode: auto, requires_permission: com.google.android.gms.permission.AD_ID, source: admob-play-data-disclosure}
+  - {data_type: identifiers.other, item: app_set_id, mode: auto, requires_permission: null, source: admob-play-data-disclosure}
+  first_party_source: true
+  sharing_override: null
+  references: {vendor_disclosure: 'https://developers.google.com/admob/android/privacy/play-data-disclosure', play_sdk_index: null}
+  sources: [vendor-admob-ref, vendor-admob-quickstart-sample, admob-quick-start, admob-play-data-disclosure]
+- id: meta_app_events
+  name: Meta App Events (Facebook SDK)
+  role: analytics
+  tracker_db_ids: [facebook_sdk, facebook_analytics]
+  prefixes:
+  - {prefix: com.facebook.appevents., source: vendor-meta-sdk-core-src}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: com.facebook.appevents.AppEventsLogger, source: vendor-meta-sdk-core-src}
+  - {kind: manifest_meta_data, value: com.facebook.sdk.ApplicationId, source: vendor-meta-login}
+  string_anchors: []
+  hosts: []
+  collects: []
+  first_party_source: false
+  sharing_override: possible_sharing
+  references: {vendor_disclosure: 'https://developers.facebook.com/docs/app-events/getting-started-app-events-android', play_sdk_index: null}
+  sources: [vendor-meta-sdk-core-src, vendor-meta-login, observed-spin-meta_app_events]
+- id: meta_audience_network
+  name: Meta Audience Network
+  role: ads
+  tracker_db_ids: []
+  prefixes:
+  - {prefix: com.facebook.ads., source: vendor-meta-audience-network}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: com.facebook.ads.AudienceNetworkAds, source: vendor-meta-audience-network}
+  - {kind: manifest_component, value: com.facebook.ads.AudienceNetworkActivity, source: vendor-meta-audience-network}
+  string_anchors: []
+  hosts: []
+  collects: []
+  first_party_source: false
+  sharing_override: null
+  references: {vendor_disclosure: null, play_sdk_index: null}
+  sources: [vendor-meta-audience-network]
+- id: meta_login
+  name: Facebook Login
+  role: identity
+  tracker_db_ids: []
+  prefixes:
+  - {prefix: com.facebook.login., source: vendor-meta-login-src}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: com.facebook.login.LoginManager, source: vendor-meta-login-src}
+  - {kind: manifest_component, value: com.facebook.FacebookActivity, source: vendor-meta-login}
+  string_anchors: []
+  hosts: []
+  collects: []
+  first_party_source: false
+  sharing_override: null
+  references: {vendor_disclosure: null, play_sdk_index: null}
+  sources: [vendor-meta-login-src, vendor-meta-login, observed-spin-meta_login]
+- id: appsflyer
+  name: AppsFlyer
+  role: attribution
+  tracker_db_ids: [appsflyer]
+  prefixes:
+  - {prefix: com.appsflyer., source: vendor-appsflyer-integrate}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: com.appsflyer.AppsFlyerLib, source: vendor-appsflyer-integrate}
+  string_anchors: []
+  hosts: []
+  collects: []
+  first_party_source: false
+  sharing_override: null
+  references: {vendor_disclosure: null, play_sdk_index: null}
+  sources: [vendor-appsflyer-integrate, observed-spin-appsflyer]
+- id: adjust
+  name: Adjust
+  role: attribution
+  tracker_db_ids: [adjust]
+  prefixes:
+  - {prefix: com.adjust.sdk., source: vendor-adjust-android}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: com.adjust.sdk.Adjust, source: vendor-adjust-android}
+  - {kind: manifest_component, value: com.adjust.sdk.AdjustReferrerReceiver, source: vendor-adjust-readme-v4}
+  string_anchors: []
+  hosts: []
+  collects: []
+  first_party_source: false
+  sharing_override: null
+  references: {vendor_disclosure: 'https://dev.adjust.com/en/sdk/android/features/privacy', play_sdk_index: null}
+  sources: [vendor-adjust-android, vendor-adjust-readme-v4, observed-voi-adjust]
+- id: branch
+  name: Branch
+  role: attribution
+  tracker_db_ids: [branch]
+  prefixes:
+  - {prefix: io.branch.referral., source: vendor-branch-integration}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: io.branch.referral.Branch, source: vendor-branch-integration}
+  - {kind: manifest_meta_data, value: io.branch.sdk.BranchKey, source: vendor-branch-integration}
+  string_anchors: []
+  hosts: []
+  collects: []
+  first_party_source: false
+  sharing_override: null
+  references: {vendor_disclosure: null, play_sdk_index: null}
+  sources: [vendor-branch-integration]
+- id: kochava
+  name: Kochava
+  role: attribution
+  tracker_db_ids: []
+  prefixes:
+  - {prefix: com.kochava.tracker., source: vendor-kochava-using-sdk}
+  - {prefix: com.kochava.measurement., source: vendor-kochava-using-sdk}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: com.kochava.tracker.Tracker, source: vendor-kochava-using-sdk}
+  string_anchors: []
+  hosts: []
+  collects: []
+  first_party_source: false
+  sharing_override: null
+  references: {vendor_disclosure: null, play_sdk_index: null}
+  sources: [vendor-kochava-using-sdk]
+  note: Anchor composed from the vendor's rename note (package com.kochava.tracker, entry class Tracker); no import line shown.
+- id: singular
+  name: Singular
+  role: attribution
+  tracker_db_ids: []
+  prefixes:
+  - {prefix: com.singular.sdk., source: vendor-singular-sample}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: com.singular.sdk.Singular, source: vendor-singular-sample}
+  string_anchors: []
+  hosts: []
+  collects: []
+  first_party_source: false
+  sharing_override: null
+  references: {vendor_disclosure: null, play_sdk_index: null}
+  sources: [vendor-singular-sample]
+- id: amplitude
+  name: Amplitude
+  role: analytics
+  tracker_db_ids: [amplitude]
+  prefixes:
+  - {prefix: com.amplitude.api., source: vendor-amplitude-android}
+  - {prefix: com.amplitude.android., source: vendor-amplitude-kotlin}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: com.amplitude.api.Amplitude, source: vendor-amplitude-android}
+  - {kind: class_anchor, value: com.amplitude.android.Amplitude, source: vendor-amplitude-kotlin}
+  string_anchors: []
+  hosts: []
+  collects: []
+  first_party_source: false
+  sharing_override: null
+  references: {vendor_disclosure: null, play_sdk_index: null}
+  sources: [vendor-amplitude-android, vendor-amplitude-kotlin, observed-spin-amplitude]
+- id: mixpanel
+  name: Mixpanel
+  role: analytics
+  tracker_db_ids: [mixpanel]
+  prefixes:
+  - {prefix: com.mixpanel.android., source: vendor-mixpanel-android}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: com.mixpanel.android.mpmetrics.MixpanelAPI, source: vendor-mixpanel-android}
+  string_anchors: []
+  hosts: []
+  collects: []
+  first_party_source: false
+  sharing_override: null
+  references: {vendor_disclosure: null, play_sdk_index: null}
+  sources: [vendor-mixpanel-android]
+- id: segment
+  name: Segment
+  role: analytics
+  tracker_db_ids: [segment]
+  prefixes:
+  - {prefix: com.segment.analytics., source: vendor-segment-android-src}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: com.segment.analytics.Analytics, source: vendor-segment-android-src}
+  - {kind: class_anchor, value: com.segment.analytics.kotlin.core.Analytics, source: vendor-segment-kotlin-src}
+  string_anchors: []
+  hosts: []
+  collects: []
+  first_party_source: false
+  sharing_override: null
+  references: {vendor_disclosure: null, play_sdk_index: null}
+  sources: [vendor-segment-android-src, vendor-segment-kotlin-src]
+- id: appmetrica
+  name: AppMetrica (Yandex)
+  role: analytics
+  tracker_db_ids: []
+  prefixes:
+  - {prefix: io.appmetrica.analytics., source: vendor-appmetrica-migration}
+  - {prefix: com.yandex.metrica., source: vendor-appmetrica-migration}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: io.appmetrica.analytics.AppMetrica, source: vendor-appmetrica-migration}
+  - {kind: class_anchor, value: com.yandex.metrica.YandexMetrica, source: vendor-appmetrica-migration}
+  string_anchors: []
+  hosts: []
+  collects:
+  - {data_type: app_performance.crash_logs, item: null, mode: auto, requires_permission: null, source: appmetrica-google-data-safety}
+  - {data_type: app_performance.performance_diagnostics, item: null, mode: auto, requires_permission: null, source: appmetrica-google-data-safety, note: For example battery level for crash analytics.}
+  - {data_type: app_performance.other, item: null, mode: auto, requires_permission: null, source: appmetrica-google-data-safety, note: For example OS version and screen type.}
+  - {data_type: identifiers.other, item: null, mode: depends_on_usage, requires_permission: null, source: appmetrica-google-data-safety, note: Only with the user's permission; can be switched off from SDK
+      5.0.}
+  first_party_source: false
+  sharing_override: null
+  references: {vendor_disclosure: 'https://appmetrica.yandex.com/docs/en/data-security/google-data-safety', play_sdk_index: null}
+  sources: [vendor-appmetrica-migration, appmetrica-google-data-safety]
+  note: Anchor class names composed from the vendor's migration note (package and class rename).
+- id: sentry
+  name: Sentry
+  role: crash
+  tracker_db_ids: [sentry]
+  prefixes:
+  - {prefix: io.sentry., source: vendor-sentry-manual-setup}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: io.sentry.android.core.SentryAndroid, source: vendor-sentry-manual-setup}
+  - {kind: manifest_component, value: io.sentry.android.core.SentryInitProvider, source: vendor-sentry-manual-setup}
+  string_anchors: []
+  hosts: []
+  collects: []
+  first_party_source: false
+  sharing_override: null
+  references: {vendor_disclosure: null, play_sdk_index: null}
+  sources: [vendor-sentry-manual-setup]
+- id: bugsnag
+  name: Bugsnag
+  role: crash
+  tracker_db_ids: [bugsnag]
+  prefixes:
+  - {prefix: com.bugsnag.android., source: vendor-bugsnag-src}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: com.bugsnag.android.Bugsnag, source: vendor-bugsnag-src}
+  - {kind: manifest_meta_data, value: com.bugsnag.android.API_KEY, source: vendor-bugsnag-android}
+  string_anchors: []
+  hosts: []
+  collects: []
+  first_party_source: false
+  sharing_override: null
+  references: {vendor_disclosure: null, play_sdk_index: null}
+  sources: [vendor-bugsnag-src, vendor-bugsnag-android, observed-spin-bugsnag]
+- id: appcenter
+  name: Microsoft App Center
+  role: analytics
+  tracker_db_ids: []
+  prefixes:
+  - {prefix: com.microsoft.appcenter., source: vendor-appcenter-android}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: com.microsoft.appcenter.AppCenter, source: vendor-appcenter-android}
+  string_anchors: []
+  hosts: []
+  collects: []
+  first_party_source: false
+  sharing_override: null
+  references: {vendor_disclosure: null, play_sdk_index: null}
+  sources: [vendor-appcenter-android, observed-spin-appcenter]
+- id: instabug
+  name: Instabug (Luciq)
+  role: crash
+  tracker_db_ids: []
+  prefixes:
+  - {prefix: com.instabug., source: vendor-instabug-sample}
+  - {prefix: ai.luciq., source: vendor-luciq-migration}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: com.instabug.library.Instabug, source: vendor-instabug-sample}
+  string_anchors: []
+  hosts: []
+  collects: []
+  first_party_source: false
+  sharing_override: null
+  references: {vendor_disclosure: null, play_sdk_index: null}
+  sources: [vendor-instabug-sample, vendor-luciq-migration]
+- id: braze
+  name: Braze
+  role: engagement
+  tracker_db_ids: [braze]
+  prefixes:
+  - {prefix: com.braze., source: braze-changelog}
+  - {prefix: com.appboy., source: braze-changelog}
+  exclude_prefixes: []
+  obfuscated_prefixes:
+  - {prefix: bo.app., source: observed-voi-braze}
+  anchors:
+  - {kind: class_anchor, value: com.braze.Braze, source: braze-changelog}
+  - {kind: class_anchor, value: com.appboy.Appboy, source: braze-changelog}
+  - {kind: manifest_component, value: com.braze.push.BrazeFirebaseMessagingService, source: vendor-braze-push}
+  - {kind: manifest_component, value: com.appboy.receivers.AppboyActionReceiver, source: observed-voi-braze}
+  string_anchors: []
+  hosts: []
+  collects: []
+  first_party_source: false
+  sharing_override: null
+  references: {vendor_disclosure: null, play_sdk_index: null}
+  sources: [braze-changelog, observed-voi-braze, vendor-braze-push, observed-spin-braze]
+- id: onesignal
+  name: OneSignal
+  role: messaging
+  tracker_db_ids: [onesignal]
+  prefixes:
+  - {prefix: com.onesignal., source: vendor-onesignal-setup}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: com.onesignal.OneSignal, source: vendor-onesignal-setup}
+  - {kind: manifest_component, value: com.onesignal.PermissionsActivity, source: observed-voi-onesignal}
+  - {kind: manifest_meta_data, value: onesignal_app_id, source: observed-voi-onesignal}
+  string_anchors: []
+  hosts: []
+  collects: []
+  first_party_source: false
+  sharing_override: null
+  references: {vendor_disclosure: null, play_sdk_index: null}
+  sources: [vendor-onesignal-setup, observed-voi-onesignal]
+- id: clevertap
+  name: CleverTap
+  role: engagement
+  tracker_db_ids: []
+  prefixes:
+  - {prefix: com.clevertap.android.sdk., source: vendor-clevertap-src}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: com.clevertap.android.sdk.CleverTapAPI, source: vendor-clevertap-src}
+  - {kind: manifest_meta_data, value: CLEVERTAP_ACCOUNT_ID, source: vendor-clevertap-quickstart}
+  string_anchors: []
+  hosts: []
+  collects: []
+  first_party_source: false
+  sharing_override: null
+  references: {vendor_disclosure: null, play_sdk_index: null}
+  sources: [vendor-clevertap-src, vendor-clevertap-quickstart]
+- id: moengage
+  name: MoEngage
+  role: engagement
+  tracker_db_ids: []
+  prefixes:
+  - {prefix: com.moengage., source: vendor-moengage-init}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: com.moengage.core.MoEngage, source: vendor-moengage-init}
+  - {kind: manifest_component, value: com.moengage.firebase.MoEFireBaseMessagingService, source: vendor-moengage-sample}
+  string_anchors: []
+  hosts: []
+  collects: []
+  first_party_source: false
+  sharing_override: null
+  references: {vendor_disclosure: null, play_sdk_index: null}
+  sources: [vendor-moengage-init, vendor-moengage-sample]
+- id: smartlook
+  name: Smartlook
+  role: session_replay
+  tracker_db_ids: []
+  prefixes:
+  - {prefix: com.smartlook.android., source: vendor-smartlook-cordova}
+  - {prefix: com.smartlook.sdk.smartlook., source: vendor-smartlook-unity}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: com.smartlook.android.core.api.Smartlook, source: vendor-smartlook-cordova}
+  - {kind: class_anchor, value: com.smartlook.sdk.smartlook.Smartlook, source: vendor-smartlook-unity}
+  string_anchors: []
+  hosts: []
+  collects: []
+  first_party_source: false
+  sharing_override: null
+  references: {vendor_disclosure: null, play_sdk_index: null}
+  sources: [vendor-smartlook-cordova, vendor-smartlook-unity]
+- id: uxcam
+  name: UXCam
+  role: session_replay
+  tracker_db_ids: []
+  prefixes:
+  - {prefix: com.uxcam., source: vendor-uxcam-android}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: com.uxcam.UXCam, source: vendor-uxcam-android}
+  string_anchors: []
+  hosts: []
+  collects: []
+  first_party_source: false
+  sharing_override: null
+  references: {vendor_disclosure: null, play_sdk_index: null}
+  sources: [vendor-uxcam-android]
+manifest_flags:
+- key: firebase_analytics_collection_enabled
+  sdk_id: firebase_analytics
+  type: bool
+  off_when: ['false']
+  default_when_absent: 'on'
+  effect: collection_suspended_until_enabled
+  data_types: ['*']
+  items: null
+  sources: [firebase-configure-data-collection, firebase-ref-analytics]
+  note: Can be switched on at runtime with setAnalyticsCollectionEnabled(true).
+- key: firebase_analytics_collection_deactivated
+  sdk_id: firebase_analytics
+  type: bool
+  off_when: ['true']
+  default_when_absent: 'on'
+  effect: collection_off_permanently
+  data_types: ['*']
+  items: null
+  sources: [firebase-configure-data-collection]
+- key: google_analytics_adid_collection_enabled
+  sdk_id: firebase_analytics
+  type: bool
+  off_when: ['false']
+  default_when_absent: 'on'
+  effect: adid_collection_off
+  data_types: [identifiers.other]
+  items: [advertising_id]
+  sources: [firebase-configure-data-collection]
+  note: Default when absent is not stated on the page; collection is the default.
+- key: google_analytics_default_allow_analytics_storage
+  sdk_id: firebase_analytics
+  type: bool
+  off_when: ['false']
+  default_when_absent: null
+  effect: storage_denied_by_default
+  data_types: [identifiers.other]
+  items: [app_instance_id]
+  sources: [google-consent-mode-app]
+  note: Consent mode default; no value is set by default.
+- key: google_analytics_default_allow_ad_storage
+  sdk_id: firebase_analytics
+  type: bool
+  off_when: ['false']
+  default_when_absent: null
+  effect: storage_denied_by_default
+  data_types: [identifiers.other]
+  items: [advertising_id]
+  sources: [google-consent-mode-app]
+  note: Consent mode default; no value is set by default.
+- key: google_analytics_default_allow_ad_user_data
+  sdk_id: firebase_analytics
+  type: string
+  off_when: ['false', eu_consent_policy]
+  default_when_absent: null
+  effect: ad_personalization_off
+  data_types: []
+  items: null
+  sources: [google-consent-mode-app]
+  note: Consent mode default for sending user data for advertising; eu_consent_policy denies it only in EU-policy regions.
+- key: google_analytics_default_allow_ad_personalization_signals
+  sdk_id: firebase_analytics
+  type: string
+  off_when: ['false', eu_consent_policy]
+  default_when_absent: null
+  effect: ad_personalization_off
+  data_types: []
+  items: null
+  sources: [firebase-configure-data-collection, google-consent-mode-app]
+  note: eu_consent_policy denies it only in EU-policy regions.
+- key: firebase_crashlytics_collection_enabled
+  sdk_id: firebase_crashlytics
+  type: bool
+  off_when: ['false']
+  default_when_absent: 'on'
+  effect: collection_suspended_until_enabled
+  data_types: ['*']
+  items: null
+  sources: [crashlytics-customize-reports]
+  note: Opt-in reporting; can be switched on at runtime with setCrashlyticsCollectionEnabled(true).
+- key: firebase_performance_collection_enabled
+  sdk_id: firebase_performance
+  type: bool
+  off_when: ['false']
+  default_when_absent: 'on'
+  effect: collection_suspended_until_enabled
+  data_types: ['*']
+  items: null
+  sources: [perf-disable-sdk]
+  note: Can be switched on at runtime.
+- key: firebase_performance_collection_deactivated
+  sdk_id: firebase_performance
+  type: bool
+  off_when: ['true']
+  default_when_absent: 'on'
+  effect: collection_off_permanently
+  data_types: ['*']
+  items: null
+  sources: [perf-disable-sdk]
+- key: firebase_messaging_auto_init_enabled
+  sdk_id: firebase_messaging
+  type: bool
+  off_when: ['false']
+  default_when_absent: 'on'
+  effect: auto_init_off
+  data_types: ['*']
+  items: null
+  sources: [firebase-fcm-client]
+  note: Can be switched on at runtime with FirebaseMessaging.setAutoInitEnabled(true).
+- key: com.facebook.sdk.AutoInitEnabled
+  sdk_id: meta_app_events
+  type: bool
+  off_when: ['false']
+  default_when_absent: 'on'
+  effect: auto_init_off
+  data_types: ['*']
+  items: null
+  sources: [meta-app-events-android, meta-user-settings-src]
+- key: com.facebook.sdk.AutoLogAppEventsEnabled
+  sdk_id: meta_app_events
+  type: bool
+  off_when: ['false']
+  default_when_absent: 'on'
+  effect: auto_events_off
+  data_types: ['*']
+  items: null
+  sources: [meta-app-events-android, meta-user-settings-src]
+- key: com.facebook.sdk.AdvertiserIDCollectionEnabled
+  sdk_id: meta_app_events
+  type: bool
+  off_when: ['false']
+  default_when_absent: 'on'
+  effect: adid_collection_off
+  data_types: [identifiers.other]
+  items: [advertising_id]
+  sources: [meta-app-events-android, meta-user-settings-src]
+- key: com.facebook.sdk.AutoLogMetaDataEnabled
+  sdk_id: meta_app_events
+  type: bool
+  off_when: ['false']
+  default_when_absent: 'on'
+  effect: metadata_off
+  data_types: []
+  items: null
+  sources: [meta-app-events-android, meta-user-settings-src]
+- key: com.facebook.sdk.AutoLogProductImprovementEnabled
+  sdk_id: meta_app_events
+  type: bool
+  off_when: ['false']
+  default_when_absent: 'on'
+  effect: product_improvement_off
+  data_types: []
+  items: null
+  sources: [meta-app-events-android, meta-user-settings-src]
+- key: com.google.android.gms.ads.APPLICATION_ID
+  sdk_id: google_mobile_ads
+  type: presence
+  off_when: []
+  default_when_absent: null
+  effect: presence_only
+  data_types: []
+  items: null
+  sources: [admob-quick-start]
+- key: io.sentry.auto-init
+  sdk_id: sentry
+  type: bool
+  off_when: ['false']
+  default_when_absent: 'on'
+  effect: auto_init_off
+  data_types: ['*']
+  items: null
+  sources: [vendor-sentry-manual-setup, vendor-sentry-src]
+- key: io.sentry.send-default-pii
+  sdk_id: sentry
+  type: bool
+  off_when: ['false']
+  default_when_absent: 'off'
+  effect: pii_on
+  data_types: []
+  items: null
+  sources: [vendor-sentry-src, vendor-sentry-options]
+  note: true adds personal data such as IP address to events; the documented option default is false.

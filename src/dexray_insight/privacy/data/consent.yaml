@@ -1,0 +1,50 @@
+# consent.yaml: CMP families, IAB TCF/GPP/USP key names, SharedPreferences read/write refs.
+# SPDX: facts only; see NOTICE for licences and attribution.
+meta:
+  file: consent
+  format_version: 1
+  catalogue_version: 2026.11.0
+  licence: CC-BY-3.0
+  attribution: IAB TCF, GPP and US Privacy key names from the IAB Tech Lab specifications (CC BY 3.0), used as short identifiers only; Google Additional Consent key name from Google's specification. CMP
+    package prefixes are our own curation, each cited from the vendor's documentation or GitHub.
+  sources:
+  - {id: aosp-api-versions, title: AOSP prebuilts/sdk api-versions.xml (read from the local platform-35 copy), url: 'https://android.googlesource.com/platform/prebuilts/sdk/', licence: Apache-2.0, retrieved: '2026-11-23',
+    use: generated}
+  - {id: google-additional-consent, title: 'Google Ad Manager Help 9681920: Additional Consent technical specification (IABTCF_AddtlConsent)', url: 'https://support.google.com/admanager/answer/9681920',
+    licence: LicenseRef-Google-ToS, retrieved: '2026-11-23', use: facts_cited}
+  - {id: iab-gpp-cmp-api, title: 'IAB Tech Lab: GPP CMP API specification, in-app key names', url: 'https://github.com/InteractiveAdvertisingBureau/Global-Privacy-Platform/blob/main/Core/CMP%20API%20Specification.md',
+    licence: CC-BY-3.0, retrieved: '2026-11-23', use: facts_cited}
+  - {id: iab-tcf-cmp-api-v2, title: 'IAB Tech Lab: TCF v2 CMP API, in-app details (key names)', url: 'https://github.com/InteractiveAdvertisingBureau/GDPR-Transparency-and-Consent-Framework/blob/master/TCFv2/IAB%20Tech%20Lab%20-%20CMP%20API%20v2.md',
+    licence: CC-BY-3.0, retrieved: '2026-11-23', use: facts_cited}
+  - {id: iab-usprivacy-api, title: 'IAB Tech Lab: USP API (IABUSPrivacy_String)', url: 'https://github.com/InteractiveAdvertisingBureau/USPrivacy/blob/master/CCPA/USP%20API.md', licence: CC-BY-3.0, retrieved: '2026-11-23',
+    use: facts_cited}
+  - {id: vendor-google-ump-ref, title: 'Google UMP SDK reference: UserMessagingPlatform (com.google.android.ump)', url: 'https://developers.google.com/admob/android/privacy/api/reference/com/google/android/ump/UserMessagingPlatform',
+    licence: CC-BY-4.0, retrieved: '2026-11-23', use: facts_cited}
+cmps:
+- id: google_ump
+  name: Google User Messaging Platform
+  prefixes:
+  - {prefix: com.google.android.ump., source: vendor-google-ump-ref}
+  anchors:
+  - {kind: class_anchor, value: com.google.android.ump.UserMessagingPlatform, source: vendor-google-ump-ref}
+  tcf: true
+  sources: [vendor-google-ump-ref]
+iab_keys:
+  tcf_prefix: IABTCF_
+  gpp_prefix: IABGPP_
+  us_privacy: [IABUSPrivacy_String]
+  google_ac: [IABTCF_AddtlConsent]
+  tcf_known: [IABTCF_CmpSdkID, IABTCF_CmpSdkVersion, IABTCF_PolicyVersion, IABTCF_gdprApplies, IABTCF_PublisherCC, IABTCF_PurposeOneTreatment, IABTCF_UseNonStandardTexts, IABTCF_TCString, IABTCF_VendorConsents,
+    IABTCF_VendorLegitimateInterests, IABTCF_DisclosedVendors, IABTCF_PurposeConsents, IABTCF_PurposeLegitimateInterests, IABTCF_SpecialFeaturesOptIns, IABTCF_PublisherRestrictions, IABTCF_PublisherConsent,
+    IABTCF_PublisherLegitimateInterests, IABTCF_PublisherCustomPurposesConsents, IABTCF_PublisherCustomPurposesLegitimateInterests]
+  gpp_known: [IABGPP_HDR_Version, IABGPP_HDR_Sections, IABGPP_HDR_GppString, IABGPP_GppSID]
+  notes: {IABTCF_PublisherRestrictions: 'Key prefix; the purpose ID is appended (IABTCF_PublisherRestrictions{ID}).', IABGPP_: 'Section keys follow IABGPP_[SectionID]_String and IABGPP_<section prefix>_<field>.'}
+  sources: [iab-tcf-cmp-api-v2, iab-gpp-cmp-api, iab-usprivacy-api, google-additional-consent]
+prefs:
+  readers: [Landroid/content/SharedPreferences;->getString(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;, Landroid/content/SharedPreferences;->getInt(Ljava/lang/String;I)I, Landroid/content/SharedPreferences;->getBoolean(Ljava/lang/String;Z)Z,
+    Landroid/content/SharedPreferences;->getLong(Ljava/lang/String;J)J, Landroid/content/SharedPreferences;->getFloat(Ljava/lang/String;F)F, Landroid/content/SharedPreferences;->getStringSet(Ljava/lang/String;Ljava/util/Set;)Ljava/util/Set;,
+    Landroid/content/SharedPreferences;->contains(Ljava/lang/String;)Z]
+  writers: [Landroid/content/SharedPreferences$Editor;->putString(Ljava/lang/String;Ljava/lang/String;)Landroid/content/SharedPreferences$Editor;, Landroid/content/SharedPreferences$Editor;->putInt(Ljava/lang/String;I)Landroid/content/SharedPreferences$Editor;,
+    Landroid/content/SharedPreferences$Editor;->putBoolean(Ljava/lang/String;Z)Landroid/content/SharedPreferences$Editor;, Landroid/content/SharedPreferences$Editor;->putLong(Ljava/lang/String;J)Landroid/content/SharedPreferences$Editor;,
+    Landroid/content/SharedPreferences$Editor;->putFloat(Ljava/lang/String;F)Landroid/content/SharedPreferences$Editor;, Landroid/content/SharedPreferences$Editor;->putStringSet(Ljava/lang/String;Ljava/util/Set;)Landroid/content/SharedPreferences$Editor;]
+  sources: [aosp-api-versions]

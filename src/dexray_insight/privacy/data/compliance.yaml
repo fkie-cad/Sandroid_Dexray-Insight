@@ -1,0 +1,67 @@
+# compliance.yaml: compliance references and tagging rules (design §2.11).
+# SPDX: facts only; see NOTICE for licences and attribution.
+meta:
+  file: compliance
+  format_version: 1
+  catalogue_version: 2026.11.0
+  licence: CC-BY-SA-4.0
+  attribution: MASWE and MASTG IDs and titles from the OWASP Mobile Application Security project (CC BY-SA 4.0). GDPR and TDDDG titles are short statute headings; BSI TR-03161 entries are our own paraphrase
+    plus a link.
+  sources:
+  - {id: owasp-maswe, title: 'OWASP MASWE, weaknesses/MASVS-PRIVACY (titles verbatim)', url: 'https://github.com/OWASP/maswe', licence: CC-BY-SA-4.0, retrieved: '2026-11-23', use: facts_cited}
+  - {id: owasp-mastg, title: 'OWASP MASTG, tests-beta/android/MASVS-PRIVACY (titles verbatim)', url: 'https://github.com/OWASP/mastg', licence: CC-BY-SA-4.0, retrieved: '2026-11-23', use: facts_cited}
+  - {id: gdpr-info, title: GDPR (Regulation (EU) 2016/679) article titles via gdpr-info.eu, url: 'https://gdpr-info.eu/', licence: LicenseRef-EU-legal-text, retrieved: '2026-11-23', use: reference_only}
+  - {id: tdddg-25, title: TDDDG § 25 'Schutz der Privatsphäre bei Endeinrichtungen' (title paraphrased in English), url: 'https://www.gesetze-im-internet.de/ttdsg/__25.html', licence: LicenseRef-DE-amtliches-Werk,
+    retrieved: '2026-11-23', use: reference_only}
+  - {id: bsi-tr-03161-1, title: BSI TR-03161 Part 1 v3.0 (2024-09-11); requirement IDs with our own short paraphrase, url: 'https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TR03161/TR-03161-1.pdf',
+    licence: NOASSERTION, retrieved: '2026-11-23', use: reference_only}
+refs:
+  BSI-O.Plat_2: {framework: BSI-TR-03161, display: BSI TR-03161 O.Plat_2, title: Request only permissions needed for the primary purpose, url: 'https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TR03161/TR-03161-1.pdf',
+    source: bsi-tr-03161-1}
+  BSI-O.Purp_1: {framework: BSI-TR-03161, display: BSI TR-03161 O.Purp_1, title: Disclose purposes and processing before installation, url: 'https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TR03161/TR-03161-1.pdf',
+    source: bsi-tr-03161-1}
+  BSI-O.Purp_2: {framework: BSI-TR-03161, display: BSI TR-03161 O.Purp_2, title: Collect only data that serves the legitimate purpose, url: 'https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TR03161/TR-03161-1.pdf',
+    source: bsi-tr-03161-1}
+  BSI-O.Purp_3: {framework: BSI-TR-03161, display: BSI TR-03161 O.Purp_3, title: Obtain active consent before collecting personal data, url: 'https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TR03161/TR-03161-1.pdf',
+    source: bsi-tr-03161-1}
+  BSI-O.Purp_4: {framework: BSI-TR-03161, display: BSI TR-03161 O.Purp_4, title: No collection without express consent, url: 'https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TR03161/TR-03161-1.pdf',
+    source: bsi-tr-03161-1}
+  BSI-O.Purp_7: {framework: BSI-TR-03161, display: BSI TR-03161 O.Purp_7, title: 'Third-party software: only necessary functions, others disabled', url: 'https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TR03161/TR-03161-1.pdf',
+    source: bsi-tr-03161-1}
+  BSI-O.Purp_8: {framework: BSI-TR-03161, display: BSI TR-03161 O.Purp_8, title: No sharing of sensitive data with third parties, url: 'https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TR03161/TR-03161-1.pdf',
+    source: bsi-tr-03161-1}
+  GDPR-13: {framework: GDPR, display: GDPR Art. 13, title: Information to be provided where personal data are collected from the data subject, url: 'https://gdpr-info.eu/art-13-gdpr/', source: gdpr-info}
+  GDPR-25: {framework: GDPR, display: GDPR Art. 25, title: Data protection by design and by default, url: 'https://gdpr-info.eu/art-25-gdpr/', source: gdpr-info}
+  GDPR-4(1): {framework: GDPR, display: GDPR Art. 4(1), title: 'Definitions: personal data', url: 'https://gdpr-info.eu/art-4-gdpr/', source: gdpr-info}
+  GDPR-5(1)(c): {framework: GDPR, display: GDPR Art. 5(1)(c), title: 'Principles relating to processing of personal data: data minimisation', url: 'https://gdpr-info.eu/art-5-gdpr/', source: gdpr-info}
+  GDPR-6(1)(a): {framework: GDPR, display: GDPR Art. 6(1)(a), title: 'Lawfulness of processing: consent', url: 'https://gdpr-info.eu/art-6-gdpr/', source: gdpr-info}
+  GDPR-7: {framework: GDPR, display: GDPR Art. 7, title: Conditions for consent, url: 'https://gdpr-info.eu/art-7-gdpr/', source: gdpr-info}
+  GDPR-9: {framework: GDPR, display: GDPR Art. 9, title: Processing of special categories of personal data, url: 'https://gdpr-info.eu/art-9-gdpr/', source: gdpr-info}
+  MASTG-TEST-0254: {framework: MASTG, display: MASTG-TEST-0254, title: Dangerous App Permissions, url: 'https://mas.owasp.org/MASTG/tests/android/MASVS-PRIVACY/MASTG-TEST-0254/', source: owasp-mastg}
+  MASTG-TEST-0318: {framework: MASTG, display: MASTG-TEST-0318, title: References to SDK APIs Known to Handle Sensitive User Data, url: 'https://mas.owasp.org/MASTG/tests/android/MASVS-PRIVACY/MASTG-TEST-0318/',
+    source: owasp-mastg}
+  MASWE-0066: {framework: MASWE, display: MASWE-0066, title: Inadequate Permission Management, url: 'https://mas.owasp.org/MASWE/MASVS-PRIVACY/MASWE-0066/', source: owasp-maswe}
+  MASWE-0068: {framework: MASWE, display: MASWE-0068, title: Incorrect Use of Identifiers for User Tracking, url: 'https://mas.owasp.org/MASWE/MASVS-PRIVACY/MASWE-0068/', source: owasp-maswe}
+  MASWE-0069: {framework: MASWE, display: MASWE-0069, title: Usage of Non-Privacy-Preserving Functionality, url: 'https://mas.owasp.org/MASWE/MASVS-PRIVACY/MASWE-0069/', source: owasp-maswe}
+  MASWE-0071: {framework: MASWE, display: MASWE-0071, title: Inadequate Defaults for Privacy Relevant Actions, url: 'https://mas.owasp.org/MASWE/MASVS-PRIVACY/MASWE-0071/', source: owasp-maswe}
+  MASWE-0073: {framework: MASWE, display: MASWE-0073, title: Inadequate Data Collection Declarations, url: 'https://mas.owasp.org/MASWE/MASVS-PRIVACY/MASWE-0073/', source: owasp-maswe}
+  MASWE-0078: {framework: MASWE, display: MASWE-0078, title: Inadequate or Ambiguous User Consent Mechanisms, url: 'https://mas.owasp.org/MASWE/MASVS-PRIVACY/MASWE-0078/', source: owasp-maswe}
+  TDDDG-25: {framework: TDDDG, display: TDDDG §25, title: Consent for storing or reading information on the end device, url: 'https://www.gesetze-im-internet.de/ttdsg/__25.html', source: tdddg-25}
+rules:
+  base: [MASWE-0073, GDPR-13, BSI-O.Purp_1]
+  code_or_sdk_evidence: [MASTG-TEST-0318]
+  read_call_site: [TDDDG-25]
+  sensitive_read_call_site:
+    categories: [location, contacts, calendar, email_text_message, health_fitness]
+    refs: [BSI-O.Purp_2]
+  data_type:
+    identifiers.other: [MASWE-0068, GDPR-4(1), TDDDG-25]
+    health_fitness.*: [GDPR-9]
+  finding:
+    no_consent_mechanism: [MASWE-0078, GDPR-6(1)(a), GDPR-7, TDDDG-25, BSI-O.Purp_3]
+    sdk_identifier_access_without_consent: [TDDDG-25, MASWE-0078, BSI-O.Purp_4]
+    non_resettable_identifier: [MASWE-0068, GDPR-4(1)]
+    sdk_collection_default_on: [MASWE-0071, GDPR-25, BSI-O.Purp_7]
+    sdk_sink_with_app_data: [MASTG-TEST-0318, BSI-O.Purp_8]
+    permission_without_call_site: [MASWE-0066, MASTG-TEST-0254, GDPR-5(1)(c), BSI-O.Plat_2]
+    broad_media_access: [MASWE-0069, GDPR-5(1)(c)]

@@ -1,0 +1,52 @@
+# data_types.yaml: the 38 Data safety data types (app-metadata keys, Play labels).
+# SPDX: facts only; see NOTICE for licences and attribution.
+meta:
+  file: data_types
+  format_version: 1
+  catalogue_version: 2026.11.0
+  licence: CC-BY-2.5
+  attribution: Machine keys from the Android app metadata schema (Android documentation, CC BY 2.5). Display labels are the Google Play Data safety type and category names, used as short identifiers only.
+  sources:
+  - {id: android-app-metadata-schema, title: Android 14 app metadata schema, url: 'https://developer.android.com/about/versions/14/features/app-metadata-schema', licence: CC-BY-2.5, retrieved: '2026-11-23',
+    use: facts_cited}
+  - {id: play-data-safety-help, title: 'Google Play Console Help 10787469: Data safety section (label names only)', url: 'https://support.google.com/googleplay/android-developer/answer/10787469', licence: LicenseRef-Google-ToS,
+    retrieved: '2026-11-23', use: reference_only}
+entries:
+- {id: location.approx_location, category: location, label: Approximate location, category_label: Location, order: 1}
+- {id: location.precise_location, category: location, label: Precise location, category_label: Location, order: 2}
+- {id: personal.name, category: personal, label: Name, category_label: Personal info, order: 3}
+- {id: personal.email_address, category: personal, label: Email address, category_label: Personal info, order: 4}
+- {id: personal.personal_identifiers, category: personal, label: User IDs, category_label: Personal info, order: 5}
+- {id: personal.physical_address, category: personal, label: Address, category_label: Personal info, order: 6}
+- {id: personal.phone_number, category: personal, label: Phone number, category_label: Personal info, order: 7}
+- {id: personal.race_ethnicity, category: personal, label: Race and ethnicity, category_label: Personal info, order: 8}
+- {id: personal.political_or_religious_beliefs, category: personal, label: Political or religious beliefs, category_label: Personal info, order: 9}
+- {id: personal.sexual_orientation_or_gender_identity, category: personal, label: Sexual orientation, category_label: Personal info, order: 10}
+- {id: personal.other, category: personal, label: Other info, category_label: Personal info, order: 11}
+- {id: financial.card_bank_account, category: financial, label: User payment info, category_label: Financial info, order: 12}
+- {id: financial.purchase_history, category: financial, label: Purchase history, category_label: Financial info, order: 13}
+- {id: financial.credit_score, category: financial, label: Credit score, category_label: Financial info, order: 14}
+- {id: financial.other, category: financial, label: Other financial info, category_label: Financial info, order: 15}
+- {id: health_fitness.health, category: health_fitness, label: Health info, category_label: Health and fitness, order: 16}
+- {id: health_fitness.fitness, category: health_fitness, label: Fitness info, category_label: Health and fitness, order: 17}
+- {id: email_text_message.emails, category: email_text_message, label: Emails, category_label: Messages, order: 18}
+- {id: email_text_message.text_messages, category: email_text_message, label: SMS or MMS, category_label: Messages, order: 19}
+- {id: email_text_message.other, category: email_text_message, label: Other in-app messages, category_label: Messages, order: 20}
+- {id: photo_video.photos, category: photo_video, label: Photos, category_label: Photos and videos, order: 21}
+- {id: photo_video.videos, category: photo_video, label: Videos, category_label: Photos and videos, order: 22}
+- {id: audio.sound_recordings, category: audio, label: Voice or sound recordings, category_label: Audio files, order: 23}
+- {id: audio.music_files, category: audio, label: Music files, category_label: Audio files, order: 24}
+- {id: audio.other, category: audio, label: Other audio files, category_label: Audio files, order: 25}
+- {id: storage.files_docs, category: storage, label: Files and docs, category_label: Files and docs, order: 26}
+- {id: calendar.calendar, category: calendar, label: Calendar events, category_label: Calendar, order: 27}
+- {id: contacts.contacts, category: contacts, label: Contacts, category_label: Contacts, order: 28}
+- {id: actions_in_app.user_interaction, category: actions_in_app, label: App interactions, category_label: App activity, order: 29}
+- {id: actions_in_app.in_app_search_history, category: actions_in_app, label: In-app search history, category_label: App activity, order: 30}
+- {id: actions_in_app.installed_apps, category: actions_in_app, label: Installed apps, category_label: App activity, order: 31}
+- {id: actions_in_app.user_generated_content, category: actions_in_app, label: Other user-generated content, category_label: App activity, order: 32}
+- {id: actions_in_app.other, category: actions_in_app, label: Other actions, category_label: App activity, order: 33}
+- {id: search_and_browsing.web_browsing_history, category: search_and_browsing, label: Web browsing history, category_label: Web browsing, order: 34}
+- {id: app_performance.crash_logs, category: app_performance, label: Crash logs, category_label: App info and performance, order: 35}
+- {id: app_performance.performance_diagnostics, category: app_performance, label: Diagnostics, category_label: App info and performance, order: 36}
+- {id: app_performance.other, category: app_performance, label: Other app performance data, category_label: App info and performance, order: 37}
+- {id: identifiers.other, category: identifiers, label: Device or other IDs, category_label: Device or other IDs, order: 38}

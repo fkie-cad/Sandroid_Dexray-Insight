@@ -1,0 +1,96 @@
+Dexray Insight privacy catalogue: licences, attribution and provenance
+=====================================================================
+
+The six YAML files in this directory hold facts and short identifiers only, never
+prose copied from a source. Each file lists its sources in `meta.sources`; every
+SDK prefix, host and anchor in sdks.yaml and consent.yaml cites its own source,
+either a vendor document (URL) or an observation in a corpus APK (sha256 and an
+example class). No data from Exodus Privacy (ODbL/DbCL) or from MobSF's copy of it
+is included. The surrounding code is GPL-3.0-only.
+
+Use values in `meta.sources`:
+  generated       extracted by a maintainer script from a local, licensed artefact
+  facts_cited     facts taken from the page and restated in our own words
+  reference_only  linked for the reader; no text taken
+  observed        seen in a corpus APK (url null, apk_sha256 + example_class given)
+
+data_types.yaml
+---------------
+Machine keys (`<category>.<type>`, 14 categories, 38 types) from the Android 14
+app metadata schema, https://developer.android.com/about/versions/14/features/app-metadata-schema
+(Android documentation, CC BY 2.5). Display labels are the Google Play Data safety
+category and type names (Play Console Help 10787469), used as short names only
+(de minimis); no descriptions are copied.
+
+permissions.yaml
+----------------
+Permission to Data safety category mapping from the Android guide "Declare your
+app's data use", https://developer.android.com/privacy-and-security/declare-data-use,
+and protection levels from the Manifest.permission reference (Android documentation,
+CC BY 2.5). The guide calls its list non-exhaustive; the mapping to individual data
+types and the low/medium strength are our own curation (noted per entry where we
+deviate). Attribution: portions of this file are modifications based on work created
+and shared by the Android Open Source Project and used according to terms described
+in the Creative Commons 2.5 Attribution License.
+
+apis.yaml
+---------
+API names, descriptors, API levels (since/deprecated/removed), @RequiresPermission
+values and constant values were extracted from the Android SDK platform 35 files
+data/api-versions.xml, data/annotations.zip and android.jar (javap -constants), which
+originate from the Android Open Source Project (Apache License 2.0),
+https://android.googlesource.com/. Content-provider URI values without a compile-time
+constant are cited from AOSP sources (Apache-2.0). `effective_until` levels and
+notes are cited from the Android developer documentation (CC BY 2.5).
+Google Play services and Firebase method names are cited from the Google reference
+pages (CC BY 4.0). Other vendor SDK method names (Meta, AppsFlyer, Adjust, Braze,
+Huawei) are cited from the vendor's documentation or the vendor's own GitHub
+organisation, as facts only. Every non-framework descriptor was also checked by name
+with androguard in at least one corpus APK (`verified.seen_in`).
+Cross-reference (not copied): Matcha's PersonalDataSourceAPIList (Apache-2.0),
+https://github.com/Matcha-IDE/Matcha-IDE .
+
+sdks.yaml
+---------
+Own curation. Package prefixes, anchor classes, manifest components and meta-data
+keys are cited per item from vendor API references, integration or migration guides,
+vendor GitHub organisations, or an `observed` corpus record. `collects` lists only
+facts the vendor itself discloses: Google/Firebase "Play data disclosure" pages are
+CC BY 4.0 (attribution: Google LLC, licensed under CC BY 4.0); other vendor pages
+(Google Analytics Help, AppMetrica) are cited as references and their facts are
+restated in our own words. Manifest switch keys, values and defaults are cited from
+the vendor documentation or the vendor's SDK source.
+
+consent.yaml
+------------
+IAB TCF v2 (CMP API v2), IAB GPP (CMP API) and IAB US Privacy (USP API) in-app key
+names, IAB Tech Lab, licensed under CC BY 3.0, used as short identifiers only.
+Google Additional Consent key name (IABTCF_AddtlConsent) from Google's Additional
+Consent technical specification (Ad Manager Help 9681920), identifier only.
+CMP package prefixes are our own curation, each cited from the vendor's own
+documentation or GitHub organisation. SharedPreferences method refs from AOSP
+api-versions.xml (Apache-2.0).
+
+compliance.yaml
+---------------
+OWASP MASWE and MASTG identifiers and titles (verbatim) from the OWASP Mobile
+Application Security project, https://mas.owasp.org/ , licensed under CC BY-SA 4.0.
+This file, as an adaptation, is shared under CC BY-SA 4.0.
+GDPR article headings (Regulation (EU) 2016/679, linked via gdpr-info.eu) and the
+German TDDDG § 25 heading (our English rendering of "Schutz der Privatsphäre bei
+Endeinrichtungen") are official legal texts, cited as short headings with links.
+BSI TR-03161 Part 1 v3.0 entries are requirement IDs with our own short paraphrase
+and a link to the PDF; no text from the BSI document is copied.
+
+Corpus APKs (observed records)
+------------------------------
+  voi         VOI 2.24.2                 007820849853392bdaa57d45ee46c0410da936542349d73188a42ff80357a23a
+  spin        Spin 2.21.0                1d071823330f7eb42f3bde562ff4abbf026606cd133d0aa24a9068862a88bd2d
+  nextcloud   Nextcloud 3.31.1           7699cd90d050f0ab267bf6c5647410f3258d097485674ebbbab9ced7d2433c06
+  wikipedia   Wikipedia 50616            d225e5d08fe461f12fa0af7b617e6e715f3112986165c34e0572a1a056129dd1
+  exampleapp  Insight exampleapp-release 8866f3a2d09bfb0c7c77b41160be7a0e6329e80cd75c0a5cab33be6a3aaed947
+Only class, method and string names were read from these APKs; no APK content is
+redistributed.
+
+Trademarks belong to their owners. Naming an SDK or vendor here does not imply
+endorsement.

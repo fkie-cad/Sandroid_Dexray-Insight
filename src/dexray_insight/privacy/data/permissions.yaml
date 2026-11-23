@@ -1,0 +1,219 @@
+# permissions.yaml: declared permission -> data types (low/medium strength).
+# SPDX: facts only; see NOTICE for licences and attribution.
+meta:
+  file: permissions
+  format_version: 1
+  catalogue_version: 2026.11.0
+  licence: CC-BY-2.5
+  attribution: Permission to Data safety mapping from the Android 'Declare your app's data use' guide; protection levels from the Manifest.permission reference (Android documentation, CC BY 2.5). Facts
+    only.
+  sources:
+  - {id: android-declare-data-use, title: 'Android: Declare your app''s data use', url: 'https://developer.android.com/privacy-and-security/declare-data-use', licence: CC-BY-2.5, retrieved: '2026-11-23',
+    use: facts_cited}
+  - {id: android-ref-manifest-permission, title: 'Android reference: Manifest.permission (protection levels)', url: 'https://developer.android.com/reference/android/Manifest.permission', licence: CC-BY-2.5,
+    retrieved: '2026-11-23', use: facts_cited}
+  - {id: android-10-device-ids, title: 'Android 10 privacy changes: non-resettable device identifiers', url: 'https://developer.android.com/about/versions/10/privacy/changes#non-resettable-device-ids',
+    licence: CC-BY-2.5, retrieved: '2026-11-23', use: facts_cited}
+  - {id: play-help-ad-id, title: 'Play Console Help 6048248: Advertising ID (AD_ID permission)', url: 'https://support.google.com/googleplay/android-developer/answer/6048248', licence: LicenseRef-Google-ToS,
+    retrieved: '2026-11-23', use: facts_cited}
+entries:
+- permission: android.permission.ACCEPT_HANDOVER
+  data_types: [contacts.contacts]
+  strength: low
+  dangerous: true
+  sources: [android-declare-data-use, android-ref-manifest-permission]
+- permission: android.permission.ACCESS_BACKGROUND_LOCATION
+  data_types: [location.approx_location, location.precise_location]
+  strength: medium
+  dangerous: true
+  sources: [android-declare-data-use, android-ref-manifest-permission]
+  note: Background access; only effective together with coarse or fine location.
+- permission: android.permission.ACCESS_COARSE_LOCATION
+  data_types: [location.approx_location]
+  strength: medium
+  dangerous: true
+  sources: [android-declare-data-use, android-ref-manifest-permission]
+- permission: android.permission.ACCESS_FINE_LOCATION
+  data_types: [location.approx_location, location.precise_location]
+  strength: medium
+  dangerous: true
+  sources: [android-declare-data-use, android-ref-manifest-permission]
+- permission: android.permission.ACCESS_MEDIA_LOCATION
+  data_types: [location.precise_location]
+  strength: low
+  dangerous: true
+  sources: [android-declare-data-use, android-ref-manifest-permission]
+  note: Location stored in shared media files.
+- permission: android.permission.ACTIVITY_RECOGNITION
+  data_types: [health_fitness.fitness]
+  strength: low
+  dangerous: true
+  sources: [android-declare-data-use, android-ref-manifest-permission]
+- permission: android.permission.ANSWER_PHONE_CALLS
+  data_types: [contacts.contacts]
+  strength: low
+  dangerous: true
+  sources: [android-declare-data-use, android-ref-manifest-permission]
+- permission: android.permission.BATTERY_STATS
+  data_types: [app_performance.other]
+  strength: low
+  dangerous: false
+  sources: [android-declare-data-use, android-ref-manifest-permission]
+  note: Not available to third-party apps.
+- permission: android.permission.BODY_SENSORS
+  data_types: [health_fitness.health, health_fitness.fitness]
+  strength: low
+  dangerous: true
+  sources: [android-declare-data-use, android-ref-manifest-permission]
+- permission: android.permission.BODY_SENSORS_BACKGROUND
+  data_types: [health_fitness.health, health_fitness.fitness]
+  strength: low
+  dangerous: true
+  sources: [android-declare-data-use, android-ref-manifest-permission]
+- permission: android.permission.CALL_PHONE
+  data_types: [contacts.contacts]
+  strength: low
+  dangerous: true
+  sources: [android-declare-data-use, android-ref-manifest-permission]
+- permission: android.permission.CAMERA
+  data_types: [photo_video.photos, photo_video.videos]
+  strength: medium
+  dangerous: true
+  sources: [android-declare-data-use, android-ref-manifest-permission]
+  note: Not in the declare-data-use list; mapped by this catalogue because camera access yields photos and videos.
+- permission: android.permission.CAPTURE_AUDIO_OUTPUT
+  data_types: [audio.sound_recordings]
+  strength: low
+  dangerous: false
+  sources: [android-declare-data-use, android-ref-manifest-permission]
+  note: Not available to third-party apps.
+- permission: android.permission.GET_ACCOUNTS
+  data_types: [personal.personal_identifiers, personal.email_address]
+  strength: low
+  dangerous: true
+  sources: [android-declare-data-use, android-ref-manifest-permission]
+- permission: android.permission.MANAGE_EXTERNAL_STORAGE
+  data_types: [storage.files_docs]
+  strength: low
+  dangerous: false
+  sources: [android-declare-data-use, android-ref-manifest-permission]
+  note: Special app access (appop), not a runtime permission.
+- permission: android.permission.PROCESS_OUTGOING_CALLS
+  data_types: [contacts.contacts]
+  strength: low
+  dangerous: true
+  sources: [android-declare-data-use, android-ref-manifest-permission]
+- permission: android.permission.QUERY_ALL_PACKAGES
+  data_types: [actions_in_app.installed_apps]
+  strength: medium
+  dangerous: false
+  sources: [android-declare-data-use, android-ref-manifest-permission]
+- permission: android.permission.READ_CALENDAR
+  data_types: [calendar.calendar]
+  strength: medium
+  dangerous: true
+  sources: [android-declare-data-use, android-ref-manifest-permission]
+- permission: android.permission.READ_CALL_LOG
+  data_types: [personal.phone_number, contacts.contacts]
+  strength: medium
+  dangerous: true
+  sources: [android-declare-data-use, android-ref-manifest-permission]
+- permission: android.permission.READ_CONTACTS
+  data_types: [contacts.contacts]
+  strength: medium
+  dangerous: true
+  sources: [android-declare-data-use, android-ref-manifest-permission]
+- permission: android.permission.READ_EXTERNAL_STORAGE
+  data_types: [photo_video.photos, photo_video.videos, audio.sound_recordings, audio.music_files, audio.other, storage.files_docs]
+  strength: low
+  dangerous: true
+  sources: [android-declare-data-use, android-ref-manifest-permission]
+- permission: android.permission.READ_MEDIA_AUDIO
+  data_types: [audio.sound_recordings, audio.music_files, audio.other]
+  strength: low
+  dangerous: true
+  sources: [android-declare-data-use, android-ref-manifest-permission]
+  note: The guide lists it under photos or videos; mapped to the audio types here.
+- permission: android.permission.READ_MEDIA_IMAGES
+  data_types: [photo_video.photos]
+  strength: low
+  dangerous: true
+  sources: [android-declare-data-use, android-ref-manifest-permission]
+- permission: android.permission.READ_MEDIA_VIDEO
+  data_types: [photo_video.videos]
+  strength: low
+  dangerous: true
+  sources: [android-declare-data-use, android-ref-manifest-permission]
+- permission: android.permission.READ_PHONE_NUMBERS
+  data_types: [personal.phone_number, contacts.contacts]
+  strength: low
+  dangerous: true
+  sources: [android-declare-data-use, android-ref-manifest-permission]
+- permission: android.permission.READ_PHONE_STATE
+  data_types: [personal.phone_number, contacts.contacts]
+  strength: low
+  dangerous: true
+  sources: [android-declare-data-use, android-ref-manifest-permission]
+  note: The guide maps it to phone number only for apps targeting API 29 or lower.
+- permission: android.permission.READ_PRIVILEGED_PHONE_STATE
+  data_types: [identifiers.other]
+  strength: low
+  dangerous: false
+  sources: [android-declare-data-use, android-10-device-ids]
+  note: Privileged permission; not grantable to third-party apps.
+- permission: android.permission.READ_SMS
+  data_types: [personal.phone_number, email_text_message.text_messages, contacts.contacts]
+  strength: medium
+  dangerous: true
+  sources: [android-declare-data-use, android-ref-manifest-permission]
+- permission: android.permission.RECEIVE_MMS
+  data_types: [email_text_message.text_messages, contacts.contacts]
+  strength: medium
+  dangerous: true
+  sources: [android-declare-data-use, android-ref-manifest-permission]
+- permission: android.permission.RECEIVE_SMS
+  data_types: [email_text_message.text_messages, contacts.contacts]
+  strength: medium
+  dangerous: true
+  sources: [android-declare-data-use, android-ref-manifest-permission]
+- permission: android.permission.RECEIVE_WAP_PUSH
+  data_types: [email_text_message.text_messages, contacts.contacts]
+  strength: low
+  dangerous: true
+  sources: [android-declare-data-use, android-ref-manifest-permission]
+- permission: android.permission.RECORD_AUDIO
+  data_types: [audio.sound_recordings]
+  strength: medium
+  dangerous: true
+  sources: [android-declare-data-use, android-ref-manifest-permission]
+- permission: android.permission.SEND_SMS
+  data_types: [email_text_message.text_messages, contacts.contacts]
+  strength: low
+  dangerous: true
+  sources: [android-declare-data-use, android-ref-manifest-permission]
+- permission: android.permission.WRITE_CALENDAR
+  data_types: [calendar.calendar]
+  strength: low
+  dangerous: true
+  sources: [android-declare-data-use, android-ref-manifest-permission]
+- permission: android.permission.WRITE_CONTACTS
+  data_types: [contacts.contacts]
+  strength: low
+  dangerous: true
+  sources: [android-declare-data-use, android-ref-manifest-permission]
+- permission: android.permission.WRITE_EXTERNAL_STORAGE
+  data_types: [photo_video.photos, photo_video.videos, audio.sound_recordings, audio.music_files, audio.other, storage.files_docs]
+  strength: low
+  dangerous: true
+  sources: [android-declare-data-use, android-ref-manifest-permission]
+- permission: com.android.voicemail.permission.ADD_VOICEMAIL
+  data_types: [contacts.contacts]
+  strength: low
+  dangerous: true
+  sources: [android-declare-data-use, android-ref-manifest-permission]
+- permission: com.google.android.gms.permission.AD_ID
+  data_types: [identifiers.other]
+  strength: low
+  dangerous: false
+  sources: [android-declare-data-use, play-help-ad-id]
+  note: Google Play services normal permission; often merged in from SDK manifests.
