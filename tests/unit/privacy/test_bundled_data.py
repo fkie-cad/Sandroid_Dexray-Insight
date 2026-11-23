@@ -151,7 +151,7 @@ def test_apis(cat):
             assert METHOD_RE.match(r), r
     for r in doc["markers"]["reflection_calls"]:
         assert METHOD_RE.match(r), r
-    for c in doc["markers"]["photo_picker"]["classes"]:
+    for c in doc["markers"]["photo_picker"]["classes"] + doc["markers"].get("transparent_wrappers", []):
         assert CLASS_RE.match(c), c
     for e in doc["entries"]:
         eid = e["id"]
@@ -260,19 +260,27 @@ def test_sdks(cat):
             assert c["data_type"] in types and c["mode"] in COLLECT_MODES, sid
             assert src[c["source"]]["use"] == "facts_cited", f"{sid}: collects need a facts_cited source"
             assert c["requires_permission"] is None or PERM_RE.match(c["requires_permission"]), sid
+            feature = c.get("requires") or {}
+            assert set(feature) <= {"permissions_any", "class_prefixes_any"}, sid
+            assert all(re.match(r"^[a-z][\w.]*\.[A-Z][A-Z0-9_]*$", p) for p in feature.get("permissions_any", [])), sid
+            assert all(DOTTED_PREFIX_RE.match(p) for p in feature.get("class_prefixes_any", [])), sid
         assert isinstance(e["first_party_source"], bool)
         assert e["sharing_override"] in SHARING, sid
         assert set(e["references"]) == {"vendor_disclosure", "play_sdk_index"}, sid
         assert e["sources"] and set(e["sources"]) <= set(src), sid
     sdk_ids = set(ids)
-    keys = [f["key"] for f in doc["manifest_flags"]]
+    keys = [(f["key"], f["sdk_id"]) for f in doc["manifest_flags"]]
     assert len(keys) == len(set(keys))
+    ns = doc["app_namespace"]
+    assert ns["shared_roots"] and all(re.match(r"^[a-z][a-z0-9_]*(\.[a-z0-9_]+)?$", r) for r in ns["shared_roots"])
+    assert ns["framework_prefixes"] and all(DOTTED_PREFIX_RE.match(p) for p in ns["framework_prefixes"])
     for f in doc["manifest_flags"]:
         assert f["sdk_id"] in sdk_ids and f["type"] in FLAG_TYPES, f["key"]
         assert f["default_when_absent"] in FLAG_DEFAULTS and f["effect"] in FLAG_EFFECTS, f["key"]
         assert f["data_types"] == ["*"] or set(f["data_types"]) <= types, f["key"]
         assert f["items"] is None or (f["items"] and f["data_types"] != ["*"]), f["key"]
         assert f["sources"] and set(f["sources"]) <= set(src), f["key"]
+        assert isinstance(f.get("read_by"), str) and f["read_by"], f"{f['key']}: record which SDK generations read it"
         if f["effect"] == "presence_only":
             assert f["type"] == "presence" and f["off_when"] == [], f["key"]
         else:

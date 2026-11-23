@@ -304,7 +304,10 @@ class AndroguardIndex:
         if not field_refs:
             return {}
         for dex in self.dexes:
-            for em in dex.get_methods():
+            # androguard's DEX.get_methods() yields MethodIdItem (no code); the bodies are
+            # the EncodedMethod objects of get_encoded_methods().
+            getter = getattr(dex, "get_encoded_methods", None) or dex.get_methods
+            for em in getter():
                 try:
                     code = em.get_code()
                 except Exception:
@@ -618,6 +621,8 @@ class Matcher:
         self.components = components
         self.missing_sdk_apis: list[str] = []
         self.provider_reads_unresolved = 0
+        self.provider_reads_untyped = 0
+        self.self_calls = 0
         self._siblings: dict[str, list[str]] | None = None
 
     # -- helpers
@@ -629,8 +634,19 @@ class Matcher:
         return not (req["const_int_any"] and not (facts.ints & set(req["const_int_any"])))
 
     def _sites_for(
-        self, entry: dict[str, Any], caller: MRef, offset: int, api: str, label: str, match: str, **extra: Any
+        self,
+        entry: dict[str, Any],
+        caller: MRef,
+        offset: int,
+        api: str,
+        label: str,
+        match: str,
+        callee_cls: str | None = None,
+        **extra: Any,
     ) -> list[RawSite]:
+        if callee_cls and self.attr.same_owner(caller.cls, callee_cls):
+            self.self_calls += 1
+            return []  # a library or SDK calling its own API is not a data access
         out = []
         for frame, frame_offset, origin, via in self.attr.site_frames(caller, offset):
             if entry["sdk_id"] and origin.sdk_id == entry["sdk_id"]:
@@ -666,7 +682,7 @@ class Matcher:
                 for caller, offset in self.index.callers(method):
                     if not self._requires_ok(entry, self.index.facts(caller)):
                         continue
-                    out.extend(self._sites_for(entry, caller, offset, api, entry["label"], "method_call"))
+                    out.extend(self._sites_for(entry, caller, offset, api, entry["label"], "method_call", cls))
             if not found and entry["sdk_id"]:
                 self.missing_sdk_apis.append(entry["id"])
         return out
@@ -720,16 +736,20 @@ class Matcher:
         return out
 
     def _resolve_uri(self, frame: MRef, entries: list[dict[str, Any]]) -> tuple[list[tuple[dict, dict]], str]:
+        """URI evidence of a provider read. Only evidence in the reading method types a site.
+
+        Evidence found only elsewhere in the class (or in a caller) is too weak: classes
+        that insert into or delete from MediaStore also query their own providers, and
+        generic loaders handle every URI. Such reads are counted, never typed.
+        """
         found = self._uri_matches([self.index.facts(frame)], entries)
         if found:
             return found, "same_method"
         siblings = [m for cls in self._class_siblings(frame.cls) for m in self.index.class_methods(cls)]
-        found = self._uri_matches([self.index.facts(m) for m in siblings], entries)
-        if found:
-            return found, "same_class"
         callers = [c for c, _ in self.index.callers(frame)][:20]
-        found = self._uri_matches([self.index.facts(c) for c in callers], entries)
-        return found, "caller"
+        if self._uri_matches([self.index.facts(m) for m in siblings + callers], entries):
+            self.provider_reads_untyped += 1
+        return [], "none"
 
     def provider_reads(self) -> list[RawSite]:
         """Content-provider reads with URI evidence; the rest is counted as unresolved."""
@@ -756,9 +776,12 @@ class Matcher:
                     if not found:
                         self.provider_reads_unresolved += 1
                         continue
+                    frame_facts = self.index.facts(frame)
                     for entry, ev in found:
                         if entry["sdk_id"] and origin.sdk_id == entry["sdk_id"]:
                             continue
+                        if not self._requires_ok(entry, frame_facts):
+                            continue  # e.g. a gservices flag read is not the GSF ID
                         strong = where == "same_method" and ev["kind"] in ("static_field", "uri_string")
                         out.append(
                             RawSite(
@@ -795,13 +818,18 @@ class Matcher:
                 facts = self.index.facts(method)
                 for entry in wanted[ref]:
                     if self._requires_ok(entry, facts):
-                        out.extend(self._sites_for(entry, method, offset, ref, entry["label"], "field_read"))
+                        out.extend(
+                            self._sites_for(
+                                entry, method, offset, ref, entry["label"], "field_read", ref.split("->")[0]
+                            )
+                        )
         return out
 
     # -- step 9: reflection
     def reflective(self) -> list[RawSite]:
         """Reflective references: the target class name as a string plus a reflection call."""
         from ...privacy.catalogue import dotted_class
+        from ...privacy.catalogue import jvm_class
         from ...privacy.catalogue import split_method_ref
 
         markers = set()
@@ -826,7 +854,7 @@ class Matcher:
                         ):
                             offset = off
                             break
-                if offset is None:
+                if offset is None or not self._requires_ok(entry, facts):
                     continue
                 conf = "medium" if method_name and method_name in facts.string_set else "low"
                 out.extend(
@@ -837,6 +865,7 @@ class Matcher:
                         entry["refs"][0],
                         f"{entry['label']} (via reflection)",
                         "reflective",
+                        jvm_class(target),
                         reflect_confidence=conf,
                     )
                 )

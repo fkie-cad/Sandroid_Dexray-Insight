@@ -27,6 +27,7 @@ markers:
   photo_picker:
     classes: ["Landroidx/activity/result/contract/ActivityResultContracts$PickVisualMedia;"]
     strings: ["android.provider.action.PICK_IMAGES"]
+  transparent_wrappers: ["Landroidx/core/content/ContentResolverCompat;", "Landroidx/core/telephony/TelephonyManagerCompat;"]
   reflection_calls:
     - "Ljava/lang/Class;->forName(Ljava/lang/String;)Ljava/lang/Class;"
     - "Ljava/lang/Class;->forName(Ljava/lang/String;ZLjava/lang/ClassLoader;)Ljava/lang/Class;"

@@ -24,7 +24,9 @@ def cat():
 
 def make(cat, index=None, namespaces=("io.voiapp.voi",), hits=None, components=None):
     trie = SdkTrie(cat.sdks)
-    return Attributor(index or FakeIndex(), cat.sdks, trie, list(namespaces), hits, components)
+    return Attributor(
+        index or FakeIndex(), cat.sdks, trie, list(namespaces), hits, components, True, set(cat.wrapper_classes)
+    )
 
 
 @pytest.mark.parametrize(
@@ -60,10 +62,10 @@ def test_rule1_prefix_and_exclude(cat):
     a = make(cat)
     o = a.base("Lcom/adjust/sdk/MacAddressUtil;")
     assert (o.type, o.sdk_id, o.confidence, o.rule) == ("sdk", "adjust", "high", "sdk_prefix")
-    # AdMob excludes the ads-identifier library, which is transparent instead
+    # AdMob excludes the ads-identifier library, which stays a plain library
     assert a.base("Lcom/google/android/gms/ads/identifier/AdvertisingIdClient;") is None
     o = a.frame_origin(m("Lcom/google/android/gms/ads/identifier/AdvertisingIdClient;->a()V"))
-    assert (o.type, o.rule, o.name) == ("library", "transparent_library", "com.google.android.gms.ads.identifier")
+    assert (o.type, o.rule, o.name) == ("library", "third_party_package", "com.google.android")
     assert a.base("Lcom/google/android/gms/ads/AdView;").sdk_id == "google_mobile_ads"
 
 
@@ -114,7 +116,7 @@ def test_rule6_string_anchor_and_rule7_manifest_anchor(cat):
     assert (o.sdk_id, o.rule) == ("braze", "manifest_anchor")
 
 
-def test_rule4_wrapper_with_two_origins(cat):
+def test_rule4_wrapper_keeps_every_upstream_caller(cat):
     x = FakeIndex()
     x.add("Landroidx/core/telephony/TelephonyManagerCompat;->getImei()Ljava/lang/String;", invokes=[(API, 4)])
     x.add(
@@ -125,27 +127,67 @@ def test_rule4_wrapper_with_two_origins(cat):
         "Lcom/adjust/sdk/Dev;->id()V",
         invokes=[("Landroidx/core/telephony/TelephonyManagerCompat;->getImei()Ljava/lang/String;", 12)],
     )
+    x.add(
+        "Lio/voiapp/voi/Other;->id()V",
+        invokes=[("Landroidx/core/telephony/TelephonyManagerCompat;->getImei()Ljava/lang/String;", 6)],
+    )
     frames = make(cat, x).site_frames(
         m("Landroidx/core/telephony/TelephonyManagerCompat;->getImei()Ljava/lang/String;"), 4
     )
     assert [(f.cls, off, o.type, o.sdk_id) for f, off, o, _ in frames] == [
-        ("Lio/voiapp/voi/Dev;", 10, "app", None),
         ("Lcom/adjust/sdk/Dev;", 12, "sdk", "adjust"),
+        ("Lio/voiapp/voi/Dev;", 10, "app", None),
+        ("Lio/voiapp/voi/Other;", 6, "app", None),  # a second app caller is kept (review-1 S1)
     ]
-    assert frames[0][3] == ["Landroidx/core/telephony/TelephonyManagerCompat;->getImei"]
+    assert frames[1][3] == ["Landroidx/core/telephony/TelephonyManagerCompat;->getImei"]
 
 
-def test_rule4_without_upstream_is_library(cat):
+def test_rule4_wrapper_without_upstream_is_library(cat):
     x = FakeIndex()
-    x.add("Landroidx/appcompat/app/TwilightManager;->get()V", invokes=[(API, 4)])
-    [(frame, off, origin, via)] = make(cat, x).site_frames(m("Landroidx/appcompat/app/TwilightManager;->get()V"), 4)
+    x.add("Landroidx/core/telephony/TelephonyManagerCompat$Api26Impl;->getImei()V", invokes=[(API, 4)])
+    [(frame, off, origin, via)] = make(cat, x).site_frames(
+        m("Landroidx/core/telephony/TelephonyManagerCompat$Api26Impl;->getImei()V"), 4
+    )
     assert (origin.type, origin.name, origin.rule, origin.confidence) == (
         "library",
-        "androidx",
+        "androidx.core.telephony.TelephonyManagerCompat",
         "transparent_library",
         "medium",
     )
     assert off == 4 and via == []
+
+
+def test_androidx_is_not_transparent(cat):
+    """AppCompat's night-mode location probe stays AppCompat's, even when an app activity reaches it."""
+    x = FakeIndex()
+    x.add("Landroidx/appcompat/app/TwilightManager;->get()V", invokes=[(API, 4)])
+    x.add(
+        "Landroidx/appcompat/app/AppCompatDelegateImpl;->applyDayNight()V",
+        invokes=[("Landroidx/appcompat/app/TwilightManager;->get()V", 2)],
+    )
+    x.add(
+        "Lio/voiapp/voi/GalleryActivity;->onConfigurationChanged()V",
+        invokes=[("Landroidx/appcompat/app/AppCompatDelegateImpl;->applyDayNight()V", 8)],
+    )
+    [(frame, off, origin, via)] = make(cat, x).site_frames(m("Landroidx/appcompat/app/TwilightManager;->get()V"), 4)
+    assert frame.cls == "Landroidx/appcompat/app/TwilightManager;"
+    assert (origin.type, origin.name, origin.rule) == ("library", "androidx.appcompat.app", "third_party_package")
+
+
+def test_self_calls(cat):
+    a = make(cat)
+    acct = "Lcom/google/android/gms/auth/api/signin/GoogleSignInAccount;"
+    assert a.same_owner(acct, acct)  # getters called by its own writeToParcel
+    assert a.same_owner("Lcom/google/android/gms/auth/api/signin/internal/Store;", acct)
+    assert a.same_owner(
+        "Lcom/google/firebase/analytics/internal/Z;", "Lcom/google/firebase/analytics/FirebaseAnalytics;"
+    )
+    assert not a.same_owner(
+        "Lcom/google/android/gms/measurement/internal/zzbd;",
+        "Lcom/google/android/gms/ads/identifier/AdvertisingIdClient$Info;",
+    )
+    assert not a.same_owner("Landroid/telephony/Fake;", "Landroid/telephony/TelephonyManager;")
+    assert not a.same_owner("Lio/voiapp/voi/Login;", acct)
 
 
 def test_mediation_innermost_sdk_wins(cat):
@@ -156,20 +198,13 @@ def test_mediation_innermost_sdk_wins(cat):
     assert origin.sdk_id == "adjust"
 
 
+def ns(cat, package, app_class=None):
+    return build_app_namespaces(package, app_class, SdkTrie(cat.sdks), cat.shared_roots, cat.framework_prefixes)
+
+
 def test_namespaces_voi_like(cat):
-    trie = SdkTrie(cat.sdks)
-    comps = [
-        "io.voiapp.voi.MainActivity",
-        "io.voiapp.foo.Receiver",
-        "zendesk.support.guide.ViewArticleActivity",
-        "com.mapbox.android.telemetry.TelemetryService",
-        "com.appboy.push.AppboyFirebaseMessagingService",
-        "no.nordicsemi.android.dfu.DfuService",
-        "androidx.work.impl.WorkManagerService",
-    ]
-    ns = build_app_namespaces("io.voiapp.voi", "io.voiapp.voi.VoiApp", comps, trie)
-    assert ns == ["io.voiapp.foo", "io.voiapp.voi"]
-    a = Attributor(FakeIndex(), cat.sdks, trie, ns)
+    assert ns(cat, "io.voiapp.voi", "io.voiapp.voi.VoiApp") == ["io.voiapp"]
+    a = Attributor(FakeIndex(), cat.sdks, SdkTrie(cat.sdks), ns(cat, "io.voiapp.voi"))
     for cls in (
         "Lzendesk/support/X;",
         "Lcom/mapbox/android/telemetry/T;",
@@ -180,8 +215,30 @@ def test_namespaces_voi_like(cat):
     assert a.base("Lio/voiapp/foo/Bar;").type == "app"
 
 
-def test_namespaces_drop_sdk_and_short_candidates(cat):
-    trie = SdkTrie(cat.sdks)
-    assert build_app_namespaces("com.adjust.sdk", None, [], trie) == []
-    assert build_app_namespaces("app", None, [], trie) == []
-    assert build_app_namespaces("com.ex.app", "com.ex.app.sub.App", ["com.ex.app.x.Y"], trie) == ["com.ex.app"]
+def test_namespaces_nextcloud_root_and_application_package(cat):
+    """com.nextcloud.utils/ui are app code; so is the owncloud Application package."""
+    assert ns(cat, "com.nextcloud.client", "com.owncloud.android.MainApp") == ["com.nextcloud", "com.owncloud.android"]
+    a = Attributor(FakeIndex(), cat.sdks, SdkTrie(cat.sdks), ns(cat, "com.nextcloud.client"))
+    assert a.base("Lcom/nextcloud/utils/CalendarEventManager;").type == "app"
+    assert a.base("Lcom/nextcloud/ui/ImageDetailFragment;").type == "app"
+
+
+@pytest.mark.parametrize(
+    "package,app_class,expected",
+    [
+        ("com.google.android.apps.foo", None, ["com.google.android.apps.foo"]),  # shared root: package only
+        ("io.github.user.app", None, ["io.github.user.app"]),
+        ("com.ex.app", "io.flutter.app.FlutterApplication", ["com.ex"]),  # framework Application class
+        ("com.ex.app", "com.facebook.react.ReactApplication", ["com.ex"]),
+        ("com.ex.app", "com.ex.app.sub.App", ["com.ex"]),
+        ("com.adjust.sdk", None, []),  # under a curated SDK prefix
+        ("app", None, []),
+    ],
+)
+def test_namespace_rules(cat, package, app_class, expected):
+    assert ns(cat, package, app_class) == expected
+
+
+def test_curated_sdk_beats_app_namespace(cat):
+    a = Attributor(FakeIndex(), cat.sdks, SdkTrie(cat.sdks), ["com"])
+    assert a.base("Lcom/adjust/sdk/Adjust;").type == "sdk"

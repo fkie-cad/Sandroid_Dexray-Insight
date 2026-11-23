@@ -107,6 +107,9 @@ entries:
     collects: []
     sharing_override: possible_sharing
     references: {vendor_disclosure: null, play_sdk_index: null}
+app_namespace:
+  shared_roots: [com.google, com.github, io.github, com.facebook, androidx, android, com.android, io.flutter, com.example]
+  framework_prefixes: [android., androidx., com.google.android., io.flutter., com.facebook.react.]
 manifest_flags:
   - {key: firebase_analytics_collection_enabled, sdk_id: firebase_analytics, type: bool, off_when: ["false"], default_when_absent: "on", effect: collection_suspended_until_enabled, data_types: ["*"], items: null, sources: [firebase-configure-data-collection]}
   - {key: google_analytics_adid_collection_enabled, sdk_id: firebase_analytics, type: bool, off_when: ["false"], default_when_absent: "on", effect: adid_collection_off, data_types: [identifiers.other], items: [advertising_id], sources: [firebase-configure-data-collection]}

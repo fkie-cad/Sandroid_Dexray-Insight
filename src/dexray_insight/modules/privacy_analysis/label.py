@@ -78,6 +78,15 @@ DATA_WORDS = {
     "identifiers.other": "device or other IDs",
 }
 ADS_ROLES = ("ads", "attribution")
+#: Flag effects that the app can lift at runtime with a consent-control call.
+RUNTIME_SWITCHABLE = ("collection_suspended_until_enabled", "auto_init_off", "storage_denied_by_default")
+#: Flag effects that switch an SDK's collection off (sdk_collection_default_on).
+COLLECTION_SWITCHES = (
+    "collection_suspended_until_enabled",
+    "collection_off_permanently",
+    "auto_init_off",
+    "auto_events_off",
+)
 REACHED = ("app_code", "sdk_entry", "callback")
 _PHOTO_PERMS = ("android.permission.READ_MEDIA_IMAGES", "android.permission.READ_MEDIA_VIDEO")
 _READ_EXTERNAL = "android.permission.READ_EXTERNAL_STORAGE"
@@ -454,13 +463,13 @@ def collects_status(
     off_flag = None
     runtime = False
     for flag in flags:
-        if flag["sdk_id"] != sdk_id or flag["state"] != "off":
+        if flag["sdk_id"] != sdk_id or flag["state"] != "off" or flag.get("read_by_sdk") is False:
             continue
         if not ("*" in flag["data_types"] or item["data_type"] in flag["data_types"]):
             continue
         if flag["items"] is not None and item.get("item") not in flag["items"]:
             continue
-        if flag["effect"] in ("collection_suspended_until_enabled", "auto_init_off") and controlled:
+        if flag["effect"] in RUNTIME_SWITCHABLE and controlled:
             runtime = True
         elif flag["effect"] == "presence_only":
             continue
@@ -737,7 +746,11 @@ def build_findings(
         if sdk["confidence"] != "high" or sdk["id"] in sdk_controlled:
             continue
         active = [c for c in sdk["collects"] if c["mode"] == "auto" and c["status"] == "active"]
-        switches = [f for f in flags if f["sdk_id"] == sdk["id"] and f["effect"] not in ("presence_only", "pii_on")]
+        switches = [
+            f
+            for f in flags
+            if f["sdk_id"] == sdk["id"] and f["effect"] in COLLECTION_SWITCHES and f.get("read_by_sdk") is not False
+        ]
         if active and switches and all(f["state"] in ("default", "on") for f in switches):
             default_on.append((sdk, active, switches))
     if default_on:

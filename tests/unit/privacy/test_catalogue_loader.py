@@ -98,7 +98,7 @@ def test_digest_changes_with_a_single_source_edit(tmp_path):
             "manifest: {service_permission: android.permission.BIND_NOTIFICATION_LISTENER_SERVICE}\n"
             "    data_types: [email_text_message.other]\n    permission: null",
             "manifest: {service_permission: android.permission.BIND_NOTIFICATION_LISTENER_SERVICE}\n"
-            "    data_types: [email_text_message.other]\n    permission: {any_of: [x]}",
+            "    data_types: [email_text_message.other]\n    permission: {any_of: [android.permission.READ_CONTACTS]}",
             "permission: null",
         ),
         (
@@ -135,3 +135,40 @@ def test_bundled_catalogue_loads():
     assert cat.version
     assert (c.DATA_DIR / "NOTICE").exists()
     assert len(cat.data_types) >= 30
+
+
+@pytest.mark.parametrize(
+    "old,new,message",
+    [
+        ("effective_until: 29}", 'effective_until: "29"}', "api.effective_until must be an integer"),
+        ("since: 3,", "since: true,", "api.since must be an integer"),
+        ("group: identifiers\n", "group: guesswork\n", "unknown group"),
+        (
+            "const_int_any: []}\n    data_types: [identifiers.other]\n    permission: null\n    api: {since: 3",
+            'const_int_any: ["18"]}\n    data_types: [identifiers.other]\n    permission: null\n    api: {since: 3',
+            "must be integers",
+        ),
+    ],
+)
+def test_strict_api_types(tmp_path, old, new, message):
+    """Review-2 S2: a typed data error is rejected at load, not deep inside the analysis."""
+    dst = _copy(tmp_path)
+    path = dst / "apis.yaml"
+    text = path.read_text()
+    assert old in text, old
+    path.write_text(text.replace(old, new, 1))
+    with pytest.raises(c.CatalogueError, match=message):
+        c.load_catalogue(dst)
+
+
+def test_bundled_texts_pass_the_vocabulary_check():
+    """Review-1 N8: the notes of the shipped catalogue that reach the output make no action claims."""
+    if not (c.DATA_DIR / "apis.yaml").exists():
+        pytest.skip("bundled catalogue not present")
+    from tests.unit.modules.privacy_analysis.fakes import vocabulary_violations
+
+    cat = c.load_catalogue()
+    texts = [col["note"] for s in cat.sdks for col in s["collects"] if col.get("note")]
+    texts += [a["label"] for a in cat.apis]
+    for text in texts:
+        assert vocabulary_violations(text) == [], text

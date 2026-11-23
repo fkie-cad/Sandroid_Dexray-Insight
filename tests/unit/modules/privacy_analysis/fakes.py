@@ -303,6 +303,15 @@ def scooter_scenario() -> tuple[FakeIndex, ManifestFacts, list[str]]:
         invokes=[(GET_STRING, 4)],
     )
     x.classes.update({"Lcom/google/android/gms/ads/AdActivity;", "Lcom/adjust/sdk/AdjustConfig;"})
+    # the shipped SDKs read their manifest switches (the key strings occur in their code)
+    x.add(
+        "Lcom/google/android/gms/measurement/internal/Cfg;->flags()V",
+        strings=["firebase_analytics_collection_enabled", "google_analytics_adid_collection_enabled"],
+    )
+    x.add(
+        "Lcom/google/firebase/crashlytics/internal/Cfg;->flags()V", strings=["firebase_crashlytics_collection_enabled"]
+    )
+    x.add("Lcom/google/android/gms/ads/internal/Cfg;->appId()V", strings=["com.google.android.gms.ads.APPLICATION_ID"])
 
     # class census of the fixture
     for prefix, total in (

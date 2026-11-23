@@ -241,14 +241,25 @@ class _Steps:
     """Runs pipeline steps; a failing step adds to ``errors`` and yields its default."""
 
     def __init__(self) -> None:
-        self.errors: list[str] = []
+        self._counts: dict[str, int] = {}
+
+    def record(self, name: str, exc: Exception) -> None:
+        """Count one failure; the message has no memory addresses (byte-stable output)."""
+        text = re.sub(r" at 0x[0-9a-fA-F]+", "", str(exc))[:300]
+        message = f"{name}: {type(exc).__name__}: {text}"
+        self._counts[message] = self._counts.get(message, 0) + 1
+
+    @property
+    def errors(self) -> list[str]:
+        """De-duplicated messages, sorted; repeated ones carry ``(xN)``."""
+        return sorted(m if n == 1 else f"{m} (x{n})" for m, n in self._counts.items())
 
     def run(self, name: str, fn: Callable[[], Any], default: Any) -> Any:
         try:
             return fn()
         except Exception as exc:
             logger.debug("privacy_analysis step %s failed", name, exc_info=True)
-            self.errors.append(f"{name}: {type(exc).__name__}: {exc}")
+            self.record(name, exc)
             return default
 
 
@@ -320,7 +331,13 @@ def _detect(
     return out
 
 
-def _flag_state(flag: dict[str, Any], meta: list[dict[str, Any]]) -> dict[str, Any]:
+def _flag_state(flag: dict[str, Any], meta: list[dict[str, Any]], read: bool | None = True) -> dict[str, Any]:
+    """The emitted ManifestFlag.
+
+    Android keeps the **last** ``<meta-data>`` value for a repeated key. ``read`` says
+    whether the detected SDK's code contains the key at all (``None`` = not checked);
+    a key the shipped SDK does not read never yields ``off`` (it becomes ``unknown``).
+    """
     app = [m for m in meta if m["scope"] == "application" and m["name"] == flag["key"]]
     comp = [m for m in meta if m["scope"] == "component" and m["name"] == flag["key"]]
     out = {
@@ -332,7 +349,7 @@ def _flag_state(flag: dict[str, Any], meta: list[dict[str, Any]]) -> dict[str, A
         "state": "default",
     }
     if app:
-        item = app[0]
+        item = app[-1]
         out["value"] = item["value"]
         out["resolved"] = item["resolved"]
         if not item["resolved"]:
@@ -342,9 +359,11 @@ def _flag_state(flag: dict[str, Any], meta: list[dict[str, Any]]) -> dict[str, A
         else:
             out["state"] = "off" if str(item["value"]).strip().lower() in flag["off_when"] else "on"
     elif comp:
-        out["value"] = comp[0]["value"]
-        out["resolved"] = comp[0]["resolved"]
+        out["value"] = comp[-1]["value"]
+        out["resolved"] = comp[-1]["resolved"]
         out["scope"] = "component"
+    if read is False and out["state"] in ("off", "on"):
+        out["state"] = "unknown"
     out.update(
         {
             "effect": flag["effect"],
@@ -352,6 +371,7 @@ def _flag_state(flag: dict[str, Any], meta: list[dict[str, Any]]) -> dict[str, A
             "data_types": list(flag["data_types"]),
             "items": list(flag["items"]) if flag["items"] is not None else None,
             "source": f"docs:{flag['sources'][0]}",
+            "read_by_sdk": read,
         }
     )
     return out
@@ -494,7 +514,9 @@ def analyse(
     cmp_trie = SdkTrie(cat.cmps)
     namespaces = steps.run(
         "app_namespaces",
-        lambda: build_app_namespaces(manifest.package, manifest.application_class, sorted(component_names), trie),
+        lambda: build_app_namespaces(
+            manifest.package, manifest.application_class, trie, cat.shared_roots, cat.framework_prefixes
+        ),
         [],
     )
 
@@ -549,7 +571,14 @@ def analyse(
         if owners:
             component_sdks.setdefault(package_of(jvm_class(comp)), set()).update(owners)
     attributor = Attributor(
-        index, cat.sdks, trie, namespaces, hits, component_sdks, bool(cfg["string_anchor_attribution"])
+        index,
+        cat.sdks,
+        trie,
+        namespaces,
+        hits,
+        component_sdks,
+        bool(cfg["string_anchor_attribution"]),
+        set(cat.wrapper_classes),
     )
     entry_classes = {jvm_class(n) for n in component_names}
     entry_classes |= {jvm_class(n) for n in manifest.startup_initializers}
@@ -613,9 +642,8 @@ def analyse(
         except Exception:
             return False
 
-    for number, (pos, site) in enumerate(kept, 1):
+    def emit(pos: int, site: Any) -> tuple[dict[str, Any], dict[str, Any], bool]:
         entry = site.entry
-        sid = f"cs-{number:04d}"
         if site.match == "manifest_component":
             perm = {"required": None, "declared": [], "satisfied": None}
             reachability = "app_code" if site.origin.type == "app" else "sdk_entry"
@@ -624,15 +652,13 @@ def analyse(
         else:
             perm = permission_object(entry["permission"], set(declared))
             if pos < int(cfg["reachability_max_sites_per_api"]):
-                result = steps.run("reachability", lambda s=site: reach.reach(s.caller), None)
+                result = steps.run("reachability", lambda: reach.reach(site.caller), None)
                 if result is None:
                     reachability, chain, deciding = "unknown", [site.caller.frame()], None
                 else:
                     reachability, chain, deciding = result.reachability, result.chain, result.deciding
             else:
                 reachability, chain, deciding = "not_checked", [], None
-        if reachability == "unknown":
-            unknown += 1
         level = api_level_object(entry["api"], manifest.min_sdk)
         kind = evidence_kind_of(entry["role"], site.match, level["effective_for_app"], reachability)
         origin = {
@@ -651,7 +677,7 @@ def analyse(
             met = not needed or any(p in declared for p in needed)
             type_conf[dt] = apply_modifiers(base, kind, origin, perm["satisfied"], reachability, met)
         required = next(iter(entry["permission"].values())) if entry["permission"] else []
-        site_meta[sid] = {
+        meta = {
             "type_conf": type_conf,
             "sdk_id": entry["sdk_id"] if entry["role"] == "sink" else None,
             "dangerous_unsatisfied": perm["satisfied"] is False and any(dangerous(p) for p in required),
@@ -659,9 +685,9 @@ def analyse(
             "deciding_app_class": bool(deciding is not None and app_class_jvm and deciding.cls == app_class_jvm),
             "controls_sdk_id": entry["controls_sdk_id"],
         }
-        sites.append(
+        return (
             {
-                "id": sid,
+                "id": "",
                 "api_id": entry["id"],
                 "api_label": site.api_label,
                 "api": site.api,
@@ -682,8 +708,22 @@ def analyse(
                 "api_level": level,
                 "evidence_kind": kind,
                 "confidence": confidence,
-            }
+            },
+            meta,
+            reachability == "unknown",
         )
+
+    for pos, site in kept:
+        try:
+            emitted, meta, was_unknown = emit(pos, site)
+        except Exception as exc:  # one bad entry never fails the section
+            logger.debug("privacy_analysis: emitting a %s site failed", site.entry.get("id"), exc_info=True)
+            steps.record(f"call_site {site.entry.get('id')}", exc)
+            continue
+        emitted["id"] = f"cs-{len(sites) + 1:04d}"
+        site_meta[emitted["id"]] = meta
+        sites.append(emitted)
+        unknown += int(was_unknown)
     if unknown:
         limits.append(f"reachability_budget:{unknown}")
 
@@ -704,18 +744,50 @@ def analyse(
         [],
     )
     detected_ids = {d["entry"]["id"] for d in detected}
-    flags = [_flag_state(f, manifest.meta_data) for f in cat.manifest_flags if f["sdk_id"] in detected_ids]
+
+    def key_read(key: str) -> bool | None:
+        """True if non-app code of the APK contains the flag key (the shipped SDK reads it)."""
+        try:
+            return any(not attributor.is_app_class(m.cls) for m in index.string_users(key))
+        except Exception:
+            return None
+
+    flags = [
+        _flag_state(f, manifest.meta_data, key_read(f["key"]))
+        for f in cat.manifest_flags
+        if f["sdk_id"] in detected_ids
+    ]
+    # A consent control counts unless the SDK it controls calls it itself: app code,
+    # obfuscated (R8-repackaged) app code and bridge libraries all switch it at runtime.
     controlled = {
         site_meta[s["id"]]["controls_sdk_id"]
         for s in sites
-        if s["role"] == "consent_control" and s["origin"]["type"] == "app" and site_meta[s["id"]]["controls_sdk_id"]
+        if s["role"] == "consent_control"
+        and site_meta[s["id"]]["controls_sdk_id"]
+        and s["origin"]["sdk_id"] != site_meta[s["id"]]["controls_sdk_id"]
     }
+    class_list = sorted(cen["classes"])
+
+    def feature_present(collect: dict[str, Any]) -> bool:
+        """A feature-conditional ``collects`` item applies only with evidence of the feature."""
+        req = collect.get("requires") or {}
+        perms, prefixes = req.get("permissions_any") or [], req.get("class_prefixes_any") or []
+        if not perms and not prefixes:
+            return True
+        if any(p in declared for p in perms):
+            return True
+        jvm_prefixes = tuple("L" + p.replace(".", "/") for p in prefixes)
+        return bool(jvm_prefixes) and any(c.startswith(jvm_prefixes) for c in class_list)
+
     sdks: list[dict[str, Any]] = []
     sdk_evidence: list[dict[str, Any]] = []
 
     def build_sdks() -> None:
         for det in detected:
-            entry = det["entry"]
+            entry = dict(det["entry"])
+            entry["collects"] = [
+                c if feature_present(c) else {**c, "mode": "depends_on_usage"} for c in entry["collects"]
+            ]
             sdk_flags = [f for f in flags if f["sdk_id"] == entry["id"]]
             statuses = [
                 collects_status(entry["id"], c, sdk_flags, entry["id"] in controlled) for c in entry["collects"]
@@ -823,9 +895,14 @@ def analyse(
         detected_missing = sorted(a for a in matcher.missing_sdk_apis if cat.api_by_id[a]["sdk_id"] in detected_ids)
         if detected_missing:
             notes.append(
-                f"{len(detected_missing)} catalogued SDK APIs were not found by name (likely renamed by R8): "
-                + ", ".join(detected_missing)
+                f"{len(detected_missing)} catalogued SDK APIs were not found by name "
+                "(removed or renamed by R8, or not bundled): " + ", ".join(detected_missing)
             )
+    if matcher.provider_reads_untyped:
+        notes.append(
+            f"{matcher.provider_reads_untyped} provider reads have URI evidence only outside the reading method; "
+            "they are not typed"
+        )
     flag_keys = {f["key"] for f in cat.manifest_flags}
     norm_flags = {_norm_key(k): k for k in sorted(flag_keys)}
     for name in sorted(meta_names):
@@ -885,6 +962,7 @@ def analyse(
             }
         )
 
+    emitted_flags = [{k: v for k, v in f.items() if k != "read_by_sdk"} for f in flags]
     return {
         "schema_version": SCHEMA_VERSION,
         "status": "partial" if steps.errors else "success",
@@ -910,7 +988,7 @@ def analyse(
         "call_sites": sites,
         "sdks": sdks,
         "permissions": permissions,
-        "manifest_flags": flags,
+        "manifest_flags": emitted_flags,
         "consent": consent,
         "findings": findings,
         "compliance_refs": {r: dict(cat.compliance_refs[r]) for r in used_refs if r in cat.compliance_refs},

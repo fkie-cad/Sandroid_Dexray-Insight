@@ -198,7 +198,8 @@ entries:
   - {data_type: identifiers.other, item: app_instance_id, mode: auto, requires_permission: null, source: google-analytics-data-disclosure}
   - {data_type: identifiers.other, item: advertising_id, mode: auto, requires_permission: com.google.android.gms.permission.AD_ID, source: google-analytics-data-disclosure}
   - {data_type: location.approx_location, item: masked_ip_address, mode: auto, requires_permission: null, source: google-analytics-data-disclosure, note: Coarse location derived from the masked IP address.}
-  - {data_type: financial.purchase_history, item: in_app_purchases, mode: auto, requires_permission: null, source: google-analytics-data-disclosure}
+  - {data_type: financial.purchase_history, item: in_app_purchases, mode: auto, requires_permission: null, source: google-analytics-data-disclosure,
+    requires: {permissions_any: [com.android.vending.BILLING], class_prefixes_any: [com.android.billingclient.]}, note: Automatic only for Google Play in-app purchases.}
   - {data_type: actions_in_app.user_interaction, item: app_lifecycle_events, mode: auto, requires_permission: null, source: google-analytics-data-disclosure, note: Screen views and sessions.}
   - {data_type: personal.personal_identifiers, item: user_id, mode: depends_on_usage, requires_permission: null, source: google-analytics-data-disclosure, note: Only when the app sets a user ID.}
   first_party_source: true
@@ -902,6 +903,16 @@ entries:
   references: {vendor_disclosure: null, play_sdk_index: null}
   sources: [vendor-hms-analytics-demo, vendor-hms-ads-demo]
   note: The OAID identifier library (com.huawei.hms.ads.identifier.) is excluded, like the GMS ads-identifier library.
+# App namespaces (attribution): the manifest package, plus its first-two-segment root unless
+# that root is shared by unrelated publishers, plus the Application class's package unless it
+# is a framework or SDK package. Own curation (package naming conventions), no external data.
+app_namespace:
+  shared_roots: [com.google, com.github, io.github, com.gitlab, io.gitlab, com.facebook, org.apache, androidx, android,
+    kotlin, kotlinx, org.jetbrains, com.android, io.flutter, com.squareup, org.json, com.amazon, com.microsoft, com.huawei,
+    com.samsung, com.example, io.reactivex, org.chromium]
+  framework_prefixes: [android., android.support., androidx., com.google.android., com.google.firebase., io.flutter.,
+    com.facebook.react., com.reactnativenavigation., org.apache.cordova., com.getcapacitor., com.unity3d., mono.android.,
+    microsoft.maui., org.acra., com.orm., kotlin.]
 manifest_flags:
 - key: firebase_analytics_collection_enabled
   sdk_id: firebase_analytics
@@ -912,6 +923,7 @@ manifest_flags:
   data_types: ['*']
   items: null
   sources: [firebase-configure-data-collection, firebase-ref-analytics]
+  read_by: 'All Google Analytics for Firebase generations (play-services-measurement).'
   note: Can be switched on at runtime with setAnalyticsCollectionEnabled(true).
 - key: firebase_analytics_collection_deactivated
   sdk_id: firebase_analytics
@@ -922,6 +934,7 @@ manifest_flags:
   data_types: ['*']
   items: null
   sources: [firebase-configure-data-collection]
+  read_by: 'All Google Analytics for Firebase generations (play-services-measurement).'
 - key: google_analytics_adid_collection_enabled
   sdk_id: firebase_analytics
   type: bool
@@ -931,6 +944,7 @@ manifest_flags:
   data_types: [identifiers.other]
   items: [advertising_id]
   sources: [firebase-configure-data-collection]
+  read_by: 'Google Analytics for Firebase with AD_ID support (play-services-measurement 17+).'
   note: Default when absent is not stated on the page; collection is the default.
 - key: google_analytics_default_allow_analytics_storage
   sdk_id: firebase_analytics
@@ -941,6 +955,7 @@ manifest_flags:
   data_types: [identifiers.other]
   items: [app_instance_id]
   sources: [google-consent-mode-app]
+  read_by: 'Consent-mode SDKs only (play-services-measurement 21+, 2023); absent from older bundles such as VOI 2.24.2 and Spin 2.21.0.'
   note: Consent mode default; no value is set by default.
 - key: google_analytics_default_allow_ad_storage
   sdk_id: firebase_analytics
@@ -951,6 +966,7 @@ manifest_flags:
   data_types: [identifiers.other]
   items: [advertising_id]
   sources: [google-consent-mode-app]
+  read_by: 'Consent-mode SDKs only (play-services-measurement 21+, 2023); absent from older bundles such as VOI 2.24.2 and Spin 2.21.0.'
   note: Consent mode default; no value is set by default.
 - key: google_analytics_default_allow_ad_user_data
   sdk_id: firebase_analytics
@@ -961,6 +977,7 @@ manifest_flags:
   data_types: []
   items: null
   sources: [google-consent-mode-app]
+  read_by: 'Consent mode v2 SDKs only (play-services-measurement 21.5+, 2024).'
   note: Consent mode default for sending user data for advertising; eu_consent_policy denies it only in EU-policy regions.
 - key: google_analytics_default_allow_ad_personalization_signals
   sdk_id: firebase_analytics
@@ -971,6 +988,7 @@ manifest_flags:
   data_types: []
   items: null
   sources: [firebase-configure-data-collection, google-consent-mode-app]
+  read_by: 'Consent mode v2 SDKs only (play-services-measurement 21.5+, 2024).'
   note: eu_consent_policy denies it only in EU-policy regions.
 - key: firebase_crashlytics_collection_enabled
   sdk_id: firebase_crashlytics
@@ -981,7 +999,19 @@ manifest_flags:
   data_types: ['*']
   items: null
   sources: [crashlytics-customize-reports]
+  read_by: 'Firebase Crashlytics (com.google.firebase.crashlytics) and the legacy Fabric Crashlytics (CrashlyticsInitProvider).'
   note: Opt-in reporting; can be switched on at runtime with setCrashlyticsCollectionEnabled(true).
+- key: firebase_crashlytics_collection_enabled
+  sdk_id: fabric_crashlytics
+  type: bool
+  off_when: ['false']
+  default_when_absent: 'on'
+  effect: collection_suspended_until_enabled
+  data_types: ['*']
+  items: null
+  sources: [observed-voi-fabric_crashlytics]
+  read_by: 'Legacy Fabric Crashlytics: com.crashlytics.android.CrashlyticsInitProvider reads the same key.'
+  note: Observed in VOI 2.24.2, which sets it to true (explicit opt-in).
 - key: firebase_performance_collection_enabled
   sdk_id: firebase_performance
   type: bool
@@ -991,6 +1021,7 @@ manifest_flags:
   data_types: ['*']
   items: null
   sources: [perf-disable-sdk]
+  read_by: 'All Firebase Performance Monitoring generations.'
   note: Can be switched on at runtime.
 - key: firebase_performance_collection_deactivated
   sdk_id: firebase_performance
@@ -1001,6 +1032,7 @@ manifest_flags:
   data_types: ['*']
   items: null
   sources: [perf-disable-sdk]
+  read_by: 'All Firebase Performance Monitoring generations.'
 - key: firebase_messaging_auto_init_enabled
   sdk_id: firebase_messaging
   type: bool
@@ -1010,6 +1042,7 @@ manifest_flags:
   data_types: ['*']
   items: null
   sources: [firebase-fcm-client]
+  read_by: 'Firebase Cloud Messaging 17.4+ (FirebaseMessaging.setAutoInitEnabled).'
   note: Can be switched on at runtime with FirebaseMessaging.setAutoInitEnabled(true).
 - key: com.facebook.sdk.AutoInitEnabled
   sdk_id: meta_app_events
@@ -1020,6 +1053,7 @@ manifest_flags:
   data_types: ['*']
   items: null
   sources: [meta-app-events-android, meta-user-settings-src]
+  read_by: 'Facebook SDK 4.x+ (FacebookSdk / UserSettingsManager).'
 - key: com.facebook.sdk.AutoLogAppEventsEnabled
   sdk_id: meta_app_events
   type: bool
@@ -1029,6 +1063,7 @@ manifest_flags:
   data_types: ['*']
   items: null
   sources: [meta-app-events-android, meta-user-settings-src]
+  read_by: 'Facebook SDK 4.x+ (FacebookSdk / UserSettingsManager).'
 - key: com.facebook.sdk.AdvertiserIDCollectionEnabled
   sdk_id: meta_app_events
   type: bool
@@ -1038,6 +1073,7 @@ manifest_flags:
   data_types: [identifiers.other]
   items: [advertising_id]
   sources: [meta-app-events-android, meta-user-settings-src]
+  read_by: 'Facebook SDK 5.x+ (UserSettingsManager).'
 - key: com.facebook.sdk.AutoLogMetaDataEnabled
   sdk_id: meta_app_events
   type: bool
@@ -1047,6 +1083,7 @@ manifest_flags:
   data_types: []
   items: null
   sources: [meta-app-events-android, meta-user-settings-src]
+  read_by: "Newer Facebook SDKs only (UserSettingsManager); absent from Spin 2.21.0's FacebookSdk."
 - key: com.facebook.sdk.AutoLogProductImprovementEnabled
   sdk_id: meta_app_events
   type: bool
@@ -1056,6 +1093,7 @@ manifest_flags:
   data_types: []
   items: null
   sources: [meta-app-events-android, meta-user-settings-src]
+  read_by: "Newer Facebook SDKs only (UserSettingsManager); absent from Spin 2.21.0's FacebookSdk."
 - key: com.google.android.gms.ads.APPLICATION_ID
   sdk_id: google_mobile_ads
   type: presence
@@ -1065,6 +1103,7 @@ manifest_flags:
   data_types: []
   items: null
   sources: [admob-quick-start]
+  read_by: 'All Google Mobile Ads generations (required since 17.0).'
 - key: io.sentry.auto-init
   sdk_id: sentry
   type: bool
@@ -1074,6 +1113,7 @@ manifest_flags:
   data_types: ['*']
   items: null
   sources: [vendor-sentry-manual-setup, vendor-sentry-src]
+  read_by: 'Sentry Android (SentryInitProvider).'
 - key: io.sentry.send-default-pii
   sdk_id: sentry
   type: bool
@@ -1083,4 +1123,5 @@ manifest_flags:
   data_types: []
   items: null
   sources: [vendor-sentry-src, vendor-sentry-options]
+  read_by: 'Sentry Android 6.x+ (ManifestMetadataReader).'
   note: true adds personal data such as IP address to events; the documented option default is false.

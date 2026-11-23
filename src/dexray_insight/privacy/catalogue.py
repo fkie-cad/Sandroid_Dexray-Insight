@@ -188,6 +188,9 @@ _PARAM_RE = re.compile(r"\[*(?:L[^;]+;|[ZBSCIJFDV])")
 _METHOD_REF_RE = re.compile(r"^(L[^;]+;)->([^(]+)(\(.*\).+)$")
 _FIELD_REF_RE = re.compile(r"^(L[^;]+;)->([^:(]+):(.+)$")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+_PERM_RE = re.compile(r"^[a-z][\w.]*\.permission\.[A-Z][A-Z0-9_]*$")
+_CLASS_RE = re.compile(r"^L[^;\s]+;$")
+_API_LEVEL_KEYS = ("since", "deprecated", "removed", "effective_until")
 _BANNED_URL_PARTS = ("exodus-privacy.eu.org", "mobsf")
 _BANNED_LICENCES = ("odbl", "dbcl")
 
@@ -295,6 +298,9 @@ class Catalogue:
     fd_carriers: list[str] = field(default_factory=list)
     insert_calls: list[str] = field(default_factory=list)
     transparent_wrappers: list[str] = field(default_factory=list)
+    wrapper_classes: list[str] = field(default_factory=list)
+    shared_roots: list[str] = field(default_factory=list)
+    framework_prefixes: list[str] = field(default_factory=list)
     data_type_by_id: dict[str, dict[str, Any]] = field(default_factory=dict)
     api_by_id: dict[str, dict[str, Any]] = field(default_factory=dict)
     sdk_by_id: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -466,6 +472,12 @@ def _norm_api(entry: dict[str, Any], types: dict[str, Any], sources: dict[str, A
         except ValueError as exc:
             raise CatalogueError(f"apis.yaml: {where}: {exc}") from exc
     requires = entry.get("requires") or {}
+    _req(isinstance(requires, dict), f"apis.yaml: {where} requires must be a mapping")
+    _req(set(requires) <= {"const_string_any", "const_int_any"}, f"apis.yaml: {where} unknown requires key")
+    _req(
+        all(isinstance(i, int) and not isinstance(i, bool) for i in _list(requires.get("const_int_any"))),
+        f"apis.yaml: {where} requires.const_int_any must be integers",
+    )
     reflection = entry.get("reflection")
     if reflection is not None:
         _req(isinstance(reflection, dict) and reflection.get("class"), f"apis.yaml: {where} reflection needs a class")
@@ -475,14 +487,34 @@ def _norm_api(entry: dict[str, Any], types: dict[str, Any], sources: dict[str, A
         _req(isinstance(uri_ev, dict), f"apis.yaml: {where} provider_read needs uri_evidence")
     manifest = entry.get("manifest")
     permission = _norm_permission_req("apis.yaml", where, entry.get("permission"))
+    for perm in next(iter(permission.values())) if permission else []:
+        _req(bool(_PERM_RE.match(perm)), f"apis.yaml: {where} has a malformed permission {perm!r}")
     if match == "manifest_component":
         _req(isinstance(manifest, dict) and manifest, f"apis.yaml: {where} manifest_component needs manifest")
         _req(permission is None, f"apis.yaml: {where} manifest_component must have permission: null")
     api = entry.get("api") or {}
+    _req(isinstance(api, dict), f"apis.yaml: {where} api must be a mapping")
+    for key in _API_LEVEL_KEYS:
+        level = api.get(key)
+        _req(
+            level is None or (isinstance(level, int) and not isinstance(level, bool)),
+            f"apis.yaml: {where} api.{key} must be an integer or null, not {level!r}",
+        )
+    _req(entry.get("group") is None or entry.get("group") in API_GROUPS, f"apis.yaml: {where} has unknown group")
+    _req(isinstance(entry.get("non_resettable", False), bool), f"apis.yaml: {where} non_resettable must be bool")
+    _req(len(refs) == len(set(refs)), f"apis.yaml: {where} has duplicate refs")
+    for receiver in _list(entry.get("also_receivers")):
+        _req(bool(_CLASS_RE.match(str(receiver))), f"apis.yaml: {where} also_receivers needs class descriptors")
+    if reflection is not None:
+        _req(set(reflection) <= {"class", "method"}, f"apis.yaml: {where} reflection keys are class and method")
+    if role == "consent_control":
+        _req(bool(entry.get("controls_sdk_id")), f"apis.yaml: {where} consent_control needs controls_sdk_id")
     data_types = _check_types("apis.yaml", where, _list(entry.get("data_types")), types)
     type_perms = {}
     for dt, perms in (entry.get("type_permissions") or {}).items():
         _check_types("apis.yaml", where, [dt], types)
+        _req(dt in data_types, f"apis.yaml: {where} type_permissions names a type it does not list")
+        _req(all(_PERM_RE.match(str(p)) for p in _list(perms)), f"apis.yaml: {where} malformed type permission")
         type_perms[str(dt)] = [str(p) for p in _list(perms)]
     precision = entry.get("precision", "high")
     _req(precision in CONFIDENCES, f"apis.yaml: {where} has unknown precision {precision!r}")
@@ -569,12 +601,26 @@ def _norm_sdk(entry: dict[str, Any], types: dict[str, Any], sources: dict[str, A
         _check_types("sdks.yaml", where, [item.get("data_type")], types)
         mode = item.get("mode", "auto")
         _req(mode in COLLECT_MODES, f"sdks.yaml: {where} collects has unknown mode {mode!r}")
+        req_perm = item.get("requires_permission")
+        _req(req_perm is None or bool(_PERM_RE.match(str(req_perm))), f"sdks.yaml: {where} bad requires_permission")
+        feature = item.get("requires") or {}
+        _req(isinstance(feature, dict), f"sdks.yaml: {where} collects requires must be a mapping")
+        _req(
+            set(feature) <= {"permissions_any", "class_prefixes_any"},
+            f"sdks.yaml: {where} collects requires keys are permissions_any and class_prefixes_any",
+        )
+        for prefix in _list(feature.get("class_prefixes_any")):
+            _req(str(prefix).endswith("."), f"sdks.yaml: {where} requires.class_prefixes_any must end with '.'")
         collects.append(
             {
                 "data_type": str(item["data_type"]),
                 "item": item.get("item"),
                 "mode": mode,
-                "requires_permission": item.get("requires_permission"),
+                "requires_permission": req_perm,
+                "requires": {
+                    "permissions_any": [str(p) for p in _list(feature.get("permissions_any"))],
+                    "class_prefixes_any": [str(p) for p in _list(feature.get("class_prefixes_any"))],
+                },
                 "source": _cited("sdks.yaml", f"{where} collects", item.get("source"), sources),
                 "note": item.get("note"),
             }
@@ -629,6 +675,7 @@ def _norm_flag(entry: dict[str, Any], sdk_ids: set[str], types: dict[str, Any], 
         "data_types": _check_types("sdks.yaml", where, _list(entry.get("data_types")), types, allow_star=True),
         "items": [str(i) for i in items] if items is not None else None,
         "sources": flag_sources,
+        "read_by": entry.get("read_by"),
     }
 
 
@@ -744,8 +791,14 @@ def _build(base: Path) -> Catalogue:
             "strings": [str(s) for s in _list(picker.get("strings"))],
         },
         "reflection_calls": [str(r) for r in _list(markers_raw.get("reflection_calls"))],
+        "transparent_wrappers": [str(c) for c in _list(markers_raw.get("transparent_wrappers"))],
     }
-    for ref in markers["reflection_calls"]:
+    for cls in markers["photo_picker"]["classes"] + markers["transparent_wrappers"]:
+        _req(bool(_CLASS_RE.match(cls)), f"apis.yaml: markers need class descriptors, not {cls!r}")
+    wrapper_classes = sorted(
+        set(markers["transparent_wrappers"]) | {split_method_ref(r)[0] for r in carrier_meta["transparent_wrappers"]}
+    )
+    for ref in markers["reflection_calls"]:  # validated before use
         try:
             split_method_ref(ref)
         except ValueError as exc:
@@ -755,6 +808,12 @@ def _build(base: Path) -> Catalogue:
     sdk_by_id = {s["id"]: s for s in sdks}
     _req(len(sdk_by_id) == len(sdks), "sdks.yaml: duplicate ids")
     flags = [_norm_flag(e, set(sdk_by_id), type_by_id, sources) for e in _list(raw["sdks"].get("manifest_flags"))]
+    flag_keys = [(f["key"], f["sdk_id"]) for f in flags]
+    _req(len(flag_keys) == len(set(flag_keys)), "sdks.yaml: duplicate (key, sdk_id) manifest flag")
+    for flag in flags:
+        _req(flag["items"] is None or all(flag["items"]), f"sdks.yaml: flag {flag['key']} has an empty item")
+    ns = raw["sdks"].get("app_namespace") or {}
+    _req(isinstance(ns, dict), "sdks.yaml: app_namespace must be a mapping")
     for api in apis:
         for key in ("sdk_id", "controls_sdk_id"):
             _req(api[key] is None or api[key] in sdk_by_id, f"apis.yaml: api {api['id']} names unknown {key}")
@@ -775,6 +834,15 @@ def _build(base: Path) -> Catalogue:
         "readers": [str(r) for r in _list(prefs_raw.get("readers"))],
         "writers": [str(r) for r in _list(prefs_raw.get("writers"))],
     }
+    for ref in prefs["readers"] + prefs["writers"]:
+        try:
+            split_method_ref(ref)
+        except ValueError as exc:
+            raise CatalogueError(f"consent.yaml: prefs: {exc}") from exc
+    for name, perm in permissions.items():
+        _req(bool(_PERM_RE.match(name)), f"permissions.yaml: malformed permission {name!r}")
+        for src in perm["sources"]:
+            _cited("permissions.yaml", name, src, sources)
     refs, rules = _norm_compliance(raw["compliance"])
 
     return Catalogue(
@@ -798,6 +866,9 @@ def _build(base: Path) -> Catalogue:
         fd_carriers=carrier_meta["fd_carriers"],
         insert_calls=carrier_meta["insert_calls"],
         transparent_wrappers=carrier_meta["transparent_wrappers"],
+        wrapper_classes=wrapper_classes,
+        shared_roots=[str(r) for r in _list(ns.get("shared_roots"))],
+        framework_prefixes=[str(r) for r in _list(ns.get("framework_prefixes"))],
         data_type_by_id=type_by_id,
         api_by_id=api_by_id,
         sdk_by_id=sdk_by_id,

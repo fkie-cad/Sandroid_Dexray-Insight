@@ -8,8 +8,9 @@ that answers wins:
 1. longest ``prefixes`` match of a curated SDK (unless the SDK excludes it): sdk, high
 2. ``obfuscated_prefixes`` match: sdk, medium
 3. under an app namespace: app, high (medium when the tail looks obfuscated)
-4. under a transparent prefix (androidx, kotlin, okhttp, ...): walk up to the first
-   non-transparent callers and attribute each of them
+4. inside a listed transparent wrapper (``ContentResolverCompat``, ...): walk up to the
+   first non-wrapper callers and attribute each of them; other library code (androidx
+   included) stays attributed to its library
 5. obfuscated, and only frames of one SDK call it: sdk, medium (``called_only_by_sdk``)
 6. obfuscated, with string anchors of one SDK: sdk, medium (``string_anchor``)
 7. obfuscated, in the package of one SDK's manifest component: sdk, medium
@@ -28,26 +29,8 @@ from ...privacy.catalogue import dotted_class
 from .scanner import CodeIndex
 from .scanner import MRef
 
-#: Packages whose code only passes calls through (wrappers, language runtimes).
-TRANSPARENT_PREFIXES = (
-    "androidx.",
-    "android.support.",
-    "kotlin.",
-    "kotlinx.",
-    "java.",
-    "javax.",
-    "com.google.android.material.",
-    "okhttp3.",
-    "okio.",
-    "retrofit2.",
-    "com.squareup.",
-    "io.reactivex.",
-    "dagger.",
-    "com.google.gson.",
-    "com.google.android.gms.tasks.",
-    "com.google.android.gms.common.",
-    "com.google.android.gms.ads.identifier.",
-)
+#: Callee packages that belong to the platform, never to a library (self-call check).
+FRAMEWORK_CLASS_PREFIXES = ("Landroid/", "Ljava/", "Ljavax/", "Ldalvik/", "Lorg/json/", "Lorg/w3c/", "Lorg/xml/")
 TYPE_ORDER = {"app": 0, "sdk": 1, "library": 2, "unattributed": 3}
 _SHORT_SEGMENT = re.compile(r"^[a-z0-9_$]{1,2}$")
 
@@ -119,14 +102,6 @@ def under(dotted: str, namespace: str) -> bool:
     return dotted.startswith(namespace + ".")
 
 
-def transparent_prefix(dotted: str) -> str | None:
-    """The transparent prefix a dotted class name falls under, if any."""
-    for prefix in TRANSPARENT_PREFIXES:
-        if dotted.startswith(prefix):
-            return prefix
-    return None
-
-
 class SdkTrie:
     """Segment-aligned lookup of the curated SDK class prefixes.
 
@@ -169,36 +144,60 @@ class SdkTrie:
         return sorted(self._prefix)
 
 
+def _root(dotted_package: str) -> str:
+    return ".".join(dotted_package.split(".")[:2])
+
+
+def _listed(dotted: str, prefixes: list[str]) -> bool:
+    """True if a dotted name equals a listed package or lies below it (``x`` or ``x.``)."""
+    for prefix in prefixes:
+        p = prefix.rstrip(".")
+        if dotted == p or dotted.startswith(p + "."):
+            return True
+    return False
+
+
 def build_app_namespaces(
     package: str | None,
     application_class: str | None,
-    component_classes: list[str],
     trie: SdkTrie,
+    shared_roots: list[str] | None = None,
+    framework_prefixes: list[str] | None = None,
 ) -> list[str]:
-    """App namespaces (dotted packages), per 04-design §2.6.
+    """App namespaces (dotted packages).
 
-    Candidates are the manifest package, the Application class's package, and every
-    component package that shares its first two segments with the manifest package.
-    Candidates under an SDK or transparent prefix, or with fewer than two segments,
-    are dropped; the rest is reduced to minimal prefixes.
+    Coordinator decision (replaces design D9):
+
+    * the manifest package;
+    * the root made of its first two segments, unless that root is a shared root
+      (``com.google``, ``com.github``, ``androidx``, ... from ``sdks.yaml``
+      ``app_namespace.shared_roots``);
+    * the Application class's package, unless it is a framework or SDK package
+      (``app_namespace.framework_prefixes``, the curated SDK prefixes) or lies under a
+      shared root outside the manifest package.
+
+    Candidates under a curated SDK prefix, or with fewer than two segments, are
+    dropped; the rest is reduced to minimal prefixes.
     """
+    shared = list(shared_roots or [])
+    frameworks = list(framework_prefixes or [])
     candidates: list[str] = []
     if package:
         candidates.append(package)
-    if application_class:
-        candidates.append(application_class.rpartition(".")[0])
-    head = ".".join((package or "").split(".")[:2])
-    if package and head.count(".") == 1:
-        for comp in component_classes:
-            pkg = comp.rpartition(".")[0]
-            if pkg == head or pkg.startswith(head + "."):
-                candidates.append(pkg)
+        root = _root(package)
+        sdk_package = trie.match(package + ".X") is not None
+        if root.count(".") == 1 and not sdk_package and not _listed(root, shared) and not _listed(root, frameworks):
+            candidates.append(root)
+    if application_class and "." in application_class:
+        app_pkg = application_class.rpartition(".")[0]
+        inside = bool(package) and (app_pkg == package or app_pkg.startswith(package + "."))
+        if not _listed(app_pkg, frameworks) and (inside or not _listed(_root(app_pkg), shared)):
+            candidates.append(app_pkg)
     kept = set()
     for cand in candidates:
         if not cand or cand.count(".") < 1:
             continue
-        probe = cand + ".X"
-        if trie.match(probe) is not None or transparent_prefix(probe):
+        if trie.match(cand + ".X") is not None:
             continue
         kept.add(cand)
     minimal = [c for c in kept if not any(c != o and under(c, o) for o in kept)]
@@ -216,6 +215,7 @@ class Attributor:
         anchor_hits: ``{class descriptor: {sdk_id: n}}`` string-anchor hits per class (rule 6).
         component_sdks: ``{dotted package: {sdk_id}}`` of manifest components (rule 7).
         string_anchor_attribution: Enables rule 6.
+        wrapper_classes: Transparent wrapper classes (JVM descriptors, rule 4).
     """
 
     def __init__(
@@ -227,8 +227,10 @@ class Attributor:
         anchor_hits: dict[str, dict[str, int]] | None = None,
         component_sdks: dict[str, set[str]] | None = None,
         string_anchor_attribution: bool = True,
+        wrapper_classes: set[str] | None = None,
     ):
         """Set up the rules."""
+        self.wrapper_classes = {desynth(c) for c in (wrapper_classes or set())}
         self.index = index
         self.sdk_names = {s["id"]: s["name"] for s in sdks}
         self.trie = trie
@@ -281,16 +283,14 @@ class Attributor:
 
     # ---------------------------------------------------------------- rules 5-9
     def frame_origin(self, method: MRef) -> Origin:
-        """Rules 1-3 and 5-9 for one frame. A transparent class yields ``library`` named by the prefix."""
+        """Rules 1-3 and 5-9 for one frame. A wrapper class yields ``library`` / ``transparent_library``."""
         cached = self._frame.get(method)
         if cached is not None:
             return cached
         origin = self.base(method.cls)
         if origin is None:
-            dotted = dotted_class(method.cls)
-            prefix = transparent_prefix(dotted)
-            if prefix is not None:
-                origin = Origin("library", None, prefix.rstrip("."), "medium", "transparent_library")
+            if self.is_wrapper(method.cls):
+                origin = self._wrapper_origin(method.cls)
             elif is_obfuscated(method.cls):
                 origin = self._obfuscated(method)
             else:
@@ -304,14 +304,40 @@ class Attributor:
         if origin is not None:
             return origin
         dotted = dotted_class(cls)
-        prefix = transparent_prefix(dotted)
-        if prefix is not None:
-            return Origin("library", None, prefix.rstrip("."), "medium", "transparent_library")
+        if self.is_wrapper(cls):
+            return self._wrapper_origin(cls)
         if is_obfuscated(cls):
             return self._rule6(cls) or self._rule7(cls) or Origin("unattributed", None, None, "low", "obfuscated")
         segments = dotted_class(desynth(cls)).split(".")[:-1]
         name = ".".join(segments[:3]) if segments else dotted
         return Origin("library", None, name, "medium", "third_party_package")
+
+    def is_wrapper(self, cls: str) -> bool:
+        """True for a listed transparent wrapper class (or one of its inner classes)."""
+        return desynth(cls) in self.wrapper_classes
+
+    @staticmethod
+    def _wrapper_origin(cls: str) -> Origin:
+        return Origin("library", None, dotted_class(desynth(cls)), "medium", "transparent_library")
+
+    def same_owner(self, caller_cls: str, callee_cls: str) -> bool:
+        """True when a library or SDK calls its own API (a self-call, not a data access).
+
+        Framework callees (``android.*``, ``java.*``, ...) never count. Otherwise the call
+        is a self-call when both classes are the same outer class, belong to the same
+        curated SDK, or the caller lies in the callee's package or a sub-package.
+        """
+        if callee_cls.startswith(FRAMEWORK_CLASS_PREFIXES):
+            return False
+        if desynth(caller_cls) == desynth(callee_cls):
+            return True
+        a = self.trie.match(dotted_class(caller_cls))
+        b = self.trie.match(dotted_class(callee_cls))
+        if a is not None and b is not None and a[0] == b[0]:
+            return True
+        callee_pkg = package_of(callee_cls)
+        caller_pkg = package_of(caller_cls)
+        return bool(callee_pkg) and (caller_pkg == callee_pkg or caller_pkg.startswith(callee_pkg + "."))
 
     def _obfuscated(self, method: MRef) -> Origin:
         return (
@@ -375,42 +401,44 @@ class Attributor:
     def site_frames(
         self, caller: MRef, offset: int, max_hops: int = 4, max_nodes: int = 50
     ) -> list[tuple[MRef, int, Origin, list[str]]]:
-        """Attribute a call site, resolving transparent wrappers (rule 4).
+        """Attribute a call site, resolving listed transparent wrappers (rule 4).
 
         Returns:
-            ``[(frame, offset, origin, via)]``: one entry per distinct origin. For a
-            direct caller outside transparent code this is the caller itself. For a
-            caller inside a wrapper it is each first non-transparent upstream frame
-            (``via`` lists the wrapper frames, nearest the frame first); when none is
-            found, the wrapper itself as ``library`` / ``transparent_library``.
+            ``[(frame, offset, origin, via)]``. For a direct caller outside a wrapper this
+            is the caller itself. For a caller inside a wrapper it is **every** first
+            non-wrapper upstream frame (bounded by ``max_nodes``), each with the offset of
+            its call into the wrapper; ``via`` lists the wrapper frames, nearest the frame
+            first. When none is found, the wrapper itself as ``library`` /
+            ``transparent_library``.
         """
-        if self.base(caller.cls) is not None or transparent_prefix(dotted_class(caller.cls)) is None:
+        if self.base(caller.cls) is not None or not self.is_wrapper(caller.cls):
             return [(caller, offset, self.frame_origin(caller), [])]
-        results: dict[tuple[int, str, str], tuple[MRef, int, Origin, list[str]]] = {}
+        results: list[tuple[MRef, int, Origin, list[str]]] = []
+        found: set[tuple[MRef, int]] = set()
         queue: deque[tuple[MRef, list[MRef], int]] = deque([(caller, [caller], 0)])
         seen = {caller}
         while queue:
             node, path, depth = queue.popleft()
             for up, up_offset in self.index.callers(node):
+                if self.base(up.cls) is not None or not self.is_wrapper(up.cls):
+                    if (up, up_offset) not in found:
+                        found.add((up, up_offset))
+                        results.append((up, up_offset, self.frame_origin(up), [m.frame() for m in reversed(path)]))
+                    continue
                 if up in seen:
                     continue
                 seen.add(up)
-                if self.base(up.cls) is not None or transparent_prefix(dotted_class(up.cls)) is None:
-                    origin = self.frame_origin(up)
-                    key = origin.key()
-                    if key not in results:
-                        via = [m.frame() for m in reversed(path)]
-                        results[key] = (up, up_offset, origin, via)
-                    continue
                 if depth + 1 < max_hops and len(seen) < max_nodes:
                     queue.append((up, path + [up], depth + 1))
+            if len(found) >= max_nodes:
+                break
         if not results:
             return [(caller, offset, self.frame_origin(caller), [])]
-        return [results[k] for k in sorted(results)]
+        return sorted(results, key=lambda r: (r[0], r[1]))
 
 
 __all__ = [
-    "TRANSPARENT_PREFIXES",
+    "FRAMEWORK_CLASS_PREFIXES",
     "TYPE_ORDER",
     "Attributor",
     "Origin",
@@ -419,6 +447,5 @@ __all__ = [
     "desynth",
     "is_obfuscated",
     "package_of",
-    "transparent_prefix",
     "under",
 ]

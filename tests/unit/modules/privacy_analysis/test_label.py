@@ -389,3 +389,107 @@ def test_admob_tracker_id_without_anchor_never_detects(cat):
     section = run(cat, x, ManifestFacts(package="io.voiapp.voi"), ["Google AdMob", "Google DoubleClick"])
     assert "google_mobile_ads" not in {s["id"] for s in section["sdks"]}
     assert section["consent"]["verdict"] == "not_applicable"
+
+
+# ------------------------------------------------------- review/precision fixes
+def test_obfuscated_consent_control_counts_as_runtime_control(cat, base):
+    """Review-2 S1: R8-repackaged app code calling setAnalyticsCollectionEnabled must not read as off."""
+    x, man, trackers = copy.deepcopy(base)
+    ctrl = "Lcom/google/firebase/analytics/FirebaseAnalytics;->setAnalyticsCollectionEnabled(Z)V"
+    x.calls = [c for c in x.calls if c[0].name != "onConsent"]
+    del x.methods[next(k for k in x.methods if k.name == "onConsent")]
+    x.add("La/a/a;->a()V", invokes=[(ctrl, 2)])  # obfuscated, unattributed
+    section = run(cat, x, man, trackers)
+    fa = next(s for s in section["sdks"] if s["id"] == "firebase_analytics")
+    assert fa["collects"][0]["status"] == "runtime_controlled"
+    assert row(section, "actions_in_app.user_interaction")["status"] == "likely_collected"
+    assert section["consent"]["controls"][0]["origin"]["type"] == "unattributed"
+
+
+def test_storage_denied_with_runtime_control_is_runtime_controlled():
+    """Review-2 S4: consent-mode defaults are lifted by the app at runtime."""
+    flags = [
+        {
+            "sdk_id": "s",
+            "state": "off",
+            "data_types": ["identifiers.other"],
+            "items": ["app_instance_id"],
+            "effect": "storage_denied_by_default",
+            "key": "k",
+            "value": "false",
+        }
+    ]
+    item = {"data_type": "identifiers.other", "item": "app_instance_id"}
+    assert lab.collects_status("s", item, flags, True)[0] == "runtime_controlled"
+    assert lab.collects_status("s", item, flags, False)[0] == "configured_off"
+
+
+def test_unread_flag_never_switches_off(cat, base):
+    """A key the shipped SDK generation does not read never yields "switched off"."""
+    x, man, trackers = copy.deepcopy(base)
+    cfg = next(k for k in x.methods if k.cls == "Lcom/google/android/gms/measurement/internal/Cfg;")
+    del x.methods[cfg]
+    x.calls = [c for c in x.calls if c[0] != cfg]
+    # also remove the app control so a read flag would give configured_off
+    x.calls = [c for c in x.calls if c[0].name != "onConsent"]
+    del x.methods[next(k for k in x.methods if k.name == "onConsent")]
+    section = run(cat, x, man, trackers)
+    flags = {f["key"]: f for f in section["manifest_flags"]}
+    assert flags["firebase_analytics_collection_enabled"]["state"] == "unknown"
+    assert "read_by_sdk" not in flags["firebase_analytics_collection_enabled"]  # contract unchanged
+    fa = next(s for s in section["sdks"] if s["id"] == "firebase_analytics")
+    assert [c["status"] for c in fa["collects"]] == ["active", "active"]
+    assert not any(e["kind"] == "sdk_configured_off" for r in section["data_safety"]["rows"] for e in r["evidence"])
+
+
+def test_default_on_ignores_unread_and_non_collection_switches():
+    sdk = {
+        "id": "s",
+        "name": "S",
+        "role": "analytics",
+        "confidence": "high",
+        "collects": [{"data_type": "identifiers.other", "item": None, "mode": "auto", "status": "active"}],
+    }
+    base_flag = {"sdk_id": "s", "state": "default", "value": None, "data_types": ["*"], "items": None}
+    consent = {"cmps": [], "tcf": {"writes": False}, "gpp": {"writes": False}}
+
+    def findings(flags):
+        return [
+            f["id"]
+            for f in lab.build_findings(
+                load_catalogue(CATALOGUE_MIN), [], {}, [sdk], flags, consent, {}, {}, True, set()
+            )
+        ]
+
+    unread = {**base_flag, "key": "a", "effect": "collection_suspended_until_enabled", "read_by_sdk": False}
+    personalization = {**base_flag, "key": "b", "effect": "ad_personalization_off", "read_by_sdk": True}
+    read = {**base_flag, "key": "c", "effect": "auto_init_off", "read_by_sdk": True}
+    assert findings([unread, personalization]) == []
+    assert findings([unread, personalization, read]) == ["sdk_collection_default_on"]
+
+
+def test_feature_conditional_collect_needs_the_feature(cat, base, tmp_path):
+    """Purchase history from Analytics only with evidence of Play Billing."""
+    import shutil
+
+    d = tmp_path / "cat"
+    shutil.copytree(CATALOGUE_MIN, d)
+    sdks = d / "sdks.yaml"
+    sdks.write_text(
+        sdks.read_text().replace(
+            "      - {data_type: identifiers.other, item: advertising_id, mode: auto, source: google-analytics-data-disclosure}",
+            "      - {data_type: identifiers.other, item: advertising_id, mode: auto, source: google-analytics-data-disclosure}\n"
+            "      - {data_type: financial.card_bank_account, item: in_app_purchases, mode: auto, "
+            "source: google-analytics-data-disclosure, requires: {permissions_any: [com.android.vending.BILLING], "
+            "class_prefixes_any: [com.android.billingclient.]}}",
+            1,
+        )
+    )
+    c2 = load_catalogue(d)
+    x, man, trackers = copy.deepcopy(base)
+    r = row(run(c2, x, man, trackers), "financial.card_bank_account")
+    assert (r["status"], r["hidden_by_default"]) == ("possible", True)
+    assert [e["kind"] for e in r["evidence"]] == ["sdk_present"]
+    x.classes.add("Lcom/android/billingclient/api/BillingClient;")
+    r = row(run(c2, x, man, trackers), "financial.card_bank_account")
+    assert r["status"] == "likely_collected"

@@ -170,10 +170,10 @@ def test_provider_uri_levels(cat):
     x = FakeIndex()
     # same method: static field (high)
     x.add("Lcom/ex/app/A;->a()V", sgets=[CONTACTS_URI], invokes=[(QUERY, 10)])
-    # same class (synthetic sibling holds the URI string): medium
+    # same class (synthetic sibling holds the URI string): never typed
     x.add("Lcom/ex/app/B;->q()V", invokes=[(QUERY, 10)])
     x.add("Lcom/ex/app/B$1;->uri()V", strings=["content://com.android.contacts/data"])
-    # one hop up: authority string in the caller
+    # one hop up: authority string in the caller: never typed
     x.add("Lcom/ex/app/C;->q()V", invokes=[(QUERY, 10)])
     x.add("Lcom/ex/app/D;->go()V", strings=["com.android.contacts"], invokes=[("Lcom/ex/app/C;->q()V", 2)])
     # unresolved
@@ -182,12 +182,11 @@ def test_provider_uri_levels(cat):
     prov = [s for s in got if s["match"] == "provider_read"]
     assert [
         (s["caller"]["class"], s["uri_evidence"]["kind"], s["uri_evidence"]["where"], s["confidence"]) for s in prov
-    ] == [
-        ("Lcom/ex/app/A;", "static_field", "same_method", "high"),
-        ("Lcom/ex/app/B;", "uri_string", "same_class", "medium"),
-        ("Lcom/ex/app/C;", "authority_string", "caller", "medium"),
-    ]
-    assert section["coverage"]["provider_reads_unresolved"] == 1
+    ] == [("Lcom/ex/app/A;", "static_field", "same_method", "high")]
+    assert section["coverage"]["provider_reads_unresolved"] == 3
+    assert "2 provider reads have URI evidence only outside the reading method; they are not typed" in (
+        section["coverage"]["notes"]
+    )
 
 
 def test_provider_longest_uri_prefix_wins(cat):
@@ -346,7 +345,10 @@ def test_renamed_sdk_api_is_named_in_notes(cat):
         ),
     )
     notes = section["coverage"]["notes"]
-    assert any("not found by name (likely renamed by R8)" in n and "sink.firebase.set_user_id" in n for n in notes)
+    assert any(
+        "not found by name (removed or renamed by R8, or not bundled)" in n and "sink.firebase.set_user_id" in n
+        for n in notes
+    )
 
 
 def test_manifest_component_entry(cat):
@@ -427,3 +429,145 @@ def test_reach_unknown_and_no_caller():
     assert reach(x, "Lcom/s/M0;->m()V", max_depth=6).reachability == "unknown"
     assert reach(x, "Lcom/s/M0;->m()V", max_depth=20).reachability == "no_caller_found"
     assert reach(x, "Lcom/s/M0;->m()V", max_depth=20, max_nodes=3).reachability == "unknown"
+
+
+# ------------------------------------------------------- review/precision fixes
+MEDIA_INSERT = (
+    "Landroid/content/ContentResolver;->insert(Landroid/net/Uri;Landroid/content/ContentValues;)Landroid/net/Uri;"
+)
+
+
+def test_own_provider_query_next_to_mediastore_insert_is_not_media(cat):
+    """Nextcloud FileDataStorageManager: a class that inserts into MediaStore and queries its own provider."""
+    x = FakeIndex()
+    x.add("Lcom/ex/app/Store;->save()V", sgets=[IMAGES_URI], invokes=[(MEDIA_INSERT, 4)])
+    x.add(
+        "Lcom/ex/app/Store;->capabilities()V",
+        sgets=["Lcom/ex/app/Meta;->CONTENT_URI_CAP:Landroid/net/Uri;"],
+        invokes=[(QUERY, 8)],
+    )
+    got, section = sites(cat, x, manifest([P + "READ_EXTERNAL_STORAGE"]))
+    assert [s for s in got if s["match"] == "provider_read"] == []
+    assert section["data_safety"]["rows"][0]["data_type"] != "photo_video.photos" or all(
+        e["kind"] == "permission_declared" for e in section["data_safety"]["rows"][0]["evidence"]
+    )
+    assert section["coverage"]["provider_reads_unresolved"] == 1
+
+
+def test_wrapper_with_two_app_callers_resolves_each_uri(cat):
+    """Review-1 S1: every upstream caller of ContentResolverCompat keeps its own URI."""
+    x = FakeIndex()
+    wrapper = "Landroidx/core/content/ContentResolverCompat;->query(Landroid/net/Uri;)Landroid/database/Cursor;"
+    x.add(wrapper, invokes=[(QUERY, 8)])
+    x.add("Lcom/ex/app/A;->contacts()V", sgets=[CONTACTS_URI], invokes=[(wrapper, 14)])
+    x.add("Lcom/ex/app/B;->images()V", sgets=[IMAGES_URI], invokes=[(wrapper, 20)])
+    got, _ = sites(cat, x, manifest([P + "READ_CONTACTS", P + "READ_EXTERNAL_STORAGE"]))
+    assert [(s["api_id"], s["caller"]["class"], s["caller"]["offset"]) for s in got] == [
+        ("prov.contacts", "Lcom/ex/app/A;", 14),
+        ("prov.media_images", "Lcom/ex/app/B;", 20),
+    ]
+
+
+def _catalogue_with(tmp_path, file, old, new):
+    import shutil
+
+    d = tmp_path / "cat"
+    shutil.copytree(CATALOGUE_MIN, d)
+    path = d / file
+    text = path.read_text()
+    assert old in text
+    path.write_text(text.replace(old, new, 1))
+    return load_catalogue(d)
+
+
+def test_provider_read_honours_requires(tmp_path):
+    """Review-1 S2: a provider entry with requires matches only with the required const string."""
+    c2 = _catalogue_with(
+        tmp_path,
+        "apis.yaml",
+        '      authority_strings: ["com.android.contacts"]\n    data_types: [contacts.contacts]',
+        '      authority_strings: ["com.android.contacts"]\n    requires: {const_string_any: ["display_name"]}\n'
+        "    data_types: [contacts.contacts]",
+    )
+    x = FakeIndex()
+    x.add("Lcom/ex/app/Flags;->q()V", sgets=[CONTACTS_URI], invokes=[(QUERY, 4)])
+    x.add("Lcom/ex/app/Names;->q()V", strings=["display_name"], sgets=[CONTACTS_URI], invokes=[(QUERY, 4)])
+    got, _ = sites(c2, x)
+    assert [s["caller"]["class"] for s in got] == ["Lcom/ex/app/Names;"]
+
+
+def test_reflection_honours_requires(tmp_path):
+    c2 = _catalogue_with(
+        tmp_path,
+        "apis.yaml",
+        '    reflection: {class: "com.google.android.gms.ads.identifier.AdvertisingIdClient", method: "getAdvertisingIdInfo"}',
+        '    reflection: {class: "com.google.android.gms.ads.identifier.AdvertisingIdClient", method: "getAdvertisingIdInfo"}\n'
+        '    requires: {const_string_any: ["getId"], const_int_any: []}',
+    )
+    x = FakeIndex()
+    target = "com.google.android.gms.ads.identifier.AdvertisingIdClient"
+    forname = "Ljava/lang/Class;->forName(Ljava/lang/String;)Ljava/lang/Class;"
+    x.add("Lcom/ex/app/R1;->r()V", strings=[target], invokes=[(forname, 2)])
+    x.add("Lcom/ex/app/R2;->r()V", strings=[target, "getId"], invokes=[(forname, 2)])
+    got, _ = sites(c2, x)
+    assert [s["caller"]["class"] for s in got] == ["Lcom/ex/app/R2;"]
+
+
+def test_library_self_call_is_not_a_site(cat):
+    """GoogleSignInAccount-style: a library calling its own API is not a data access."""
+    x = FakeIndex()
+    api = (
+        "Lcom/google/android/gms/ads/identifier/AdvertisingIdClient;->getAdvertisingIdInfo(Landroid/content/Context;)"
+        "Lcom/google/android/gms/ads/identifier/AdvertisingIdClient$Info;"
+    )
+    x.add("Lcom/google/android/gms/ads/identifier/AdvertisingIdClient$1;->run()V", invokes=[(api, 4)])
+    x.add("Lcom/google/android/gms/measurement/internal/zzbd;->a()V", invokes=[(api, 6)])
+    got, _ = sites(cat, x)
+    assert [s["caller"]["class"] for s in got] == ["Lcom/google/android/gms/measurement/internal/zzbd;"]
+
+
+def test_androguard_sget_scan_uses_encoded_methods():
+    """Review-2 B1: DEX.get_methods() yields MethodIdItem (no code); the scan must use get_encoded_methods()."""
+    ins = MagicMock()
+    ins.get_op_value.return_value = 0x62
+    ins.get_length.return_value = 4
+    ins.get_ref_kind.return_value = 3
+    ins.cm.vm.get_cm_field.return_value = ["Landroid/os/Build;", "Ljava/lang/String;", "SERIAL"]
+    em = MagicMock()
+    em.get_class_name.return_value = "Lq/a/a/a/a/i;"
+    em.get_name.return_value = "a"
+    em.get_descriptor.return_value = "(Landroid/content/Context;)Ljava/lang/String;"
+    em.get_instructions.return_value = [ins]
+    method_id = MagicMock(spec=["get_class_name", "get_name"])  # no get_code, like MethodIdItem
+    dex = MagicMock()
+    dex.get_methods.return_value = [method_id]
+    dex.get_encoded_methods.return_value = [em]
+    dx = MagicMock()
+    dx.get_classes.return_value = []
+    sites_ = AndroguardIndex(dx, [dex]).sget_sites({"Landroid/os/Build;->SERIAL:Ljava/lang/String;"})
+    assert sites_ == {
+        "Landroid/os/Build;->SERIAL:Ljava/lang/String;": [
+            (MRef("Lq/a/a/a/a/i;", "a", "(Landroid/content/Context;)Ljava/lang/String;"), 0)
+        ]
+    }
+
+
+def test_androguard_sget_scan_on_real_dex():
+    """A real DEX (exampleapp): the scan finds framework static-field reads with byte offsets."""
+    from pathlib import Path
+
+    apk = Path(__file__).resolve().parents[4] / "example_samples" / "exampleapp-release.apk"
+    if not apk.exists():
+        pytest.skip("exampleapp missing")
+    from androguard.misc import AnalyzeAPK
+    from loguru import logger
+
+    logger.remove()
+    _a, d, dx = AnalyzeAPK(str(apk))
+    idx = AndroguardIndex(dx, d)
+    field = "Landroid/os/Build$VERSION;->SDK_INT:I"
+    assert idx.field_defined(field)
+    found = idx.sget_sites({field})[field]
+    assert found  # before the fix: always empty
+    method, offset = found[0]
+    assert any(f == field and off == offset for f, off in idx.facts(method).sgets)

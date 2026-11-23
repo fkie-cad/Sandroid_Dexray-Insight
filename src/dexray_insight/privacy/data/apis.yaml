@@ -113,6 +113,10 @@ markers:
     classes: [Landroidx/activity/result/contract/ActivityResultContracts$PickVisualMedia;, Landroidx/activity/result/contract/ActivityResultContracts$PickMultipleVisualMedia;]
     strings: [android.provider.action.PICK_IMAGES]
     sources: [android-photo-picker, corpus-nextcloud]
+  # Pure API shims: a call inside one is attributed to the code that calls the shim.
+  # Other library code (androidx included) stays attributed to its library.
+  transparent_wrappers: [Landroidx/core/content/ContentResolverCompat;, Landroidx/core/telephony/TelephonyManagerCompat;,
+    Landroidx/core/location/LocationManagerCompat;]
   reflection_calls: [Ljava/lang/Class;->forName(Ljava/lang/String;)Ljava/lang/Class;, Ljava/lang/Class;->forName(Ljava/lang/String;ZLjava/lang/ClassLoader;)Ljava/lang/Class;, Ljava/lang/ClassLoader;->loadClass(Ljava/lang/String;)Ljava/lang/Class;,
     'Ljava/lang/Class;->getMethod(Ljava/lang/String;[Ljava/lang/Class;)Ljava/lang/reflect/Method;', 'Ljava/lang/Class;->getDeclaredMethod(Ljava/lang/String;[Ljava/lang/Class;)Ljava/lang/reflect/Method;']
 entries:
@@ -490,34 +494,6 @@ entries:
   verified:
     descriptor: api-versions.xml@35
     seen_in: [voi]
-- id: loc.wifi.connection_info
-  label: WifiManager.getConnectionInfo
-  group: location
-  role: source
-  match: method_call
-  refs: [Landroid/net/wifi/WifiManager;->getConnectionInfo()Landroid/net/wifi/WifiInfo;]
-  also_receivers: []
-  requires:
-    const_string_any: []
-    const_int_any: []
-  reflection: null
-  carriers: null
-  uri_evidence: null
-  manifest: null
-  data_types: *id001
-  type_permissions: *id002
-  permission:
-    all_of: [android.permission.ACCESS_FINE_LOCATION, android.permission.ACCESS_WIFI_STATE]
-  api: {since: 1, deprecated: 31, removed: null, effective_until: null}
-  precision: low
-  non_resettable: false
-  sdk_id: null
-  controls_sdk_id: null
-  note: Connected network info; the BSSID is only filled with location permission.
-  sources: [aosp-api-versions, aosp-annotations, corpus-voi, corpus-spin]
-  verified:
-    descriptor: api-versions.xml@35
-    seen_in: [voi, spin]
 - id: loc.wifi.bssid
   label: WifiInfo.getBSSID
   group: location
@@ -2217,33 +2193,6 @@ entries:
   verified:
     descriptor: api-versions.xml@35
     seen_in: [voi, spin, nextcloud, wikipedia, exampleapp]
-- id: app.running_processes
-  label: ActivityManager.getRunningAppProcesses / getRunningTasks
-  group: app_activity
-  role: source
-  match: method_call
-  refs: [Landroid/app/ActivityManager;->getRunningAppProcesses()Ljava/util/List;, Landroid/app/ActivityManager;->getRunningTasks(I)Ljava/util/List;]
-  also_receivers: []
-  requires:
-    const_string_any: []
-    const_int_any: []
-  reflection: null
-  carriers: null
-  uri_evidence: null
-  manifest: null
-  data_types: [actions_in_app.installed_apps]
-  type_permissions: {}
-  permission: null
-  api: {since: 1, deprecated: null, removed: null, effective_until: null}
-  precision: low
-  non_resettable: false
-  sdk_id: null
-  controls_sdk_id: null
-  note: Modern Android returns only the caller's own processes and tasks.
-  sources: [aosp-api-versions, corpus-voi, corpus-spin, corpus-nextcloud, corpus-wikipedia]
-  verified:
-    descriptor: api-versions.xml@35
-    seen_in: [voi, spin, nextcloud, wikipedia]
 - id: app.usage_stats
   label: UsageStatsManager.queryUsageStats / queryEvents
   group: app_activity
