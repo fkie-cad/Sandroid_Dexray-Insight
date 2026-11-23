@@ -41,6 +41,7 @@ import re
 from dataclasses import dataclass
 from enum import Enum
 
+from ...privacy import validators as _validators
 from .descriptors import is_probably_placeholder
 
 
@@ -350,17 +351,8 @@ class PIIValidator:
 
     @staticmethod
     def _luhn_ok(digits: str) -> bool:
-        """Standard Luhn (mod-10) checksum verification."""
-        total = 0
-        parity = len(digits) % 2
-        for index, char in enumerate(digits):
-            digit = int(char)
-            if index % 2 == parity:
-                digit *= 2
-                if digit > 9:
-                    digit -= 9
-            total += digit
-        return total % 10 == 0
+        """Standard Luhn (mod-10) checksum verification (delegates to ``privacy.validators``)."""
+        return _validators.luhn_ok(digits)
 
     # ------------------------------------------------------------------ e164
     def _evaluate_e164(self, value: str, full_context: str, pattern: PIIPattern) -> PIIVerdict:
@@ -401,12 +393,7 @@ class PIIValidator:
             return PIIVerdict(rejected=True, basis="ssn:shape", reason="not AAA-GG-SSSS")
         area, group, serial = int(match.group(1)), int(match.group(2)), int(match.group(3))
 
-        structural_ok = (
-            area not in (0, 666)
-            and not (900 <= area <= 999)
-            and group != 0
-            and serial != 0
-        )
+        structural_ok = _validators.ssn_structure_ok(area, group, serial)
         has_context = self._has_context_token(full_context, _SSN_CONTEXT_TOKENS)
 
         if not (structural_ok or has_context):
@@ -425,20 +412,16 @@ class PIIValidator:
     # ------------------------------------------------------------------- geo
     def _evaluate_geo(self, value: str, full_context: str, pattern: PIIPattern) -> PIIVerdict:
         """Accept in-range decimal lat/long pairs; reject 0.0/0.0 and integer pairs."""
-        parts = value.replace(" ", "").split(",")
-        if len(parts) != 2:
-            return PIIVerdict(rejected=True, basis="geo:shape", reason="not a lat,long pair")
-        try:
-            lat, lon = float(parts[0]), float(parts[1])
-        except ValueError:
-            return PIIVerdict(rejected=True, basis="geo:parse", reason="non-numeric coordinate")
-
-        if not (-90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0):
-            return PIIVerdict(rejected=True, basis="geo:range", reason="coordinate out of range")
-        if lat == 0.0 and lon == 0.0:
-            return PIIVerdict(rejected=True, basis="geo:null_island", reason="0.0/0.0 placeholder")
-        if lat.is_integer() and lon.is_integer():
-            return PIIVerdict(rejected=True, basis="geo:integer", reason="integer-only pair")
+        parsed = _validators.parse_geo(value)
+        if isinstance(parsed, str):
+            reasons = {
+                "shape": "not a lat,long pair",
+                "parse": "non-numeric coordinate",
+                "range": "coordinate out of range",
+                "null_island": "0.0/0.0 placeholder",
+                "integer": "integer-only pair",
+            }
+            return PIIVerdict(rejected=True, basis=f"geo:{parsed}", reason=reasons.get(parsed, parsed))
 
         return PIIVerdict(
             rejected=False,

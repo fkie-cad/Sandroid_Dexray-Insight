@@ -1,0 +1,36 @@
+# Test catalogue (small).
+meta:
+  file: consent
+  format_version: 1
+  catalogue_version: "2026.11.0"
+  licence: "CC-BY-3.0"
+  attribution: "Test data. IAB key names (CC BY 3.0, identifiers only); CMP prefixes cited per item."
+  sources:
+    - {id: iab-tcf-android, title: "IAB TCF in-app keys", url: "https://github.com/InteractiveAdvertisingBureau/GDPR-Transparency-and-Consent-Framework", licence: CC-BY-3.0, retrieved: "2026-11-23", use: facts_cited}
+    - {id: vendor-google-ump, title: "Google UMP SDK reference", url: "https://developers.google.com/admob/android/privacy", licence: CC-BY-4.0, retrieved: "2026-11-23", use: facts_cited}
+    - {id: vendor-onetrust, title: "OneTrust Android SDK", url: "https://developer.onetrust.com/onetrust/docs/android", licence: null, retrieved: "2026-11-23", use: reference_only}
+cmps:
+  - id: google_ump
+    name: "Google User Messaging Platform"
+    prefixes: [{prefix: "com.google.android.ump.", source: vendor-google-ump}]
+    anchors: [{kind: class_anchor, value: "com.google.android.ump.UserMessagingPlatform", source: vendor-google-ump}]
+    tcf: true
+  - id: onetrust
+    name: "OneTrust"
+    prefixes: [{prefix: "com.onetrust.otpublishers.headless.", source: vendor-onetrust}]
+    anchors: []
+    tcf: true
+iab_keys:
+  tcf_prefix: "IABTCF_"
+  gpp_prefix: "IABGPP_"
+  us_privacy: ["IABUSPrivacy_String"]
+  google_ac: ["IABTCF_AddtlConsent"]
+  tcf_known: ["IABTCF_CmpSdkID", "IABTCF_gdprApplies", "IABTCF_TCString", "IABTCF_AddtlConsent"]
+  gpp_known: ["IABGPP_HDR_GppString", "IABGPP_GppSID"]
+prefs:
+  readers:
+    - "Landroid/content/SharedPreferences;->getString(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;"
+    - "Landroid/content/SharedPreferences;->getInt(Ljava/lang/String;I)I"
+  writers:
+    - "Landroid/content/SharedPreferences$Editor;->putString(Ljava/lang/String;Ljava/lang/String;)Landroid/content/SharedPreferences$Editor;"
+    - "Landroid/content/SharedPreferences$Editor;->putInt(Ljava/lang/String;I)Landroid/content/SharedPreferences$Editor;"

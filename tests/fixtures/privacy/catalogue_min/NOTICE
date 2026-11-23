@@ -1,0 +1,3 @@
+Test catalogue for the Dexray Insight privacy layer unit tests.
+It mirrors the schema of src/dexray_insight/privacy/data/ with a few entries.
+Facts and short identifiers only, no prose. See the bundled NOTICE for licences.

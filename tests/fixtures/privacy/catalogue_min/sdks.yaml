@@ -1,0 +1,114 @@
+# Test catalogue (small). Mirrors the contract fixture's SDKs plus one with a sharing override.
+meta:
+  file: sdks
+  format_version: 1
+  catalogue_version: "2026.11.0"
+  licence: "CC-BY-4.0"
+  attribution: "Test data. Own curation; every prefix, anchor and host cites a source."
+  sources:
+    - {id: vendor-firebase-analytics-ref, title: "Firebase Analytics reference", url: "https://firebase.google.com/docs/reference/android/com/google/firebase/analytics/package-summary", licence: CC-BY-4.0, retrieved: "2026-11-23", use: facts_cited}
+    - {id: vendor-gms-measurement-ref, title: "play-services-measurement Maven group", url: "https://maven.google.com/web/index.html#com.google.android.gms:play-services-measurement", licence: CC-BY-4.0, retrieved: "2026-11-23", use: facts_cited}
+    - {id: vendor-firebase-crashlytics-ref, title: "Firebase Crashlytics reference", url: "https://firebase.google.com/docs/reference/android/com/google/firebase/crashlytics/package-summary", licence: CC-BY-4.0, retrieved: "2026-11-23", use: facts_cited}
+    - {id: vendor-admob-ref, title: "Google Mobile Ads SDK reference", url: "https://developers.google.com/android/reference/com/google/android/gms/ads/package-summary", licence: CC-BY-4.0, retrieved: "2026-11-23", use: facts_cited}
+    - {id: vendor-adjust-android-ref, title: "Adjust Android SDK", url: "https://dev.adjust.com/en/sdk/android/", licence: null, retrieved: "2026-11-23", use: reference_only}
+    - {id: vendor-braze-android-ref, title: "Braze Android SDK reference", url: "https://braze-inc.github.io/braze-android-sdk/kdoc/", licence: null, retrieved: "2026-11-23", use: reference_only}
+    - {id: vendor-braze-appboy-migration, title: "Braze: Appboy to Braze migration", url: "https://braze-inc.github.io/braze-android-sdk/", licence: null, retrieved: "2026-11-23", use: reference_only}
+    - {id: vendor-meta-app-events, title: "Meta App Events reference", url: "https://developers.facebook.com/docs/app-events/", licence: null, retrieved: "2026-11-23", use: reference_only}
+    - {id: observed-voi-2.24.2, title: "Observed in VOI 2.24.2", url: null, licence: null, retrieved: "2026-11-23", use: observed, apk_sha256: "0000000000000000000000000000000000000000000000000000000000000000", apk_label: "VOI 2.24.2", example_class: "Lbo/app/bj;"}
+    - {id: google-analytics-data-disclosure, title: "Google Analytics: data disclosure", url: "https://support.google.com/analytics/answer/11582702", licence: null, retrieved: "2026-11-23", use: facts_cited}
+    - {id: firebase-play-data-disclosure, title: "Firebase: Play data disclosure", url: "https://firebase.google.com/docs/android/play-data-disclosure", licence: CC-BY-4.0, retrieved: "2026-11-23", use: facts_cited}
+    - {id: admob-play-data-disclosure, title: "AdMob: Play data disclosure", url: "https://developers.google.com/admob/android/privacy/play-data-disclosure", licence: CC-BY-4.0, retrieved: "2026-11-23", use: facts_cited}
+    - {id: firebase-configure-data-collection, title: "Firebase: configure data collection", url: "https://firebase.google.com/docs/analytics/configure-data-collection", licence: CC-BY-4.0, retrieved: "2026-11-23", use: facts_cited}
+    - {id: crashlytics-customize-reports, title: "Crashlytics: customize reports", url: "https://firebase.google.com/docs/crashlytics/customize-crash-reports", licence: CC-BY-4.0, retrieved: "2026-11-23", use: facts_cited}
+    - {id: admob-quick-start, title: "AdMob quick start", url: "https://developers.google.com/admob/android/quick-start", licence: CC-BY-4.0, retrieved: "2026-11-23", use: facts_cited}
+entries:
+  - id: firebase_analytics
+    name: "Google Analytics for Firebase"
+    role: analytics
+    tracker_db_ids: [google_firebase_analytics]
+    prefixes:
+      - {prefix: "com.google.firebase.analytics.", source: vendor-firebase-analytics-ref}
+      - {prefix: "com.google.android.gms.measurement.", source: vendor-gms-measurement-ref}
+    anchors:
+      - {kind: manifest_meta_data, value: "com.google.firebase.components:com.google.firebase.analytics.connector.internal.AnalyticsConnectorRegistrar", source: vendor-firebase-analytics-ref}
+    collects:
+      - {data_type: actions_in_app.user_interaction, item: null, mode: auto, source: google-analytics-data-disclosure}
+      - {data_type: identifiers.other, item: advertising_id, mode: auto, source: google-analytics-data-disclosure}
+    first_party_source: true
+    references: {vendor_disclosure: "https://support.google.com/analytics/answer/11582702", play_sdk_index: "https://play.google.com/sdks/details/com-google-firebase-firebase-analytics"}
+  - id: firebase_crashlytics
+    name: "Firebase Crashlytics"
+    role: crash
+    tracker_db_ids: [firebase_crashlytics]
+    prefixes:
+      - {prefix: "com.google.firebase.crashlytics.", source: vendor-firebase-crashlytics-ref}
+    anchors:
+      - {kind: manifest_meta_data, value: "com.google.firebase.components:com.google.firebase.crashlytics.CrashlyticsRegistrar", source: vendor-firebase-crashlytics-ref}
+    collects:
+      - {data_type: app_performance.crash_logs, item: null, mode: auto, source: firebase-play-data-disclosure}
+      - {data_type: identifiers.other, item: crashlytics_installation_uuid, mode: auto, source: firebase-play-data-disclosure, note: "Crashlytics installation UUID"}
+    first_party_source: true
+    references: {vendor_disclosure: "https://firebase.google.com/docs/android/play-data-disclosure", play_sdk_index: "https://play.google.com/sdks/details/com-google-firebase-firebase-crashlytics"}
+  - id: google_mobile_ads
+    name: "Google Mobile Ads (AdMob)"
+    role: ads
+    tracker_db_ids: [google_admob, google_doubleclick]
+    prefixes:
+      - {prefix: "com.google.android.gms.ads.", source: vendor-admob-ref}
+    exclude_prefixes: ["com.google.android.gms.ads.identifier."]
+    anchors:
+      - {kind: manifest_component, value: "com.google.android.gms.ads.AdActivity", source: vendor-admob-ref}
+      - {kind: manifest_meta_data, value: "com.google.android.gms.ads.APPLICATION_ID", source: admob-quick-start}
+    collects:
+      - {data_type: location.approx_location, item: null, mode: auto, source: admob-play-data-disclosure, note: "IP address, used to estimate the approximate location"}
+      - {data_type: actions_in_app.user_interaction, item: null, mode: auto, source: admob-play-data-disclosure}
+      - {data_type: app_performance.performance_diagnostics, item: null, mode: auto, source: admob-play-data-disclosure}
+      - {data_type: identifiers.other, item: advertising_id, mode: auto, source: admob-play-data-disclosure, note: "Advertising ID and app set ID"}
+    first_party_source: true
+    references: {vendor_disclosure: "https://developers.google.com/admob/android/privacy/play-data-disclosure", play_sdk_index: "https://play.google.com/sdks/details/com-google-android-gms-play-services-ads"}
+  - id: adjust
+    name: "Adjust"
+    role: attribution
+    tracker_db_ids: [adjust]
+    prefixes:
+      - {prefix: "com.adjust.sdk.", source: vendor-adjust-android-ref}
+    anchors:
+      - {kind: class_anchor, value: "com.adjust.sdk.Adjust", source: vendor-adjust-android-ref}
+      - {kind: manifest_component, value: "com.adjust.sdk.AdjustReferrerReceiver", source: vendor-adjust-android-ref}
+    hosts:
+      - {host: "app.adjust.com", source: vendor-adjust-android-ref}
+    collects: []
+    references: {vendor_disclosure: "https://dev.adjust.com/en/sdk/android/features/privacy", play_sdk_index: "https://play.google.com/sdks/details/com-adjust-sdk-adjust-android"}
+  - id: braze
+    name: "Braze"
+    role: engagement
+    tracker_db_ids: [braze]
+    prefixes:
+      - {prefix: "com.braze.", source: vendor-braze-android-ref}
+      - {prefix: "com.appboy.", source: vendor-braze-appboy-migration}
+    obfuscated_prefixes:
+      - {prefix: "bo.app.", source: observed-voi-2.24.2}
+    anchors:
+      - {kind: class_anchor, value: "com.appboy.Appboy", source: vendor-braze-appboy-migration}
+      - {kind: manifest_component, value: "com.braze.push.BrazeFirebaseMessagingService", source: vendor-braze-android-ref}
+      - {kind: manifest_component, value: "com.appboy.push.AppboyFirebaseMessagingService", source: vendor-braze-appboy-migration}
+    collects: []
+    references: {vendor_disclosure: null, play_sdk_index: "https://play.google.com/sdks/details/com-braze-android-sdk-ui"}
+  - id: meta_app_events
+    name: "Meta App Events"
+    role: analytics
+    tracker_db_ids: [facebook_analytics]
+    prefixes:
+      - {prefix: "com.facebook.appevents.", source: vendor-meta-app-events}
+    anchors:
+      - {kind: class_anchor, value: "com.facebook.appevents.AppEventsLogger", source: vendor-meta-app-events}
+    string_anchors:
+      - {value: "fb_mobile_activate_app", source: vendor-meta-app-events}
+    collects: []
+    sharing_override: possible_sharing
+    references: {vendor_disclosure: null, play_sdk_index: null}
+manifest_flags:
+  - {key: firebase_analytics_collection_enabled, sdk_id: firebase_analytics, type: bool, off_when: ["false"], default_when_absent: "on", effect: collection_suspended_until_enabled, data_types: ["*"], items: null, sources: [firebase-configure-data-collection]}
+  - {key: google_analytics_adid_collection_enabled, sdk_id: firebase_analytics, type: bool, off_when: ["false"], default_when_absent: "on", effect: adid_collection_off, data_types: [identifiers.other], items: [advertising_id], sources: [firebase-configure-data-collection]}
+  - {key: firebase_crashlytics_collection_enabled, sdk_id: firebase_crashlytics, type: bool, off_when: ["false"], default_when_absent: "on", effect: collection_suspended_until_enabled, data_types: ["*"], items: null, sources: [crashlytics-customize-reports]}
+  - {key: com.google.android.gms.ads.APPLICATION_ID, sdk_id: google_mobile_ads, type: presence, off_when: [], default_when_absent: null, effect: presence_only, data_types: [], items: null, sources: [admob-quick-start]}

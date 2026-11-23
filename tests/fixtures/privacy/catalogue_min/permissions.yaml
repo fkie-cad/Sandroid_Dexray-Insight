@@ -1,0 +1,26 @@
+# Test catalogue (small).
+meta:
+  file: permissions
+  format_version: 1
+  catalogue_version: "2026.11.0"
+  licence: "CC-BY-2.5"
+  attribution: "Test data. Facts from the Android guide 'Declare data use' (CC BY 2.5)."
+  sources:
+    - id: android-declare-data-use
+      title: "Android developers: Declare data use"
+      url: "https://developer.android.com/guide/topics/data/collect-share"
+      licence: CC-BY-2.5
+      retrieved: "2026-11-23"
+      use: facts_cited
+entries:
+  - {permission: android.permission.ACCESS_COARSE_LOCATION, data_types: [location.approx_location], strength: medium, dangerous: true, sources: [android-declare-data-use]}
+  - {permission: android.permission.ACCESS_FINE_LOCATION, data_types: [location.approx_location, location.precise_location], strength: medium, dangerous: true, sources: [android-declare-data-use]}
+  - {permission: android.permission.READ_CONTACTS, data_types: [contacts.contacts], strength: medium, dangerous: true, sources: [android-declare-data-use]}
+  - {permission: android.permission.READ_CALENDAR, data_types: [calendar.calendar], strength: medium, dangerous: true, sources: [android-declare-data-use]}
+  - {permission: android.permission.RECORD_AUDIO, data_types: [audio.sound_recordings], strength: medium, dangerous: true, sources: [android-declare-data-use]}
+  - {permission: android.permission.READ_SMS, data_types: [email_text_message.text_messages], strength: medium, dangerous: true, sources: [android-declare-data-use]}
+  - {permission: android.permission.READ_EXTERNAL_STORAGE, data_types: [photo_video.photos, photo_video.videos, audio.music_files, storage.files_docs], strength: low, dangerous: true, sources: [android-declare-data-use]}
+  - {permission: android.permission.READ_MEDIA_IMAGES, data_types: [photo_video.photos], strength: low, dangerous: true, sources: [android-declare-data-use]}
+  - {permission: android.permission.READ_MEDIA_VIDEO, data_types: [photo_video.videos], strength: low, dangerous: true, sources: [android-declare-data-use]}
+  - {permission: android.permission.READ_PHONE_STATE, data_types: [identifiers.other], strength: low, dangerous: true, sources: [android-declare-data-use]}
+  - {permission: com.google.android.gms.permission.AD_ID, data_types: [identifiers.other], strength: low, dangerous: false, sources: [android-declare-data-use]}

@@ -1,0 +1,39 @@
+# Test catalogue (small). Mirrors the contract fixture; not the bundled data.
+meta:
+  file: data_types
+  format_version: 1
+  catalogue_version: "2026.11.0"
+  licence: "CC-BY-2.5"
+  attribution: "Test data. Type ids from the Android 14 app-metadata schema; labels from the Play Console (de minimis)."
+  sources:
+    - id: android-app-metadata-schema
+      title: "Android 14 app metadata schema"
+      url: "https://developer.android.com/about/versions/14/features/app-metadata-schema"
+      licence: CC-BY-2.5
+      retrieved: "2026-11-23"
+      use: facts_cited
+entries:
+  - {id: location.approx_location, category: location, label: "Approximate location", category_label: "Location", order: 1}
+  - {id: location.precise_location, category: location, label: "Precise location", category_label: "Location", order: 2}
+  - {id: personal.name, category: personal, label: "Name", category_label: "Personal info", order: 1}
+  - {id: personal.email_address, category: personal, label: "Email address", category_label: "Personal info", order: 2}
+  - {id: personal.personal_identifiers, category: personal, label: "User IDs", category_label: "Personal info", order: 3}
+  - {id: personal.phone_number, category: personal, label: "Phone number", category_label: "Personal info", order: 5}
+  - {id: personal.other, category: personal, label: "Other info", category_label: "Personal info", order: 9}
+  - {id: financial.card_bank_account, category: financial, label: "User payment info", category_label: "Financial info", order: 1}
+  - {id: health_fitness.health, category: health_fitness, label: "Health info", category_label: "Health and fitness", order: 1}
+  - {id: email_text_message.text_messages, category: email_text_message, label: "SMS or MMS", category_label: "Messages", order: 2}
+  - {id: email_text_message.other, category: email_text_message, label: "Other in-app messages", category_label: "Messages", order: 3}
+  - {id: photo_video.photos, category: photo_video, label: "Photos", category_label: "Photos and videos", order: 1}
+  - {id: photo_video.videos, category: photo_video, label: "Videos", category_label: "Photos and videos", order: 2}
+  - {id: audio.sound_recordings, category: audio, label: "Voice or sound recordings", category_label: "Audio files", order: 1}
+  - {id: audio.music_files, category: audio, label: "Music files", category_label: "Audio files", order: 2}
+  - {id: storage.files_docs, category: storage, label: "Files and docs", category_label: "Files and docs", order: 1}
+  - {id: calendar.calendar, category: calendar, label: "Calendar events", category_label: "Calendar", order: 1}
+  - {id: contacts.contacts, category: contacts, label: "Contacts", category_label: "Contacts", order: 1}
+  - {id: actions_in_app.user_interaction, category: actions_in_app, label: "App interactions", category_label: "App activity", order: 1}
+  - {id: actions_in_app.installed_apps, category: actions_in_app, label: "Installed apps", category_label: "App activity", order: 3}
+  - {id: search_and_browsing.web_browsing_history, category: search_and_browsing, label: "Web browsing history", category_label: "Web browsing", order: 1}
+  - {id: app_performance.crash_logs, category: app_performance, label: "Crash logs", category_label: "App info and performance", order: 1}
+  - {id: app_performance.performance_diagnostics, category: app_performance, label: "Diagnostics", category_label: "App info and performance", order: 2}
+  - {id: identifiers.other, category: identifiers, label: "Device or other IDs", category_label: "Device or other IDs", order: 1}
