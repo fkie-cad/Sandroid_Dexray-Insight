@@ -35,6 +35,9 @@ Result contract
   step is listed in ``errors`` and leaves its part empty (``partial``).
 * The output is byte-stable for the same APK and catalogue, apart from
   ``generator.execution_time``.
+* An APK without DEX code (a configuration split, for example) is ``partial`` with
+  ``coverage.code_analysed: false`` and an ``errors`` entry; it is never a clean
+  "no data types" result.
 
 Key objects:
 
@@ -46,12 +49,24 @@ Key objects:
     ``switched_off_in_manifest``. ``confidence`` is the confidence that the code or SDK
     *can access* the type, not that it is collected. ``hidden_by_default`` marks
     permission-only rows. ``evidence[]`` lists every source with its own confidence.
+    ``coverage_caveat`` says when the row can miss evidence: code that was not analysed
+    (``coverage.reduced_by``: Dart, JavaScript, .NET, code in assets, other splits) or
+    call sites of the row in obfuscated code that no rule could attribute.
+``coverage``
+    DEX count, obfuscation level, unresolved provider reads, limits and notes, plus
+    ``code_analysed``, ``reduced_by`` (``no_dex``, ``split_apk``, ``heavy_obfuscation``,
+    ``flutter``, ``react_native``, ``xamarin``, ``cordova``, ``unity``,
+    ``secondary_code``) and ``own_data_reads_skipped``. The summary line names the
+    reductions.
 ``call_sites[]``
     Numbered ``cs-0001``…, each with the API, the caller (JVM descriptors), its
-    ``origin`` (``app``, ``sdk``, ``library`` or ``unattributed`` plus the rule),
-    ``reachability`` (``app_code``, ``sdk_entry``, ``callback``, ``unknown``,
-    ``no_caller_found``, ``not_checked``), URI evidence for provider reads, the
-    permission check and the API levels.
+    ``origin`` (``app``, ``sdk``, ``library`` or ``unattributed`` plus the rule and the
+    ``evidence`` it rests on), ``reachability`` (``app_code``, ``sdk_entry``,
+    ``bridge_entry``, ``callback``, ``unknown``, ``no_caller_found``, ``not_checked``),
+    ``bridge`` for bridge entries, URI evidence for provider reads, the permission check
+    and the API levels. ``user_mediated_intent`` evidence (camera, photo-picker and
+    document intents) is always ``low``: the app can receive what the user captures or
+    picks.
 ``sdks[]``
     Detected curated SDKs with detection evidence, confidence (high = class prefix plus
     an anchor; medium = a class prefix or an anchor alone, since R8 can rename an SDK's
@@ -71,7 +86,11 @@ Key objects:
     ``auto_init_off`` and ``storage_denied_by_default`` switches ``runtime_controlled``.
 ``consent``
     CMPs, IAB TCF/GPP/US-privacy readers and writers, consent-control call sites and a
-    verdict.
+    verdict. ``consent_controls_only`` means no CMP and no TCF keys, but the app (or a
+    bridge library) calls an SDK consent control such as ``setAnalyticsCollectionEnabled``
+    or Consent Mode ``setConsent``. Static analysis cannot see custom or server-driven
+    consent screens or the order of consent and SDK start; the findings say so and leave
+    the TDDDG §25 question to a runtime check.
 ``findings[]``
     ``no_consent_mechanism``, ``sdk_identifier_access_without_consent``,
     ``non_resettable_identifier``, ``sdk_collection_default_on``,
@@ -105,7 +124,17 @@ Matching and attribution
   ``coverage`` (a note and ``provider_reads_unresolved``). Deeper helper chains (for
   example Kotlin ``$default`` overload chains) stay unresolved.
 * A library or SDK calling its own API (``GoogleSignInAccount`` reading its own fields) is
-  not a data access and gives no call site. ``requires`` conditions apply to every match
+  not a data access and gives no call site.
+* Reads of the app's own data are left out and counted in
+  ``coverage.own_data_reads_skipped``: ``getAccountsByType`` with the app's own account
+  type (its package, a type under it, the type of its own authenticator, also through a
+  traced ``getString(R.string...)``), ``getUserData`` when the app declares an account
+  authenticator (the platform requires a signature match with the account's
+  authenticator), and intent queries in a method that calls
+  ``setPackage(getPackageName())``.
+* ``sensor.body`` needs the caller's class to get a step or heart-rate sensor from
+  ``SensorManager.getDefaultSensor`` with a traced constant type; an int elsewhere in
+  the method (``SDK_INT`` checks use 21 and 31 too) does not count. ``requires`` conditions apply to every match
   kind, provider reads and reflection included.
 * Only the pure API shims listed in ``apis.yaml`` (``markers.transparent_wrappers``:
   ``ContentResolverCompat``, ``TelephonyManagerCompat``, ``LocationManagerCompat``) are
@@ -118,8 +147,32 @@ Matching and attribution
   namespace beats the generic library rule; only a curated SDK prefix beats it.
 * SDK attribution covers the curated SDK list in ``sdks.yaml`` only. Other third-party
   code is shown by package name (``library``); obfuscated code that no rule can place is
-  ``unattributed`` and is never counted as the app. The bundled data has no SDK
-  ``hosts``/``string_anchors`` yet, so ``string_anchor_attribution`` has no effect with it.
+  ``unattributed``.
+* Attribution that survives R8 (each rule records ``origin.evidence``):
+
+  - ``app_reference``: a renamed class that itself references a kept app class or the
+    app's own ``R``/``BuildConfig`` is app code (libraries are compiled without the
+    app). Only direct references count, because R8 merges classes; a class that also
+    reads another package's ``R``, or whose SourceFile names a curated SDK file, is
+    left out. Confidence ``medium``.
+  - ``source_file``: the DEX ``SourceFile`` attribute names a file listed for one SDK
+    (``OneSignal.java``, ``PayPalDataCollector.java``). ``medium`` only when the SDK is
+    detected by other evidence or by ``tracker_analysis``, otherwise ``low``; a
+    SourceFile name never gives ``high``, and generic values (``SourceFile``) are
+    ignored. SourceFile hits alone detect an SDK with ``low`` confidence.
+  - ``string_anchor``: SDK hosts and vendor-specific strings (manifest keys the SDK
+    reads, its endpoints). Values that two SDKs ship (Fabric and Firebase Crashlytics,
+    the Facebook core keys) and bare registrable domains are not used.
+  - ``component_registrar``: a renamed class named (``const-class``/``new-instance``)
+    only by the Firebase ``ComponentRegistrar`` of one SDK, which the manifest declares
+    as ``com.google.firebase.components:`` meta-data, and by no readable class outside
+    that SDK.
+* Bridge entry points: methods that JavaScript or Dart code calls directly
+  (``@ReactMethod``, ``@JavascriptInterface``, Capacitor ``@PluginMethod``,
+  ``CordovaPlugin.execute``, Flutter ``MethodCallHandler.onMethodCall``) are
+  ``bridge_entry``, ranked like ``sdk_entry``, instead of "no caller found". When the
+  React Native bundle or the Flutter ``libapp.so`` contains the method name,
+  ``bridge.name_in_bundle`` is ``true`` (supporting evidence only).
 * ``sdk_collection_default_on`` considers only switches that turn collection off
   (``collection_*``, ``auto_init_off``, ``auto_events_off``) and that the SDK reads.
 * A catalogued SDK API that is not found by name is listed in ``coverage.notes``
@@ -156,8 +209,11 @@ Catalogue and licences
 
 The catalogue is six YAML files in ``dexray_insight/privacy/data/`` (data types,
 permissions, APIs, SDKs, consent, compliance) plus a ``NOTICE``. Every SDK prefix,
-host and anchor cites its own source: a vendor document, or an observed corpus record
-with the APK's SHA-256. Only facts and short identifiers are taken, never prose. No
+host and anchor cites its own source: a vendor document, the vendor's own Maven
+artefact or public repository, or an observed corpus record with the APK's SHA-256.
+Framework API signatures are checked against the API 35 SDK data, vendor API signatures
+against the vendor artefact (``scripts/privacy_data_check.py --jar
+group:name:version=classes.jar``) or a corpus APK (``--apk``). Only facts and short identifiers are taken, never prose. No
 Exodus-derived data is shipped and the layer never fetches anything. See the
 ``NOTICE`` for per-file licences (AOSP facts Apache-2.0, Android guide facts CC BY 2.5,
 IAB key names CC BY 3.0, Google/Firebase disclosure facts CC BY 4.0, OWASP titles

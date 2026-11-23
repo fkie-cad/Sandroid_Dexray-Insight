@@ -29,6 +29,36 @@ Added
   digits only; ``PIIValidator`` delegates its core checks to it (an empty or non-digit
   string now fails the Luhn check instead of passing or raising)
 
+- **Static privacy layer, assessment follow-up** (additive to ``schema_version: 1``; see
+  ``docs/privacy_analysis.rst``):
+
+  - attribution that survives R8: ``app_reference`` (renamed classes that reference
+    kept app classes or the app's ``R``), ``source_file`` (DEX SourceFile names, never
+    ``high``) and ``component_registrar`` (Firebase registrars), each with
+    ``origin.evidence``;
+  - ``bridge_entry`` reachability for React Native, WebView, Capacitor, Cordova and
+    Flutter bridge methods, with ``call_sites[].bridge``;
+  - reads of the app's own data are left out (own account type, own authenticator's
+    account data, own-package intent queries; ``coverage.own_data_reads_skipped``);
+    ``sensor.body`` traces the ``getDefaultSensor`` type instead of any int;
+  - honest coverage: ``coverage.code_analysed``, ``coverage.reduced_by`` and
+    ``rows[].coverage_caveat``; a DEX-less APK is ``partial``; the summary line names
+    the reductions;
+  - consent: verdict ``consent_controls_only``, app consent-control calls count, and
+    the findings say that a custom consent screen is possible and that TDDDG §25 needs
+    a runtime check;
+  - catalogue: 21 new API entries (legacy fused location, SSID, Bluetooth names,
+    WebView geolocation, Firebase IDs, install referrer, Health Connect, Activity
+    Recognition, CameraX, SMS Retriever, user-mediated intents with the new
+    ``user_mediated_intent`` evidence kind, Consent Mode v2, AppsFlyer v6, Adjust v5
+    consent), 9 new SDKs (Mapbox telemetry, PayPal Magnes, Stripe, Intercom, Zendesk,
+    Onfido, Veriff, Jumio, Sumsub), and hosts, string anchors, SourceFile names and
+    vendor-documented ``collects`` for most curated SDKs;
+  - ``scripts/privacy_data_check.py --jar`` checks vendor API signatures against the
+    vendor's Maven artefact;
+  - the real-APK tests read ``DEXRAY_PRIVACY_CORPUS`` / ``DEXRAY_PRIVACY_APK_<NAME>``
+    instead of local paths
+
 Changed
 ~~~~~~~
 - Analysis cache schema bumped (``static-privacy-layer``); full-hit cache keys include
