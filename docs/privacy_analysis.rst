@@ -4,8 +4,13 @@ Static privacy layer
 The ``privacy_analysis`` module builds a *draft* Google Play Data safety label from
 static analysis: which data types the code can access, which bundled SDKs document
 collecting them, which consent mechanisms exist, and which manifest switches turn SDK
-collection off. It runs in both the ``generic`` and the ``privacy`` profile and writes
-the top-level key ``privacy_analysis`` into the main JSON.
+collection off. It writes the top-level key ``privacy_analysis`` into the main JSON.
+
+The module is **on in the** ``privacy`` **profile and off in the** ``generic`` **profile**. It
+needs androguard's cross-references, and building them adds about 20-30 % wall time to a
+generic run that does not need them otherwise. Turn it on there with
+``modules.privacy_analysis.enabled: true``. Consumers show "privacy not analysed" when the
+key is missing.
 
 .. important::
 
@@ -49,8 +54,21 @@ Key objects:
     permission check and the API levels.
 ``sdks[]``
     Detected curated SDKs with detection evidence, confidence (high = class prefix plus
-    an anchor), the vendor-documented ``collects`` items and their status
-    (``active``, ``configured_off``, ``runtime_controlled``).
+    an anchor; medium = a class prefix or an anchor alone, since R8 can rename an SDK's
+    classes but not its manifest component; low = string anchors only), the
+    vendor-documented ``collects`` items and their status (``active``,
+    ``configured_off``, ``runtime_controlled``). ``tracker_analysis`` hits corroborate
+    a detection but never detect an SDK on their own. A ``collects`` item that depends
+    on a feature (Analytics' in-app purchase events need Play Billing) applies only when
+    the APK shows that feature; otherwise it counts as ``depends_on_usage``.
+``manifest_flags[]``
+    Every switch of every detected SDK. Android keeps the last value of a repeated key. A
+    switch only counts when the shipped SDK generation reads it (the key occurs in the
+    SDK's code); a set key that the SDK does not read is reported as ``unknown`` and
+    never as "switched off". ``read_by`` in ``sdks.yaml`` records which generations read
+    each key. A consent control called by anything but the SDK itself (app code,
+    obfuscated app code, a bridge library) makes ``collection_suspended_until_enabled``,
+    ``auto_init_off`` and ``storage_denied_by_default`` switches ``runtime_controlled``.
 ``consent``
     CMPs, IAB TCF/GPP/US-privacy readers and writers, consent-control call sites and a
     verdict.
@@ -68,15 +86,33 @@ Static texts never claim an action. They say "can read", "contains code that",
 "may", "documents", "possible". Words such as "collects", "shares" or "sends" appear
 only after one of these qualifiers. The unit tests enforce this.
 
-Attribution limits
-------------------
+Matching and attribution
+------------------------
 
-SDK attribution covers the curated SDK list in ``sdks.yaml`` only. Other third-party
-code is shown by package name (``library``); obfuscated code that no rule can place is
-``unattributed`` and is never counted as the app. App namespaces are the manifest
-package, the Application class's package and component packages that share the
-manifest package's first two segments. Code loaded at runtime and native code are not
-analysed.
+* Only URI evidence in the reading method itself types a content-provider read. Evidence
+  found elsewhere in the class or in a caller is counted in ``coverage`` (a note and
+  ``provider_reads_unresolved``) but never creates or types a row.
+* A library or SDK calling its own API (``GoogleSignInAccount`` reading its own fields) is
+  not a data access and gives no call site. ``requires`` conditions apply to every match
+  kind, provider reads and reflection included.
+* Only the pure API shims listed in ``apis.yaml`` (``markers.transparent_wrappers``:
+  ``ContentResolverCompat``, ``TelephonyManagerCompat``, ``LocationManagerCompat``) are
+  transparent: a call inside them is attributed to **each** code location that calls the
+  shim. Other library code, androidx included, stays attributed to its library.
+* App namespaces: the manifest package; its first-two-segment root unless that root is
+  shared by unrelated publishers (``com.google``, ``com.github``, ``androidx``, ... in
+  ``sdks.yaml`` ``app_namespace.shared_roots``); and the Application class's package
+  unless it is a framework or SDK package (``app_namespace.framework_prefixes``). The app
+  namespace beats the generic library rule; only a curated SDK prefix beats it.
+* SDK attribution covers the curated SDK list in ``sdks.yaml`` only. Other third-party
+  code is shown by package name (``library``); obfuscated code that no rule can place is
+  ``unattributed`` and is never counted as the app. The bundled data has no SDK
+  ``hosts``/``string_anchors`` yet, so ``string_anchor_attribution`` has no effect with it.
+* ``sdk_collection_default_on`` considers only switches that turn collection off
+  (``collection_*``, ``auto_init_off``, ``auto_events_off``) and that the SDK reads.
+* A catalogued SDK API that is not found by name is listed in ``coverage.notes``
+  ("removed or renamed by R8, or not bundled").
+* Code loaded at runtime and native code are not analysed.
 
 Configuration
 -------------
@@ -91,9 +127,13 @@ Configuration
        reachability_max_depth: 6
        reachability_max_nodes: 200
        string_anchor_attribution: true
+       # catalogue_dir: /path/to/catalogue   # optional: a directory with the six YAML files
 
 The module reads only the ``tracker_analysis`` result; everything else comes from the
-androguard objects. Full-hit cache keys include a digest of the catalogue files.
+androguard objects. Full-hit cache keys include a digest of the catalogue files and of
+the tracker signature database (the privacy layer reads its recipient labels). A data
+error in the catalogue is rejected at load (``CatalogueError``); a bad entry found during
+the analysis is dropped, recorded in ``errors`` and makes the section ``partial``.
 
 Catalogue and licences
 ----------------------

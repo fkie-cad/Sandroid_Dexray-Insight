@@ -11,8 +11,9 @@ and this project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0
 
 Added
 ~~~~~
-- **Static privacy layer**: the ``privacy_analysis`` module (on in the ``generic`` and
-  ``privacy`` profiles) and the ``privacy_analysis`` key of the main JSON
+- **Static privacy layer**: the ``privacy_analysis`` module (on in the ``privacy``
+  profile, off in ``generic`` because it forces the androguard xref build) and the
+  ``privacy_analysis`` key of the main JSON
   (``schema_version: 1``). It holds a draft Data safety label with per-source
   confidence, SDK caller attribution for a curated SDK list, documented SDK facts,
   consent/TCF detection, manifest data-collection switches, and findings with
@@ -24,13 +25,15 @@ Added
   ``reachability_max_depth``, ``reachability_max_nodes``, ``string_anchor_attribution``.
   See ``docs/privacy_analysis.rst``
 - **PII validators**: ``dexray_insight.privacy.validators`` (card/Luhn, E.164, geo, SSN,
-  IMEI, IBAN, ANDROID_ID, GAID, app set ID, MAC, e-mail), standard library only;
-  ``PIIValidator`` delegates its core checks to it
+  IMEI, IBAN, ANDROID_ID, GAID, app set ID, MAC, e-mail), standard library only, ASCII
+  digits only; ``PIIValidator`` delegates its core checks to it (an empty or non-digit
+  string now fails the Luhn check instead of passing or raising)
 
 Changed
 ~~~~~~~
 - Analysis cache schema bumped (``static-privacy-layer``); full-hit cache keys include
-  the privacy catalogue digest when ``privacy_analysis`` runs
+  the privacy catalogue digest and the tracker signature database when
+  ``privacy_analysis`` runs
 
 [2.1.1] - 2026-11-20
 --------------------
