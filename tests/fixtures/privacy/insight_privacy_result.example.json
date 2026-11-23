@@ -33,7 +33,10 @@
       "notes": [
         "Code loaded at runtime (from assets or downloads) and native code are not analysed.",
         "SDK attribution covers the curated SDK list only; other third-party code is shown by package name."
-      ]
+      ],
+      "code_analysed": true,
+      "reduced_by": [],
+      "own_data_reads_skipped": 0
     },
     "data_safety": {
       "rows": [
@@ -117,7 +120,8 @@
             "MASTG-TEST-0318",
             "TDDDG-25",
             "BSI-O.Purp_2"
-          ]
+          ],
+          "coverage_caveat": null
         },
         {
           "data_type": "location.precise_location",
@@ -172,7 +176,8 @@
             "MASTG-TEST-0318",
             "TDDDG-25",
             "BSI-O.Purp_2"
-          ]
+          ],
+          "coverage_caveat": null
         },
         {
           "data_type": "personal.personal_identifiers",
@@ -227,7 +232,8 @@
             "GDPR-13",
             "BSI-O.Purp_1",
             "MASTG-TEST-0318"
-          ]
+          ],
+          "coverage_caveat": null
         },
         {
           "data_type": "photo_video.photos",
@@ -257,7 +263,8 @@
             "MASWE-0073",
             "GDPR-13",
             "BSI-O.Purp_1"
-          ]
+          ],
+          "coverage_caveat": null
         },
         {
           "data_type": "photo_video.videos",
@@ -287,7 +294,8 @@
             "MASWE-0073",
             "GDPR-13",
             "BSI-O.Purp_1"
-          ]
+          ],
+          "coverage_caveat": null
         },
         {
           "data_type": "audio.music_files",
@@ -317,7 +325,8 @@
             "MASWE-0073",
             "GDPR-13",
             "BSI-O.Purp_1"
-          ]
+          ],
+          "coverage_caveat": null
         },
         {
           "data_type": "storage.files_docs",
@@ -347,7 +356,8 @@
             "MASWE-0073",
             "GDPR-13",
             "BSI-O.Purp_1"
-          ]
+          ],
+          "coverage_caveat": null
         },
         {
           "data_type": "contacts.contacts",
@@ -402,7 +412,8 @@
             "MASTG-TEST-0318",
             "TDDDG-25",
             "BSI-O.Purp_2"
-          ]
+          ],
+          "coverage_caveat": null
         },
         {
           "data_type": "actions_in_app.user_interaction",
@@ -454,7 +465,8 @@
             "GDPR-13",
             "BSI-O.Purp_1",
             "MASTG-TEST-0318"
-          ]
+          ],
+          "coverage_caveat": null
         },
         {
           "data_type": "app_performance.crash_logs",
@@ -496,7 +508,8 @@
             "GDPR-13",
             "BSI-O.Purp_1",
             "MASTG-TEST-0318"
-          ]
+          ],
+          "coverage_caveat": null
         },
         {
           "data_type": "app_performance.performance_diagnostics",
@@ -538,7 +551,8 @@
             "GDPR-13",
             "BSI-O.Purp_1",
             "MASTG-TEST-0318"
-          ]
+          ],
+          "coverage_caveat": null
         },
         {
           "data_type": "identifiers.other",
@@ -698,7 +712,8 @@
             "TDDDG-25",
             "MASWE-0068",
             "GDPR-4(1)"
-          ]
+          ],
+          "coverage_caveat": null
         }
       ]
     },
@@ -723,7 +738,10 @@
           "name": null,
           "confidence": "high",
           "rule": "app_namespace",
-          "via": []
+          "via": [],
+          "evidence": [
+            "namespace:com.example.scooter"
+          ]
         },
         "reachability": "app_code",
         "chain": [
@@ -744,7 +762,8 @@
           "effective_for_app": true
         },
         "evidence_kind": null,
-        "confidence": "high"
+        "confidence": "high",
+        "bridge": null
       },
       {
         "id": "cs-0002",
@@ -768,7 +787,10 @@
           "name": "Adjust",
           "confidence": "high",
           "rule": "sdk_prefix",
-          "via": []
+          "via": [],
+          "evidence": [
+            "prefix:com.adjust.sdk."
+          ]
         },
         "reachability": "app_code",
         "chain": [
@@ -798,7 +820,8 @@
           "effective_for_app": true
         },
         "evidence_kind": "reflective_reference",
-        "confidence": "medium"
+        "confidence": "medium",
+        "bridge": null
       },
       {
         "id": "cs-0003",
@@ -822,7 +845,10 @@
           "name": "Braze",
           "confidence": "medium",
           "rule": "sdk_prefix",
-          "via": []
+          "via": [],
+          "evidence": [
+            "prefix:bo.app."
+          ]
         },
         "reachability": "sdk_entry",
         "chain": [
@@ -844,7 +870,8 @@
           "effective_for_app": true
         },
         "evidence_kind": "api_call_site",
-        "confidence": "medium"
+        "confidence": "medium",
+        "bridge": null
       },
       {
         "id": "cs-0004",
@@ -868,7 +895,8 @@
           "name": null,
           "confidence": "low",
           "rule": "obfuscated",
-          "via": []
+          "via": [],
+          "evidence": []
         },
         "reachability": "callback",
         "chain": [
@@ -894,7 +922,8 @@
           "effective_for_app": true
         },
         "evidence_kind": "api_call_site",
-        "confidence": "low"
+        "confidence": "low",
+        "bridge": null
       },
       {
         "id": "cs-0005",
@@ -918,7 +947,10 @@
           "name": "Adjust",
           "confidence": "high",
           "rule": "sdk_prefix",
-          "via": []
+          "via": [],
+          "evidence": [
+            "prefix:com.adjust.sdk."
+          ]
         },
         "reachability": "app_code",
         "chain": [
@@ -942,7 +974,8 @@
           "effective_for_app": false
         },
         "evidence_kind": "api_ineffective",
-        "confidence": "low"
+        "confidence": "low",
+        "bridge": null
       },
       {
         "id": "cs-0006",
@@ -967,7 +1000,10 @@
           "name": null,
           "confidence": "high",
           "rule": "app_namespace",
-          "via": []
+          "via": [],
+          "evidence": [
+            "namespace:com.example.scooter"
+          ]
         },
         "reachability": "app_code",
         "chain": [
@@ -996,7 +1032,8 @@
           "effective_for_app": true
         },
         "evidence_kind": "api_call_site",
-        "confidence": "high"
+        "confidence": "high",
+        "bridge": null
       },
       {
         "id": "cs-0007",
@@ -1020,7 +1057,10 @@
           "name": null,
           "confidence": "high",
           "rule": "app_namespace",
-          "via": []
+          "via": [],
+          "evidence": [
+            "namespace:com.example.scooter"
+          ]
         },
         "reachability": "app_code",
         "chain": [
@@ -1051,7 +1091,8 @@
           "effective_for_app": true
         },
         "evidence_kind": "content_uri",
-        "confidence": "high"
+        "confidence": "high",
+        "bridge": null
       },
       {
         "id": "cs-0008",
@@ -1075,7 +1116,10 @@
           "name": null,
           "confidence": "high",
           "rule": "app_namespace",
-          "via": []
+          "via": [],
+          "evidence": [
+            "namespace:com.example.scooter"
+          ]
         },
         "reachability": "app_code",
         "chain": [
@@ -1096,7 +1140,8 @@
           "effective_for_app": true
         },
         "evidence_kind": "sdk_sink_call",
-        "confidence": "medium"
+        "confidence": "medium",
+        "bridge": null
       }
     ],
     "sdks": [
@@ -1566,7 +1611,7 @@
         "title": "Advertising or attribution SDKs, but no consent mechanism found",
         "severity": "medium",
         "confidence": "medium",
-        "summary": "Google Mobile Ads (AdMob) and Adjust are present. No consent SDK (CMP) and no code that writes IAB TCF consent keys was found. A custom or server-driven consent screen is possible.",
+        "summary": "Google Mobile Ads (AdMob) and Adjust are present. No consent SDK (CMP), no code that writes IAB TCF consent keys and no app call to their consent controls was found. A custom or server-driven consent screen is possible; whether consent is obtained before this code runs needs a runtime check (TDDDG §25).",
         "evidence": {
           "call_site_ids": [],
           "sdk_ids": [
@@ -1589,7 +1634,7 @@
         "title": "SDK code that can read a device identifier, and no consent mechanism found",
         "severity": "medium",
         "confidence": "medium",
-        "summary": "Adjust contains code that can read the advertising ID (through reflection), reachable from app start-up. Potential TDDDG §25 issue.",
+        "summary": "Adjust contains code that can read the advertising ID (through reflection), reachable from app start-up. A custom or server-driven consent screen is possible; whether consent is obtained before this code runs needs a runtime check (TDDDG §25).",
         "evidence": {
           "call_site_ids": [
             "cs-0002"

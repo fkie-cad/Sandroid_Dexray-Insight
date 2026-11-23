@@ -8,14 +8,25 @@ that answers wins:
 1. longest ``prefixes`` match of a curated SDK (unless the SDK excludes it): sdk, high
 2. ``obfuscated_prefixes`` match: sdk, medium
 3. under an app namespace: app, high (medium when the tail looks obfuscated)
+3b. obfuscated, and the class itself references a kept app-namespace class or the app's
+   own ``R``/``BuildConfig`` (libraries cannot depend on the app): app, medium
+   (``app_reference``); never when its SourceFile names a curated SDK file
 4. inside a listed transparent wrapper (``ContentResolverCompat``, ...): walk up to the
    first non-wrapper callers and attribute each of them; other library code (androidx
    included) stays attributed to its library
 5. obfuscated, and only frames of one SDK call it: sdk, medium (``called_only_by_sdk``)
 6. obfuscated, with string anchors of one SDK: sdk, medium (``string_anchor``)
 7. obfuscated, in the package of one SDK's manifest component: sdk, medium
+7b. obfuscated, with a DEX ``SourceFile`` name listed for one SDK: sdk, medium when the
+   SDK is detected by other evidence (class prefix, anchor, string anchor or a
+   ``tracker_analysis`` hit), else low (``source_file``); a SourceFile never gives high
+7c. obfuscated, referenced only by the Firebase ``ComponentRegistrar`` of one SDK (from
+   the manifest ``com.google.firebase.components:`` meta-data): sdk, medium
+   (``component_registrar``)
 8. obfuscated otherwise: unattributed, low
 9. otherwise: library named by its first three package segments, medium
+
+Every origin records the evidence it rests on (``Origin.evidence``).
 """
 
 from __future__ import annotations
@@ -44,6 +55,8 @@ class Origin:
     name: str | None
     confidence: str
     rule: str
+    #: What the rule rests on, e.g. ``prefix:com.adjust.sdk.``, ``source_file:OneSignal.java``.
+    evidence: tuple[str, ...] = ()
 
     def key(self) -> tuple[int, str, str]:
         """Sort and grouping key: type order, sdk_id, name."""
@@ -228,8 +241,21 @@ class Attributor:
         component_sdks: dict[str, set[str]] | None = None,
         string_anchor_attribution: bool = True,
         wrapper_classes: set[str] | None = None,
+        app_refs: dict[str, list[str]] | None = None,
+        sdk_source_files: dict[str, str] | None = None,
+        supported_sdks: set[str] | None = None,
+        registrar_refs: dict[str, tuple[str, str]] | None = None,
     ):
-        """Set up the rules."""
+        """Set up the rules.
+
+        Args (in addition to the above):
+            app_refs: ``{outer class: [evidence]}`` of obfuscated classes that reference
+                app code directly (rule 3b).
+            sdk_source_files: ``{SourceFile name: sdk_id}`` (rule 7b).
+            supported_sdks: SDKs detected by other evidence than SourceFile names; only
+                they get ``medium`` from rule 7b.
+            registrar_refs: ``{outer class: (sdk_id, registrar class)}`` (rule 7c).
+        """
         self.wrapper_classes = {desynth(c) for c in (wrapper_classes or set())}
         self.index = index
         self.sdk_names = {s["id"]: s["name"] for s in sdks}
@@ -247,11 +273,30 @@ class Attributor:
                 pkg = package_of(cls)
                 self._package_hits.setdefault(pkg, {}).setdefault(sdk_id, 0)
                 self._package_hits[pkg][sdk_id] += n
+        self.app_refs = app_refs or {}
+        self.sdk_source_files = sdk_source_files or {}
+        self.supported_sdks = set(supported_sdks or ())
+        self.registrar_refs = registrar_refs or {}
         self._base: dict[str, Origin | None] = {}
         self._frame: dict[MRef, Origin] = {}
 
-    def _sdk(self, sdk_id: str, confidence: str, rule: str) -> Origin:
-        return Origin("sdk", sdk_id, self.sdk_names.get(sdk_id, sdk_id), confidence, rule)
+    def _sdk(self, sdk_id: str, confidence: str, rule: str, evidence: tuple[str, ...] = ()) -> Origin:
+        return Origin("sdk", sdk_id, self.sdk_names.get(sdk_id, sdk_id), confidence, rule, evidence)
+
+    def source_file(self, cls: str) -> str | None:
+        """The class's DEX SourceFile name (None when absent or generic)."""
+        from ...privacy.catalogue import GENERIC_SOURCE_FILES
+
+        getter = getattr(self.index, "source_file", None)
+        value = getter(cls) if getter else None
+        if value is None and desynth(cls) != cls and getter:
+            value = getter(desynth(cls))
+        return value if value and value not in GENERIC_SOURCE_FILES else None
+
+    def source_file_sdk(self, cls: str) -> str | None:
+        """The curated SDK whose source file list holds the class's SourceFile name."""
+        name = self.source_file(cls)
+        return self.sdk_source_files.get(name) if name else None
 
     # ---------------------------------------------------------------- rules 1-3
     def base(self, cls: str) -> Origin | None:
@@ -262,17 +307,24 @@ class Attributor:
         origin = None
         hit = self.trie.match(dotted, "prefix")
         if hit is not None:
-            origin = self._sdk(hit[0], "high", "sdk_prefix")
+            origin = self._sdk(hit[0], "high", "sdk_prefix", (f"prefix:{hit[2]}",))
         else:
             hit = self.trie.match(dotted, "obfuscated")
             if hit is not None:
-                origin = self._sdk(hit[0], "medium", "sdk_prefix")
+                origin = self._sdk(hit[0], "medium", "sdk_prefix", (f"prefix:{hit[2]}",))
             else:
                 for ns in sorted(self.app_namespaces, key=len, reverse=True):
                     if under(dotted, ns):
                         conf = "medium" if _repackaged_tail(dotted[len(ns) + 1 :]) else "high"
-                        origin = Origin("app", None, None, conf, "app_namespace")
+                        origin = Origin("app", None, None, conf, "app_namespace", (f"namespace:{ns}",))
                         break
+                refs = self.app_refs.get(desynth(cls))
+                if origin is None and refs and is_obfuscated(cls) and self.source_file_sdk(cls) is None:
+                    evidence = tuple(refs)
+                    name = self.source_file(cls)
+                    if name:
+                        evidence += (f"source_file:{name}",)  # supporting only
+                    origin = Origin("app", None, None, "medium", "app_reference", evidence)
         self._base[cls] = origin
         return origin
 
@@ -307,10 +359,16 @@ class Attributor:
         if self.is_wrapper(cls):
             return self._wrapper_origin(cls)
         if is_obfuscated(cls):
-            return self._rule6(cls) or self._rule7(cls) or Origin("unattributed", None, None, "low", "obfuscated")
+            return (
+                self._rule6(cls)
+                or self._rule7(cls)
+                or self._rule_source_file(cls)
+                or self._rule_registrar(cls)
+                or Origin("unattributed", None, None, "low", "obfuscated")
+            )
         segments = dotted_class(desynth(cls)).split(".")[:-1]
         name = ".".join(segments[:3]) if segments else dotted
-        return Origin("library", None, name, "medium", "third_party_package")
+        return Origin("library", None, name, "medium", "third_party_package", (f"package:{name}",))
 
     def is_wrapper(self, cls: str) -> bool:
         """True for a listed transparent wrapper class (or one of its inner classes)."""
@@ -318,7 +376,7 @@ class Attributor:
 
     @staticmethod
     def _wrapper_origin(cls: str) -> Origin:
-        return Origin("library", None, dotted_class(desynth(cls)), "medium", "transparent_library")
+        return Origin("library", None, dotted_class(desynth(cls)), "medium", "transparent_library", ("wrapper",))
 
     def same_owner(self, caller_cls: str, callee_cls: str) -> bool:
         """True when a library or SDK calls its own API (a self-call, not a data access).
@@ -344,8 +402,26 @@ class Attributor:
             self._rule5(method)
             or self._rule6(method.cls)
             or self._rule7(method.cls)
+            or self._rule_source_file(method.cls)
+            or self._rule_registrar(method.cls)
             or Origin("unattributed", None, None, "low", "obfuscated")
         )
+
+    def _rule_source_file(self, cls: str) -> Origin | None:
+        """Obfuscated code whose SourceFile name is listed for exactly one SDK (never high)."""
+        sdk_id = self.source_file_sdk(cls)
+        if sdk_id is None:
+            return None
+        conf = "medium" if sdk_id in self.supported_sdks else "low"
+        return self._sdk(sdk_id, conf, "source_file", (f"source_file:{self.source_file(cls)}",))
+
+    def _rule_registrar(self, cls: str) -> Origin | None:
+        """Obfuscated code referenced only by one SDK's Firebase component registrar."""
+        hit = self.registrar_refs.get(desynth(cls))
+        if hit is None:
+            return None
+        sdk_id, registrar = hit
+        return self._sdk(sdk_id, "medium", "component_registrar", (f"registrar:{dotted_class(registrar)}",))
 
     def _rule5(self, method: MRef, max_depth: int = 4, max_nodes: int = 50) -> Origin | None:
         """Obfuscated code called only from frames of one SDK."""
@@ -372,7 +448,7 @@ class Attributor:
                 if depth + 1 < max_depth and len(seen) < max_nodes:
                     queue.append((caller, depth + 1))
         if len(found) == 1 and not other:
-            return self._sdk(next(iter(found)), "medium", "called_only_by_sdk")
+            return self._sdk(next(iter(found)), "medium", "called_only_by_sdk", ("callers:only_sdk",))
         return None
 
     def _rule6(self, cls: str) -> Origin | None:
@@ -381,20 +457,23 @@ class Attributor:
             return None
         hits = self._class_hits.get(desynth(cls), {})
         if len(hits) == 1:
-            return self._sdk(next(iter(hits)), "medium", "string_anchor")
+            sdk_id, n = next(iter(hits.items()))
+            return self._sdk(sdk_id, "medium", "string_anchor", (f"string_anchors:class:{n}",))
         if not hits:
             pkg_hits = self._package_hits.get(package_of(cls), {})
             if len(pkg_hits) == 1:
                 sdk_id, n = next(iter(pkg_hits.items()))
                 if n >= 2:
-                    return self._sdk(sdk_id, "medium", "string_anchor")
+                    return self._sdk(sdk_id, "medium", "string_anchor", (f"string_anchors:package:{n}",))
         return None
 
     def _rule7(self, cls: str) -> Origin | None:
         """Obfuscated code in the package of exactly one SDK's manifest component."""
         sdk_ids = self.component_sdks.get(package_of(cls), set())
         if len(sdk_ids) == 1:
-            return self._sdk(next(iter(sdk_ids)), "medium", "manifest_anchor")
+            return self._sdk(
+                next(iter(sdk_ids)), "medium", "manifest_anchor", (f"component_package:{package_of(cls)}",)
+            )
         return None
 
     # ------------------------------------------------------------------- rule 4

@@ -23,6 +23,7 @@ from ...core.base_classes import BaseAnalysisModule
 from ...core.base_classes import BaseResult
 from ...core.base_classes import register_module
 from ...privacy.catalogue import ANDROID_REFERENCE_API
+from ...privacy.catalogue import COVERAGE_REDUCTIONS
 from ...privacy.catalogue import DETECTION_KINDS
 from ...privacy.catalogue import SCHEMA_VERSION
 from ...privacy.catalogue import Catalogue
@@ -36,6 +37,7 @@ from .attribution import build_app_namespaces
 from .attribution import is_obfuscated
 from .attribution import package_of
 from .label import DISCLAIMER
+from .label import REDUCTION_WORDS
 from .label import api_level_object
 from .label import apply_modifiers
 from .label import base_confidence
@@ -68,6 +70,8 @@ DEFAULT_CONFIG = {
 }
 NOTE_RUNTIME_CODE = "Code loaded at runtime (from assets or downloads) and native code are not analysed."
 NOTE_CURATED = "SDK attribution covers the curated SDK list only; other third-party code is shown by package name."
+NOTE_SPLIT = "This APK is one part of a split install; code and native libraries in other splits are not analysed."
+NO_CODE_ERROR = "code: the APK contains no DEX code (for example a configuration split); only the manifest was analysed"
 _ANDROID_NS = "{http://schemas.android.com/apk/res/android}"
 _COMPONENT_TAGS = {
     "activity": "activity",
@@ -86,6 +90,11 @@ _FRAMEWORKS = {
     "unity": "unity",
 }
 _SECONDARY_CODE = re.compile(r"^assets/.+\.(dex|jar|apk)$", re.IGNORECASE)
+#: Where JavaScript or Dart code that calls a bridge method lives (supporting evidence only).
+_BRIDGE_BUNDLES = {
+    "react_native": re.compile(r"^assets/index\.android\.bundle$"),
+    "flutter": re.compile(r"^lib/[^/]+/libapp\.so$"),
+}
 
 
 # ------------------------------------------------------------------ manifest facts
@@ -96,6 +105,10 @@ class ManifestFacts:
     Class names are dotted. ``meta_data`` items are ``{name, value, resolved, scope,
     component}``; ``components`` items are ``{name, kind, permission, actions}``;
     ``permission_entries`` are ``{name, tag, max_sdk_version}`` in manifest order.
+    ``account_types`` are the types of the app's own account authenticators;
+    ``split_name`` is set for a split APK, ``requires_splits`` for a base APK that
+    declares required splits. ``read_file`` and ``resolve_string`` read APK files and
+    string resources on demand (None in tests without an APK).
     """
 
     package: str | None = None
@@ -107,6 +120,12 @@ class ManifestFacts:
     startup_initializers: list[str] = field(default_factory=list)
     permission_entries: list[dict[str, Any]] = field(default_factory=list)
     files: list[str] = field(default_factory=list)
+    resource_package: str | None = None
+    account_types: list[str] = field(default_factory=list)
+    split_name: str | None = None
+    requires_splits: bool = False
+    read_file: Callable[[str], bytes | None] | None = field(default=None, repr=False, compare=False)
+    resolve_string: Callable[[int], str | None] | None = field(default=None, repr=False, compare=False)
 
     @classmethod
     def from_apk(cls, apk: Any) -> ManifestFacts:
@@ -122,11 +141,19 @@ class ManifestFacts:
             files=sorted(str(f) for f in (_safe(apk.get_files) or [])),
         )
         manifest = _safe(apk.get_android_manifest_xml)
+        resources = _safe(apk.get_android_resources)
+        names = _safe(resources.get_packages_names) if resources is not None else None
+        facts.resource_package = str(names[0]) if names else None
+        facts.read_file = lambda path: _safe(lambda: apk.get_file(path))
+        facts.resolve_string = lambda res_id: _resolve_ref(f"@{res_id:08X}", resources)
+        if manifest is not None:
+            facts.split_name = manifest.get("split") or None
+            required = str(manifest.get(_ANDROID_NS + "isSplitRequired") or "").lower() == "true"
+            facts.requires_splits = required or bool(manifest.get(_ANDROID_NS + "requiredSplitTypes"))
         application = manifest.find("application") if manifest is not None else None
         if application is not None:
             name = application.get(_ANDROID_NS + "name")
             facts.application_class = _full_name(name, package) if name else None
-            resources = _safe(apk.get_android_resources)
             for child in application:
                 tag = child.tag if isinstance(child.tag, str) else ""
                 if tag == "meta-data":
@@ -160,6 +187,11 @@ class ManifestFacts:
                     facts.meta_data.append(item)
                     if comp_name == "androidx.startup.InitializationProvider" and item["value"] == "androidx.startup":
                         facts.startup_initializers.append(item["name"])
+            facts.requires_splits = facts.requires_splits or any(
+                m["name"] == "com.android.vending.splits.required" and str(m["value"]).lower() == "true"
+                for m in facts.meta_data
+            )
+            facts.account_types = _account_types(apk, facts.meta_data, resources)
         return facts
 
     def effective_permissions(self) -> dict[str, dict[str, Any]]:
@@ -221,6 +253,29 @@ def _meta(element: Any, scope: str, component: str | None, resources: Any) -> di
     }
 
 
+_AUTHENTICATOR_META = "android.accounts.AccountAuthenticator"
+
+
+def _account_types(apk: Any, meta_data: list[dict[str, Any]], resources: Any) -> list[str]:
+    """``accountType`` of every account authenticator the APK declares (its own accounts)."""
+    from androguard.core.axml import AXMLPrinter
+
+    out = set()
+    for item in meta_data:
+        if item["name"] != _AUTHENTICATOR_META or not item["resolved"] or not item["value"]:
+            continue
+        try:
+            root = AXMLPrinter(apk.get_file(item["value"])).get_xml_obj()
+            value = root.get(_ANDROID_NS + "accountType") if root is not None else None
+            if isinstance(value, str) and value.startswith("@"):
+                value = _resolve_ref(value, resources)
+            if value:
+                out.add(str(value))
+        except Exception:  # noqa: S112 - an unreadable authenticator file names no type
+            continue
+    return sorted(out)
+
+
 def _resolve_ref(ref: str, resources: Any) -> str | None:
     """Resolve ``@7F050001`` through the ARSC (default config); None when impossible."""
     if resources is None:
@@ -247,6 +302,10 @@ class _Steps:
         """Count one failure; the message has no memory addresses (byte-stable output)."""
         text = re.sub(r" at 0x[0-9a-fA-F]+", "", str(exc))[:300]
         message = f"{name}: {type(exc).__name__}: {text}"
+        self._counts[message] = self._counts.get(message, 0) + 1
+
+    def add(self, message: str) -> None:
+        """Record a plain message (not an exception) that makes the section ``partial``."""
         self._counts[message] = self._counts.get(message, 0) + 1
 
     @property
@@ -290,10 +349,13 @@ def _detect(
     string_hits: dict[str, list[str]],
     tracker_names: list[str],
     sig_db: dict[str, Any],
+    source_hits: dict[str, dict[str, int]] | None = None,
 ) -> list[dict[str, Any]]:
     """Detection evidence and confidence for SDKs or CMPs (only detected ones are returned).
 
     ``tracker_analysis`` evidence corroborates but never detects an entry on its own.
+    DEX ``SourceFile`` names (``source_hits``: ``{sdk_id: {name: classes}}``) detect an
+    entry, but never raise its confidence: SourceFile names alone give ``low``.
     """
     out = []
     for entry in items:
@@ -317,6 +379,8 @@ def _detect(
                 detection.append({"kind": anchor["kind"], "value": value})
         for value in string_hits.get(entry["id"], []):
             detection.append({"kind": "string_anchor", "value": value})
+        for value, n in sorted(((source_hits or {}).get(entry["id"]) or {}).items()):
+            detection.append({"kind": "source_file", "value": value, "count": n})
         if not detection:
             continue
         for db_id in _tracker_values(entry, tracker_names, sig_db) if "tracker_db_ids" in entry else []:
@@ -462,6 +526,111 @@ def _channel(
     }
 
 
+_R_CLASS = re.compile(r"^L(?P<pkg>.+)/(?:R|R\$[^/;]+|BuildConfig);$")
+_REGISTRAR_KEY = "com.google.firebase.components:"
+#: At most this many evidence strings per class (the output stays small).
+_MAX_EVIDENCE = 3
+
+
+def _app_references(
+    index: CodeIndex,
+    manifest: ManifestFacts,
+    namespaces: list[str],
+    trie: SdkTrie,
+    classes: set[str],
+    field_refs: set[str],
+) -> dict[str, list[str]]:
+    """Obfuscated classes that reference app code directly (attribution rule 3b).
+
+    Libraries are compiled without the app, so a class that refers to a kept app class
+    (under an app namespace, not repackaged) or to the app's own ``R``/``BuildConfig``
+    is app code. Only **direct** references count: R8 merges classes, so a chain of
+    references would carry library code into the app. Classes that also read another
+    package's ``R`` (library resources) are left out.
+
+    Returns:
+        ``{outer class descriptor: [evidence]}``.
+    """
+    from .attribution import _repackaged_tail
+    from .attribution import desynth
+    from .attribution import under
+
+    def candidate(cls: str) -> bool:
+        return cls in classes and is_obfuscated(cls) and trie.match(dotted_class(cls)) is None
+
+    found: dict[str, set[str]] = {}
+    app_pkgs = {p for p in (manifest.package, manifest.resource_package) if p} | set(namespaces)
+    app_r, foreign_r = set(), set()
+    for cls in sorted(classes):
+        match = _R_CLASS.match(cls)
+        if match:
+            (app_r if match.group("pkg").replace("/", ".") in app_pkgs else foreign_r).add(cls)
+            continue
+        dotted = dotted_class(cls)
+        ns = next((n for n in sorted(namespaces, key=len, reverse=True) if under(dotted, n)), None)
+        if ns is None or trie.match(dotted) is not None or _repackaged_tail(dotted[len(ns) + 1 :]):
+            continue
+        for ref in index.class_referrers(cls):
+            if candidate(ref):
+                found.setdefault(desynth(ref), set()).add(f"references:{desynth(cls)}")
+    foreign_readers: set[str] = set()
+    if app_r:
+        only = {c for c in classes if candidate(c)}
+        readers = index.static_readers(app_r | foreign_r, field_refs, only)
+        for owner in sorted(foreign_r):
+            foreign_readers.update(desynth(r) for r in readers.get(owner, []))
+        for owner in sorted(app_r):
+            for ref in readers.get(owner, []):
+                if candidate(ref):
+                    found.setdefault(desynth(ref), set()).add(f"resources:{owner}")
+    return {cls: sorted(ev)[:_MAX_EVIDENCE] for cls, ev in sorted(found.items()) if cls not in foreign_readers}
+
+
+def _registrar_references(
+    index: CodeIndex, manifest: ManifestFacts, trie: SdkTrie, classes: set[str]
+) -> dict[str, tuple[str, str]]:
+    """Obfuscated classes named by one SDK's Firebase component registrar (rule 7c).
+
+    A ``com.google.firebase.components:<Registrar>`` meta-data entry survives R8. The
+    registrar names its SDK's component classes with ``const-class``/``new-instance``.
+    A renamed class counts when only the registrar of one curated SDK names it, and no
+    readable (non-obfuscated) class outside that SDK refers to it.
+    """
+    from .attribution import desynth
+
+    groups: dict[str, list[str]] = {}
+    for cls in classes:
+        groups.setdefault(desynth(cls), []).append(cls)
+    named: dict[str, set[tuple[str | None, str]]] = {}
+    for item in manifest.meta_data:
+        if not item["name"].startswith(_REGISTRAR_KEY):
+            continue
+        registrar = item["name"][len(_REGISTRAR_KEY) :]
+        hit = trie.match(registrar, "prefix")
+        owner = hit[0] if hit else None
+        for cls in sorted(groups.get(jvm_class(registrar), [])):
+            for method in index.class_methods(cls):
+                for ref, _off in index.facts(method).classes:
+                    if ref in classes and is_obfuscated(ref) and trie.match(dotted_class(ref)) is None:
+                        named.setdefault(desynth(ref), set()).add((owner, jvm_class(registrar)))
+    out: dict[str, tuple[str, str]] = {}
+    for cls, owners in sorted(named.items()):
+        if len(owners) != 1:
+            continue
+        sdk_id, registrar = next(iter(owners))
+        if sdk_id is None:
+            continue
+        outsiders = [
+            r
+            for c in groups.get(cls, [cls])
+            for r in index.class_referrers(c)
+            if not is_obfuscated(r) and desynth(r) != registrar and (trie.match(dotted_class(r)) or ("",))[0] != sdk_id
+        ]
+        if not outsiders:
+            out[cls] = (sdk_id, registrar)
+    return out
+
+
 def _refs(values: list[str]) -> set[MRef]:
     out = set()
     for ref in values:
@@ -521,13 +690,22 @@ def analyse(
     )
 
     # class census
+    sdk_source_files = {f["value"]: sdk["id"] for sdk in cat.sdks for f in sdk["source_files"]}
+
     def census() -> dict[str, Any]:
         classes = index.class_names()
         counts: dict[tuple[str, str], int] = {}
         cmp_counts: dict[tuple[str, str], int] = {}
+        source_hits: dict[str, dict[str, int]] = {}
         obfuscated = 0
         for cls in classes:
             dotted = dotted_class(cls)
+            if sdk_source_files:
+                name = index.source_file(cls)
+                owner = sdk_source_files.get(name) if name else None
+                if owner and trie.match(dotted) is None:  # only renamed classes need it
+                    slot = source_hits.setdefault(owner, {})
+                    slot[name] = slot.get(name, 0) + 1
             if is_obfuscated(cls):
                 obfuscated += 1
             for sdk_id, _kind, prefix in trie.matches(dotted):
@@ -540,9 +718,14 @@ def analyse(
             "obfuscated": obfuscated,
             "counts": counts,
             "cmp_counts": cmp_counts,
+            "source_hits": source_hits,
         }
 
-    cen = steps.run("census", census, {"classes": set(), "total": 0, "obfuscated": 0, "counts": {}, "cmp_counts": {}})
+    cen = steps.run(
+        "census",
+        census,
+        {"classes": set(), "total": 0, "obfuscated": 0, "counts": {}, "cmp_counts": {}, "source_hits": {}},
+    )
     strings = steps.run(
         "strings",
         lambda: _scan_strings(index, cat),
@@ -560,6 +743,41 @@ def analyse(
         return hits
 
     hits = steps.run("string_anchors", anchor_hits, {})
+
+    # SDK detection (before attribution: SourceFile attribution needs independent support)
+    sig_db = steps.run("signature_db", _signature_db, {})
+    detected = steps.run(
+        "sdk_detection",
+        lambda: _detect(
+            cat.sdks,
+            cen["counts"],
+            cen["classes"],
+            component_names,
+            meta_names,
+            {k: sorted(v) for k, v in strings["sdk"].items()},
+            tracker_names,
+            sig_db,
+            cen["source_hits"],
+        ),
+        [],
+    )
+    detected_ids = {d["entry"]["id"] for d in detected}
+    supported = {d["entry"]["id"] for d in detected if any(x["kind"] != "source_file" for x in d["detection"])}
+    field_refs = steps.run(
+        "field_ids",
+        lambda: {ref for e in cat.apis if e["match"] == "field_read" for ref in e["refs"] if index.field_defined(ref)},
+        set(),
+    )
+    app_refs = steps.run(
+        "app_references",
+        lambda: _app_references(index, manifest, namespaces, trie, cen["classes"], field_refs),
+        {},
+    )
+    registrar_refs = steps.run(
+        "component_registrars",
+        lambda: _registrar_references(index, manifest, trie, cen["classes"]),
+        {},
+    )
     component_sdks: dict[str, set[str]] = {}
     for comp in sorted(component_names):
         owners = {m[0] for m in trie.matches(comp)}
@@ -579,6 +797,10 @@ def analyse(
         component_sdks,
         bool(cfg["string_anchor_attribution"]),
         set(cat.wrapper_classes),
+        app_refs,
+        sdk_source_files,
+        supported,
+        registrar_refs,
     )
     entry_classes = {jvm_class(n) for n in component_names}
     entry_classes |= {jvm_class(n) for n in manifest.startup_initializers}
@@ -589,7 +811,12 @@ def analyse(
     )
 
     # matching
-    matcher = Matcher(index, cat, attributor, manifest.components)
+    own = {
+        "package": manifest.package,
+        "account_types": manifest.account_types,
+        "resolve_string": manifest.resolve_string,
+    }
+    matcher = Matcher(index, cat, attributor, manifest.components, own)
     raw = []
     for name, fn in (
         ("method_calls", matcher.method_calls),
@@ -642,8 +869,21 @@ def analyse(
         except Exception:
             return False
 
+    bundles: dict[str, bytes | None] = {}
+
+    def bundle_has(kind: str, name: str) -> bool | None:
+        """Supporting evidence: the bridge method name occurs in the JS bundle / Dart snapshot."""
+        if kind not in _BRIDGE_BUNDLES or manifest.read_file is None or len(name) < 4:
+            return None
+        if kind not in bundles:
+            path = next((f for f in manifest.files if _BRIDGE_BUNDLES[kind].match(f)), None)
+            bundles[kind] = manifest.read_file(path) if path else None
+        blob = bundles[kind]
+        return None if blob is None else name.encode() in blob
+
     def emit(pos: int, site: Any) -> tuple[dict[str, Any], dict[str, Any], bool]:
         entry = site.entry
+        bridge = None
         if site.match == "manifest_component":
             perm = {"required": None, "declared": [], "satisfied": None}
             reachability = "app_code" if site.origin.type == "app" else "sdk_entry"
@@ -657,10 +897,18 @@ def analyse(
                     reachability, chain, deciding = "unknown", [site.caller.frame()], None
                 else:
                     reachability, chain, deciding = result.reachability, result.chain, result.deciding
+                    if result.bridge and deciding is not None:
+                        bridge = {
+                            "kind": result.bridge,
+                            "entry": deciding.frame(),
+                            "name_in_bundle": bundle_has(result.bridge, deciding.name),
+                        }
             else:
                 reachability, chain, deciding = "not_checked", [], None
         level = api_level_object(entry["api"], manifest.min_sdk)
-        kind = evidence_kind_of(entry["role"], site.match, level["effective_for_app"], reachability)
+        kind = evidence_kind_of(
+            entry["role"], site.match, level["effective_for_app"], reachability, entry.get("user_mediated", False)
+        )
         origin = {
             "type": site.origin.type,
             "sdk_id": site.origin.sdk_id,
@@ -668,6 +916,7 @@ def analyse(
             "confidence": site.origin.confidence,
             "rule": site.origin.rule,
             "via": list(site.via),
+            "evidence": list(site.origin.evidence),
         }
         base = base_confidence(kind, entry["precision"], site.uri_confidence, site.reflect_confidence)
         confidence = apply_modifiers(base, kind, origin, perm["satisfied"], reachability)
@@ -708,6 +957,7 @@ def analyse(
                 "api_level": level,
                 "evidence_kind": kind,
                 "confidence": confidence,
+                "bridge": bridge,
             },
             meta,
             reachability == "unknown",
@@ -728,22 +978,6 @@ def analyse(
         limits.append(f"reachability_budget:{unknown}")
 
     # SDKs, flags, consent controls
-    sig_db = steps.run("signature_db", _signature_db, {})
-    detected = steps.run(
-        "sdk_detection",
-        lambda: _detect(
-            cat.sdks,
-            cen["counts"],
-            cen["classes"],
-            component_names,
-            meta_names,
-            {k: sorted(v) for k, v in strings["sdk"].items()},
-            tracker_names,
-            sig_db,
-        ),
-        [],
-    )
-    detected_ids = {d["entry"]["id"] for d in detected}
 
     def key_read(key: str) -> bool | None:
         """True if non-app code of the APK contains the flag key (the shipped SDK reads it)."""
@@ -853,7 +1087,7 @@ def analyse(
             )
             slot["call_site_ids"].append(s["id"])
         return {
-            "verdict": consent_verdict(list(cmps), channels, sdks),
+            "verdict": consent_verdict(list(cmps), channels, sdks, controlled),
             "cmps": sorted(
                 (
                     {
@@ -898,6 +1132,11 @@ def analyse(
                 f"{len(detected_missing)} catalogued SDK APIs were not found by name "
                 "(removed or renamed by R8, or not bundled): " + ", ".join(detected_missing)
             )
+    if matcher.own_data_skipped:
+        notes.append(
+            f"{matcher.own_data_skipped} calls that read the app's own data (its own account type, its own "
+            "authenticator's account data, intents limited to its own package) were left out"
+        )
     if matcher.provider_reads_untyped:
         notes.append(
             f"{matcher.provider_reads_untyped} provider reads have URI evidence only outside the reading method; "
@@ -911,16 +1150,35 @@ def analyse(
         target = norm_flags.get(_norm_key(name))
         if target:
             notes.append(f"manifest key {name} looks like {target} but does not match exactly; it was ignored")
+    dex_files = steps.run("dex_count", index.dex_count, 0)
+    frameworks = sorted(steps.run("frameworks", lambda: _framework_words(manifest.files), []))
+    secondary = sorted(f for f in manifest.files if _SECONDARY_CODE.match(f))
+    code_analysed = bool(dex_files)
+    reduced = []
+    if not code_analysed:
+        reduced.append("no_dex")
+        steps.add(NO_CODE_ERROR)
+    if manifest.split_name or manifest.requires_splits:
+        reduced.append("split_apk")
+        notes.append(NOTE_SPLIT)
+    if code_analysed and ratio >= 0.30:
+        reduced.append("heavy_obfuscation")
+    reduced += [f for f in frameworks if f in COVERAGE_REDUCTIONS]
+    if secondary:
+        reduced.append("secondary_code")
     coverage = {
-        "dex_files": steps.run("dex_count", index.dex_count, 0),
+        "dex_files": dex_files,
         "classes_total": total,
         "classes_obfuscated": cen["obfuscated"],
         "obfuscation_level": "none" if ratio < 0.05 else "light" if ratio < 0.30 else "heavy",
-        "secondary_code": sorted(f for f in manifest.files if _SECONDARY_CODE.match(f)),
-        "code_outside_dex": sorted(steps.run("frameworks", lambda: _framework_words(manifest.files), [])),
+        "secondary_code": secondary,
+        "code_outside_dex": frameworks,
         "provider_reads_unresolved": matcher.provider_reads_unresolved,
         "limits_hit": sorted(limits),
         "notes": sorted(set(notes)),
+        "code_analysed": code_analysed,
+        "reduced_by": sorted(set(reduced), key=COVERAGE_REDUCTIONS.index),
+        "own_data_reads_skipped": matcher.own_data_skipped,
     }
 
     # photo picker (non-androidx code only)
@@ -934,7 +1192,7 @@ def analyse(
 
     picker = steps.run("photo_picker", picker_used, False)
 
-    rows = steps.run("rows", lambda: build_rows(cat, sites, site_meta, sdks, sdk_evidence, declared), [])
+    rows = steps.run("rows", lambda: build_rows(cat, sites, site_meta, sdks, sdk_evidence, declared, coverage), [])
     findings = steps.run(
         "findings",
         lambda: build_findings(cat, sites, site_meta, sdks, flags, consent, declared, coverage, picker, controlled),
@@ -1009,8 +1267,13 @@ def summary_line(section: dict[str, Any] | None) -> str | None:
         errors = section.get("errors") or ["unknown error"]
         return f"PRIVACY (static): analysis failed: {errors[0]}"
     rows = (section.get("data_safety") or {}).get("rows") or []
+    coverage = section.get("coverage") or {}
+    reduced = coverage.get("reduced_by") or []
+    suffix = (" · coverage reduced: " + ", ".join(REDUCTION_WORDS.get(r, r) for r in reduced)) if reduced else ""
+    if coverage.get("code_analysed") is False:
+        return f"PRIVACY (static): no DEX code analysed, {len(rows)} data types from the manifest only{suffix}"
     if not rows:
-        return "PRIVACY (static): no data types found by static analysis"
+        return "PRIVACY (static): no data types found by static analysis" + suffix
     statuses = [r.get("status") for r in rows]
     verdict_words = {
         "cmp_detected": "consent SDK found",
@@ -1018,12 +1281,14 @@ def summary_line(section: dict[str, Any] | None) -> str | None:
         "tcf_reader_only": "TCF reader only",
         "none_detected": "no consent mechanism found",
         "not_applicable": "not applicable",
+        "consent_controls_only": "app calls SDK consent controls, no consent SDK",
     }
     verdict = verdict_words.get((section.get("consent") or {}).get("verdict"), "other")
     return (
         f"PRIVACY (static): {len(rows)} data types ({statuses.count('likely_collected')} SDK-documented, "
         f"{statuses.count('may_be_collected')} code can access, {statuses.count('possible')} possible) · "
         f"{len(section.get('sdks') or [])} SDKs · consent: {verdict} · {len(section.get('findings') or [])} findings"
+        + suffix
     )
 
 

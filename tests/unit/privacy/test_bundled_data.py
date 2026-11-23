@@ -167,8 +167,16 @@ def test_apis(cat):
         for c in e["also_receivers"]:
             assert CLASS_RE.match(c), eid
         req = e["requires"]
-        assert set(req) == {"const_string_any", "const_int_any"}
-        assert all(isinstance(x, int) for x in req["const_int_any"])
+        assert (
+            {"const_string_any", "const_int_any"}
+            <= set(req)
+            <= {
+                "const_string_any",
+                "const_int_any",
+                "default_sensor_any",
+            }
+        )
+        assert all(isinstance(x, int) for x in req["const_int_any"] + req.get("default_sensor_any", []))
         assert set(e["data_types"]) <= types, eid
         for t, perms in e["type_permissions"].items():
             assert t in e["data_types"], eid
@@ -215,8 +223,14 @@ def test_apis(cat):
         for label in seen:
             assert f"corpus-{label}" in e["sources"], (eid, label)
         framework = any(r.startswith(("Landroid/", "Ljava/")) for r in e["refs"])
+        artifact = e["verified"].get("artifact")
+        if artifact:
+            # checked with javap against the vendor's Maven artefact, which a source cites
+            assert e["verified"]["descriptor"] == "vendor_artifact", eid
+            assert re.match(r"^[\w.-]+:[\w.-]+:[\w.-]+$", artifact), eid
+            assert any(str(src[s].get("url") or "").endswith(".aar") for s in e["sources"]), eid
         if e["refs"] and not framework:
-            assert seen, f"{eid}: vendor refs need a corpus APK in verified.seen_in"
+            assert seen or artifact, f"{eid}: vendor refs need a corpus APK or a vendor artefact"
         if not framework and e["match"] not in ("provider_read", "manifest_component"):
             assert lv["since"] is None, eid
 

@@ -17,6 +17,30 @@
       ]
     ],
     [
+      "photo_video.photos",
+      "possible",
+      "low",
+      [
+        "library"
+      ]
+    ],
+    [
+      "photo_video.videos",
+      "possible",
+      "low",
+      [
+        "library"
+      ]
+    ],
+    [
+      "storage.files_docs",
+      "possible",
+      "low",
+      [
+        "library"
+      ]
+    ],
+    [
       "actions_in_app.installed_apps",
       "possible",
       "low",
@@ -36,5 +60,5 @@
   "sdks": [],
   "consent_verdict": "not_applicable",
   "findings": [],
-  "call_site_count": 11
+  "call_site_count": 16
 }

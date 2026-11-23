@@ -44,6 +44,7 @@ EVIDENCE_KINDS = (
     "sdk_sink_call",
     "reflective_reference",
     "pii_literal",
+    "user_mediated_intent",
     "api_call_site_no_caller",
     "api_ineffective",
     "sdk_configured_off",
@@ -55,6 +56,7 @@ CALL_SITE_EVIDENCE_KINDS = (
     "api_call_site",
     "sdk_sink_call",
     "reflective_reference",
+    "user_mediated_intent",
     "api_call_site_no_caller",
     "api_ineffective",
 )
@@ -73,8 +75,13 @@ ORIGIN_RULES = (
     "manifest_anchor",
     "third_party_package",
     "obfuscated",
+    "app_reference",
+    "source_file",
+    "component_registrar",
 )
-REACHABILITIES = ("app_code", "sdk_entry", "callback", "unknown", "no_caller_found", "not_checked")
+REACHABILITIES = ("app_code", "sdk_entry", "callback", "unknown", "no_caller_found", "not_checked", "bridge_entry")
+#: ``call_sites[].bridge.kind``: how JavaScript or Dart code reaches a ``bridge_entry`` method.
+BRIDGE_KINDS = ("react_native", "javascript_interface", "capacitor", "cordova", "flutter")
 SDK_ROLES = (
     "analytics",
     "attribution",
@@ -95,6 +102,7 @@ DETECTION_KINDS = (
     "manifest_meta_data",
     "string_anchor",
     "tracker_analysis",
+    "source_file",
 )
 #: Anchor kinds allowed in ``sdks.yaml``/``consent.yaml`` ``anchors``.
 ANCHOR_KINDS = ("class_anchor", "manifest_component", "manifest_meta_data")
@@ -132,7 +140,22 @@ CONSENT_VERDICTS = (
     "tcf_reader_only",
     "none_detected",
     "not_applicable",
+    "consent_controls_only",
 )
+#: ``coverage.reduced_by``: why the analysed code is not the whole app.
+COVERAGE_REDUCTIONS = (
+    "no_dex",
+    "split_apk",
+    "heavy_obfuscation",
+    "flutter",
+    "react_native",
+    "xamarin",
+    "cordova",
+    "unity",
+    "secondary_code",
+)
+#: ``own_data`` checks of ``apis.yaml`` entries (calls that read the app's own data are left out).
+OWN_DATA_KINDS = ("account_type", "account_user_data", "own_package_intent")
 SEVERITIES = ("low", "medium", "high")
 URI_EVIDENCE_KINDS = ("static_field", "uri_string", "authority_string")
 URI_EVIDENCE_WHERE = ("same_method", "same_class", "caller")
@@ -473,11 +496,18 @@ def _norm_api(entry: dict[str, Any], types: dict[str, Any], sources: dict[str, A
             raise CatalogueError(f"apis.yaml: {where}: {exc}") from exc
     requires = entry.get("requires") or {}
     _req(isinstance(requires, dict), f"apis.yaml: {where} requires must be a mapping")
-    _req(set(requires) <= {"const_string_any", "const_int_any"}, f"apis.yaml: {where} unknown requires key")
     _req(
-        all(isinstance(i, int) and not isinstance(i, bool) for i in _list(requires.get("const_int_any"))),
-        f"apis.yaml: {where} requires.const_int_any must be integers",
+        set(requires) <= {"const_string_any", "const_int_any", "default_sensor_any"},
+        f"apis.yaml: {where} unknown requires key",
     )
+    for key in ("const_int_any", "default_sensor_any"):
+        _req(
+            all(isinstance(i, int) and not isinstance(i, bool) for i in _list(requires.get(key))),
+            f"apis.yaml: {where} requires.{key} must be integers",
+        )
+    own_data = entry.get("own_data")
+    _req(own_data is None or own_data in OWN_DATA_KINDS, f"apis.yaml: {where} has unknown own_data {own_data!r}")
+    _req(isinstance(entry.get("user_mediated", False), bool), f"apis.yaml: {where} user_mediated must be bool")
     reflection = entry.get("reflection")
     if reflection is not None:
         _req(isinstance(reflection, dict) and reflection.get("class"), f"apis.yaml: {where} reflection needs a class")
@@ -531,7 +561,10 @@ def _norm_api(entry: dict[str, Any], types: dict[str, Any], sources: dict[str, A
         "requires": {
             "const_string_any": [str(s) for s in _list(requires.get("const_string_any"))],
             "const_int_any": [int(i) for i in _list(requires.get("const_int_any"))],
+            "default_sensor_any": [int(i) for i in _list(requires.get("default_sensor_any"))],
         },
+        "own_data": own_data,
+        "user_mediated": bool(entry.get("user_mediated", False)),
         "reflection": dict(reflection) if reflection else None,
         "carriers": entry.get("carriers"),
         "uri_evidence": (
@@ -570,6 +603,22 @@ def _norm_prefix_items(file: str, where: str, items: Any, key: str, sources: dic
         if key == "prefix":
             _req(value.endswith("."), f"{file}: {where} prefix {value!r} must end with '.'")
         out.append({key: value, "source": _cited(file, f"{where} {key} {value}", item.get("source"), sources)})
+    return out
+
+
+_SOURCE_FILE_RE = re.compile(r"^[A-Za-z0-9_$-]+\.(java|kt)$")
+#: SourceFile values that name no source file (R8 ``-renamesourcefileattribute`` and synthetics).
+GENERIC_SOURCE_FILES = frozenset({"SourceFile", "Unknown Source", "D8$$SyntheticClass", "lambda"})
+
+
+def _norm_source_files(where: str, items: Any, sources: dict[str, Any]) -> list[dict[str, str]]:
+    out = _norm_prefix_items("sdks.yaml", where, items, "value", sources)
+    for item in out:
+        value = item["value"]
+        _req(
+            bool(_SOURCE_FILE_RE.match(value)) and value not in GENERIC_SOURCE_FILES,
+            f"sdks.yaml: {where} source file {value!r} must be a plain .java/.kt file name",
+        )
     return out
 
 
@@ -640,6 +689,7 @@ def _norm_sdk(entry: dict[str, Any], types: dict[str, Any], sources: dict[str, A
         ),
         "anchors": _norm_anchors("sdks.yaml", where, entry.get("anchors"), sources),
         "string_anchors": _norm_prefix_items("sdks.yaml", where, entry.get("string_anchors"), "value", sources),
+        "source_files": _norm_source_files(where, entry.get("source_files"), sources),
         "hosts": _norm_prefix_items("sdks.yaml", where, entry.get("hosts"), "host", sources),
         "collects": collects,
         "first_party_source": bool(entry.get("first_party_source", False)),
@@ -807,6 +857,11 @@ def _build(base: Path) -> Catalogue:
     sdks = [_norm_sdk(e, type_by_id, sources) for e in _list(raw["sdks"].get("entries"))]
     sdk_by_id = {s["id"]: s for s in sdks}
     _req(len(sdk_by_id) == len(sdks), "sdks.yaml: duplicate ids")
+    owners: dict[str, str] = {}
+    for sdk in sdks:  # a SourceFile name must point to exactly one SDK
+        for item in sdk["source_files"]:
+            other = owners.setdefault(item["value"], sdk["id"])
+            _req(other == sdk["id"], f"sdks.yaml: source file {item['value']!r} listed for {other} and {sdk['id']}")
     flags = [_norm_flag(e, set(sdk_by_id), type_by_id, sources) for e in _list(raw["sdks"].get("manifest_flags"))]
     flag_keys = [(f["key"], f["sdk_id"]) for f in flags]
     _req(len(flag_keys) == len(set(flag_keys)), "sdks.yaml: duplicate (key, sdk_id) manifest flag")
@@ -915,6 +970,7 @@ __all__ = [
     "DATA_DIR",
     "EVIDENCE_KINDS",
     "FINDING_IDS",
+    "GENERIC_SOURCE_FILES",
     "SCHEMA_VERSION",
     "catalogue_digest",
     "catalogue_files",

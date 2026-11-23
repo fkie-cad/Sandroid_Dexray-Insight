@@ -177,6 +177,116 @@ meta:
     licence: NOASSERTION, retrieved: '2026-11-23', use: facts_cited}
   - {id: vendor-vungle-v7-sample, title: 'Liftoff/Vungle VungleAds-SDK (vendor GitHub): Kotlin sample (com.vungle.ads.VungleAds)', url: 'https://github.com/Vungle/VungleAds-SDK/blob/master/Samples/android/Kotlin/app-v7-kotlin/src/main/java/com/vungle/samples/samplekotlin/PlacementFragment.kt',
     licence: NOASSERTION, retrieved: '2026-11-23', use: facts_cited}
+  - {id: observed-voi-branch, title: "Observed in corpus APK VOI 2.24.2 (branch, SourceFile attributes)", url: null, licence: null, retrieved: 2026-11-23, use: observed, apk_sha256: 007820849853392bdaa57d45ee46c0410da936542349d73188a42ff80357a23a, apk_label: VOI 2.24.2, example_class: Lc/b/b/d0;}
+  - {id: observed-voi-paypal_magnes, title: "Observed in corpus APK VOI 2.24.2 (PayPal data collector, SourceFile attributes)", url: null, licence: null, retrieved: 2026-11-23, use: observed, apk_sha256: 007820849853392bdaa57d45ee46c0410da936542349d73188a42ff80357a23a, apk_label: VOI 2.24.2, example_class: Lm/m/a/a/a/a/a;}
+  - {id: vendor-adjust-gh, title: adjust/android_sdk, url: "https://github.com/adjust/android_sdk", licence: MIT, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-adjust-gpds, title: "Google Play Data Safety | Adjust Help Center", url: "https://help.adjust.com/en/article/google-play-data-safety", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-adjust-privacy, title: "Privacy features | Adjust Developer Hub", url: "https://dev.adjust.com/en/sdk/android/features/privacy/", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-admob-optimize-init, title: "Google Mobile Ads SDK Android: Optimize initialization and ad loading", url: "https://developers.google.com/admob/android/optimize-initialization", licence: CC-BY-4.0, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-admob-quickstart, title: "Google Mobile Ads SDK Android: Get started", url: "https://developers.google.com/admob/android/quick-start", licence: CC-BY-4.0, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-amplitude-android-doc, title: Android SDK, url: "https://amplitude.com/docs/sdks/analytics/android/android-sdk", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-amplitude-android-gh, title: amplitude/Amplitude-Android, url: "https://github.com/amplitude/Amplitude-Android", licence: MIT, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-amplitude-kotlin-doc, title: Get started with the Android-Kotlin SDK, url: "https://amplitude.com/docs/sdks/analytics/android/android-kotlin-sdk", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-amplitude-kotlin-gh, title: amplitude/Amplitude-Kotlin, url: "https://github.com/amplitude/Amplitude-Kotlin", licence: MIT, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-appcenter-dc, title: Data Collected by App Center SDKs, url: "https://learn.microsoft.com/en-us/appcenter/sdk/data-collected", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-appcenter-gh, title: microsoft/appcenter-sdk-android, url: "https://github.com/microsoft/appcenter-sdk-android", licence: MIT, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-applovin-aar, title: "AppLovin SDK 13.7.0 AAR (Maven Central, com.applovin:applovin-sdk)", url: "https://repo1.maven.org/maven2/com/applovin/applovin-sdk/13.7.0/applovin-sdk-13.7.0.aar", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-applovin-integration, title: "AppLovin MAX Android: Integration", url: "https://support.applovin.com/en/max/android/overview/integration", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-appsflyer-maven, title: "com.appsflyer:af-android-sdk 6.17.0 (Maven Central AAR)", url: "https://repo1.maven.org/maven2/com/appsflyer/af-android-sdk/6.17.0/af-android-sdk-6.17.0.aar", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-appsflyer-ref, title: AppsFlyerLib, url: "https://dev.appsflyer.com/hc/docs/android-sdk-reference-appsflyerlib", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-braintree-dc-docs, title: "Braintree Premium Fraud Management: Client-Side (Android v4)", url: "https://developer.paypal.com/braintree/docs/guides/premium-fraud-management-tools/client-side/android/v4/", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-braintree-gh, title: braintree/braintree_android, url: "https://github.com/braintree/braintree_android", licence: MIT, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-branch-gh, title: BranchMetrics/android-branch-deep-linking-attribution, url: "https://github.com/BranchMetrics/android-branch-deep-linking-attribution", licence: MIT, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-branch-gpds, title: Answering the Google Play Store Privacy Questions, url: "https://help.branch.io/answering-the-google-play-store-privacy-questions", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-braze-datacollection, title: Manage Data Collection for the Braze SDK, url: "https://www.braze.com/docs/developer_guide/analytics/managing_data_collection?sdktab=android", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-braze-endpoints, title: API and SDK endpoints, url: "https://www.braze.com/docs/user_guide/administer/personal/sdk_endpoints", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-braze-gh, title: braze-inc/braze-android-sdk, url: "https://github.com/braze-inc/braze-android-sdk", licence: NOASSERTION, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-braze-integrate, title: Integrate the Braze SDK, url: "https://www.braze.com/docs/developer_guide/sdk_integration?sdktab=android", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-braze-maven, title: "com.braze:android-sdk-base 36.0.0 (Maven Central AAR)", url: "https://repo1.maven.org/maven2/com/braze/android-sdk-base/36.0.0/android-sdk-base-36.0.0.aar", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-bugsnag-gh, title: bugsnag/bugsnag-android, url: "https://github.com/bugsnag/bugsnag-android", licence: MIT, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-bugsnag-playstore, title: "BugSnag Android: Play Store privacy", url: "https://docs.bugsnag.com/platforms/android/playstore-privacy/", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-chartboost-ds, title: "Chartboost Monetization Android SDK: Data Safety Details", url: "https://docs.chartboost.com/en/monetization/integrate/android/data-safety-details/", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-clevertap-gh, title: CleverTap/clevertap-android-sdk, url: "https://github.com/CleverTap/clevertap-android-sdk", licence: MIT, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-clevertap-gpds, title: Google Play Console - Data Safety, url: "https://developer.clevertap.com/docs/google-playstore-data-safety", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-fb-an-maven, title: "com.facebook.android:audience-network-sdk 6.22.1 AAR (Maven Central)", url: "https://repo1.maven.org/maven2/com/facebook/android/audience-network-sdk/6.22.1/audience-network-sdk-6.22.1.aar", licence: NOASSERTION, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-fb-android-sdk-repo, title: "facebook/facebook-android-sdk (GitHub, branch main)", url: "https://github.com/facebook/facebook-android-sdk", licence: NOASSERTION, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-fb-graph-user, title: "Graph API Reference: User (Default Public Profile Fields)", url: "https://developers.facebook.com/docs/graph-api/reference/user/", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-fb-login-android-doc, title: "Facebook Login for Android: Quickstart", url: "https://developers.facebook.com/docs/facebook-login/android", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-fb-perm-email, title: "Permissions Reference: email", url: "https://developers.facebook.com/docs/permissions/reference/email", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-firebase-android-sdk, title: "firebase/firebase-android-sdk (GitHub, commit 2cfdd038, 2026-11-20)", url: "https://github.com/firebase/firebase-android-sdk", licence: Apache-2.0, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-gmaven-crashlytics, title: "com.google.firebase:firebase-crashlytics 21.1.0 AAR (Google Maven)", url: "https://dl.google.com/android/maven2/com/google/firebase/firebase-crashlytics/21.1.0/firebase-crashlytics-21.1.0.aar", licence: NOASSERTION, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-gmaven-installations, title: "com.google.firebase:firebase-installations 20.0.0 AAR (Google Maven)", url: "https://dl.google.com/android/maven2/com/google/firebase/firebase-installations/20.0.0/firebase-installations-20.0.0.aar", licence: NOASSERTION, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-gmaven-measurement-api, title: "com.google.android.gms:play-services-measurement-api 24.0.0 AAR (Google Maven)", url: "https://dl.google.com/android/maven2/com/google/android/gms/play-services-measurement-api/24.0.0/play-services-measurement-api-24.0.0.aar", licence: NOASSERTION, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-gmaven-measurement-impl, title: "com.google.android.gms:play-services-measurement-impl 24.0.0 AAR (Google Maven)", url: "https://dl.google.com/android/maven2/com/google/android/gms/play-services-measurement-impl/24.0.0/play-services-measurement-impl-24.0.0.aar", licence: NOASSERTION, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-gmaven-messaging, title: "com.google.firebase:firebase-messaging 26.0.2 AAR (Google Maven)", url: "https://dl.google.com/android/maven2/com/google/firebase/firebase-messaging/26.0.2/firebase-messaging-26.0.2.aar", licence: NOASSERTION, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-gmaven-perf, title: "com.google.firebase:firebase-perf 23.0.1 AAR (Google Maven)", url: "https://dl.google.com/android/maven2/com/google/firebase/firebase-perf/23.0.1/firebase-perf-23.0.1.aar", licence: NOASSERTION, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-hms-ads-sdk-privacy, title: "Ads SDK Privacy Statement: Android: Ads Kit", url: "https://developer.huawei.com/consumer/en/doc/HMSCore-Guides/whale-hong-kinetic-energy-sdk-privacy-statement-0000001658283582", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-hms-adslite-maven, title: "com.huawei.hms:ads-lite 13.4.91.301 AAR (Huawei Maven)", url: "https://developer.huawei.com/repo/com/huawei/hms/ads-lite/13.4.91.301/ads-lite-13.4.91.301.aar", licence: NOASSERTION, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-hms-analytics-sdk-privacy, title: "SDK Privacy and Security Statement: Android: Analytics Kit", url: "https://developer.huawei.com/consumer/en/doc/HMSCore-Guides/android-sdk-data-security-0000001050745153", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-hms-dvkit-codelab, title: "DeviceVirtualization Kit: HUAWEI Phone App (codelab)", url: "https://developer.huawei.com/consumer/en/codelab/DeviceVirtualizationKit-HUAWEIPhoneApp/", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-hms-hianalytics-maven, title: "com.huawei.hms:hianalytics 6.12.0.301 AAR (Huawei Maven)", url: "https://developer.huawei.com/repo/com/huawei/hms/hianalytics/6.12.0.301/hianalytics-6.12.0.301.aar", licence: NOASSERTION, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-intercom-faq, title: Intercom Mobile SDK - FAQs, url: "https://www.intercom.com/help/en/articles/7669340-mobile-sdk-faqs", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-intercom-gh, title: intercom/intercom-android (sample), url: "https://github.com/intercom/intercom-android", licence: NOASSERTION, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-intercom-maven, title: intercom-sdk-base 18.14.0 AAR (Maven Central), url: "https://repo1.maven.org/maven2/io/intercom/android/intercom-sdk-base/18.14.0/intercom-sdk-base-18.14.0.aar", licence: NOASSERTION, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-jumio-gh, title: Jumio/mobile-sdk-android integration guide, url: "https://github.com/Jumio/mobile-sdk-android/blob/master/docs/integration_guide.md", licence: NOASSERTION, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-jumio-maven, title: Jumio core 4.19.1 AAR (vendor Maven repo), url: "https://repo.mobile.jumio.ai/com/jumio/android/core/4.19.1/core-4.19.1.aar", licence: NOASSERTION, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-kochava-maven, title: "com.kochava.tracker:tracker 5.7.0 (Maven Central AAR)", url: "https://repo1.maven.org/maven2/com/kochava/tracker/tracker/5.7.0/tracker-5.7.0.aar", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-kochava-privacy, title: SDK Data Privacy and Safety, url: "https://support.kochava.com/reference-information/sdk-data-privacy-and-safety/", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-levelplay-aar, title: "Unity LevelPlay mediation-sdk 9.8.0 AAR (Maven Central, com.unity3d.ads-mediation)", url: "https://repo1.maven.org/maven2/com/unity3d/ads-mediation/mediation-sdk/9.8.0/mediation-sdk-9.8.0.aar", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-levelplay-datasafety, title: "Unity LevelPlay: Google Data Safety Questionnaire", url: "https://docs.unity.com/en-us/grow/levelplay/platform/legal-resources/google-data-safety-questionnaire", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-luciq-endpoints, title: "Luciq Android: Configuring Custom SDK Endpoints", url: "https://docs.luciq.ai/android/set-up-luciq-for-android/integrate-luciq-on-android/configure-custom-endpoints", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-luciq-playstore, title: "Luciq Android: Play Store Privacy Details", url: "https://docs.luciq.ai/android/set-up-luciq-for-android/play-store-privacy-details", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-magnes-jar, title: android-magnessdk-5.6.0.jar bundled in braintree_android, url: "https://github.com/braintree/braintree_android/blob/main/DataCollector/libs/android-magnessdk-5.6.0.jar", licence: NOASSERTION, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-mapbox-events-gh, title: mapbox/mapbox-events-android (archived), url: "https://github.com/mapbox/mapbox-events-android", licence: MIT, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-mapbox-legalfaq, title: "Mapbox Legal FAQ (Data Privacy & Security)", url: "https://www.mapbox.com/legal/legal-faq", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-meta-appstore-questionnaires, title: Resources for Completing App Store Data Practice Questionnaires for Apps That Include the Facebook or Audience Network SDK, url: "https://developers.facebook.com/blog/post/2022/07/18/resources-for-completing-app-store-data-practice-questionnaires-apps-facebook-or-audience-network-sdk/", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-meta-autolog, title: Automatic App Event Logging, url: "https://developers.facebook.com/docs/app-events/automatic-event-collection-detail/", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-meta-getstarted, title: Get Started with App Events (Android), url: "https://developers.facebook.com/docs/app-events/getting-started-app-events-android/", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-meta-gh, title: meta/facebook-android-sdk, url: "https://github.com/meta/facebook-android-sdk", licence: NOASSERTION, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-mintegral-android-md, title: "Mintegral SDK Android doc: markdown source behind dev.mintegral.com (doc id 1794207045)", url: "https://cdn-mtg-markdown.rayjump.com/cdn-adn/v2/markdown_v2/docs/1794207045/index.md", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-mixpanel-doc, title: "Mixpanel SDKs: Android", url: "https://docs.mixpanel.com/docs/tracking-methods/sdks/android", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-mixpanel-gh, title: mixpanel/mixpanel-android, url: "https://github.com/mixpanel/mixpanel-android", licence: Apache-2.0, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-moengage-gpdd, title: "Prepare for Google Play's data disclosure requirements", url: "https://www.moengage.com/docs/developer-guide/android-sdk/compliance/prepare-for-google-plays-data-disclosure-requirements", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-moengage-maven, title: "com.moengage:core 10.5.0 (Maven Central AAR)", url: "https://repo1.maven.org/maven2/com/moengage/core/10.5.0/core-10.5.0.aar", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-moengage-nsc, title: Network Security Configuration, url: "https://www.moengage.com/docs/developer-guide/android-sdk/sdk-integration/advanced-or-optional/network-security-configuration", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-onesignal-gh, title: OneSignal/OneSignal-Android-SDK, url: "https://github.com/OneSignal/OneSignal-Android-SDK", licence: NOASSERTION, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-onesignal-gpds, title: Google Play Data Safety Requirements, url: "https://documentation.onesignal.com/docs/en/google-play-data-safety-requirements", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-onfido-gh, title: onfido/onfido-android-sdk, url: "https://github.com/onfido/onfido-android-sdk", licence: NOASSERTION, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-onfido-maven, title: onfido-capture-sdk-core 24.0.0 AAR (Maven Central), url: "https://repo1.maven.org/maven2/com/onfido/sdk/capture/onfido-capture-sdk-core/24.0.0/onfido-capture-sdk-core-24.0.0.aar", licence: NOASSERTION, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-pangle-gp, title: "Pangle: App privacy details on the Google Play (Data Disclosure)", url: "https://pangleglobal.com/integration/app-privacy-details-gp", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-segment-android-doc, title: Analytics-Android, url: "https://www.twilio.com/docs/segment/connections/sources/catalog/libraries/mobile/android", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-segment-android-gh, title: segmentio/analytics-android, url: "https://github.com/segmentio/analytics-android", licence: MIT, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-segment-kotlin-doc, title: Analytics-Kotlin (Android), url: "https://www.twilio.com/docs/segment/connections/sources/catalog/libraries/mobile/kotlin-android", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-segment-kotlin-gh, title: segmentio/analytics-kotlin, url: "https://github.com/segmentio/analytics-kotlin", licence: MIT, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-sentry-android, title: Sentry for Android, url: "https://docs.sentry.io/platforms/android/", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-sentry-dc, title: "Sentry Android: Data Collected", url: "https://docs.sentry.io/platforms/android/data-management/data-collected/", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-sentry-gh, title: getsentry/sentry-java, url: "https://github.com/getsentry/sentry-java", licence: MIT, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-singular-maven, title: "com.singular.sdk:singular_sdk 12.17.0 (Singular Maven AAR)", url: "https://maven.singular.net/com/singular/sdk/singular_sdk/12.17.0/singular_sdk-12.17.0.aar", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-smartlook-maven, title: smartlook-analytics 2.3.0 AAR (vendor Maven repo), url: "https://sdk.smartlook.com/android/release/com/smartlook/android/smartlook-analytics/2.3.0/smartlook-analytics-2.3.0.aar", licence: NOASSERTION, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-smartlook-recorded, title: "Smartlook: What is recorded and how", url: "https://mobile.developer.smartlook.com/docs/what-is-recorded-and-how", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-stripe-3ds2, title: "Stripe: 3D Secure 2 device information", url: "https://support.stripe.com/questions/3d-secure-2-device-information", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-stripe-afd, title: "Stripe: Advanced fraud detection", url: "https://docs.stripe.com/disputes/prevention/advanced-fraud-detection", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-stripe-gh, title: stripe/stripe-android, url: "https://github.com/stripe/stripe-android", licence: MIT, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-sumsub-analytics, title: "Sumsub Android SDK: Analytics", url: "https://docs.sumsub.com/docs/analytics-android", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-sumsub-consent, title: "Sumsub: Applicant Privacy Disclosures and Consent Requirements", url: "https://docs.sumsub.com/docs/applicant-privacy-disclosures-and-consent-requirements", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-sumsub-maven, title: idensic-mobile-sdk 1.47.0 AAR (vendor Maven repo), url: "https://maven.sumsub.com/repository/maven-public/com/sumsub/sns/idensic-mobile-sdk/1.47.0/idensic-mobile-sdk-1.47.0.aar", licence: NOASSERTION, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-unity-ads-datasafety, title: Google Play data safety section for Unity Ads (Android 4.21.0), url: "https://docs.unity.com/en-us/ads-android/4.21.0/privacy/developer-consent/disclosures/google-data-safety", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-unity-ads-github, title: Unity-Technologies/unity-ads-android (commit 2bcaa8a1), url: "https://github.com/Unity-Technologies/unity-ads-android", licence: NOASSERTION, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-uxcam-crashes, title: "UXCam Android: Crashes & ANRs", url: "https://developer.uxcam.com/docs/crashes-anrs-android", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-uxcam-maven, title: uxcam 3.12.1 AAR (vendor Maven repo), url: "https://sdk.uxcam.com/android/com/uxcam/uxcam/3.12.1/uxcam-3.12.1.aar", licence: NOASSERTION, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-uxcam-policy, title: UXCam Privacy Policy, url: "https://uxcam.com/privacy-policy", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-uxcam-privacy, title: "UXCam: Privacy and Compliance", url: "https://developer.uxcam.com/docs/privacy-and-compliance", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-veriff-guide, title: Veriff Android SDK guide, url: "https://devdocs.veriff.com/docs/android-sdk-guide", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-veriff-maven, title: veriff-library 14.0.3 AAR (vendor Maven repo), url: "https://cdn.veriff.me/android/com/veriff/veriff-library/14.0.3/veriff-library-14.0.3.aar", licence: NOASSERTION, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-veriff-privacy, title: "Veriff: Privacy notice and data collection purposes", url: "https://devdocs.veriff.com/docs/privacy-notice-and-data-collection-purposes", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-vungle-aar, title: "Liftoff Vungle Ads SDK 7.8.0 AAR (Maven Central, com.vungle:vungle-ads)", url: "https://repo1.maven.org/maven2/com/vungle/vungle-ads/7.8.0/vungle-ads-7.8.0.aar", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-vungle-datasafety, title: Google Play Data Safety Questionnaire for Liftoff Monetize, url: "https://support.vungle.com/hc/en-us/articles/5035287250331-Google-Play-Data-Safety-Questionnaire-for-Liftoff-Monetize", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-vungle-v6-advanced, title: Advanced Settings for Vungle SDK v.6 on Android and Amazon, url: "https://support.vungle.com/hc/en-us/articles/18092176310043-Advanced-Settings-for-Vungle-SDK-v-6-on-Android-and-Amazon", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-zendesk-analytics, title: "Zendesk Android SDK: analytics tracking", url: "https://developer.zendesk.com/documentation/zendesk-web-widget-sdks/sdks/android/analytics_tracking/", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-zendesk-classic-gh, title: zendesk/sdk_demo_app_android (archived), url: "https://github.com/zendesk/sdk_demo_app_android", licence: NOASSERTION, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-zendesk-demo-gh, title: zendesk/zendesk_sdk_demo_apps_android, url: "https://github.com/zendesk/zendesk_sdk_demo_apps_android", licence: Apache-2.0, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-zendesk-maven, title: zendesk messaging-android 3.2.0 / zendesk-android 2.2.0 AARs (vendor Maven repo), url: "https://zendesk.jfrog.io/artifactory/repo/zendesk/messaging/messaging-android/3.2.0/", licence: NOASSERTION, retrieved: 2026-11-23, use: facts_cited}
+  - {id: vendor-zendesk-privacy, title: Zendesk SDKs and app privacy details, url: "https://support.zendesk.com/hc/en-us/articles/7334754169370-Zendesk-SDKs-and-app-privacy-details", licence: LicenseRef-vendor-terms, retrieved: 2026-11-23, use: facts_cited}
 entries:
 - id: firebase_analytics
   name: Google Analytics for Firebase
@@ -192,20 +302,27 @@ entries:
   - {kind: manifest_component, value: com.google.android.gms.measurement.AppMeasurementService, source: vendor-gms-measurement-ref}
   - {kind: manifest_component, value: com.google.android.gms.measurement.AppMeasurementReceiver, source: vendor-gms-measurement-ref}
   - {kind: manifest_meta_data, value: 'com.google.firebase.components:com.google.firebase.analytics.connector.internal.AnalyticsConnectorRegistrar', source: observed-voi-firebase_analytics}
-  string_anchors: []
-  hosts: []
+  string_anchors:
+  - {value: firebase_analytics_collection_enabled, source: vendor-gmaven-measurement-impl}
+  - {value: firebase_analytics_collection_deactivated, source: vendor-gmaven-measurement-impl}
+  - {value: google_analytics_adid_collection_enabled, source: vendor-gmaven-measurement-impl}
+  - {value: google_analytics_default_allow_ad_personalization_signals, source: vendor-gmaven-measurement-impl}
+  - {value: google_analytics_automatic_screen_reporting_enabled, source: vendor-gmaven-measurement-impl}
+  source_files: []
+  hosts:
+  - {host: app-measurement.com, source: vendor-gmaven-measurement-impl}
   collects:
   - {data_type: identifiers.other, item: app_instance_id, mode: auto, requires_permission: null, source: google-analytics-data-disclosure}
   - {data_type: identifiers.other, item: advertising_id, mode: auto, requires_permission: com.google.android.gms.permission.AD_ID, source: google-analytics-data-disclosure}
   - {data_type: location.approx_location, item: masked_ip_address, mode: auto, requires_permission: null, source: google-analytics-data-disclosure, note: Coarse location derived from the masked IP address.}
-  - {data_type: financial.purchase_history, item: in_app_purchases, mode: auto, requires_permission: null, source: google-analytics-data-disclosure,
+  - {data_type: financial.purchase_history, item: in_app_purchases, mode: auto, requires_permission: null, requires: {permissions_any: [com.android.vending.BILLING], class_prefixes_any: [com.android.billingclient.]}, source: google-analytics-data-disclosure,
     requires: {permissions_any: [com.android.vending.BILLING], class_prefixes_any: [com.android.billingclient.]}, note: Automatic only for Google Play in-app purchases.}
   - {data_type: actions_in_app.user_interaction, item: app_lifecycle_events, mode: auto, requires_permission: null, source: google-analytics-data-disclosure, note: Screen views and sessions.}
   - {data_type: personal.personal_identifiers, item: user_id, mode: depends_on_usage, requires_permission: null, source: google-analytics-data-disclosure, note: Only when the app sets a user ID.}
   first_party_source: true
   sharing_override: null
   references: {vendor_disclosure: 'https://support.google.com/analytics/answer/11582702', play_sdk_index: null}
-  sources: [vendor-firebase-analytics-ref, vendor-gms-measurement-ref, observed-voi-firebase_analytics, google-analytics-data-disclosure]
+  sources: [vendor-firebase-analytics-ref, vendor-gms-measurement-ref, observed-voi-firebase_analytics, google-analytics-data-disclosure, vendor-gmaven-measurement-api, vendor-gmaven-measurement-impl]
 - id: firebase_crashlytics
   name: Firebase Crashlytics
   role: crash
@@ -216,17 +333,24 @@ entries:
   obfuscated_prefixes: []
   anchors:
   - {kind: class_anchor, value: com.google.firebase.crashlytics.FirebaseCrashlytics, source: vendor-firebase-crashlytics-ref}
-  string_anchors: []
-  hosts: []
+  - {kind: manifest_meta_data, value: "com.google.firebase.components:com.google.firebase.crashlytics.CrashlyticsRegistrar", source: vendor-gmaven-crashlytics}
+  - {kind: manifest_meta_data, value: "com.google.firebase.components:com.google.firebase.crashlytics.FirebaseCrashlyticsKtxRegistrar", source: vendor-gmaven-crashlytics}
+  string_anchors:
+  - {value: com.google.firebase.crashlytics.mapping_file_id, source: vendor-firebase-android-sdk}
+  source_files:
+  - {value: FirebaseCrashlytics.java, source: vendor-firebase-android-sdk}
+  - {value: DataTransportCrashlyticsReportSender.java, source: vendor-firebase-android-sdk}
+  hosts:
+  - {host: firebase-settings.crashlytics.com, source: vendor-firebase-android-sdk}
   collects:
   - {data_type: app_performance.crash_logs, item: null, mode: auto, requires_permission: null, source: firebase-play-data-disclosure, note: Stack traces and relevant application state.}
   - {data_type: app_performance.performance_diagnostics, item: device_metadata, mode: auto, requires_permission: null, source: firebase-play-data-disclosure}
   - {data_type: identifiers.other, item: crashlytics_installation_uuid, mode: auto, requires_permission: null, source: firebase-play-data-disclosure}
-  - {data_type: personal.personal_identifiers, item: user_id, mode: depends_on_usage, requires_permission: null, source: firebase-play-data-disclosure, note: 'Developer-defined keys, logs and user IDs.'}
+  - {data_type: personal.personal_identifiers, item: user_id, mode: depends_on_usage, requires_permission: null, source: firebase-play-data-disclosure, note: "'Developer-defined keys, logs and user IDs.'"}
   first_party_source: true
   sharing_override: null
   references: {vendor_disclosure: 'https://firebase.google.com/docs/android/play-data-disclosure', play_sdk_index: null}
-  sources: [vendor-firebase-crashlytics-ref, firebase-play-data-disclosure]
+  sources: [vendor-firebase-crashlytics-ref, firebase-play-data-disclosure, vendor-firebase-android-sdk, vendor-gmaven-crashlytics]
 - id: fabric_crashlytics
   name: Crashlytics (Fabric, legacy)
   role: crash
@@ -256,15 +380,21 @@ entries:
   obfuscated_prefixes: []
   anchors:
   - {kind: class_anchor, value: com.google.firebase.installations.FirebaseInstallations, source: vendor-firebase-installations-ref}
+  - {kind: manifest_meta_data, value: "com.google.firebase.components:com.google.firebase.installations.FirebaseInstallationsRegistrar", source: vendor-gmaven-installations}
+  - {kind: manifest_meta_data, value: "com.google.firebase.components:com.google.firebase.installations.FirebaseInstallationsKtxRegistrar", source: vendor-gmaven-installations}
   string_anchors: []
-  hosts: []
+  source_files:
+  - {value: FirebaseInstallations.java, source: vendor-firebase-android-sdk}
+  - {value: FirebaseInstallationServiceClient.java, source: vendor-firebase-android-sdk}
+  hosts:
+  - {host: firebaseinstallations.googleapis.com, source: vendor-firebase-android-sdk}
   collects:
   - {data_type: identifiers.other, item: firebase_installation_id, mode: auto, requires_permission: null, source: firebase-play-data-disclosure}
-  - {data_type: app_performance.other, item: firebase_user_agent, mode: auto, requires_permission: null, source: firebase-play-data-disclosure, note: 'OS version, device model and Firebase SDK versions.'}
+  - {data_type: app_performance.other, item: firebase_user_agent, mode: auto, requires_permission: null, source: firebase-play-data-disclosure, note: "'OS version, device model and Firebase SDK versions.'"}
   first_party_source: true
   sharing_override: null
   references: {vendor_disclosure: 'https://firebase.google.com/docs/android/play-data-disclosure', play_sdk_index: null}
-  sources: [vendor-firebase-installations-ref, firebase-play-data-disclosure]
+  sources: [vendor-firebase-installations-ref, firebase-play-data-disclosure, vendor-firebase-android-sdk, vendor-gmaven-installations]
 - id: firebase_messaging
   name: Firebase Cloud Messaging
   role: messaging
@@ -278,7 +408,18 @@ entries:
   - {kind: class_anchor, value: com.google.firebase.messaging.FirebaseMessaging, source: vendor-firebase-messaging-ref}
   - {kind: class_anchor, value: com.google.firebase.iid.FirebaseInstanceId, source: vendor-firebase-iid-ref}
   - {kind: manifest_component, value: com.google.firebase.messaging.FirebaseMessagingService, source: observed-voi-firebase_messaging}
-  string_anchors: []
+  - {kind: manifest_meta_data, value: "com.google.firebase.components:com.google.firebase.messaging.FirebaseMessagingRegistrar", source: vendor-gmaven-messaging}
+  - {kind: manifest_meta_data, value: "com.google.firebase.components:com.google.firebase.messaging.FirebaseMessagingKtxRegistrar", source: vendor-gmaven-messaging}
+  string_anchors:
+  - {value: firebase_messaging_auto_init_enabled, source: vendor-firebase-android-sdk}
+  - {value: com.google.firebase.messaging.default_notification_channel_id, source: vendor-firebase-android-sdk}
+  - {value: com.google.firebase.messaging.default_notification_icon, source: vendor-firebase-android-sdk}
+  - {value: com.google.firebase.MESSAGING_EVENT, source: vendor-gmaven-messaging}
+  - {value: com.google.firebase.iid.FirebaseInstanceIdReceiver, source: vendor-gmaven-messaging}
+  source_files:
+  - {value: FirebaseMessaging.java, source: vendor-firebase-android-sdk}
+  - {value: FirebaseMessagingService.java, source: vendor-firebase-android-sdk}
+  - {value: FirebaseInstanceIdReceiver.java, source: vendor-firebase-android-sdk}
   hosts: []
   collects:
   - {data_type: app_performance.other, item: application_version, mode: auto, requires_permission: null, source: firebase-play-data-disclosure}
@@ -286,7 +427,7 @@ entries:
   first_party_source: true
   sharing_override: null
   references: {vendor_disclosure: 'https://firebase.google.com/docs/android/play-data-disclosure', play_sdk_index: null}
-  sources: [vendor-firebase-messaging-ref, vendor-firebase-iid-ref, observed-voi-firebase_messaging, firebase-play-data-disclosure, observed-spin-firebase_messaging]
+  sources: [vendor-firebase-messaging-ref, vendor-firebase-iid-ref, observed-voi-firebase_messaging, firebase-play-data-disclosure, observed-spin-firebase_messaging, vendor-firebase-android-sdk, vendor-gmaven-messaging]
 - id: firebase_performance
   name: Firebase Performance Monitoring
   role: diagnostics
@@ -297,15 +438,23 @@ entries:
   obfuscated_prefixes: []
   anchors:
   - {kind: class_anchor, value: com.google.firebase.perf.FirebasePerformance, source: vendor-firebase-perf-ref}
-  string_anchors: []
+  - {kind: manifest_meta_data, value: "com.google.firebase.components:com.google.firebase.perf.FirebasePerfRegistrar", source: vendor-gmaven-perf}
+  - {kind: manifest_meta_data, value: "com.google.firebase.components:com.google.firebase.perf.FirebasePerfKtxRegistrar", source: vendor-gmaven-perf}
+  string_anchors:
+  - {value: firebase_performance_collection_enabled, source: vendor-firebase-android-sdk}
+  - {value: firebase_performance_collection_deactivated, source: vendor-firebase-android-sdk}
+  source_files:
+  - {value: FirebasePerformance.java, source: vendor-firebase-android-sdk}
+  - {value: FirebasePerfUrlConnection.java, source: vendor-firebase-android-sdk}
+  - {value: FirebasePerfOkHttpClient.java, source: vendor-firebase-android-sdk}
   hosts: []
   collects:
-  - {data_type: app_performance.performance_diagnostics, item: null, mode: auto, requires_permission: null, source: firebase-play-data-disclosure, note: 'Start-up time, network latency, CPU and memory use.'}
+  - {data_type: app_performance.performance_diagnostics, item: null, mode: auto, requires_permission: null, source: firebase-play-data-disclosure, note: "'Start-up time, network latency, CPU and memory use.'"}
   - {data_type: location.approx_location, item: ip_address, mode: auto, requires_permission: null, source: firebase-play-data-disclosure}
   first_party_source: true
   sharing_override: null
   references: {vendor_disclosure: 'https://firebase.google.com/docs/android/play-data-disclosure', play_sdk_index: null}
-  sources: [vendor-firebase-perf-ref, firebase-play-data-disclosure]
+  sources: [vendor-firebase-perf-ref, firebase-play-data-disclosure, vendor-firebase-android-sdk, vendor-gmaven-perf]
 - id: google_mobile_ads
   name: Google Mobile Ads (AdMob)
   role: ads
@@ -318,7 +467,11 @@ entries:
   - {kind: class_anchor, value: com.google.android.gms.ads.MobileAds, source: vendor-admob-ref}
   - {kind: manifest_component, value: com.google.android.gms.ads.AdActivity, source: vendor-admob-quickstart-sample}
   - {kind: manifest_meta_data, value: com.google.android.gms.ads.APPLICATION_ID, source: admob-quick-start}
-  string_anchors: []
+  string_anchors:
+  - {value: com.google.android.gms.ads.APPLICATION_ID, source: vendor-admob-quickstart}
+  - {value: com.google.android.gms.ads.flag.OPTIMIZE_INITIALIZATION, source: vendor-admob-optimize-init}
+  - {value: com.google.android.gms.ads.flag.OPTIMIZE_AD_LOADING, source: vendor-admob-optimize-init}
+  source_files: []
   hosts: []
   collects:
   - {data_type: location.approx_location, item: ip_address, mode: auto, requires_permission: null, source: admob-play-data-disclosure}
@@ -329,7 +482,7 @@ entries:
   first_party_source: true
   sharing_override: null
   references: {vendor_disclosure: 'https://developers.google.com/admob/android/privacy/play-data-disclosure', play_sdk_index: null}
-  sources: [vendor-admob-ref, vendor-admob-quickstart-sample, admob-quick-start, admob-play-data-disclosure]
+  sources: [vendor-admob-ref, vendor-admob-quickstart-sample, admob-quick-start, admob-play-data-disclosure, vendor-admob-optimize-init, vendor-admob-quickstart]
 - id: meta_app_events
   name: Meta App Events (Facebook SDK)
   role: analytics
@@ -341,13 +494,25 @@ entries:
   anchors:
   - {kind: class_anchor, value: com.facebook.appevents.AppEventsLogger, source: vendor-meta-sdk-core-src}
   - {kind: manifest_meta_data, value: com.facebook.sdk.ApplicationId, source: vendor-meta-login}
-  string_anchors: []
+  string_anchors:
+  - {value: com.facebook.sdk.AutoLogMetaDataEnabled, source: vendor-meta-autolog}
+  source_files:
+  - {value: AppEventsLogger.kt, source: vendor-meta-gh}
+  - {value: AppEventsLoggerImpl.kt, source: vendor-meta-gh}
+  - {value: AppEventsConstants.kt, source: vendor-meta-gh}
+  - {value: AppEventsManager.kt, source: vendor-meta-gh}
+  - {value: FacebookSdk.kt, source: vendor-meta-gh}
+  - {value: FacebookSDKJSInterface.kt, source: vendor-meta-gh}
   hosts: []
-  collects: []
+  collects:
+  - {data_type: actions_in_app.user_interaction, item: install_launch_events, mode: auto, requires_permission: null, source: vendor-meta-getstarted, note: Install and launch events are logged automatically unless AutoLogAppEventsEnabled is false.}
+  - {data_type: financial.purchase_history, item: google_play_iap_events, mode: depends_on_usage, requires_permission: null, source: vendor-meta-getstarted, note: Completed Google Play in-app purchases are auto-logged as events.}
+  - {data_type: identifiers.other, item: advertiser_id, mode: auto, requires_permission: null, source: vendor-meta-getstarted, note: "Per the vendor documentation, on unless the AdvertiserIDCollectionEnabled manifest flag is false."}
+  - {data_type: app_performance.crash_logs, item: sdk_crash_report, mode: depends_on_usage, requires_permission: null, source: vendor-meta-autolog, note: Crashes caused by the SDK are reported to Meta on next launch while automatic logging is on.}
   first_party_source: false
   sharing_override: possible_sharing
   references: {vendor_disclosure: 'https://developers.facebook.com/docs/app-events/getting-started-app-events-android', play_sdk_index: null}
-  sources: [vendor-meta-sdk-core-src, vendor-meta-login, observed-spin-meta_app_events]
+  sources: [vendor-meta-sdk-core-src, vendor-meta-login, observed-spin-meta_app_events, vendor-meta-autolog, vendor-meta-getstarted, vendor-meta-gh]
 - id: meta_audience_network
   name: Meta Audience Network
   role: ads
@@ -359,13 +524,18 @@ entries:
   anchors:
   - {kind: class_anchor, value: com.facebook.ads.AudienceNetworkAds, source: vendor-meta-audience-network}
   - {kind: manifest_component, value: com.facebook.ads.AudienceNetworkActivity, source: vendor-meta-audience-network}
-  string_anchors: []
+  string_anchors:
+  - {value: com.facebook.ads.AudienceNetworkActivity, source: vendor-fb-an-maven}
+  - {value: com.facebook.ads.AudienceNetworkContentProvider, source: vendor-fb-an-maven}
+  source_files: []
   hosts: []
-  collects: []
+  collects:
+  - {data_type: identifiers.other, item: device_identifiers, mode: auto, requires_permission: null, source: vendor-meta-appstore-questionnaires, note: Received whenever Audience Network ads are integrated.}
+  - {data_type: actions_in_app.user_interaction, item: ad_performance_information, mode: auto, requires_permission: null, source: vendor-meta-appstore-questionnaires, note: "Impressions, clicks, placement and viewability of served ads."}
   first_party_source: false
   sharing_override: null
-  references: {vendor_disclosure: null, play_sdk_index: null}
-  sources: [vendor-meta-audience-network]
+  references: {vendor_disclosure: "https://developers.facebook.com/blog/post/2022/07/18/resources-for-completing-app-store-data-practice-questionnaires-apps-facebook-or-audience-network-sdk/", play_sdk_index: null}
+  sources: [vendor-meta-audience-network, vendor-fb-an-maven, vendor-meta-appstore-questionnaires]
 - id: meta_login
   name: Facebook Login
   role: identity
@@ -377,13 +547,22 @@ entries:
   anchors:
   - {kind: class_anchor, value: com.facebook.login.LoginManager, source: vendor-meta-login-src}
   - {kind: manifest_component, value: com.facebook.FacebookActivity, source: vendor-meta-login}
-  string_anchors: []
+  string_anchors:
+  - {value: com.facebook.sdk.IntentUriPackageTarget, source: vendor-fb-login-android-doc}
+  - {value: com.facebook.FacebookActivity, source: vendor-fb-login-android-doc}
+  - {value: com.facebook.CustomTabActivity, source: vendor-fb-login-android-doc}
+  - {value: com.facebook.internal.FacebookInitProvider, source: vendor-fb-android-sdk-repo}
+  source_files:
+  - {value: KatanaProxyLoginMethodHandler.kt, source: vendor-fb-android-sdk-repo}
   hosts: []
-  collects: []
+  collects:
+  - {data_type: personal.personal_identifiers, item: app_scoped_facebook_user_id, mode: depends_on_usage, requires_permission: null, source: vendor-meta-appstore-questionnaires, note: Created when a user signs in with Facebook Login.}
+  - {data_type: personal.name, item: default_public_profile_fields_name, mode: depends_on_usage, requires_permission: null, source: vendor-fb-graph-user, note: public_profile exposes the name fields once the user logs in.}
+  - {data_type: personal.email_address, item: primary_email_email_permission, mode: depends_on_usage, requires_permission: null, source: vendor-fb-perm-email, note: "Only if the app requests the Facebook email permission and the user grants it. This is a Facebook permission, not an Android one."}
   first_party_source: false
   sharing_override: null
-  references: {vendor_disclosure: null, play_sdk_index: null}
-  sources: [vendor-meta-login-src, vendor-meta-login, observed-spin-meta_login]
+  references: {vendor_disclosure: "https://developers.facebook.com/blog/post/2022/07/18/resources-for-completing-app-store-data-practice-questionnaires-apps-facebook-or-audience-network-sdk/", play_sdk_index: null}
+  sources: [vendor-meta-login-src, vendor-meta-login, observed-spin-meta_login, vendor-fb-android-sdk-repo, vendor-fb-graph-user, vendor-fb-login-android-doc, vendor-fb-perm-email, vendor-meta-appstore-questionnaires]
 - id: appsflyer
   name: AppsFlyer
   role: attribution
@@ -394,13 +573,22 @@ entries:
   obfuscated_prefixes: []
   anchors:
   - {kind: class_anchor, value: com.appsflyer.AppsFlyerLib, source: vendor-appsflyer-integrate}
-  string_anchors: []
-  hosts: []
-  collects: []
+  string_anchors:
+  - {value: com.appsflyer.referrer.INSTALL_PROVIDER, source: vendor-appsflyer-maven}
+  - {value: com.appsflyer.FacebookApplicationId, source: vendor-appsflyer-maven}
+  - {value: com.appsflyer.security.enable, source: vendor-appsflyer-maven}
+  source_files: []
+  hosts:
+  - {host: privacy-sandbox.appsflyersdk.com, source: vendor-appsflyer-maven}
+  collects:
+  - {data_type: identifiers.other, item: advertising_ids, mode: auto, requires_permission: null, source: vendor-appsflyer-ref, note: "Per the vendor documentation, on unless the app calls setDisableAdvertisingIdentifiers(true)."}
+  - {data_type: identifiers.other, item: oaid, mode: depends_on_usage, requires_permission: null, source: vendor-appsflyer-ref, note: Only with the OAID library on devices that provide it.}
+  - {data_type: identifiers.other, item: android_id_imei, mode: depends_on_usage, requires_permission: null, source: vendor-appsflyer-ref, note: Android ID and IMEI are opt-in through setCollectAndroidID / setCollectIMEI.}
+  - {data_type: personal.personal_identifiers, item: customer_user_id, mode: depends_on_usage, requires_permission: null, source: vendor-appsflyer-ref, note: Only when the app calls setCustomerUserId.}
   first_party_source: false
   sharing_override: null
-  references: {vendor_disclosure: null, play_sdk_index: null}
-  sources: [vendor-appsflyer-integrate, observed-spin-appsflyer]
+  references: {vendor_disclosure: "https://support.appsflyer.com/hc/en-us/articles/4417197430289", play_sdk_index: null}
+  sources: [vendor-appsflyer-integrate, observed-spin-appsflyer, vendor-appsflyer-maven, vendor-appsflyer-ref]
 - id: adjust
   name: Adjust
   role: attribution
@@ -412,13 +600,37 @@ entries:
   anchors:
   - {kind: class_anchor, value: com.adjust.sdk.Adjust, source: vendor-adjust-android}
   - {kind: manifest_component, value: com.adjust.sdk.AdjustReferrerReceiver, source: vendor-adjust-readme-v4}
-  string_anchors: []
-  hosts: []
-  collects: []
+  string_anchors:
+  - {value: AdjustIoActivityState, source: vendor-adjust-gh}
+  - {value: com.adjust.preinstall, source: vendor-adjust-gh}
+  source_files:
+  - {value: Adjust.java, source: vendor-adjust-gh}
+  - {value: AdjustConfig.java, source: vendor-adjust-gh}
+  - {value: AdjustInstance.java, source: vendor-adjust-gh}
+  - {value: AdjustEvent.java, source: vendor-adjust-gh}
+  - {value: AdjustFactory.java, source: vendor-adjust-gh}
+  - {value: AdjustImei.java, source: vendor-adjust-gh}
+  - {value: AdjustOaid.java, source: vendor-adjust-gh}
+  hosts:
+  - {host: app.adjust.com, source: vendor-adjust-gh}
+  - {host: gdpr.adjust.com, source: vendor-adjust-gh}
+  - {host: subscription.adjust.com, source: vendor-adjust-gh}
+  - {host: ssrv.adjust.com, source: vendor-adjust-gh}
+  - {host: adjust.net.in, source: vendor-adjust-privacy}
+  - {host: eu.adjust.com, source: vendor-adjust-privacy}
+  - {host: tr.adjust.com, source: vendor-adjust-privacy}
+  - {host: us.adjust.com, source: vendor-adjust-privacy}
+  collects:
+  - {data_type: actions_in_app.user_interaction, item: sessions_app_launches, mode: auto, requires_permission: null, source: vendor-adjust-gpds, note: Session and app-launch activity is recorded as soon as the SDK runs.}
+  - {data_type: identifiers.other, item: gaid_android_id_fallback, mode: auto, requires_permission: null, source: vendor-adjust-gpds, note: "On Play-services devices the advertising ID is read, with Android ID as fallback; COPPA or Kids mode suppresses this."}
+  - {data_type: identifiers.other, item: imei, mode: depends_on_usage, requires_permission: null, source: vendor-adjust-gpds, note: IMEI is read only when the separate IMEI plugin is bundled.}
+  - {data_type: identifiers.other, item: oaid, mode: depends_on_usage, requires_permission: null, source: vendor-adjust-gpds, note: OAID is read only when the OAID plugin is bundled.}
+  - {data_type: financial.purchase_history, item: purchase_verification, mode: depends_on_usage, requires_permission: null, source: vendor-adjust-gpds, note: Purchase receipts are handled only if the app integrates the purchase-verification SDK.}
+  - {data_type: personal.email_address, item: custom_parameters_email, mode: depends_on_usage, requires_permission: null, source: vendor-adjust-gpds, note: Email or other personal info reaches Adjust only if the app forwards it in custom parameters.}
   first_party_source: false
   sharing_override: null
   references: {vendor_disclosure: 'https://dev.adjust.com/en/sdk/android/features/privacy', play_sdk_index: null}
-  sources: [vendor-adjust-android, vendor-adjust-readme-v4, observed-voi-adjust]
+  sources: [vendor-adjust-android, vendor-adjust-readme-v4, observed-voi-adjust, vendor-adjust-gh, vendor-adjust-gpds, vendor-adjust-privacy]
 - id: branch
   name: Branch
   role: attribution
@@ -430,13 +642,32 @@ entries:
   anchors:
   - {kind: class_anchor, value: io.branch.referral.Branch, source: vendor-branch-integration}
   - {kind: manifest_meta_data, value: io.branch.sdk.BranchKey, source: vendor-branch-integration}
-  string_anchors: []
-  hosts: []
-  collects: []
+  string_anchors:
+  - {value: io.branch.sdk.BranchKey, source: vendor-branch-gh}
+  - {value: io.branch.sdk.BranchKey.test, source: vendor-branch-gh}
+  - {value: io.branch.sdk.TestMode, source: vendor-branch-gh}
+  source_files:
+  - {value: Branch.java, source: vendor-branch-gh}
+  - {value: BranchUniversalObject.java, source: vendor-branch-gh}
+  - {value: BranchUtil.java, source: vendor-branch-gh}
+  - {value: BranchJsonConfig.java, source: vendor-branch-gh}
+  - {value: BranchShortLinkBuilder.java, source: vendor-branch-gh}
+  - {value: BranchUrlBuilder.java, source: vendor-branch-gh}
+  - {value: ServerRequestRegisterInstall.java, source: vendor-branch-gh}
+  - {value: ServerRequestInitSession.java, source: observed-voi-branch}
+  hosts:
+  - {host: api2.branch.io, source: vendor-branch-gh}
+  - {host: api.branch.io, source: vendor-branch-gh}
+  - {host: api3-eu.branch.io, source: vendor-branch-gh}
+  - {host: cdn.branch.io, source: vendor-branch-gh}
+  collects:
+  - {data_type: actions_in_app.user_interaction, item: page_views_taps, mode: auto, requires_permission: null, source: vendor-branch-gpds, note: Marked optional by the vendor; on unless the app uses Branch privacy controls to wait for opt-in.}
+  - {data_type: identifiers.other, item: device_identifiers, mode: auto, requires_permission: null, source: vendor-branch-gpds, note: Marked YES (OPTIONAL) with no further condition; the page does not define OPTIONAL.}
+  - {data_type: actions_in_app.other, item: clicks_installs_purchases, mode: auto, requires_permission: null, source: vendor-branch-gpds, note: "Attribution actions such as clicks and installs are gathered on the app's behalf."}
   first_party_source: false
   sharing_override: null
-  references: {vendor_disclosure: null, play_sdk_index: null}
-  sources: [vendor-branch-integration]
+  references: {vendor_disclosure: "https://help.branch.io/answering-the-google-play-store-privacy-questions", play_sdk_index: null}
+  sources: [vendor-branch-integration, observed-voi-branch, vendor-branch-gh, vendor-branch-gpds]
 - id: kochava
   name: Kochava
   role: attribution
@@ -448,13 +679,22 @@ entries:
   obfuscated_prefixes: []
   anchors:
   - {kind: class_anchor, value: com.kochava.tracker.Tracker, source: vendor-kochava-using-sdk}
-  string_anchors: []
-  hosts: []
-  collects: []
+  string_anchors:
+  - {value: kochava_device_id, source: vendor-kochava-maven}
+  - {value: com.kochava.tracker.tracker.profile, source: vendor-kochava-maven}
+  source_files: []
+  hosts:
+  - {host: kvinit-prod.api.kochava.com, source: vendor-kochava-maven}
+  - {host: control.kochava.com, source: vendor-kochava-maven}
+  - {host: token.api.kochava.com, source: vendor-kochava-maven}
+  collects:
+  - {data_type: location.approx_location, item: ip_derived_location, mode: depends_on_usage, requires_permission: null, source: vendor-kochava-privacy, note: "Per the vendor documentation, a general location is derived server-side from the IP address."}
+  - {data_type: identifiers.other, item: kochava_device_id, mode: auto, requires_permission: null, source: vendor-kochava-privacy, note: Install-scoped SDK-generated ID; the page lists it with no module condition (default status inferred).}
+  - {data_type: identifiers.other, item: gaid_app_set_id, mode: depends_on_usage, requires_permission: null, source: vendor-kochava-privacy, note: Only when the matching identifier modules are bundled.}
   first_party_source: false
   sharing_override: null
-  references: {vendor_disclosure: null, play_sdk_index: null}
-  sources: [vendor-kochava-using-sdk]
+  references: {vendor_disclosure: "https://support.kochava.com/reference-information/sdk-data-privacy-and-safety/", play_sdk_index: null}
+  sources: [vendor-kochava-using-sdk, vendor-kochava-maven, vendor-kochava-privacy]
   note: Anchor composed from the vendor's rename note (package com.kochava.tracker, entry class Tracker); no import line shown.
 - id: singular
   name: Singular
@@ -466,13 +706,19 @@ entries:
   obfuscated_prefixes: []
   anchors:
   - {kind: class_anchor, value: com.singular.sdk.Singular, source: vendor-singular-sample}
-  string_anchors: []
-  hosts: []
+  string_anchors:
+  - {value: com.singular.preinstall.READ_PERMISSION_SINGULAR, source: vendor-singular-maven}
+  - {value: com.singular.sdk.internal.SingularDataStore, source: vendor-singular-maven}
+  - {value: singular_install_id, source: vendor-singular-maven}
+  source_files: []
+  hosts:
+  - {host: sdk-api-v1.singular.net, source: vendor-singular-maven}
+  - {host: exceptions.singular.net, source: vendor-singular-maven}
   collects: []
   first_party_source: false
   sharing_override: null
   references: {vendor_disclosure: null, play_sdk_index: null}
-  sources: [vendor-singular-sample]
+  sources: [vendor-singular-sample, vendor-singular-maven]
 - id: amplitude
   name: Amplitude
   role: analytics
@@ -486,12 +732,27 @@ entries:
   - {kind: class_anchor, value: com.amplitude.api.Amplitude, source: vendor-amplitude-android}
   - {kind: class_anchor, value: com.amplitude.android.Amplitude, source: vendor-amplitude-kotlin}
   string_anchors: []
-  hosts: []
-  collects: []
+  source_files:
+  - {value: AmplitudeClient.java, source: vendor-amplitude-android-gh}
+  - {value: Amplitude.java, source: vendor-amplitude-android-gh}
+  - {value: AmplitudeServerZone.java, source: vendor-amplitude-android-gh}
+  - {value: PinnedAmplitudeClient.java, source: vendor-amplitude-android-gh}
+  - {value: Amplitude.kt, source: vendor-amplitude-kotlin-gh}
+  - {value: AmplitudeDestination.kt, source: vendor-amplitude-kotlin-gh}
+  - {value: AmplitudeContext.kt, source: vendor-amplitude-kotlin-gh}
+  hosts:
+  - {host: api2.amplitude.com, source: vendor-amplitude-android-gh}
+  - {host: api.eu.amplitude.com, source: vendor-amplitude-android-gh}
+  - {host: regionconfig.amplitude.com, source: vendor-amplitude-android-gh}
+  - {host: regionconfig.eu.amplitude.com, source: vendor-amplitude-android-gh}
+  collects:
+  - {data_type: location.approx_location, item: city_country, mode: auto, requires_permission: null, source: vendor-amplitude-android-doc, note: The legacy SDK tracks city and country by default; per-field disable methods exist.}
+  - {data_type: location.precise_location, item: lat_lng, mode: depends_on_usage, requires_permission: null, source: vendor-amplitude-android-doc, note: Coordinates are tracked only after the app enables location listening (off by default since v2.40.3).}
+  - {data_type: actions_in_app.user_interaction, item: sessions, mode: auto, requires_permission: null, source: vendor-amplitude-kotlin-doc, note: The Kotlin SDK autocaptures session events by default; other autocapture is opt-in.}
   first_party_source: false
   sharing_override: null
   references: {vendor_disclosure: null, play_sdk_index: null}
-  sources: [vendor-amplitude-android, vendor-amplitude-kotlin, observed-spin-amplitude]
+  sources: [vendor-amplitude-android, vendor-amplitude-kotlin, observed-spin-amplitude, vendor-amplitude-android-doc, vendor-amplitude-android-gh, vendor-amplitude-kotlin-doc, vendor-amplitude-kotlin-gh]
 - id: mixpanel
   name: Mixpanel
   role: analytics
@@ -502,13 +763,31 @@ entries:
   obfuscated_prefixes: []
   anchors:
   - {kind: class_anchor, value: com.mixpanel.android.mpmetrics.MixpanelAPI, source: vendor-mixpanel-android}
-  string_anchors: []
-  hosts: []
-  collects: []
+  string_anchors:
+  - {value: com.mixpanel.android.MPConfig.EnableDebugLogging, source: vendor-mixpanel-gh}
+  - {value: com.mixpanel.android.MPConfig.UseIpAddressForGeolocation, source: vendor-mixpanel-gh}
+  - {value: com.mixpanel.android.MPConfig.EventsEndpoint, source: vendor-mixpanel-gh}
+  - {value: com.mixpanel.android.MPConfig.BackupHost, source: vendor-mixpanel-gh}
+  source_files:
+  - {value: MixpanelAPI.java, source: vendor-mixpanel-gh}
+  - {value: MPConfig.java, source: vendor-mixpanel-gh}
+  - {value: MPDbAdapter.java, source: vendor-mixpanel-gh}
+  - {value: MixpanelActivityLifecycleCallbacks.java, source: vendor-mixpanel-gh}
+  - {value: MixpanelOptions.java, source: vendor-mixpanel-gh}
+  - {value: MPConstants.java, source: vendor-mixpanel-gh}
+  hosts:
+  - {host: api.mixpanel.com, source: vendor-mixpanel-gh}
+  - {host: api-eu.mixpanel.com, source: vendor-mixpanel-gh}
+  - {host: api-in.mixpanel.com, source: vendor-mixpanel-doc}
+  collects:
+  - {data_type: identifiers.other, item: generated_device_id, mode: auto, requires_permission: null, source: vendor-mixpanel-doc, note: Without a custom provider the SDK generates and stores a UUID device ID.}
+  - {data_type: location.approx_location, item: ip_geolocation, mode: auto, requires_permission: null, source: vendor-mixpanel-gh, note: IP-based geolocation is on unless the UseIpAddressForGeolocation manifest flag is set to false (default true).}
+  - {data_type: actions_in_app.user_interaction, item: autocapture_and_automatic_events, mode: depends_on_usage, requires_permission: null, source: vendor-mixpanel-doc, note: Click autocapture and legacy automatic events ($ae_session etc.) need explicit enabling.}
+  - {data_type: app_performance.crash_logs, item: ae_crashed_event, mode: depends_on_usage, requires_permission: null, source: vendor-mixpanel-doc, note: A $ae_crashed event is emitted only when trackAutomaticEvents is enabled.}
   first_party_source: false
   sharing_override: null
   references: {vendor_disclosure: null, play_sdk_index: null}
-  sources: [vendor-mixpanel-android]
+  sources: [vendor-mixpanel-android, vendor-mixpanel-doc, vendor-mixpanel-gh]
 - id: segment
   name: Segment
   role: analytics
@@ -521,12 +800,22 @@ entries:
   - {kind: class_anchor, value: com.segment.analytics.Analytics, source: vendor-segment-android-src}
   - {kind: class_anchor, value: com.segment.analytics.kotlin.core.Analytics, source: vendor-segment-kotlin-src}
   string_anchors: []
-  hosts: []
-  collects: []
+  source_files:
+  - {value: SegmentIntegration.java, source: vendor-segment-android-gh}
+  - {value: SegmentDestination.kt, source: vendor-segment-kotlin-gh}
+  - {value: SegmentLog.kt, source: vendor-segment-kotlin-gh}
+  hosts:
+  - {host: api.segment.io, source: vendor-segment-kotlin-gh}
+  - {host: cdn-settings.segment.com, source: vendor-segment-kotlin-gh}
+  collects:
+  - {data_type: identifiers.other, item: advertising_id_analytics_android, mode: depends_on_usage, requires_permission: null, source: vendor-segment-android-doc, note: Legacy analytics-android puts the Play Services advertising ID into context.device.advertisingId.}
+  - {data_type: identifiers.other, item: drm_device_id_analytics_android, mode: depends_on_usage, requires_permission: null, source: vendor-segment-android-doc, note: Legacy analytics-android derives context.device.id from the DRM API.}
+  - {data_type: identifiers.other, item: device_id_analytics_kotlin, mode: depends_on_usage, requires_permission: null, source: vendor-segment-kotlin-doc, note: In analytics-kotlin only when collectDeviceId is set (default false).}
+  - {data_type: actions_in_app.user_interaction, item: lifecycle_events_analytics_kotlin, mode: depends_on_usage, requires_permission: null, source: vendor-segment-kotlin-doc, note: Application Installed/Opened/Updated events need trackApplicationLifecycleEvents (default false).}
   first_party_source: false
   sharing_override: null
   references: {vendor_disclosure: null, play_sdk_index: null}
-  sources: [vendor-segment-android-src, vendor-segment-kotlin-src]
+  sources: [vendor-segment-android-src, vendor-segment-kotlin-src, vendor-segment-android-doc, vendor-segment-android-gh, vendor-segment-kotlin-doc, vendor-segment-kotlin-gh]
 - id: appmetrica
   name: AppMetrica (Yandex)
   role: analytics
@@ -563,13 +852,27 @@ entries:
   anchors:
   - {kind: class_anchor, value: io.sentry.android.core.SentryAndroid, source: vendor-sentry-manual-setup}
   - {kind: manifest_component, value: io.sentry.android.core.SentryInitProvider, source: vendor-sentry-manual-setup}
-  string_anchors: []
-  hosts: []
-  collects: []
+  string_anchors:
+  - {value: io.sentry.dsn, source: vendor-sentry-gh}
+  - {value: io.sentry.auto-init, source: vendor-sentry-gh}
+  - {value: io.sentry.traces.sample-rate, source: vendor-sentry-gh}
+  - {value: io.sentry.anr.enable, source: vendor-sentry-gh}
+  - {value: io.sentry.session-replay.on-error-sample-rate, source: vendor-sentry-gh}
+  source_files:
+  - {value: SentryAndroid.java, source: vendor-sentry-gh}
+  - {value: SentryInitProvider.java, source: vendor-sentry-gh}
+  - {value: SentryAndroidOptions.java, source: vendor-sentry-gh}
+  hosts:
+  - {host: ingest.sentry.io, source: vendor-sentry-android}
+  collects:
+  - {data_type: app_performance.crash_logs, item: errors_uncaught_exceptions_crashes, mode: auto, requires_permission: null, source: vendor-sentry-android, note: Issues product is always enabled once the SDK is initialised.}
+  - {data_type: identifiers.other, item: random_installation_id, mode: auto, requires_permission: null, source: vendor-sentry-dc, note: Used as user-ID fallback; Data Collection settings cannot turn it off.}
+  - {data_type: app_performance.other, item: device_and_os_context, mode: auto, requires_permission: null, source: vendor-sentry-dc, note: Device metadata attached to events; the category is our mapping.}
+  - {data_type: personal.personal_identifiers, item: user_set_via_sentry_setuser, mode: depends_on_usage, requires_permission: null, source: vendor-sentry-dc, note: Only if the app sets user identity explicitly.}
   first_party_source: false
   sharing_override: null
-  references: {vendor_disclosure: null, play_sdk_index: null}
-  sources: [vendor-sentry-manual-setup]
+  references: {vendor_disclosure: "https://docs.sentry.io/platforms/android/data-management/data-collected/", play_sdk_index: null}
+  sources: [vendor-sentry-manual-setup, vendor-sentry-android, vendor-sentry-dc, vendor-sentry-gh]
 - id: bugsnag
   name: Bugsnag
   role: crash
@@ -581,13 +884,32 @@ entries:
   anchors:
   - {kind: class_anchor, value: com.bugsnag.android.Bugsnag, source: vendor-bugsnag-src}
   - {kind: manifest_meta_data, value: com.bugsnag.android.API_KEY, source: vendor-bugsnag-android}
-  string_anchors: []
-  hosts: []
-  collects: []
+  string_anchors:
+  - {value: com.bugsnag.android.API_KEY, source: vendor-bugsnag-gh}
+  - {value: com.bugsnag.android.BUILD_UUID, source: vendor-bugsnag-gh}
+  - {value: com.bugsnag.android.AUTO_TRACK_SESSIONS, source: vendor-bugsnag-gh}
+  source_files:
+  - {value: Bugsnag.java, source: vendor-bugsnag-gh}
+  - {value: BugsnagEventMapper.kt, source: vendor-bugsnag-gh}
+  - {value: BugsnagContentProvider.kt, source: vendor-bugsnag-gh}
+  - {value: BugsnagStateModule.kt, source: vendor-bugsnag-gh}
+  - {value: BugsnagExitInfoPlugin.kt, source: vendor-bugsnag-gh}
+  - {value: BugsnagAppHangPlugin.kt, source: vendor-bugsnag-gh}
+  hosts:
+  - {host: notify.bugsnag.com, source: vendor-bugsnag-gh}
+  - {host: sessions.bugsnag.com, source: vendor-bugsnag-gh}
+  - {host: config.bugsnag.com, source: vendor-bugsnag-gh}
+  collects:
+  - {data_type: actions_in_app.other, item: breadcrumbs, mode: auto, requires_permission: null, source: vendor-bugsnag-playstore, note: Captured by default; can be limited via enabledBreadcrumbTypes.}
+  - {data_type: app_performance.crash_logs, item: crash_reports, mode: auto, requires_permission: null, source: vendor-bugsnag-playstore, note: The vendor documentation also lists reports of crashes in the BugSnag library itself.}
+  - {data_type: app_performance.performance_diagnostics, item: diagnostics, mode: auto, requires_permission: null, source: vendor-bugsnag-playstore, note: "Page marks Diagnostics \"Yes\" with no qualifier; default state not stated explicitly."}
+  - {data_type: app_performance.other, item: application_information, mode: auto, requires_permission: null, source: vendor-bugsnag-playstore, note: Captured by default.}
+  - {data_type: identifiers.other, item: generated_device_id, mode: auto, requires_permission: null, source: vendor-bugsnag-playstore, note: Overridable generated identifier.}
+  - {data_type: identifiers.other, item: generated_user_id, mode: auto, requires_permission: null, source: vendor-bugsnag-playstore, note: Generated when the app sets no user; page files it under identifiers.}
   first_party_source: false
   sharing_override: null
-  references: {vendor_disclosure: null, play_sdk_index: null}
-  sources: [vendor-bugsnag-src, vendor-bugsnag-android, observed-spin-bugsnag]
+  references: {vendor_disclosure: "https://docs.bugsnag.com/platforms/android/playstore-privacy/", play_sdk_index: null}
+  sources: [vendor-bugsnag-src, vendor-bugsnag-android, observed-spin-bugsnag, vendor-bugsnag-gh, vendor-bugsnag-playstore]
 - id: appcenter
   name: Microsoft App Center
   role: analytics
@@ -598,13 +920,27 @@ entries:
   obfuscated_prefixes: []
   anchors:
   - {kind: class_anchor, value: com.microsoft.appcenter.AppCenter, source: vendor-appcenter-android}
-  string_anchors: []
-  hosts: []
-  collects: []
+  string_anchors:
+  - {value: com.microsoft.appcenter.documents, source: vendor-appcenter-gh}
+  source_files:
+  - {value: AppCenter.java, source: vendor-appcenter-gh}
+  - {value: AppCenterIngestion.java, source: vendor-appcenter-gh}
+  - {value: AppCenterLog.java, source: vendor-appcenter-gh}
+  - {value: AppCenterService.java, source: vendor-appcenter-gh}
+  - {value: AppCenterHandler.java, source: vendor-appcenter-gh}
+  hosts:
+  - {host: in.appcenter.ms, source: vendor-appcenter-gh}
+  - {host: install.appcenter.ms, source: vendor-appcenter-gh}
+  - {host: api.appcenter.ms, source: vendor-appcenter-gh}
+  collects:
+  - {data_type: identifiers.other, item: install_id, mode: auto, requires_permission: null, source: vendor-appcenter-dc, note: Required header on every request.}
+  - {data_type: personal.personal_identifiers, item: userid, mode: depends_on_usage, requires_permission: null, source: vendor-appcenter-dc, note: Only if the developer sets a user ID.}
+  - {data_type: app_performance.crash_logs, item: crash_and_error_logs, mode: depends_on_usage, requires_permission: null, source: vendor-appcenter-dc, note: Only when the Crashes (Diagnostics) module is started.}
+  - {data_type: actions_in_app.other, item: sessions_and_custom_events_analytics, mode: depends_on_usage, requires_permission: null, source: vendor-appcenter-dc, note: Only when the Analytics module is started; custom events need app calls.}
   first_party_source: false
   sharing_override: null
-  references: {vendor_disclosure: null, play_sdk_index: null}
-  sources: [vendor-appcenter-android, observed-spin-appcenter]
+  references: {vendor_disclosure: "https://learn.microsoft.com/en-us/appcenter/sdk/data-collected", play_sdk_index: null}
+  sources: [vendor-appcenter-android, observed-spin-appcenter, vendor-appcenter-dc, vendor-appcenter-gh]
 - id: instabug
   name: Instabug (Luciq)
   role: crash
@@ -616,13 +952,29 @@ entries:
   obfuscated_prefixes: []
   anchors:
   - {kind: class_anchor, value: com.instabug.library.Instabug, source: vendor-instabug-sample}
-  string_anchors: []
-  hosts: []
-  collects: []
+  string_anchors:
+  - {value: com.instabug.APP_TOKEN, source: vendor-luciq-migration}
+  - {value: ai.luciq.APP_TOKEN, source: vendor-luciq-migration}
+  - {value: luciq-domain, source: vendor-luciq-migration}
+  - {value: instabug-domain, source: vendor-luciq-migration}
+  source_files: []
+  hosts:
+  - {host: api-eu.luciq.ai, source: vendor-luciq-endpoints}
+  - {host: api-eu-apm.luciq.ai, source: vendor-luciq-endpoints}
+  collects:
+  - {data_type: location.approx_location, item: ip_derived_approximate_location, mode: auto, requires_permission: null, source: vendor-luciq-playstore, note: Disabled only on request to Luciq support.}
+  - {data_type: personal.personal_identifiers, item: user_ids, mode: depends_on_usage, requires_permission: null, source: vendor-luciq-playstore, note: Only if app calls the user identification API.}
+  - {data_type: email_text_message.other, item: in_app_messages_replies, mode: depends_on_usage, requires_permission: null, source: vendor-luciq-playstore, note: In-app replies feature.}
+  - {data_type: photo_video.photos, item: photo_attachments_on_bug_reports, mode: depends_on_usage, requires_permission: null, source: vendor-luciq-playstore, note: User/developer attaches.}
+  - {data_type: photo_video.videos, item: video_attachments_on_bug_reports, mode: depends_on_usage, requires_permission: null, source: vendor-luciq-playstore, note: User/developer attaches.}
+  - {data_type: actions_in_app.user_interaction, item: repro_steps_user_steps, mode: auto, requires_permission: null, source: vendor-luciq-playstore, note: On unless disabled via Repro Steps API.}
+  - {data_type: actions_in_app.other, item: developer_added_custom_data, mode: depends_on_usage, requires_permission: null, source: vendor-luciq-playstore, note: Only what the developer adds.}
+  - {data_type: app_performance.crash_logs, item: crash_reports, mode: auto, requires_permission: null, source: vendor-luciq-playstore, note: Can be disabled by API.}
+  - {data_type: app_performance.performance_diagnostics, item: apm_session_profiler, mode: auto, requires_permission: null, source: vendor-luciq-playstore, note: Can be disabled by API.}
   first_party_source: false
   sharing_override: null
-  references: {vendor_disclosure: null, play_sdk_index: null}
-  sources: [vendor-instabug-sample, vendor-luciq-migration]
+  references: {vendor_disclosure: "https://docs.luciq.ai/android/set-up-luciq-for-android/play-store-privacy-details", play_sdk_index: null}
+  sources: [vendor-instabug-sample, vendor-luciq-migration, vendor-luciq-endpoints, vendor-luciq-playstore]
 - id: braze
   name: Braze
   role: engagement
@@ -638,13 +990,46 @@ entries:
   - {kind: class_anchor, value: com.appboy.Appboy, source: braze-changelog}
   - {kind: manifest_component, value: com.braze.push.BrazeFirebaseMessagingService, source: vendor-braze-push}
   - {kind: manifest_component, value: com.appboy.receivers.AppboyActionReceiver, source: observed-voi-braze}
-  string_anchors: []
-  hosts: []
-  collects: []
+  string_anchors:
+  - {value: com_braze_api_key, source: vendor-braze-integrate}
+  - {value: com_braze_custom_endpoint, source: vendor-braze-integrate}
+  - {value: com_braze_enable_location_collection, source: vendor-braze-integrate}
+  - {value: com.braze.FLUSH_EVENTS, source: vendor-braze-maven}
+  - {value: com.braze.BrazeFlushPushDeliveryReceiver, source: vendor-braze-maven}
+  source_files:
+  - {value: BrazeFirebaseMessagingService.kt, source: vendor-braze-gh}
+  - {value: BrazePushReceiver.kt, source: vendor-braze-gh}
+  - {value: BrazeNotificationFactory.kt, source: vendor-braze-gh}
+  - {value: BrazeActivityLifecycleCallbackListener.kt, source: vendor-braze-gh}
+  - {value: BrazeWebViewActivity.kt, source: vendor-braze-gh}
+  - {value: BrazeInternalLocationApi.kt, source: vendor-braze-gh}
+  - {value: BrazeInternalGeofenceApi.kt, source: vendor-braze-gh}
+  hosts:
+  - {host: sdk.iad-01.braze.com, source: vendor-braze-endpoints}
+  - {host: sdk.iad-02.braze.com, source: vendor-braze-endpoints}
+  - {host: sdk.iad-03.braze.com, source: vendor-braze-endpoints}
+  - {host: sdk.iad-04.braze.com, source: vendor-braze-endpoints}
+  - {host: sdk.iad-05.braze.com, source: vendor-braze-endpoints}
+  - {host: sdk.iad-06.braze.com, source: vendor-braze-endpoints}
+  - {host: sdk.iad-07.braze.com, source: vendor-braze-endpoints}
+  - {host: sdk.iad-08.braze.com, source: vendor-braze-endpoints}
+  - {host: sdk.us-10.braze.com, source: vendor-braze-endpoints}
+  - {host: sdk.fra-01.braze.eu, source: vendor-braze-endpoints}
+  - {host: sdk.fra-02.braze.eu, source: vendor-braze-endpoints}
+  - {host: sdk.au-01.braze.com, source: vendor-braze-endpoints}
+  - {host: sdk.id-01.braze.com, source: vendor-braze-endpoints}
+  - {host: sdk.jp-01.braze.com, source: vendor-braze-endpoints}
+  - {host: sdk.kr-01.braze.com, source: vendor-braze-endpoints}
+  collects:
+  - {data_type: actions_in_app.user_interaction, item: session_activity, mode: auto, requires_permission: null, source: vendor-braze-datacollection, note: Session activity is gathered by default; other interactions depend on the integration.}
+  - {data_type: app_performance.crash_logs, item: sdk_crash_logs, mode: auto, requires_permission: null, source: vendor-braze-datacollection, note: Errors raised inside the SDK are reported as crash logs.}
+  - {data_type: identifiers.other, item: braze_device_id, mode: auto, requires_permission: null, source: vendor-braze-datacollection, note: The SDK generates its own device identifier.}
+  - {data_type: email_text_message.other, item: message_open_read_events, mode: depends_on_usage, requires_permission: null, source: vendor-braze-datacollection, note: Only when the app uses Braze in-app messages or push.}
+  - {data_type: location.approx_location, item: location_collection, mode: depends_on_usage, requires_permission: null, source: vendor-braze-datacollection, note: Location is off by default; braze.xml exposes com_braze_enable_location_collection to turn it on.}
   first_party_source: false
   sharing_override: null
-  references: {vendor_disclosure: null, play_sdk_index: null}
-  sources: [braze-changelog, observed-voi-braze, vendor-braze-push, observed-spin-braze]
+  references: {vendor_disclosure: "https://www.braze.com/docs/developer_guide/analytics/managing_data_collection?sdktab=android", play_sdk_index: null}
+  sources: [braze-changelog, observed-voi-braze, vendor-braze-push, observed-spin-braze, vendor-braze-datacollection, vendor-braze-endpoints, vendor-braze-gh, vendor-braze-integrate, vendor-braze-maven]
 - id: onesignal
   name: OneSignal
   role: messaging
@@ -657,13 +1042,35 @@ entries:
   - {kind: class_anchor, value: com.onesignal.OneSignal, source: vendor-onesignal-setup}
   - {kind: manifest_component, value: com.onesignal.PermissionsActivity, source: observed-voi-onesignal}
   - {kind: manifest_meta_data, value: onesignal_app_id, source: observed-voi-onesignal}
-  string_anchors: []
-  hosts: []
-  collects: []
+  string_anchors:
+  - {value: com.onesignal.NotificationServiceExtension, source: vendor-onesignal-gh}
+  - {value: com.onesignal.preferHMS, source: vendor-onesignal-gh}
+  - {value: com.onesignal.suppressLaunchURLs, source: vendor-onesignal-gh}
+  - {value: com.onesignal.NotificationOpened.DEFAULT, source: vendor-onesignal-gh}
+  source_files:
+  - {value: OneSignal.kt, source: vendor-onesignal-gh}
+  - {value: OneSignalUtils.kt, source: vendor-onesignal-gh}
+  - {value: OneSignalDispatchers.kt, source: vendor-onesignal-gh}
+  - {value: OneSignalDbContract.kt, source: vendor-onesignal-gh}
+  - {value: OneSignalService.kt, source: vendor-onesignal-gh}
+  - {value: HmsMessageServiceOneSignal.kt, source: vendor-onesignal-gh}
+  - {value: OneSignalHmsEventBridge.kt, source: vendor-onesignal-gh}
+  - {value: OneSignal.java, source: observed-voi-onesignal}
+  - {value: OneSignalStateSynchronizer.java, source: observed-voi-onesignal}
+  hosts:
+  - {host: api.onesignal.com, source: vendor-onesignal-gh}
+  collects:
+  - {data_type: actions_in_app.user_interaction, item: sessions_notification_clicks, mode: auto, requires_permission: null, source: vendor-onesignal-gpds, note: "Session counts, durations and notification clicks are gathered by default."}
+  - {data_type: financial.purchase_history, item: in_app_purchases, mode: auto, requires_permission: null, requires: {permissions_any: [com.android.vending.BILLING], class_prefixes_any: [com.android.billingclient.]}, source: vendor-onesignal-gpds, note: Listed among default collection; relevant whenever the app offers in-app purchases.}
+  - {data_type: personal.email_address, item: email_subscription, mode: depends_on_usage, requires_permission: null, source: vendor-onesignal-gpds, note: Only when the app adds an email address to OneSignal.}
+  - {data_type: personal.phone_number, item: sms_subscription, mode: depends_on_usage, requires_permission: null, source: vendor-onesignal-gpds, note: Only when the app adds a phone number to OneSignal.}
+  - {data_type: location.precise_location, item: location_shared, mode: depends_on_usage, requires_permission: null, source: vendor-onesignal-gpds, note: Only when the app hands the location to OneSignal.}
+  - {data_type: personal.personal_identifiers, item: tags_outcomes, mode: depends_on_usage, requires_permission: null, source: vendor-onesignal-gpds, note: User IDs and similar data arrive only through app-set Tags or Outcomes.}
+  - {data_type: identifiers.other, item: aliases, mode: depends_on_usage, requires_permission: null, source: vendor-onesignal-gpds, note: GAID is not gathered by default; other IDs only when the app links them as Aliases.}
   first_party_source: false
   sharing_override: null
-  references: {vendor_disclosure: null, play_sdk_index: null}
-  sources: [vendor-onesignal-setup, observed-voi-onesignal]
+  references: {vendor_disclosure: "https://documentation.onesignal.com/docs/en/google-play-data-safety-requirements", play_sdk_index: null}
+  sources: [vendor-onesignal-setup, observed-voi-onesignal, vendor-onesignal-gh, vendor-onesignal-gpds]
 - id: clevertap
   name: CleverTap
   role: engagement
@@ -675,13 +1082,35 @@ entries:
   anchors:
   - {kind: class_anchor, value: com.clevertap.android.sdk.CleverTapAPI, source: vendor-clevertap-src}
   - {kind: manifest_meta_data, value: CLEVERTAP_ACCOUNT_ID, source: vendor-clevertap-quickstart}
-  string_anchors: []
-  hosts: []
-  collects: []
+  string_anchors:
+  - {value: CLEVERTAP_ACCOUNT_ID, source: vendor-clevertap-gh}
+  - {value: CLEVERTAP_TOKEN, source: vendor-clevertap-gh}
+  - {value: CLEVERTAP_REGION, source: vendor-clevertap-gh}
+  - {value: CLEVERTAP_PROXY_DOMAIN, source: vendor-clevertap-gh}
+  source_files:
+  - {value: CleverTapAPI.java, source: vendor-clevertap-gh}
+  - {value: CleverTapInstanceConfig.java, source: vendor-clevertap-gh}
+  - {value: CleverTapMetaData.java, source: vendor-clevertap-gh}
+  - {value: CleverTapFactory.kt, source: vendor-clevertap-gh}
+  - {value: CleverTapFileProvider.kt, source: vendor-clevertap-gh}
+  - {value: CleverTapDisplayUnit.java, source: vendor-clevertap-gh}
+  - {value: CleverTapResponse.java, source: vendor-clevertap-gh}
+  hosts:
+  - {host: clevertap-prod.com, source: vendor-clevertap-gh}
+  collects:
+  - {data_type: location.approx_location, item: network_info_reporting, mode: depends_on_usage, requires_permission: null, source: vendor-clevertap-gpds, note: Coarse location is captured only with Device Network Information Reporting enabled (off by default since v3.1.9).}
+  - {data_type: location.precise_location, item: geofencing_sdk, mode: depends_on_usage, requires_permission: null, source: vendor-clevertap-gpds, note: Precise location requires the separate CleverTap GeoFencing SDK.}
+  - {data_type: personal.name, item: profile_name, mode: depends_on_usage, requires_permission: null, source: vendor-clevertap-gpds, note: Only when the app sets it; the vendor documentation lists nothing as default.}
+  - {data_type: personal.email_address, item: profile_email, mode: depends_on_usage, requires_permission: null, source: vendor-clevertap-gpds, note: Only when the app configures it.}
+  - {data_type: personal.phone_number, item: profile_phone, mode: depends_on_usage, requires_permission: null, source: vendor-clevertap-gpds, note: Only when the app configures it.}
+  - {data_type: personal.personal_identifiers, item: profile_identity, mode: depends_on_usage, requires_permission: null, source: vendor-clevertap-gpds, note: Only when the app configures it.}
+  - {data_type: financial.purchase_history, item: charged_events, mode: depends_on_usage, requires_permission: null, source: vendor-clevertap-gpds, note: Only when the app configures it.}
+  - {data_type: actions_in_app.user_interaction, item: app_interactions, mode: depends_on_usage, requires_permission: null, source: vendor-clevertap-gpds, note: Marked optional and off by default in the vendor documentation.}
+  - {data_type: identifiers.other, item: device_ids, mode: depends_on_usage, requires_permission: null, source: vendor-clevertap-gpds, note: Marked optional by the vendor; only when the app configures it.}
   first_party_source: false
   sharing_override: null
-  references: {vendor_disclosure: null, play_sdk_index: null}
-  sources: [vendor-clevertap-src, vendor-clevertap-quickstart]
+  references: {vendor_disclosure: "https://developer.clevertap.com/docs/google-playstore-data-safety", play_sdk_index: null}
+  sources: [vendor-clevertap-src, vendor-clevertap-quickstart, vendor-clevertap-gh, vendor-clevertap-gpds]
 - id: moengage
   name: MoEngage
   role: engagement
@@ -693,13 +1122,26 @@ entries:
   anchors:
   - {kind: class_anchor, value: com.moengage.core.MoEngage, source: vendor-moengage-init}
   - {kind: manifest_component, value: com.moengage.firebase.MoEFireBaseMessagingService, source: vendor-moengage-sample}
-  string_anchors: []
-  hosts: []
-  collects: []
+  string_anchors:
+  - {value: com.moengage.core.internal.storage.providers.MoEngageFileProvider, source: vendor-moengage-maven}
+  - {value: com.moe.pushlibrary.activities.MoEActivity, source: vendor-moengage-maven}
+  source_files: []
+  hosts:
+  - {host: sdk-01.moengage.com, source: vendor-moengage-nsc}
+  - {host: sdk-02.moengage.com, source: vendor-moengage-nsc}
+  - {host: sdk-03.moengage.com, source: vendor-moengage-nsc}
+  - {host: sdk-04.moengage.com, source: vendor-moengage-nsc}
+  - {host: sdk-05.moengage.com, source: vendor-moengage-nsc}
+  - {host: sdk-06.moengage.com, source: vendor-moengage-nsc}
+  - {host: sdk-101.moengage.com, source: vendor-moengage-maven}
+  collects:
+  - {data_type: actions_in_app.user_interaction, item: app_launch_foreground_background, mode: auto, requires_permission: null, source: vendor-moengage-gpdd, note: Automatic analytics records launches and foreground/background transitions.}
+  - {data_type: location.approx_location, item: ip_address, mode: auto, requires_permission: null, source: vendor-moengage-gpdd, note: "Per the vendor documentation, the IP address can be used to estimate a coarse location."}
+  - {data_type: identifiers.other, item: advertising_id_android_id, mode: depends_on_usage, requires_permission: null, source: vendor-moengage-gpdd, note: Ad ID and Android ID are gathered only after tracking consent is given (app or user).}
   first_party_source: false
   sharing_override: null
-  references: {vendor_disclosure: null, play_sdk_index: null}
-  sources: [vendor-moengage-init, vendor-moengage-sample]
+  references: {vendor_disclosure: "https://www.moengage.com/docs/developer-guide/android-sdk/compliance/prepare-for-google-plays-data-disclosure-requirements", play_sdk_index: null}
+  sources: [vendor-moengage-init, vendor-moengage-sample, vendor-moengage-gpdd, vendor-moengage-maven, vendor-moengage-nsc]
 - id: smartlook
   name: Smartlook
   role: session_replay
@@ -712,13 +1154,19 @@ entries:
   anchors:
   - {kind: class_anchor, value: com.smartlook.android.core.api.Smartlook, source: vendor-smartlook-cordova}
   - {kind: class_anchor, value: com.smartlook.sdk.smartlook.Smartlook, source: vendor-smartlook-unity}
-  string_anchors: []
-  hosts: []
-  collects: []
+  string_anchors:
+  - {value: smartlookId, source: vendor-smartlook-maven}
+  source_files: []
+  hosts:
+  - {host: manager.eu.smartlook.cloud, source: vendor-smartlook-maven}
+  - {host: manager.us.smartlook.cloud, source: vendor-smartlook-maven}
+  collects:
+  - {data_type: actions_in_app.user_interaction, item: touches_gestures_button_clicks_screen_navigation, mode: auto, requires_permission: null, source: vendor-smartlook-recorded, note: All events tracked by default; keyboard events excluded.}
+  - {data_type: app_performance.crash_logs, item: crash_reports, mode: auto, requires_permission: null, source: vendor-smartlook-recorded, note: Table marks crash reports as automatically tracked on Android.}
   first_party_source: false
   sharing_override: null
-  references: {vendor_disclosure: null, play_sdk_index: null}
-  sources: [vendor-smartlook-cordova, vendor-smartlook-unity]
+  references: {vendor_disclosure: "https://mobile.developer.smartlook.com/docs/what-is-recorded-and-how", play_sdk_index: null}
+  sources: [vendor-smartlook-cordova, vendor-smartlook-unity, vendor-smartlook-maven, vendor-smartlook-recorded]
 - id: uxcam
   name: UXCam
   role: session_replay
@@ -729,13 +1177,23 @@ entries:
   obfuscated_prefixes: []
   anchors:
   - {kind: class_anchor, value: com.uxcam.UXCam, source: vendor-uxcam-android}
-  string_anchors: []
-  hosts: []
-  collects: []
+  string_anchors:
+  - {value: UXCamPreferences, source: vendor-uxcam-maven}
+  source_files: []
+  hosts:
+  - {host: uxcamsession.com, source: vendor-uxcam-maven}
+  - {host: verifysession.uxcam.com, source: vendor-uxcam-maven}
+  collects:
+  - {data_type: identifiers.other, item: random_pseudo_id_anonymous_device_id, mode: auto, requires_permission: null, source: vendor-uxcam-policy, note: Default identifier per end user.}
+  - {data_type: location.approx_location, item: country_level_location, mode: depends_on_usage, requires_permission: null, source: vendor-uxcam-policy, note: "Privacy page says no location \"unless you explicitly send it\"; policy lists country only (likely IP-derived)."}
+  - {data_type: actions_in_app.user_interaction, item: screens_taps_scrolls_gestures, mode: auto, requires_permission: null, source: vendor-uxcam-policy, note: Session recording plus interaction events.}
+  - {data_type: actions_in_app.other, item: custom_events, mode: depends_on_usage, requires_permission: null, source: vendor-uxcam-privacy, note: Only events the app logs.}
+  - {data_type: personal.personal_identifiers, item: user_identity_via_setuseridentity, mode: depends_on_usage, requires_permission: null, source: vendor-uxcam-privacy, note: Anonymous by default; app may set its own user ID.}
+  - {data_type: app_performance.crash_logs, item: crashes_anrs_ui_freezes, mode: auto, requires_permission: null, source: vendor-uxcam-crashes, note: disableCrashHandling default is false.}
   first_party_source: false
   sharing_override: null
-  references: {vendor_disclosure: null, play_sdk_index: null}
-  sources: [vendor-uxcam-android]
+  references: {vendor_disclosure: "https://developer.uxcam.com/docs/privacy-and-compliance", play_sdk_index: null}
+  sources: [vendor-uxcam-android, vendor-uxcam-crashes, vendor-uxcam-maven, vendor-uxcam-policy, vendor-uxcam-privacy]
 - id: applovin
   name: AppLovin (MAX)
   role: ads
@@ -747,13 +1205,24 @@ entries:
   anchors:
   - {kind: class_anchor, value: com.applovin.sdk.AppLovinSdk, source: vendor-applovin-demo}
   - {kind: manifest_meta_data, value: applovin.sdk.key, source: vendor-applovin-manual}
-  string_anchors: []
-  hosts: []
-  collects: []
+  string_anchors:
+  - {value: applovin.sdk.key, source: vendor-applovin-manual}
+  source_files: []
+  hosts:
+  - {host: ms.applovin.com, source: vendor-applovin-aar}
+  - {host: rt.applovin.com, source: vendor-applovin-aar}
+  - {host: a.applovin.com, source: vendor-applovin-aar}
+  - {host: d.applovin.com, source: vendor-applovin-aar}
+  - {host: ms.applvn.com, source: vendor-applovin-aar}
+  - {host: rt.applvn.com, source: vendor-applovin-aar}
+  - {host: a.applvn.com, source: vendor-applovin-aar}
+  - {host: d.applvn.com, source: vendor-applovin-aar}
+  collects:
+  - {data_type: identifiers.other, item: google_advertising_id, mode: auto, requires_permission: null, source: vendor-applovin-integration, note: The integration guide documents use of the Play services ads-identifier module.}
   first_party_source: false
   sharing_override: null
   references: {vendor_disclosure: null, play_sdk_index: null}
-  sources: [vendor-applovin-demo, vendor-applovin-manual]
+  sources: [vendor-applovin-demo, vendor-applovin-manual, vendor-applovin-aar, vendor-applovin-integration]
 - id: unity_ads
   name: Unity Ads
   role: ads
@@ -766,13 +1235,27 @@ entries:
   anchors:
   - {kind: class_anchor, value: com.unity3d.ads.UnityAds, source: vendor-unity-ads-init}
   - {kind: manifest_component, value: com.unity3d.services.ads.adunit.AdUnitActivity, source: vendor-unity-ads-src}
-  string_anchors: []
-  hosts: []
-  collects: []
+  string_anchors:
+  - {value: com.unity3d.ads.configversion, source: vendor-unity-ads-github}
+  source_files:
+  - {value: UnityAds.java, source: vendor-unity-ads-github}
+  - {value: UnityAdsImplementation.java, source: vendor-unity-ads-github}
+  hosts:
+  - {host: unityads.unity3d.com, source: vendor-unity-ads-github}
+  - {host: configv2.unityads.unity3d.com, source: vendor-unity-ads-github}
+  - {host: scar.unityads.unity3d.com, source: vendor-unity-ads-github}
+  collects:
+  - {data_type: location.approx_location, item: approximate_location, mode: auto, requires_permission: null, source: vendor-unity-ads-datasafety, note: "Marked required, with third-party sharing, in the vendor's Data safety answers; no permission is named."}
+  - {data_type: personal.personal_identifiers, item: personal_identifiers, mode: auto, requires_permission: null, source: vendor-unity-ads-datasafety, note: "Marked required, with third-party sharing, in the vendor's Data safety answers; the stated purpose is app functionality."}
+  - {data_type: financial.purchase_history, item: purchase_history, mode: auto, requires_permission: null, requires: {permissions_any: [com.android.vending.BILLING], class_prefixes_any: [com.android.billingclient.]}, source: vendor-unity-ads-datasafety, note: Marked required with no condition. Used for advertising and analytics.}
+  - {data_type: actions_in_app.user_interaction, item: page_views_and_taps_inside_ads, mode: depends_on_usage, requires_permission: null, source: vendor-unity-ads-datasafety, note: "Recorded only while an ad is shown, not during gameplay."}
+  - {data_type: actions_in_app.other, item: app_usage_times, mode: depends_on_usage, requires_permission: null, source: vendor-unity-ads-datasafety, note: Only when the publisher turns on Acquire Optimization in the dashboard.}
+  - {data_type: app_performance.performance_diagnostics, item: app_diagnostics, mode: auto, requires_permission: null, source: vendor-unity-ads-datasafety, note: "Marked required, with third-party sharing, in the vendor's Data safety answers; crash logs are answered no."}
+  - {data_type: identifiers.other, item: device_or_other_identifiers, mode: auto, requires_permission: null, source: vendor-unity-ads-datasafety, note: "Marked required, with third-party sharing, in the vendor's Data safety answers."}
   first_party_source: false
   sharing_override: null
-  references: {vendor_disclosure: null, play_sdk_index: null}
-  sources: [vendor-unity-ads-init, vendor-unity-ads-src]
+  references: {vendor_disclosure: "https://docs.unity.com/en-us/ads-android/4.21.0/privacy/developer-consent/disclosures/google-data-safety", play_sdk_index: null}
+  sources: [vendor-unity-ads-init, vendor-unity-ads-src, vendor-unity-ads-datasafety, vendor-unity-ads-github]
 - id: ironsource
   name: ironSource / Unity LevelPlay
   role: ads
@@ -787,12 +1270,24 @@ entries:
   - {kind: class_anchor, value: com.unity3d.mediation.LevelPlay, source: vendor-ironsource-aar}
   - {kind: manifest_component, value: com.ironsource.sdk.controller.ControllerActivity, source: vendor-levelplay-integration}
   string_anchors: []
-  hosts: []
-  collects: []
+  source_files: []
+  hosts:
+  - {host: o-sdk.mediation.unity3d.com, source: vendor-levelplay-aar}
+  - {host: i-sdk.mediation.unity3d.com, source: vendor-levelplay-aar}
+  - {host: o-crash.mediation.unity3d.com, source: vendor-levelplay-aar}
+  - {host: o-ext.mediation.unity3d.com, source: vendor-levelplay-aar}
+  - {host: www.supersonicads.com, source: vendor-levelplay-aar}
+  - {host: banner-gateway.supersonicads.com, source: vendor-levelplay-aar}
+  - {host: android-att.ironsrc.mobi, source: vendor-levelplay-aar}
+  collects:
+  - {data_type: location.approx_location, item: approximate_location, mode: auto, requires_permission: null, source: vendor-levelplay-datasafety, note: "Marked required, with third-party sharing, in the vendor's Data safety answers; no permission is named."}
+  - {data_type: actions_in_app.other, item: other_actions_interaction_with_ads, mode: depends_on_usage, requires_permission: null, source: vendor-levelplay-datasafety, note: "Limited to ad interactions, so only when ads are shown."}
+  - {data_type: app_performance.performance_diagnostics, item: diagnostics, mode: auto, requires_permission: null, source: vendor-levelplay-datasafety, note: "Marked required, without third-party sharing, in the vendor's Data safety answers."}
+  - {data_type: identifiers.other, item: device_or_other_ids, mode: auto, requires_permission: null, source: vendor-levelplay-datasafety, note: "Marked required, with third-party sharing, in the vendor's Data safety answers."}
   first_party_source: false
   sharing_override: null
-  references: {vendor_disclosure: null, play_sdk_index: null}
-  sources: [vendor-ironsource-aar, vendor-levelplay-integration]
+  references: {vendor_disclosure: "https://docs.unity.com/en-us/grow/levelplay/platform/legal-resources/google-data-safety-questionnaire", play_sdk_index: null}
+  sources: [vendor-ironsource-aar, vendor-levelplay-integration, vendor-levelplay-aar, vendor-levelplay-datasafety]
 - id: vungle
   name: Liftoff Monetize (Vungle)
   role: ads
@@ -806,12 +1301,19 @@ entries:
   - {kind: class_anchor, value: com.vungle.ads.VungleAds, source: vendor-vungle-v7-sample}
   - {kind: class_anchor, value: com.vungle.warren.Vungle, source: vendor-vungle-v6-sample}
   string_anchors: []
-  hosts: []
-  collects: []
+  source_files: []
+  hosts:
+  - {host: config.ads.vungle.com, source: vendor-vungle-aar}
+  - {host: adx.ads.vungle.com, source: vendor-vungle-aar}
+  - {host: events.ads.vungle.com, source: vendor-vungle-aar}
+  - {host: logs.ads.vungle.com, source: vendor-vungle-aar}
+  collects:
+  - {data_type: location.approx_location, item: approximate_location, mode: auto, requires_permission: null, source: vendor-vungle-datasafety, note: "Marked required, with third-party sharing, in the vendor's Data safety answers; precise location is answered no."}
+  - {data_type: identifiers.other, item: advertising_id_android_id_fallback_app_set_id, mode: auto, requires_permission: null, source: vendor-vungle-v6-advanced, note: Stated on the SDK v6 page only. The newer questionnaire has no device-ID row.}
   first_party_source: false
   sharing_override: null
-  references: {vendor_disclosure: null, play_sdk_index: null}
-  sources: [vendor-vungle-v7-sample, vendor-vungle-v6-sample]
+  references: {vendor_disclosure: "https://support.vungle.com/hc/en-us/articles/5035287250331-Google-Play-Data-Safety-Questionnaire-for-Liftoff-Monetize", play_sdk_index: null}
+  sources: [vendor-vungle-v7-sample, vendor-vungle-v6-sample, vendor-vungle-aar, vendor-vungle-datasafety, vendor-vungle-v6-advanced]
 - id: pangle
   name: Pangle
   role: ads
@@ -824,12 +1326,19 @@ entries:
   - {kind: class_anchor, value: com.bytedance.sdk.openadsdk.api.init.PAGSdk, source: vendor-pangle-aar}
   - {kind: manifest_component, value: com.bytedance.sdk.openadsdk.activity.TTFullScreenVideoActivity, source: vendor-pangle-init}
   string_anchors: []
+  source_files: []
   hosts: []
-  collects: []
+  collects:
+  - {data_type: location.approx_location, item: approximate_location, mode: auto, requires_permission: null, source: vendor-pangle-gp, note: "City level, inferred from the IP address. The vendor says it does not request ACCESS_COARSE_LOCATION."}
+  - {data_type: actions_in_app.user_interaction, item: app_interactions, mode: auto, requires_permission: null, source: vendor-pangle-gp, note: Only interactions with the ads Pangle serves.}
+  - {data_type: app_performance.crash_logs, item: crash_logs, mode: depends_on_usage, requires_permission: null, source: vendor-pangle-gp, note: The publisher may choose not to use this function.}
+  - {data_type: app_performance.performance_diagnostics, item: diagnostics, mode: auto, requires_permission: null, source: vendor-pangle-gp, note: Diagnostics tied to the ads Pangle serves.}
+  - {data_type: app_performance.other, item: other_app_performance_data, mode: auto, requires_permission: null, source: vendor-pangle-gp, note: Tied to Pangle ads. The stated purpose is fraud prevention.}
+  - {data_type: identifiers.other, item: device_or_other_identifiers, mode: auto, requires_permission: null, source: vendor-pangle-gp, note: "Resettable identifiers only; the vendor documentation rules out non-resettable hardware IDs."}
   first_party_source: false
   sharing_override: null
-  references: {vendor_disclosure: null, play_sdk_index: null}
-  sources: [vendor-pangle-init, vendor-pangle-aar]
+  references: {vendor_disclosure: "https://pangleglobal.com/integration/app-privacy-details-gp", play_sdk_index: null}
+  sources: [vendor-pangle-init, vendor-pangle-aar, vendor-pangle-gp]
 - id: mintegral
   name: Mintegral
   role: ads
@@ -842,12 +1351,19 @@ entries:
   - {kind: class_anchor, value: com.mbridge.msdk.out.MBridgeSDKFactory, source: vendor-mintegral-android}
   - {kind: manifest_component, value: com.mbridge.msdk.activity.MBCommonActivity, source: vendor-mintegral-android}
   string_anchors: []
+  source_files: []
   hosts: []
-  collects: []
+  collects:
+  - {data_type: identifiers.other, item: device_or_other_ids_idfa_imei_android_id_oaid, mode: auto, requires_permission: null, source: vendor-mintegral-android-md, note: "Ad IDs plus IMEI and Android ID per the vendor documentation, with third-party sharing; no permission is named for the IMEI."}
+  - {data_type: actions_in_app.user_interaction, item: views_or_clicks_history, mode: auto, requires_permission: null, source: vendor-mintegral-android-md, note: Ad view and click history. The table gives no user opt-out.}
+  - {data_type: app_performance.crash_logs, item: device_event_information_such_as_crashes, mode: auto, requires_permission: null, source: vendor-mintegral-android-md, note: Crash events are part of the App info and performance row.}
+  - {data_type: app_performance.performance_diagnostics, item: system_activity_and_device_network_battery_and_s, mode: auto, requires_permission: null, source: vendor-mintegral-android-md, note: Broad device and diagnostic telemetry from the same row.}
+  - {data_type: app_performance.other, item: host_app_package_name_and_version_sdk_version, mode: auto, requires_permission: null, source: vendor-mintegral-android-md, note: "Details of the host app, without third-party sharing per the vendor documentation."}
+  - {data_type: app_performance.other, item: user_agent, mode: auto, requires_permission: null, source: vendor-mintegral-android-md, note: "Listed separately in the vendor documentation as opt-out-able, with third-party sharing."}
   first_party_source: false
   sharing_override: null
-  references: {vendor_disclosure: null, play_sdk_index: null}
-  sources: [vendor-mintegral-android]
+  references: {vendor_disclosure: "https://dev.mintegral.com/doc/index.html?file=sdk-m_sdk-android&lang=en", play_sdk_index: null}
+  sources: [vendor-mintegral-android, vendor-mintegral-android-md]
 - id: inmobi
   name: InMobi Ads
   role: ads
@@ -860,6 +1376,7 @@ entries:
   anchors:
   - {kind: class_anchor, value: com.inmobi.sdk.InMobiSdk, source: vendor-inmobi-sample}
   string_anchors: []
+  source_files: []
   hosts: []
   collects: []
   first_party_source: false
@@ -877,12 +1394,16 @@ entries:
   anchors:
   - {kind: class_anchor, value: com.chartboost.sdk.Chartboost, source: vendor-chartboost-ref}
   string_anchors: []
+  source_files: []
   hosts: []
-  collects: []
+  collects:
+  - {data_type: financial.purchase_history, item: purchase_history, mode: auto, requires_permission: null, requires: {permissions_any: [com.android.vending.BILLING], class_prefixes_any: [com.android.billingclient.]}, source: vendor-chartboost-ds, note: "No condition is stated in the vendor documentation, which marks third-party sharing."}
+  - {data_type: app_performance.other, item: other_app_performance_data, mode: auto, requires_permission: null, source: vendor-chartboost-ds, note: "With third-party sharing per the vendor documentation; crash logs and diagnostics are answered no."}
+  - {data_type: identifiers.other, item: device_or_other_identifiers, mode: auto, requires_permission: null, source: vendor-chartboost-ds, note: With third-party sharing per the vendor documentation.}
   first_party_source: false
   sharing_override: null
-  references: {vendor_disclosure: null, play_sdk_index: null}
-  sources: [vendor-chartboost-ref]
+  references: {vendor_disclosure: "https://docs.chartboost.com/en/monetization/integrate/android/data-safety-details/", play_sdk_index: null}
+  sources: [vendor-chartboost-ref, vendor-chartboost-ds]
 - id: huawei_hms
   name: Huawei HMS Core (Analytics, Ads)
   role: analytics
@@ -895,14 +1416,311 @@ entries:
   anchors:
   - {kind: class_anchor, value: com.huawei.hms.analytics.HiAnalytics, source: vendor-hms-analytics-demo}
   - {kind: class_anchor, value: com.huawei.hms.ads.HwAds, source: vendor-hms-ads-demo}
+  string_anchors:
+  - {value: com.huawei.hms.client.appid, source: vendor-hms-dvkit-codelab}
+  - {value: "com.huawei.hms.client.service.name:hianalytics", source: vendor-hms-hianalytics-maven}
+  - {value: com.huawei.hms.analytics.provider.AnalyticsInitializeProvider, source: vendor-hms-hianalytics-maven}
+  - {value: com.huawei.hms.analytics.receiver.HiAnalyticsSvcEvtReceiver, source: vendor-hms-hianalytics-maven}
+  - {value: "com.huawei.hms.client.service.name:ads-lite", source: vendor-hms-adslite-maven}
+  source_files: []
+  hosts:
+  - {host: datacollector-drcn.dt.dbankcloud.cn, source: vendor-hms-hianalytics-maven}
+  - {host: datacollector-dra.dt.dbankcloud.cn, source: vendor-hms-hianalytics-maven}
+  - {host: datacollector-dre.dt.dbankcloud.cn, source: vendor-hms-hianalytics-maven}
+  - {host: datacollector-drru.dt.dbankcloud.ru, source: vendor-hms-hianalytics-maven}
+  - {host: datacollector.dt.dbankcloud.cn, source: vendor-hms-hianalytics-maven}
+  - {host: datacollector.dt.dbankcloud.asia, source: vendor-hms-hianalytics-maven}
+  - {host: datacollector.dt.dbankcloud.eu, source: vendor-hms-hianalytics-maven}
+  - {host: datacollector.dt.dbankcloud.ru, source: vendor-hms-hianalytics-maven}
+  collects:
+  - {data_type: identifiers.other, item: aaid_analytics_kit, mode: auto, requires_permission: null, source: vendor-hms-analytics-sdk-privacy, note: "Analytics instance ID, separate for each app. Used to count users."}
+  - {data_type: identifiers.other, item: advertising_id_analytics_kit, mode: auto, requires_permission: null, source: vendor-hms-analytics-sdk-privacy, note: A resettable ad identifier used for personalised ads.}
+  - {data_type: location.approx_location, item: country_or_region_from_ip_address_analytics_kit, mode: auto, requires_permission: null, source: vendor-hms-analytics-sdk-privacy, note: Country or region only. Mapping this to approximate location is our own reading.}
+  - {data_type: financial.purchase_history, item: iap_order_event_analytics_kit, mode: depends_on_usage, requires_permission: null, source: vendor-hms-analytics-sdk-privacy, note: Only when Huawei In-App Purchases supplies order data.}
+  - {data_type: actions_in_app.other, item: first_app_launch_time_analytics_kit, mode: auto, requires_permission: null, source: vendor-hms-analytics-sdk-privacy, note: Timestamp of the first-launch event.}
+  - {data_type: actions_in_app.other, item: marketing_activity_participation_analytics_kit, mode: depends_on_usage, requires_permission: null, source: vendor-hms-analytics-sdk-privacy, note: Only when the app runs marketing activities.}
+  - {data_type: app_performance.crash_logs, item: crash_logs_analytics_kit, mode: depends_on_usage, requires_permission: null, source: vendor-hms-analytics-sdk-privacy, note: Only when the Crash service is also integrated.}
+  - {data_type: identifiers.other, item: oaid_odid_ads_kit, mode: auto, requires_permission: null, source: vendor-hms-ads-sdk-privacy, note: "Used for ad display, fraud prevention and attribution."}
+  - {data_type: actions_in_app.user_interaction, item: ad_interaction_information_ads_kit, mode: auto, requires_permission: null, source: vendor-hms-ads-sdk-privacy, note: Interaction with the ads the SDK serves.}
+  - {data_type: actions_in_app.other, item: app_usage_information_ads_kit, mode: auto, requires_permission: null, source: vendor-hms-ads-sdk-privacy, note: Listed with basic app information and app settings.}
+  - {data_type: location.approx_location, item: location_ads_kit, mode: depends_on_usage, requires_permission: null, source: vendor-hms-ads-sdk-privacy, note: Only when the app holds a location permission and location-based ads are on. The specific permission is not named.}
+  - {data_type: location.precise_location, item: location_ads_kit, mode: depends_on_usage, requires_permission: null, source: vendor-hms-ads-sdk-privacy, note: "Same condition as above. Huawei says precise location is not stored, which implies it may be processed."}
+  first_party_source: false
+  sharing_override: null
+  references: {vendor_disclosure: "https://developer.huawei.com/consumer/en/doc/HMSCore-Guides/android-sdk-data-security-0000001050745153", play_sdk_index: null}
+  sources: [vendor-hms-analytics-demo, vendor-hms-ads-demo, vendor-hms-ads-sdk-privacy, vendor-hms-adslite-maven, vendor-hms-analytics-sdk-privacy, vendor-hms-dvkit-codelab, vendor-hms-hianalytics-maven]
+  note: The OAID identifier library (com.huawei.hms.ads.identifier.) is excluded, like the GMS ads-identifier library.
+- id: mapbox_telemetry
+  name: Mapbox Telemetry (mapbox-events-android)
+  role: diagnostics
+  tracker_db_ids: []
+  prefixes:
+  - {prefix: com.mapbox.android.telemetry., source: vendor-mapbox-events-gh}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: com.mapbox.android.telemetry.MapboxTelemetry, source: vendor-mapbox-events-gh}
+  - {kind: manifest_component, value: com.mapbox.android.telemetry.provider.MapboxTelemetryInitProvider, source: vendor-mapbox-events-gh}
+  - {kind: manifest_component, value: com.mapbox.android.telemetry.MapboxTelemetryService, source: vendor-mapbox-events-gh}
+  string_anchors:
+  - {value: mapboxTelemetryLocationState, source: vendor-mapbox-events-gh}
+  - {value: com.mapbox.android.telemetry.action.TOKEN_CHANGED, source: vendor-mapbox-events-gh}
+  - {value: mapboxVendorId, source: vendor-mapbox-events-gh}
+  source_files:
+  - {value: MapboxTelemetry.java, source: vendor-mapbox-events-gh}
+  - {value: MapboxTelemetryService.java, source: vendor-mapbox-events-gh}
+  - {value: MapboxTelemetryInitProvider.java, source: vendor-mapbox-events-gh}
+  - {value: MapboxTelemetryConstants.java, source: vendor-mapbox-events-gh}
+  - {value: AppUserTurnstile.java, source: vendor-mapbox-events-gh}
+  hosts:
+  - {host: events.mapbox.com, source: vendor-mapbox-events-gh}
+  - {host: events.mapbox.cn, source: vendor-mapbox-events-gh}
+  collects:
+  - {data_type: location.precise_location, item: lat_lng_altitude_accuracy, mode: depends_on_usage, requires_permission: null, source: vendor-mapbox-legalfaq, note: Only when the end user authorised device location; users must be offered an opt-out.}
+  - {data_type: identifiers.other, item: userid_vendor_id_in_turnstile_event, mode: auto, requires_permission: null, source: vendor-mapbox-events-gh, note: The AppUserTurnstile event carries a user ID; behaviour after a telemetry opt-out is not documented.}
+  first_party_source: false
+  sharing_override: null
+  references: {vendor_disclosure: "https://www.mapbox.com/legal/legal-faq", play_sdk_index: null}
+  sources: [vendor-mapbox-events-gh, vendor-mapbox-legalfaq]
+- id: paypal_magnes
+  name: PayPal Magnes (Braintree DataCollector)
+  role: other
+  tracker_db_ids: []
+  prefixes:
+  - {prefix: lib.android.paypal.com.magnessdk., source: vendor-braintree-gh}
+  - {prefix: com.braintreepayments.api.datacollector., source: vendor-braintree-gh}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: lib.android.paypal.com.magnessdk.MagnesSDK, source: vendor-braintree-gh}
+  - {kind: class_anchor, value: com.braintreepayments.api.datacollector.DataCollector, source: vendor-braintree-gh}
+  string_anchors:
+  - {value: magnes.debug.mode, source: vendor-magnes-jar}
+  - {value: magnes_guid, source: vendor-magnes-jar}
+  - {value: MagnesHandlerThread, source: vendor-magnes-jar}
+  source_files:
+  - {value: MagnesInternalClient.kt, source: vendor-braintree-gh}
+  - {value: PayPalDataCollector.java, source: observed-voi-paypal_magnes}
+  hosts:
+  - {host: c.paypal.com, source: vendor-magnes-jar}
+  - {host: b.stats.paypal.com, source: vendor-magnes-jar}
+  collects:
+  - {data_type: identifiers.other, item: device_data_correlated_with_session_id, mode: depends_on_usage, requires_permission: null, source: vendor-braintree-dc-docs, note: Only when the app calls collectDeviceData; the fields are not documented.}
+  first_party_source: false
+  sharing_override: null
+  references: {vendor_disclosure: "https://developer.paypal.com/braintree/docs/guides/premium-fraud-management-tools/client-side/android/v4/", play_sdk_index: null}
+  sources: [vendor-braintree-gh, vendor-magnes-jar, observed-voi-paypal_magnes, vendor-braintree-dc-docs]
+- id: stripe_3ds2
+  name: Stripe Android SDK (3DS2 + fraud signals)
+  role: other
+  tracker_db_ids: []
+  prefixes:
+  - {prefix: com.stripe.android.stripe3ds2., source: vendor-stripe-gh}
+  - {prefix: com.stripe.android., source: vendor-stripe-gh}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: manifest_component, value: com.stripe.android.stripe3ds2.views.ChallengeActivity, source: vendor-stripe-gh}
+  - {kind: class_anchor, value: com.stripe.android.PaymentConfiguration, source: vendor-stripe-gh}
+  string_anchors:
+  - {value: "https://m.stripe.com/6", source: vendor-stripe-gh}
+  - {value: "https://q.stripe.com", source: vendor-stripe-gh}
+  source_files:
+  - {value: StripeThreeDs2ServiceImpl.kt, source: vendor-stripe-gh}
+  - {value: Stripe3ds2ErrorReporterConfig.kt, source: vendor-stripe-gh}
+  - {value: StripeApiRepository.kt, source: vendor-stripe-gh}
+  hosts:
+  - {host: m.stripe.com, source: vendor-stripe-afd}
+  - {host: q.stripe.com, source: vendor-stripe-gh}
+  - {host: api.stripe.com, source: vendor-stripe-gh}
+  collects:
+  - {data_type: identifiers.other, item: android_id_device_model_os_locale_screen_for_3ds, mode: depends_on_usage, requires_permission: null, source: vendor-stripe-3ds2, note: Only during 3DS2 card authentication; page states no Advertising ID and no location.}
+  - {data_type: identifiers.other, item: advanced_fraud_detection_risk_factors_muid_sid_d, mode: auto, requires_permission: null, source: vendor-stripe-afd, note: "Per the vendor documentation, gathered when the SDK object is created and attached at tokenization; advancedFraudSignalsEnabled can turn it off. The data category is our mapping."}
+  first_party_source: false
+  sharing_override: null
+  references: {vendor_disclosure: "https://support.stripe.com/questions/3d-secure-2-device-information", play_sdk_index: null}
+  sources: [vendor-stripe-gh, vendor-stripe-afd, vendor-stripe-3ds2]
+- id: intercom
+  name: Intercom Android SDK
+  role: engagement
+  tracker_db_ids: []
+  prefixes:
+  - {prefix: io.intercom.android.sdk., source: vendor-intercom-gh}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: io.intercom.android.sdk.Intercom, source: vendor-intercom-gh}
+  - {kind: manifest_component, value: io.intercom.android.sdk.IntercomInitializeContentProvider, source: vendor-intercom-maven}
+  - {kind: manifest_meta_data, value: io.intercom.android.sdk.host, source: vendor-intercom-faq}
+  string_anchors:
+  - {value: io.intercom.android.sdk.host, source: vendor-intercom-faq}
+  source_files:
+  - {value: Intercom.kt, source: vendor-intercom-maven}
+  - {value: IntercomRootActivity.kt, source: vendor-intercom-maven}
+  - {value: IntercomBubbleActivity.kt, source: vendor-intercom-maven}
+  - {value: IntercomSurveyActivity.kt, source: vendor-intercom-maven}
+  - {value: IntercomPushClient.kt, source: vendor-intercom-maven}
+  hosts:
+  - {host: mobile-messenger.intercom.com, source: vendor-intercom-faq}
+  - {host: intercom-messenger.com, source: vendor-intercom-faq}
+  collects:
+  - {data_type: identifiers.other, item: anonymous_userid_for_unidentified_users, mode: auto, requires_permission: null, source: vendor-intercom-faq, note: Stored in identity.icm; every mobile SDK record is a user.}
+  - {data_type: personal.email_address, item: email_of_identified_users, mode: depends_on_usage, requires_permission: null, source: vendor-intercom-faq, note: Only if app registers user with email.}
+  - {data_type: personal.personal_identifiers, item: user_id_of_identified_users, mode: depends_on_usage, requires_permission: null, source: vendor-intercom-faq, note: Only if app registers an identified user.}
+  - {data_type: photo_video.photos, item: image_attachments, mode: depends_on_usage, requires_permission: null, source: vendor-intercom-faq, note: User-chosen attachments via system photo picker.}
+  first_party_source: false
+  sharing_override: null
+  references: {vendor_disclosure: "https://www.intercom.com/help/en/articles/7669340-mobile-sdk-faqs", play_sdk_index: null}
+  sources: [vendor-intercom-gh, vendor-intercom-maven, vendor-intercom-faq]
+- id: zendesk
+  name: Zendesk SDK for Android (Messaging / Classic Support)
+  role: other
+  tracker_db_ids: []
+  prefixes:
+  - {prefix: zendesk.messaging., source: vendor-zendesk-demo-gh}
+  - {prefix: zendesk.android., source: vendor-zendesk-demo-gh}
+  - {prefix: zendesk.core., source: vendor-zendesk-classic-gh}
+  - {prefix: zendesk.support., source: vendor-zendesk-classic-gh}
+  - {prefix: zendesk.chat., source: vendor-zendesk-classic-gh}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: zendesk.messaging.android.DefaultMessagingFactory, source: vendor-zendesk-demo-gh}
+  - {kind: class_anchor, value: zendesk.core.Zendesk, source: vendor-zendesk-classic-gh}
+  - {kind: manifest_component, value: zendesk.messaging.android.internal.messagingscreen.MessagingActivity, source: vendor-zendesk-maven}
   string_anchors: []
+  source_files:
+  - {value: Zendesk.kt, source: vendor-zendesk-maven}
+  - {value: ZendeskCredentials.kt, source: vendor-zendesk-maven}
+  - {value: ZendeskAuthenticationDelegate.kt, source: vendor-zendesk-maven}
+  - {value: DefaultMessagingFactory.kt, source: vendor-zendesk-maven}
+  - {value: ZendeskFileProvider.kt, source: vendor-zendesk-maven}
   hosts: []
-  collects: []
+  collects:
+  - {data_type: actions_in_app.user_interaction, item: anonymous_ui_interaction_analytics_button_clicks, mode: auto, requires_permission: null, source: vendor-zendesk-analytics, note: "Messaging SDK >= 2.34.0; disable with enableAnalyticsTracking(false)."}
+  - {data_type: personal.name, item: name, mode: depends_on_usage, requires_permission: null, source: vendor-zendesk-privacy, note: Page is iOS/Unity-oriented; states customers may optionally collect name/email/location.}
+  - {data_type: personal.email_address, item: email, mode: depends_on_usage, requires_permission: null, source: vendor-zendesk-privacy, note: Same caveat as name.}
+  first_party_source: false
+  sharing_override: null
+  references: {vendor_disclosure: "https://support.zendesk.com/hc/en-us/articles/7334754169370-Zendesk-SDKs-and-app-privacy-details", play_sdk_index: null}
+  sources: [vendor-zendesk-demo-gh, vendor-zendesk-classic-gh, vendor-zendesk-maven, vendor-zendesk-analytics, vendor-zendesk-privacy]
+- id: onfido
+  name: Onfido Smart Capture SDK (Android)
+  role: other
+  tracker_db_ids: []
+  prefixes:
+  - {prefix: com.onfido.android.sdk., source: vendor-onfido-gh}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: com.onfido.android.sdk.capture.OnfidoFactory, source: vendor-onfido-gh}
+  - {kind: class_anchor, value: com.onfido.android.sdk.capture.Onfido, source: vendor-onfido-gh}
+  - {kind: manifest_component, value: com.onfido.android.sdk.capture.ui.OnfidoActivity, source: vendor-onfido-maven}
+  string_anchors: []
+  source_files:
+  - {value: OnfidoActivity.kt, source: vendor-onfido-maven}
+  - {value: OnfidoAnalyticsImpl.kt, source: vendor-onfido-maven}
+  - {value: OnfidoApiService.kt, source: vendor-onfido-maven}
+  - {value: OnfidoMlModelDownloader.kt, source: vendor-onfido-maven}
+  - {value: OnfidoFragment.kt, source: vendor-onfido-maven}
+  hosts:
+  - {host: assets.onfido.com, source: vendor-onfido-maven}
+  - {host: sdk.onfido.com, source: vendor-onfido-maven}
+  collects:
+  - {data_type: photo_video.photos, item: document_and_selfie_photos, mode: depends_on_usage, requires_permission: android.permission.CAMERA, source: vendor-onfido-gh, note: Captured when verification flow runs.}
+  - {data_type: photo_video.videos, item: selfie_video_motion_capture, mode: depends_on_usage, requires_permission: android.permission.CAMERA, source: vendor-onfido-gh, note: Captured when video/motion step configured.}
+  - {data_type: audio.sound_recordings, item: motion_audio, mode: depends_on_usage, requires_permission: android.permission.RECORD_AUDIO, source: vendor-onfido-gh, note: Opt-in via .withAudio(true).}
   first_party_source: false
   sharing_override: null
   references: {vendor_disclosure: null, play_sdk_index: null}
-  sources: [vendor-hms-analytics-demo, vendor-hms-ads-demo]
-  note: The OAID identifier library (com.huawei.hms.ads.identifier.) is excluded, like the GMS ads-identifier library.
+  sources: [vendor-onfido-gh, vendor-onfido-maven]
+- id: veriff
+  name: Veriff Android SDK
+  role: other
+  tracker_db_ids: []
+  prefixes:
+  - {prefix: com.veriff., source: vendor-veriff-guide}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: com.veriff.Sdk, source: vendor-veriff-guide}
+  - {kind: manifest_component, value: com.veriff.sdk.views.base.verification.VeriffActivity, source: vendor-veriff-maven}
+  string_anchors: []
+  source_files:
+  - {value: VeriffProgressView.kt, source: vendor-veriff-maven}
+  - {value: VeriffToolbarView.kt, source: vendor-veriff-maven}
+  hosts: []
+  collects:
+  - {data_type: photo_video.photos, item: id_selfie_photos, mode: depends_on_usage, requires_permission: android.permission.CAMERA, source: vendor-veriff-guide, note: When end-user starts verification flow.}
+  - {data_type: photo_video.videos, item: verification_video, mode: depends_on_usage, requires_permission: android.permission.CAMERA, source: vendor-veriff-guide, note: When end-user starts verification flow.}
+  - {data_type: audio.sound_recordings, item: audio_in_verification_video, mode: depends_on_usage, requires_permission: android.permission.RECORD_AUDIO, source: vendor-veriff-guide, note: When video recording starts.}
+  - {data_type: identifiers.other, item: device_data_for_fraud_detection, mode: depends_on_usage, requires_permission: null, source: vendor-veriff-privacy, note: Exact fields not listed; the category is our mapping.}
+  first_party_source: false
+  sharing_override: null
+  references: {vendor_disclosure: "https://devdocs.veriff.com/docs/privacy-notice-and-data-collection-purposes", play_sdk_index: null}
+  sources: [vendor-veriff-guide, vendor-veriff-maven, vendor-veriff-privacy]
+- id: jumio
+  name: Jumio Mobile SDK (Android)
+  role: other
+  tracker_db_ids: []
+  prefixes:
+  - {prefix: com.jumio., source: vendor-jumio-gh}
+  - {prefix: jumio.core., source: vendor-jumio-maven}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: com.jumio.sdk.JumioSDK, source: vendor-jumio-gh}
+  - {kind: manifest_component, value: com.jumio.defaultui.JumioActivity, source: vendor-jumio-gh}
+  - {kind: manifest_component, value: com.jumio.app.HostingActivity, source: vendor-jumio-gh}
+  string_anchors: []
+  source_files:
+  - {value: JumioSDK.kt, source: vendor-jumio-maven}
+  - {value: JumioController.kt, source: vendor-jumio-maven}
+  - {value: JumioPreloader.kt, source: vendor-jumio-maven}
+  - {value: JumioIDCredential.kt, source: vendor-jumio-maven}
+  - {value: JumioFaceCredential.kt, source: vendor-jumio-maven}
+  - {value: JumioScanPart.kt, source: vendor-jumio-maven}
+  hosts:
+  - {host: cdn.mobile.jumio.ai, source: vendor-jumio-gh}
+  collects:
+  - {data_type: photo_video.photos, item: id_document_images, mode: depends_on_usage, requires_permission: android.permission.CAMERA, source: vendor-jumio-gh, note: Acquired during document credential step.}
+  - {data_type: storage.files_docs, item: pdf_document_upload, mode: depends_on_usage, requires_permission: null, source: vendor-jumio-gh, note: Only in FILE acquire mode.}
+  first_party_source: false
+  sharing_override: null
+  references: {vendor_disclosure: null, play_sdk_index: null}
+  sources: [vendor-jumio-gh, vendor-jumio-maven]
+- id: sumsub
+  name: Sumsub IdensicMobileSDK (Android)
+  role: other
+  tracker_db_ids: []
+  prefixes:
+  - {prefix: com.sumsub.sns., source: vendor-sumsub-maven}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: com.sumsub.sns.core.SNSMobileSDK, source: vendor-sumsub-maven}
+  - {kind: manifest_component, value: com.sumsub.sns.internal.features.presentation.main.SNSAppActivity, source: vendor-sumsub-maven}
+  string_anchors: []
+  source_files:
+  - {value: SNSMobileSDK.kt, source: vendor-sumsub-maven}
+  - {value: SNSAppActivity.kt, source: vendor-sumsub-maven}
+  - {value: SNSVideoIdentFragment.kt, source: vendor-sumsub-maven}
+  - {value: SNSApplicantDataDocumentFragment.kt, source: vendor-sumsub-maven}
+  hosts:
+  - {host: api.sumsub.com, source: vendor-sumsub-maven}
+  - {host: sentry.sumsub.com, source: vendor-sumsub-maven}
+  - {host: static.sumsub.com, source: vendor-sumsub-maven}
+  collects:
+  - {data_type: actions_in_app.user_interaction, item: usage_analytics_screen_navigation_ui_interaction, mode: auto, requires_permission: null, source: vendor-sumsub-analytics, note: Disable with withAnalyticsEnabled(false).}
+  - {data_type: personal.name, item: name, mode: depends_on_usage, requires_permission: null, source: vendor-sumsub-consent, note: Applicant data during verification.}
+  - {data_type: personal.email_address, item: email, mode: depends_on_usage, requires_permission: null, source: vendor-sumsub-consent, note: Applicant data during verification.}
+  - {data_type: personal.physical_address, item: address, mode: depends_on_usage, requires_permission: null, source: vendor-sumsub-consent, note: Applicant data during verification.}
+  - {data_type: photo_video.photos, item: id_documents_selfies_facial_images, mode: depends_on_usage, requires_permission: android.permission.CAMERA, source: vendor-sumsub-consent, note: Biometric/document capture in flow.}
+  - {data_type: photo_video.videos, item: video_recordings, mode: depends_on_usage, requires_permission: android.permission.CAMERA, source: vendor-sumsub-consent, note: Liveness/VideoIdent.}
+  first_party_source: false
+  sharing_override: null
+  references: {vendor_disclosure: "https://docs.sumsub.com/docs/analytics-android", play_sdk_index: null}
+  sources: [vendor-sumsub-maven, vendor-sumsub-analytics, vendor-sumsub-consent]
 # App namespaces (attribution): the manifest package, plus its first-two-segment root unless
 # that root is shared by unrelated publishers, plus the Application class's package unless it
 # is a framework or SDK package. Own curation (package naming conventions), no external data.

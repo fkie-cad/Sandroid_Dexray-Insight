@@ -25,6 +25,12 @@ DISCLAIMER = (
     "they collect. It does not show that data leaves the device; that needs runtime evidence."
 )
 CONFIGURED_OFF_NOTE = "Collection switched off in the manifest (the app can switch it on at runtime)."
+#: Static analysis cannot see custom or server-driven consent screens, nor the order of
+#: consent and SDK start; a TDDDG §25 question needs the runtime check.
+CONSENT_HEDGE = (
+    "A custom or server-driven consent screen is possible; whether consent is obtained before this "
+    "code runs needs a runtime check (TDDDG §25)."
+)
 SHARING_REASONS = {
     "possible_sharing": (
         "An advertising or attribution SDK can handle this type. Google does not treat SDKs that build "
@@ -66,6 +72,10 @@ IDENTIFIER_WORDS = {
     "ids.gms.app_set_id": "the app set ID",
     "ids.firebase.installation_id": "the Firebase installation ID",
     "ids.firebase.messaging_token": "the Firebase messaging token",
+    "ids.firebase.installations_id": "the Firebase installation ID",
+    "ids.firebase.fcm_token": "the Firebase messaging token",
+    "ids.bt.adapter_name": "the Bluetooth device name",
+    "ids.bt.bonded_devices": "the paired Bluetooth devices",
     "ids.huawei.oaid": "the Huawei OAID",
     "prov.gsf_android_id": "the Google Services Framework ID",
     "prov.facebook_attribution_id": "the Facebook attribution ID",
@@ -87,7 +97,19 @@ COLLECTION_SWITCHES = (
     "auto_init_off",
     "auto_events_off",
 )
-REACHED = ("app_code", "sdk_entry", "callback")
+#: Short words for ``coverage.reduced_by`` values (summary line and row caveats).
+REDUCTION_WORDS = {
+    "no_dex": "no DEX code",
+    "split_apk": "split APK",
+    "heavy_obfuscation": "heavy obfuscation",
+    "flutter": "Flutter (Dart) code",
+    "react_native": "React Native (JavaScript) code",
+    "xamarin": "Xamarin/.NET code",
+    "cordova": "Cordova/Ionic (JavaScript) code",
+    "unity": "Unity code",
+    "secondary_code": "code in assets",
+}
+REACHED = ("app_code", "sdk_entry", "bridge_entry", "callback")
 _PHOTO_PERMS = ("android.permission.READ_MEDIA_IMAGES", "android.permission.READ_MEDIA_VIDEO")
 _READ_EXTERNAL = "android.permission.READ_EXTERNAL_STORAGE"
 
@@ -159,14 +181,23 @@ def api_level_object(api: dict[str, Any], min_sdk: int | None) -> dict[str, Any]
     }
 
 
-def evidence_kind_of(role: str, match: str, effective: bool, reachability: str) -> str | None:
-    """Evidence kind of a call site (04-design §1.3 precedence)."""
+def evidence_kind_of(
+    role: str, match: str, effective: bool, reachability: str, user_mediated: bool = False
+) -> str | None:
+    """Evidence kind of a call site (04-design §1.3 precedence).
+
+    ``user_mediated`` entries (an intent that asks the user to pick or capture
+    something) give ``user_mediated_intent``: the app can receive what the user
+    chooses, it does not read it from the device by itself.
+    """
     if role == "consent_control":
         return None
     if not effective:
         return "api_ineffective"
     if reachability == "no_caller_found":
         return "api_call_site_no_caller"
+    if user_mediated:
+        return "user_mediated_intent"
     if match == "provider_read":
         return "content_uri"
     if match == "reflective":
@@ -180,7 +211,7 @@ def base_confidence(
     kind: str | None, precision: str, uri_confidence: str | None, reflect_confidence: str | None
 ) -> str:
     """Confidence before the modifiers (04-design §2.8)."""
-    if kind in ("api_ineffective", "api_call_site_no_caller"):
+    if kind in ("api_ineffective", "api_call_site_no_caller", "user_mediated_intent"):
         return "low"
     if kind == "content_uri":
         return uri_confidence or "medium"
@@ -240,6 +271,7 @@ def build_rows(
     sdks: list[dict[str, Any]],
     sdk_evidence: list[dict[str, Any]],
     declared: dict[str, Any],
+    coverage: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Build the ``data_safety.rows`` (04-design §2.9).
 
@@ -251,6 +283,7 @@ def build_rows(
         sdks: Emitted SDK objects (``sdks[]`` order).
         sdk_evidence: SDK evidence items, each with a ``data_type`` key (removed here).
         declared: Effectively declared permissions ``{name: {...}}``.
+        coverage: The section's ``coverage`` (for ``coverage_caveat``).
     """
     sdk_by_id = {s["id"]: s for s in sdks}
     sdk_order = {s["id"]: i for i, s in enumerate(sdks)}
@@ -368,9 +401,31 @@ def build_rows(
                 "call_site_count": len(call_ids),
                 "evidence": evidence,
                 "compliance": row_compliance(cat, dt, category, evidence),
+                "coverage_caveat": coverage_caveat(coverage or {}, origin_list),
             }
         )
     return rows
+
+
+def coverage_caveat(coverage: dict[str, Any], origins: list[dict[str, Any]]) -> str | None:
+    """Why a row can miss evidence or owners (None when the coverage is not reduced).
+
+    Code outside the DEX (Dart, JavaScript, .NET, assets, other splits) can hide
+    evidence for every row; heavy obfuscation only matters for rows with call sites
+    that no rule could attribute.
+    """
+    reduced = list(coverage.get("reduced_by") or [])
+    sentences = []
+    if "no_dex" in reduced:
+        sentences.append("No DEX code was analysed; only the manifest contributes to this row.")
+    hidden = [REDUCTION_WORDS[r] for r in reduced if r not in ("no_dex", "heavy_obfuscation") and r in REDUCTION_WORDS]
+    if hidden:
+        sentences.append(f"Not analysed: {join_words(hidden)}; evidence for this type can be missing.")
+    unattributed = sum(o["call_site_count"] for o in origins if o["type"] == "unattributed")
+    if "heavy_obfuscation" in reduced and unattributed:
+        total = sum(o["call_site_count"] for o in origins)
+        sentences.append(f"{unattributed} of {total} call sites are in obfuscated code that no rule could attribute.")
+    return " ".join(sentences) or None
 
 
 def _row_status(evidence: list[dict[str, Any]]) -> str:
@@ -400,6 +455,9 @@ def _contributing_sdks(evidence: list[dict[str, Any]], sdk_order: dict[str, int]
 
 
 def _sharing_hint(evidence: list[dict[str, Any]], contributing: list[str], sdk_by_id: dict[str, Any]) -> dict | None:
+    # Role "other" (payments, fraud prevention, identity verification, support) gives no
+    # hint: whether such a vendor is a service provider depends on the contract.
+    contributing = [i for i in contributing if sdk_by_id[i]["role"] != "other"]
     if not contributing:
         return None
     sharing = [i for i in contributing if effective_sharing(sdk_by_id[i]) == "possible_sharing"]
@@ -536,14 +594,24 @@ def sdk_evidence_items(
 
 
 # --------------------------------------------------------------------- consent
-def consent_verdict(cmps: list[dict], channels: dict[str, dict], sdks: list[dict[str, Any]]) -> str:
-    """The consent verdict (04-design §1.3 order)."""
+def consent_verdict(
+    cmps: list[dict], channels: dict[str, dict], sdks: list[dict[str, Any]], controlled: set[str] | None = None
+) -> str:
+    """The consent verdict (04-design §1.3 order).
+
+    ``controlled`` are SDKs whose consent controls (``setAnalyticsCollectionEnabled``,
+    ``setConsent``, ...) the app itself calls; without a CMP or TCF keys that gives
+    ``consent_controls_only``: the app switches SDK collection at runtime, possibly
+    from its own consent screen.
+    """
     if cmps:
         return "cmp_detected"
     if any(ch["writes"] for ch in channels.values()):
         return "tcf_writer_without_known_cmp"
     if any(ch["reads"] for ch in channels.values()):
         return "tcf_reader_only"
+    if controlled:
+        return "consent_controls_only"
     if any(s["role"] in ("ads", "attribution", "analytics") for s in sdks):
         return "none_detected"
     return "not_applicable"
@@ -610,6 +678,8 @@ def _reach_phrase(reach: str, deciding_is_app_class: bool) -> str:
         return "reachable from app start-up" if deciding_is_app_class else "reachable from app code"
     if reach == "sdk_entry":
         return "reachable from SDK start-up"
+    if reach == "bridge_entry":
+        return "callable from JavaScript or Dart code through a bridge"
     return "reachable from a framework callback"
 
 
@@ -631,8 +701,12 @@ def build_findings(
     has_cmp = bool(consent["cmps"])
     writer = any(consent[ch]["writes"] for ch in ("tcf", "gpp"))
 
-    # 1. no consent mechanism
-    ads = [s for s in sdks if s["role"] in ADS_ROLES and CONFIDENCE_RANK[s["confidence"]] >= 1]
+    # 1. no consent mechanism (SDKs whose consent controls the app calls are left out)
+    ads = [
+        s
+        for s in sdks
+        if s["role"] in ADS_ROLES and CONFIDENCE_RANK[s["confidence"]] >= 1 and s["id"] not in sdk_controlled
+    ]
     if ads and not has_cmp and not writer:
         names = [s["name"] for s in ads]
         verb = "is" if len(names) == 1 else "are"
@@ -642,21 +716,22 @@ def build_findings(
                 "Advertising or attribution SDKs, but no consent mechanism found",
                 "medium",
                 "medium",
-                f"{join_words(names)} {verb} present. No consent SDK (CMP) and no code that writes IAB TCF "
-                "consent keys was found. A custom or server-driven consent screen is possible.",
+                f"{join_words(names)} {verb} present. No consent SDK (CMP), no code that writes IAB TCF "
+                "consent keys and no app call to their consent controls was found. " + CONSENT_HEDGE,
                 cat,
                 sdk_ids=[s["id"] for s in ads],
             )
         )
 
-    # 2. SDK identifier access without consent
-    if not has_cmp:
+    # 2. SDK identifier access without consent (same conditions as finding 1)
+    if not has_cmp and not writer:
         hits = [
             s
             for s in sites
             if "identifiers.other" in s["data_types"]
             and s["origin"]["type"] == "sdk"
             and s["origin"]["sdk_id"] in sdk_by_id
+            and s["origin"]["sdk_id"] not in sdk_controlled
             and sdk_by_id[s["origin"]["sdk_id"]]["role"] in ADS_ROLES
             and s["reachability"] in REACHED
             and s["evidence_kind"] not in ("api_ineffective", "api_call_site_no_caller")
@@ -682,7 +757,7 @@ def build_findings(
                     "SDK code that can read a device identifier, and no consent mechanism found",
                     "medium",
                     "medium",
-                    " ".join(sentences) + " Potential TDDDG §25 issue.",
+                    " ".join(sentences) + " " + CONSENT_HEDGE,
                     cat,
                     call_site_ids=[s["id"] for s in hits],
                     sdk_ids=[s["origin"]["sdk_id"] for s in hits],
@@ -861,6 +936,9 @@ def build_findings(
 
 __all__ = [
     "CONFIGURED_OFF_NOTE",
+    "CONSENT_HEDGE",
+    "REDUCTION_WORDS",
+    "coverage_caveat",
     "DISCLAIMER",
     "SHARING_REASONS",
     "api_level_object",

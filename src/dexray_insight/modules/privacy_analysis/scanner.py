@@ -135,6 +135,26 @@ class CodeIndex(Protocol):
     def class_refs(self, cls: str) -> list[MRef]:
         """Methods that reference ``cls`` (const-class, new-instance or a call to it), sorted."""
 
+    def class_referrers(self, cls: str) -> list[str]:
+        """Internal classes that reference ``cls`` (calls, const-class, new-instance), sorted."""
+
+    def static_readers(
+        self, owners: set[str], field_refs: set[str] = frozenset(), only: set[str] | None = None
+    ) -> dict[str, list[str]]:
+        """Per owner class, the classes reading its static fields (or naming it in
+        ``const-class``/``new-instance``), sorted.
+
+        ``only`` limits the readers looked at (a cheaper scan). ``field_refs`` are scanned
+        in the same pass for :meth:`sget_sites`, which then needs no second scan; they
+        need the whole code, so ``only`` is ignored when they are given.
+        """
+
+    def source_file(self, cls: str) -> str | None:
+        """The DEX ``SourceFile`` debug attribute of an internal class (None when absent)."""
+
+    def method_annotations(self, method: MRef) -> list[str]:
+        """Annotation types (class descriptors) of an internal method, sorted."""
+
     def static_constant(self, field_ref: str) -> Value | None:
         """The value of an internal ``static final`` field, read from its own ``<clinit>``.
 
@@ -147,7 +167,9 @@ class CodeIndex(Protocol):
         """The invoke at ``offset`` in ``method``: ``(callee, is_static, argument values)``.
 
         An argument value is ``("param", i)`` (the method's own parameter ``i``, unchanged),
-        ``("field", ref)``, ``("string", s)`` (``Uri.parse`` of a const string) or None.
+        ``("field", ref)``, ``("string", s)`` (a const string, or ``Uri.parse`` of one),
+        ``("int", n)`` (a small int literal), ``("own_package", None)`` (the result of
+        ``getPackageName()``), ``("res_string", id)`` (the result of ``getString(id)``) or None.
         Registers are traced linearly from the method start (no branches merged).
         """
 
@@ -158,6 +180,7 @@ _CONST_STRING_OPS = (0x1A, 0x1B)
 _CONST_INT_OPS = frozenset(range(0x12, 0x1A))
 _SGET_OPS = frozenset(range(0x60, 0x67))
 _CLASS_OPS = (0x1C, 0x22)
+_NO_INDEX = 0xFFFFFFFF
 
 
 def _desc_from_proto(proto: Any) -> str:
@@ -189,6 +212,9 @@ class AndroguardIndex:
         self._field_ids: set[str] | None = None
         self._strings: dict[str, Any] | None = None
         self._constants: dict[str, Any] = {}
+        self._annotations: dict[str, dict[tuple[str, str], list[str]]] = {}
+        self._sget_cache: dict[frozenset[str], dict[str, list[tuple[MRef, int]]]] = {}
+        self._annotation_maps: dict[int, tuple[dict[int, Any], dict[int, Any]]] = {}
 
     def _ref(self, ma: Any) -> MRef:
         ref = MRef(str(ma.class_name), str(ma.name), to_jvm(str(ma.descriptor)))
@@ -323,6 +349,9 @@ class AndroguardIndex:
         return field_ref in self._field_ids
 
     def sget_sites(self, field_refs: set[str]) -> dict[str, list[tuple[MRef, int]]]:
+        cached = self._sget_cache.get(frozenset(field_refs))
+        if cached is not None:
+            return {k: list(v) for k, v in cached.items()}
         out: dict[str, set[tuple[MRef, int]]] = {f: set() for f in field_refs}
         if not field_refs:
             return {}
@@ -376,6 +405,123 @@ class AndroguardIndex:
             except Exception:  # noqa: S112
                 continue
         return sorted(out)
+
+    def class_referrers(self, cls: str) -> list[str]:
+        ca = self._internal.get(cls)
+        if ca is None:
+            return []
+        try:
+            return sorted({str(ref.name) for ref in ca.get_xref_from() if str(ref.name) in self._internal})
+        except Exception:
+            return []
+
+    def static_readers(
+        self, owners: set[str], field_refs: set[str] = frozenset(), only: set[str] | None = None
+    ) -> dict[str, list[str]]:
+        out: dict[str, set[str]] = {}
+        sites: dict[str, set[tuple[MRef, int]]] = {f: set() for f in field_refs}
+        if not owners:
+            return {}
+        for em in self._scan_methods(None if field_refs else only):
+            try:
+                if em.get_code() is None:
+                    continue
+                reader = str(em.get_class_name())
+                ref = None
+                offset = 0
+                for ins in em.get_instructions():
+                    op = ins.get_op_value()
+                    length = ins.get_length()
+                    if op in _SGET_OPS:
+                        cls, typ, name = ins.cm.vm.get_cm_field(ins.get_ref_kind())
+                        owner = str(cls)
+                        if sites:
+                            key = f"{cls}->{name}:{typ}"
+                            if key in sites:
+                                if ref is None:
+                                    ref = MRef(reader, em.get_name(), to_jvm(em.get_descriptor()))
+                                sites[key].add((ref, offset))
+                    elif op in _CLASS_OPS:
+                        owner = str(ins.cm.vm.get_cm_type(ins.get_ref_kind()))
+                    else:
+                        offset += length
+                        continue
+                    if owner in owners and owner != reader:
+                        out.setdefault(owner, set()).add(reader)
+                    offset += length
+            except Exception:  # noqa: S112 - undecodable method bodies are skipped
+                continue
+        if field_refs:
+            self._sget_cache[frozenset(field_refs)] = {k: sorted(v) for k, v in sites.items() if v}
+        return {k: sorted(v) for k, v in out.items()}
+
+    def _scan_methods(self, only: set[str] | None) -> Iterable[Any]:
+        """Encoded methods of every DEX, or of the ``only`` classes."""
+        if only is None:
+            for dex in self.dexes:
+                getter = getattr(dex, "get_encoded_methods", None) or dex.get_methods
+                yield from getter()
+            return
+        for cls in sorted(only):
+            ca = self._internal.get(cls)
+            if ca is None:
+                continue
+            for ma in ca.get_methods():
+                try:
+                    if not ma.is_external():
+                        yield ma.get_method()
+                except Exception:  # noqa: S112
+                    continue
+
+    def source_file(self, cls: str) -> str | None:
+        ca = self._internal.get(cls)
+        if ca is None:
+            return None
+        try:
+            vm = ca.get_vm_class()
+            idx = vm.get_source_file_idx()
+            if idx in (_NO_INDEX, -1) or idx is None:
+                return None
+            return str(vm.CM.get_string(idx)) or None
+        except Exception:
+            return None
+
+    def _annotation_items(self, cm: Any) -> tuple[dict[int, Any], dict[int, Any]]:
+        """Offset maps of a DEX's annotation set items and annotation items (androguard looks
+        them up by a linear search per call)."""
+        cached = self._annotation_maps.get(id(cm))
+        if cached is None:
+            from androguard.core.dex import TypeMapItem
+
+            items = getattr(cm, "_ClassManager__manage_item", {}) or {}
+            cached = (
+                {i.get_off(): i for i in items.get(TypeMapItem.ANNOTATION_SET_ITEM, []) or []},
+                {i.get_off(): i for i in items.get(TypeMapItem.ANNOTATION_ITEM, []) or []},
+            )
+            self._annotation_maps[id(cm)] = cached
+        return cached
+
+    def method_annotations(self, method: MRef) -> list[str]:
+        table = self._annotations.get(method.cls)
+        if table is None:
+            table = {}
+            ca = self._internal.get(method.cls)
+            try:
+                vm = ca.get_vm_class() if ca is not None else None
+                adi = getattr(vm, "annotations_directory_item", None)
+                set_items, ann_items = self._annotation_items(vm.CM) if adi is not None else ({}, {})
+                for item in adi.get_method_annotations() if adi is not None else []:
+                    ref = vm.CM.get_method_ref(item.get_method_idx())
+                    key = (str(ref.get_name()), to_jvm(str(ref.get_descriptor())))
+                    sets = set_items.get(item.get_annotations_off())
+                    for off in sets.get_annotation_off_item() if sets is not None else []:
+                        ann = ann_items.get(off.get_annotation_off())
+                        if ann is not None:
+                            table.setdefault(key, []).append(str(vm.CM.get_type(ann.get_annotation().get_type_idx())))
+            except Exception:  # noqa: S110 - a class without readable annotations has none
+                pass
+            self._annotations[method.cls] = table
+        return sorted(set(table.get((method.name, method.desc), [])))
 
     def _encoded(self, method: MRef) -> Any:
         ma = self._analysis(method)
@@ -431,6 +577,13 @@ _NO_DEST = (
     | _INVOKE_OPS
     | frozenset({0x0E, 0x0F, 0x10, 0x11, 0x1D, 0x1E, 0x1F, 0x26, 0x27, 0x28, 0x29, 0x2A, 0x2B, 0x2C})
 )
+#: const/4, const/16, const: their literal is the value (const/high16 and wide forms are not traced).
+_CONST_SMALL_INT_OPS = (0x12, 0x13, 0x14)
+_ACCOUNT_MANAGER = "Landroid/accounts/AccountManager;"
+_SENSOR_MANAGER = "Landroid/hardware/SensorManager;"
+_SET_PACKAGE = ("Landroid/content/Intent;", "setPackage", "(Ljava/lang/String;)Landroid/content/Intent;")
+_GET_PACKAGE_NAME = ("getPackageName", "()Ljava/lang/String;")
+_GET_STRING_RES = ("getString", "(I)Ljava/lang/String;")
 _URI_PASSTHROUGH = {
     ("Landroid/net/Uri;", "parse"): "string",
     ("Landroid/net/Uri;", "withAppendedPath"): "any",
@@ -504,6 +657,10 @@ def trace_registers(em: Any, stop_offset: int | None = None, sput_field: str | N
                 pending = [v if v and v[0] == "string" else None for v in first]
             elif rule == "any":
                 pending = [v if v and v[0] in ("field", "string") else None for v in first]
+            elif (callee.name, callee.desc) == _GET_PACKAGE_NAME:
+                pending = [("own_package", None)]
+            elif (callee.name, callee.desc) == _GET_STRING_RES and len(args) >= 2:
+                pending = [("res_string", v[1]) if v and v[0] == "int" else None for v in args[1]]
             else:
                 pending = [None]
         elif op == 0x0C:  # move-result-object
@@ -514,6 +671,9 @@ def trace_registers(em: Any, stop_offset: int | None = None, sput_field: str | N
             pending = [None]
             if op in _CONST_STRING_OPS:
                 write(regs_used[0], [("string", str(ins.cm.vm.get_cm_string(ins.get_ref_kind())))])
+            elif op in _CONST_SMALL_INT_OPS and regs_used:
+                literals = ins.get_literals() or [None]
+                write(regs_used[0], [("int", int(literals[0])) if isinstance(literals[0], int) else None])
             elif op == 0x62:  # sget-object
                 cls, typ, name = ins.cm.vm.get_cm_field(ins.get_ref_kind())
                 write(regs_used[0], [("field", f"{cls}->{name}:{typ}")])
@@ -577,7 +737,18 @@ CALLBACK_NAMES = frozenset(
     }
 )
 _OBJECT = "Ljava/lang/Object;"
-_RANK = {"app_code": 3, "sdk_entry": 2, "callback": 1}
+_RANK = {"app_code": 3, "sdk_entry": 2, "bridge_entry": 2, "callback": 1}
+#: Annotations that make a method callable from JavaScript (React Native, WebView, Capacitor).
+BRIDGE_ANNOTATIONS = {
+    "Lcom/facebook/react/bridge/ReactMethod;": "react_native",
+    "Landroid/webkit/JavascriptInterface;": "javascript_interface",
+    "Lcom/getcapacitor/PluginMethod;": "capacitor",
+}
+_CORDOVA_PLUGIN = "Lorg/apache/cordova/CordovaPlugin;"
+_FLUTTER_ON_METHOD_CALL = (
+    "onMethodCall",
+    "(Lio/flutter/plugin/common/MethodCall;Lio/flutter/plugin/common/MethodChannel$Result;)V",
+)
 
 
 @dataclass
@@ -587,6 +758,9 @@ class ReachResult:
     reachability: str
     chain: list[str] = field(default_factory=list)
     deciding: MRef | None = None
+    #: For ``bridge_entry``: the bridge kind (``react_native``, ``javascript_interface``,
+    #: ``capacitor``, ``cordova``, ``flutter``).
+    bridge: str | None = None
 
 
 class Reachability:
@@ -666,6 +840,31 @@ class Reachability:
             return True
         return any(self.index.find_method(ext, method.name, method.desc) is not None for ext in externals)
 
+    def bridge_kind(self, method: MRef) -> str | None:
+        """The bridge kind when JavaScript or Dart code can call ``method`` directly, else None.
+
+        ``@ReactMethod``, ``@JavascriptInterface`` and Capacitor ``@PluginMethod`` methods,
+        ``execute`` of a Cordova plugin, and Flutter ``MethodCallHandler.onMethodCall``.
+        """
+        for annotation in self.index.method_annotations(method):
+            if annotation in BRIDGE_ANNOTATIONS:
+                return BRIDGE_ANNOTATIONS[annotation]
+        if (method.name, method.desc) == _FLUTTER_ON_METHOD_CALL:
+            return "flutter"
+        if method.name == "execute" and method.desc.startswith("(Ljava/lang/String;"):
+            frontier, seen = [method.cls], set()
+            while frontier:
+                cls = frontier.pop()
+                if cls in seen:
+                    continue
+                seen.add(cls)
+                sup = self.index.superclass(cls)
+                if sup == _CORDOVA_PLUGIN:
+                    return "cordova"
+                if sup and len(seen) < 8:
+                    frontier.append(sup)
+        return None
+
     def is_entry(self, method: MRef) -> bool:
         """A frame in a manifest component, the Application class or a startup initializer."""
         return method.cls in self.entry_classes
@@ -684,6 +883,7 @@ class Reachability:
         queue: deque[tuple[MRef, list[MRef], int]] = deque([(start, [start], 0)])
         visited = {start}
         best: tuple[str, list[MRef]] | None = None
+        bridge: str | None = None
         exhausted = False
         while queue:
             node, path, depth = queue.popleft()
@@ -700,6 +900,11 @@ class Reachability:
                 return ReachResult("app_code", _chain(path), node)
             if self.is_entry(node) and (best is None or _RANK[best[0]] < _RANK["sdk_entry"]):
                 best = ("sdk_entry", path)
+            if best is None or _RANK[best[0]] < _RANK["bridge_entry"]:
+                kind = self.bridge_kind(node)
+                if kind is not None:
+                    best = ("bridge_entry", path)
+                    bridge = kind
             if not callers and not bases and best is None and self.is_callback(node):
                 best = ("callback", path)
             for nxt in sorted(set(next_nodes)):
@@ -711,7 +916,7 @@ class Reachability:
                 visited.add(nxt)
                 queue.append((nxt, path + [nxt], depth + 1))
         if best is not None:
-            return ReachResult(best[0], _chain(best[1]), best[1][-1])
+            return ReachResult(best[0], _chain(best[1]), best[1][-1], bridge if best[0] == "bridge_entry" else None)
         if exhausted:
             return ReachResult("unknown", [start.frame()], None)
         return ReachResult("no_caller_found", [start.frame()], None)
@@ -741,11 +946,33 @@ def host_in(value: str, host: str) -> bool:
 
 
 def combined_pattern(literals: Iterable[str]) -> re.Pattern[str] | None:
-    """One regex that finds any of ``literals`` (longest first), or None when there are none."""
-    unique = sorted({s for s in literals if s}, key=lambda s: (-len(s), s))
+    """One regex that finds any of ``literals``, or None when there are none.
+
+    The literals are merged into a character trie, so the regex engine tests each
+    position once per shared prefix instead of once per literal (a flat alternation of
+    a few hundred literals made the string scan several times slower).
+    """
+    unique = sorted({s for s in literals if s})
     if not unique:
         return None
-    return re.compile("|".join(re.escape(s) for s in unique))
+    trie: dict[str, Any] = {}
+    for word in unique:
+        node = trie
+        for ch in word:
+            node = node.setdefault(ch, {})
+        node[""] = {}
+    return re.compile(_trie_regex(trie))
+
+
+def _trie_regex(node: dict[str, Any]) -> str:
+    """Regex for a trie node: an end marker makes the rest optional."""
+    branches = [re.escape(ch) + _trie_regex(child) for ch, child in sorted(node.items()) if ch]
+    if not branches:
+        return ""
+    body = branches[0] if len(branches) == 1 else "(?:" + "|".join(branches) + ")"
+    if "" in node:
+        return "(?:" + body + ")?"
+    return body
 
 
 # ------------------------------------------------------------------------ matching
@@ -789,17 +1016,35 @@ class Matcher:
         components: Manifest components ``[{name, kind, permission, actions}]`` (dotted names).
     """
 
-    def __init__(self, index: CodeIndex, catalogue: Any, attributor: Any, components: list[dict[str, Any]]):
-        """Set up the matcher."""
+    def __init__(
+        self,
+        index: CodeIndex,
+        catalogue: Any,
+        attributor: Any,
+        components: list[dict[str, Any]],
+        own: dict[str, Any] | None = None,
+    ):
+        """Set up the matcher.
+
+        ``own`` describes the app's own data: ``package`` (the manifest package),
+        ``account_types`` (account types of the app's own authenticators) and
+        ``resolve_string`` (resource id -> string, for traced ``getString(id)`` calls).
+        """
         self.index = index
         self.cat = catalogue
         self.attr = attributor
         self.components = components
+        own = own or {}
+        self.own_package: str | None = own.get("package")
+        self.own_account_types: set[str] = set(own.get("account_types") or ())
+        self.resolve_string: Callable[[int], str | None] | None = own.get("resolve_string")
         self.missing_sdk_apis: list[str] = []
         self.provider_reads_unresolved = 0
         self.provider_reads_untyped = 0
+        self.own_data_skipped = 0
         self.self_calls = 0
         self._siblings: dict[str, list[str]] | None = None
+        self._sensor_types: dict[str, frozenset[int]] = {}
 
     # -- helpers
     @staticmethod
@@ -849,6 +1094,7 @@ class Matcher:
             if entry["match"] != "method_call" or not entry["refs"]:
                 continue
             found = False
+            sensors = set(entry["requires"].get("default_sensor_any") or ())
             for cls, name, desc in self._method_refs(entry):
                 method = self.index.find_method(cls, name, desc)
                 if method is None:
@@ -858,10 +1104,98 @@ class Matcher:
                 for caller, offset in self.index.callers(method):
                     if not self._requires_ok(entry, self.index.facts(caller)):
                         continue
+                    if sensors and not (self.sensor_types(caller) & sensors):
+                        continue
+                    if entry.get("own_data") and self.is_own_data(entry["own_data"], caller, offset):
+                        self.own_data_skipped += 1
+                        continue
                     out.extend(self._sites_for(entry, caller, offset, api, entry["label"], "method_call", cls))
             if not found and entry["sdk_id"]:
                 self.missing_sdk_apis.append(entry["id"])
         return out
+
+    # -- own data and sensor types
+    def _arg_values(self, method: MRef, offset: int, param: int) -> list[Value | None] | None:
+        """Traced alternatives of parameter ``param`` of the invoke at ``offset`` (None if unknown)."""
+        info = self.index.invoke_args(method, offset)
+        if info is None:
+            return None
+        callee, is_static, args = info
+        pos = self._arg_register(callee.desc, param, is_static)
+        return list(args[pos]) if pos < len(args) else None
+
+    def _own_string(self, value: Value | None) -> bool:
+        """True for an account type / package string that belongs to the app itself."""
+        if not value:
+            return False
+        if value[0] == "res_string":
+            try:
+                text = self.resolve_string(int(value[1])) if self.resolve_string else None
+            except Exception:
+                text = None
+        elif value[0] in ("string", "own_package"):
+            text = self.own_package if value[0] == "own_package" else value[1]
+        else:
+            return False
+        if not text:
+            return False
+        pkg = self.own_package
+        return text in self.own_account_types or (bool(pkg) and (text == pkg or text.startswith(pkg + ".")))
+
+    def _own_account_type_call(self, method: MRef, offset: int) -> bool:
+        values = self._arg_values(method, offset, 0)
+        return bool(values) and all(self._own_string(v) for v in values)
+
+    def is_own_data(self, kind: str, caller: MRef, offset: int) -> bool:
+        """True when a call reads the app's own data (04-design own-data rule; 10-assessment W3).
+
+        * ``account_type``: ``getAccountsByType`` with the app's own account type (its
+          package, a type under its package, or a type of its own authenticator).
+        * ``account_user_data``: ``getUserData`` only works for accounts of an authenticator
+          with the caller's signature; it is own data when the app declares an
+          authenticator, or when every ``getAccountsByType`` in the method asks for an own type.
+        * ``own_package_intent``: an intent query in a method that limits the intent to the
+          app's own package (``setPackage(getPackageName())``).
+        """
+        facts = self.index.facts(caller)
+        if kind == "account_type":
+            return self._own_account_type_call(caller, offset)
+        if kind == "account_user_data":
+            if self.own_account_types:
+                return True
+            by_type = [off for m, off in facts.invokes if m.cls == _ACCOUNT_MANAGER and m.name == "getAccountsByType"]
+            return bool(by_type) and all(self._own_account_type_call(caller, off) for off in by_type)
+        if kind == "own_package_intent":
+            set_package = [off for m, off in facts.invokes if (m.cls, m.name, m.desc) == _SET_PACKAGE]
+            if not set_package:
+                return False
+            for off in set_package:
+                values = self._arg_values(caller, off, 0)
+                if not values or not all(self._own_string(v) for v in values):
+                    return False
+            return True
+        return False
+
+    def sensor_types(self, caller: MRef) -> frozenset[int]:
+        """Sensor types passed as constants to ``SensorManager.getDefaultSensor`` in the caller's class."""
+        from .attribution import desynth
+
+        outer = desynth(caller.cls)
+        cached = self._sensor_types.get(outer)
+        if cached is not None:
+            return cached
+        found: set[int] = set()
+        for cls in self._class_siblings(caller.cls):
+            for method in self.index.class_methods(cls):
+                for callee, off in self.index.facts(method).invokes:
+                    if callee.cls != _SENSOR_MANAGER or callee.name != "getDefaultSensor":
+                        continue
+                    for value in self._arg_values(method, off, 0) or []:
+                        if value and value[0] == "int":
+                            found.add(int(value[1]))
+        result = frozenset(found)
+        self._sensor_types[outer] = result
+        return result
 
     # -- step 7: provider reads
     def _class_siblings(self, cls: str) -> list[str]:

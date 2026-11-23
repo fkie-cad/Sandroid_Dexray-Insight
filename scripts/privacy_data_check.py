@@ -19,11 +19,15 @@ files of one Android SDK platform directory (API 35 is the reference):
 - ``requires.const_string_any`` values that name framework constants match ``javap``;
 - every ``android.permission.*`` name used anywhere is a ``Manifest.permission`` constant;
 - non-framework refs (GMS, Firebase, vendor SDKs, androidx) carry a non-empty
-  ``verified.seen_in``; with ``--apk label=path`` they are re-checked with androguard.
+  ``verified.seen_in`` (corpus APKs) or a ``verified.artifact`` (the vendor's Maven
+  artefact, ``group:name:version``); with ``--apk label=path`` the corpus refs are
+  re-checked with androguard, with ``--jar group:name:version=classes.jar`` the
+  artefact refs are re-checked with ``javap -s``.
 
 Usage:
     python scripts/privacy_data_check.py --sdk ~/Library/Android/sdk/platforms/android-35
     python scripts/privacy_data_check.py --sdk <dir> --apk voi=/path/voi.apk --apk spin=/path/spin.apk
+    python scripts/privacy_data_check.py --jar com.appsflyer:af-android-sdk:6.15.2=/tmp/af/classes.jar
 
 Exits 1 on any difference and prints one line per problem. Needs PyYAML and a JDK
 (``javap``); androguard only with ``--apk``. It never touches the network.
@@ -60,6 +64,11 @@ CONTRACT_CLASSES = (
 REQUIRES_CONSTANT_CLASSES = {
     "android_id": "android.provider.Settings$Secure",
     "deviceUniqueId": "android.media.MediaDrm",
+    "android.media.action.IMAGE_CAPTURE": "android.provider.MediaStore",
+    "android.media.action.VIDEO_CAPTURE": "android.provider.MediaStore",
+    "android.provider.action.PICK_IMAGES": "android.provider.MediaStore",
+    "android.intent.action.GET_CONTENT": "android.content.Intent",
+    "android.intent.action.OPEN_DOCUMENT": "android.content.Intent",
 }
 # URI authorities that are not compile-time constants in android.jar. Each is cited
 # in apis.yaml through the entry's `sources`.
@@ -316,8 +325,9 @@ def check_apis(data: dict, api: dict, ann: dict, sdk: Path, perms_known: set[str
                 if old_only and int(old_only.group(1)) < 23:
                     p = None
                 fw_perms.append((r, p))
-        if non_fw and not ((e.get("verified") or {}).get("seen_in")):
-            errs.append(f"{eid}: non-framework refs without verified.seen_in: {non_fw[:2]}")
+        verified = e.get("verified") or {}
+        if non_fw and not (verified.get("seen_in") or verified.get("artifact")):
+            errs.append(f"{eid}: non-framework refs without verified.seen_in or verified.artifact: {non_fw[:2]}")
         if fw_levels and e.get("match") != "manifest_component":
             exp = expected_levels(fw_levels)
             got = e.get("api") or {}
@@ -429,11 +439,38 @@ def check_corpus(data: dict, apks: dict[str, str]) -> list[str]:
     return errs
 
 
+def check_artifacts(data: dict, jars: dict[str, str]) -> list[str]:
+    """Re-verify the refs of entries with ``verified.artifact`` against the artefact's classes.jar."""
+    errs = []
+    for e in data.get("entries", []):
+        coord = (e.get("verified") or {}).get("artifact")
+        if not coord or coord not in jars:
+            continue
+        for r in e.get("refs") or []:
+            parts = split_ref(r)
+            if not parts or not parts[2]:
+                continue
+            cls, name, msig, _ = parts
+            out = subprocess.run(
+                ["javap", "-s", "-cp", jars[coord], cls.replace("/", ".")], capture_output=True, text=True, check=False
+            ).stdout
+            found = any(
+                re.search(r"\b" + re.escape(name) + r"\(", line) and f"descriptor: {msig}" in nxt
+                for line, nxt in zip(out.splitlines(), out.splitlines()[1:], strict=False)
+            )
+            if not found:
+                errs.append(f"{e['id']}: {name}{msig} not in {coord}")
+    return errs
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--sdk", type=Path, default=DEFAULT_SDK, help="Android platform dir (android-35)")
     ap.add_argument("--data", type=Path, default=DEFAULT_DATA, help="privacy data dir")
     ap.add_argument("--apk", action="append", default=[], help="label=path, re-verify seen_in refs")
+    ap.add_argument(
+        "--jar", action="append", default=[], help="group:name:version=classes.jar, re-verify artifact refs"
+    )
     args = ap.parse_args(argv)
     sdk = args.sdk.expanduser()
     for need in ("data/api-versions.xml", "data/annotations.zip", "android.jar"):
@@ -453,6 +490,8 @@ def main(argv=None) -> int:
     errs = check_apis(apis, api, ann, sdk, perms_known) + check_permissions(perms, perms_known)
     if args.apk:
         errs += check_corpus(apis, dict(a.split("=", 1) for a in args.apk))
+    if args.jar:
+        errs += check_artifacts(apis, dict(a.rsplit("=", 1) for a in args.jar))
     for e in errs:
         print(e)
     n = len(apis.get("entries", []))

@@ -94,6 +94,33 @@ meta:
     apk_label: Wikipedia 50616, example_class: Lorg/wikipedia/WikipediaApp;}
   - {id: corpus-exampleapp, title: Corpus APK Insight exampleapp-release, url: null, licence: null, retrieved: '2026-11-23', use: observed, apk_sha256: 8866f3a2d09bfb0c7c77b41160be7a0e6329e80cd75c0a5cab33be6a3aaed947,
     apk_label: Insight exampleapp-release, example_class: Lcom/example/exampleapp/MainActivity;}
+  - {id: android-ref-accountmanager, title: "Android reference: AccountManager.getUserData (signature match with the authenticator)", url: "https://developer.android.com/reference/android/accounts/AccountManager#getUserData(android.accounts.Account,%20java.lang.String)", licence: CC-BY-2.5, retrieved: '2026-11-23', use: facts_cited}
+  - {id: android-ref-bluetoothadapter, title: "Android reference: BluetoothAdapter (getName, getBondedDevices)", url: "https://developer.android.com/reference/android/bluetooth/BluetoothAdapter", licence: CC-BY-2.5, retrieved: '2026-11-23', use: facts_cited}
+  - {id: android-ref-wifiinfo, title: "Android reference: WifiInfo.getSSID (location permission)", url: "https://developer.android.com/reference/android/net/wifi/WifiInfo#getSSID()", licence: CC-BY-2.5, retrieved: '2026-11-23', use: facts_cited}
+  - {id: android-ref-geolocation-callback, title: "Android reference: GeolocationPermissions.Callback", url: "https://developer.android.com/reference/android/webkit/GeolocationPermissions.Callback", licence: CC-BY-2.5, retrieved: '2026-11-23', use: facts_cited}
+  - {id: android-ref-mediastore-actions, title: "Android reference: MediaStore (ACTION_IMAGE_CAPTURE, ACTION_VIDEO_CAPTURE, ACTION_PICK_IMAGES)", url: "https://developer.android.com/reference/android/provider/MediaStore", licence: CC-BY-2.5, retrieved: '2026-11-23', use: facts_cited}
+  - {id: android-ref-intent-actions, title: "Android reference: Intent (ACTION_GET_CONTENT, ACTION_OPEN_DOCUMENT)", url: "https://developer.android.com/reference/android/content/Intent", licence: CC-BY-2.5, retrieved: '2026-11-23', use: facts_cited}
+  - {id: gms-ref-fused-location-api, title: "Google Play services reference: FusedLocationProviderApi (deprecated GoogleApiClient API)", url: "https://developers.google.com/android/reference/com/google/android/gms/location/FusedLocationProviderApi", licence: CC-BY-4.0, retrieved: '2026-11-23', use: facts_cited}
+  - {id: gms-ref-activity-recognition, title: "Google Play services reference: ActivityRecognitionClient", url: "https://developers.google.com/android/reference/com/google/android/gms/location/ActivityRecognitionClient", licence: CC-BY-4.0, retrieved: '2026-11-23', use: facts_cited}
+  - {id: gms-ref-sms-retriever, title: "Google Play services reference: SmsRetrieverClient", url: "https://developers.google.com/android/reference/com/google/android/gms/auth/api/phone/SmsRetrieverClient", licence: CC-BY-4.0, retrieved: '2026-11-23', use: facts_cited}
+  - {id: firebase-ref-installations, title: "Firebase reference: FirebaseInstallations.getId", url: "https://firebase.google.com/docs/reference/android/com/google/firebase/installations/FirebaseInstallations", licence: CC-BY-4.0, retrieved: '2026-11-23', use: facts_cited}
+  - {id: firebase-ref-messaging, title: "Firebase reference: FirebaseMessaging.getToken", url: "https://firebase.google.com/docs/reference/android/com/google/firebase/messaging/FirebaseMessaging", licence: CC-BY-4.0, retrieved: '2026-11-23', use: facts_cited}
+  - {id: google-consent-mode-app, title: "Google tag platform: Consent mode for apps (Android, setConsent)", url: "https://developers.google.com/tag-platform/security/guides/app-consent?platform=android", licence: CC-BY-4.0, retrieved: '2026-11-23', use: facts_cited}
+  - {id: android-install-referrer, title: "Android: Play Install Referrer library (InstallReferrerClient.getInstallReferrer)", url: "https://developer.android.com/google/play/installreferrer/library", licence: CC-BY-2.5, retrieved: '2026-11-23', use: facts_cited}
+  - {id: android-health-connect-read, title: "Android: Health Connect, read data (HealthConnectClient.readRecords, aggregate)", url: "https://developer.android.com/health-and-fitness/guides/health-connect/develop/read-data", licence: CC-BY-2.5, retrieved: '2026-11-23', use: facts_cited}
+  - {id: android-camerax-lifecycle, title: "Android reference: ProcessCameraProvider.bindToLifecycle (CameraX)", url: "https://developer.android.com/reference/androidx/camera/lifecycle/ProcessCameraProvider", licence: CC-BY-2.5, retrieved: '2026-11-23', use: facts_cited}
+  - {id: appsflyer-ref-consent, title: "AppsFlyer: Android SDK reference, setConsentData / enableTCFDataCollection / anonymizeUser / logEvent", url: "https://dev.appsflyer.com/hc/docs/android-sdk-reference-appsflyerlib", licence: LicenseRef-vendor-terms, retrieved: '2026-11-23', use: facts_cited}
+  - {id: adjust-dev-privacy-v5, title: "Adjust: Android SDK v5, privacy features (trackThirdPartySharing, trackMeasurementConsent)", url: "https://dev.adjust.com/en/sdk/android/features/privacy", licence: LicenseRef-vendor-terms, retrieved: '2026-11-23', use: facts_cited}
+  - {id: artifact-play-services-location, title: "Google Maven: play-services-location 21.3.0 AAR (javap descriptors)", url: "https://dl.google.com/android/maven2/com/google/android/gms/play-services-location/21.3.0/play-services-location-21.3.0.aar", licence: NOASSERTION, retrieved: '2026-11-23', use: facts_cited}
+  - {id: artifact-play-services-auth-api-phone, title: "Google Maven: play-services-auth-api-phone 18.1.0 AAR (javap descriptors)", url: "https://dl.google.com/android/maven2/com/google/android/gms/play-services-auth-api-phone/18.1.0/play-services-auth-api-phone-18.1.0.aar", licence: NOASSERTION, retrieved: '2026-11-23', use: facts_cited}
+  - {id: artifact-firebase-installations, title: "Google Maven: firebase-installations 18.0.0 AAR (javap descriptors)", url: "https://dl.google.com/android/maven2/com/google/firebase/firebase-installations/18.0.0/firebase-installations-18.0.0.aar", licence: NOASSERTION, retrieved: '2026-11-23', use: facts_cited}
+  - {id: artifact-firebase-messaging, title: "Google Maven: firebase-messaging 24.1.0 AAR (javap descriptors)", url: "https://dl.google.com/android/maven2/com/google/firebase/firebase-messaging/24.1.0/firebase-messaging-24.1.0.aar", licence: NOASSERTION, retrieved: '2026-11-23', use: facts_cited}
+  - {id: artifact-play-services-measurement-api, title: "Google Maven: play-services-measurement-api 22.1.2 AAR (javap descriptors)", url: "https://dl.google.com/android/maven2/com/google/android/gms/play-services-measurement-api/22.1.2/play-services-measurement-api-22.1.2.aar", licence: NOASSERTION, retrieved: '2026-11-23', use: facts_cited}
+  - {id: artifact-installreferrer, title: "Google Maven: installreferrer 2.2 AAR (javap descriptors)", url: "https://dl.google.com/android/maven2/com/android/installreferrer/installreferrer/2.2/installreferrer-2.2.aar", licence: Apache-2.0, retrieved: '2026-11-23', use: facts_cited}
+  - {id: artifact-health-connect-client, title: "Google Maven: androidx.health.connect connect-client 1.1.0 AAR (javap descriptors)", url: "https://dl.google.com/android/maven2/androidx/health/connect/connect-client/1.1.0/connect-client-1.1.0.aar", licence: Apache-2.0, retrieved: '2026-11-23', use: facts_cited}
+  - {id: artifact-camera-lifecycle, title: "Google Maven: androidx.camera camera-lifecycle 1.4.1 AAR (javap descriptors)", url: "https://dl.google.com/android/maven2/androidx/camera/camera-lifecycle/1.4.1/camera-lifecycle-1.4.1.aar", licence: Apache-2.0, retrieved: '2026-11-23', use: facts_cited}
+  - {id: artifact-appsflyer, title: "Maven Central: com.appsflyer af-android-sdk 6.15.2 AAR (javap descriptors)", url: "https://repo1.maven.org/maven2/com/appsflyer/af-android-sdk/6.15.2/af-android-sdk-6.15.2.aar", licence: NOASSERTION, retrieved: '2026-11-23', use: facts_cited}
+  - {id: artifact-adjust, title: "Maven Central: com.adjust.sdk adjust-android 5.0.2 AAR (javap descriptors)", url: "https://repo1.maven.org/maven2/com/adjust/sdk/adjust-android/5.0.2/adjust-android-5.0.2.aar", licence: NOASSERTION, retrieved: '2026-11-23', use: facts_cited}
 carriers:
   content_resolver_read: ['Landroid/content/ContentResolver;->query(Landroid/net/Uri;[Ljava/lang/String;Ljava/lang/String;[Ljava/lang/String;Ljava/lang/String;)Landroid/database/Cursor;', 'Landroid/content/ContentResolver;->query(Landroid/net/Uri;[Ljava/lang/String;Ljava/lang/String;[Ljava/lang/String;Ljava/lang/String;Landroid/os/CancellationSignal;)Landroid/database/Cursor;',
     'Landroid/content/ContentResolver;->query(Landroid/net/Uri;[Ljava/lang/String;Landroid/os/Bundle;Landroid/os/CancellationSignal;)Landroid/database/Cursor;', Landroid/content/ContentResolver;->openInputStream(Landroid/net/Uri;)Ljava/io/InputStream;,
@@ -1393,6 +1420,7 @@ entries:
   api: {since: 5, deprecated: null, removed: null, effective_until: null}
   precision: medium
   non_resettable: false
+  own_data: account_type
   sdk_id: null
   controls_sdk_id: null
   note: From API 26 only accounts visible to the app.
@@ -1420,10 +1448,11 @@ entries:
   api: {since: 5, deprecated: null, removed: null, effective_until: null}
   precision: low
   non_resettable: false
+  own_data: account_user_data
   sdk_id: null
   controls_sdk_id: null
-  note: Extra data stored with an account by its authenticator.
-  sources: [aosp-api-versions, aosp-annotations, corpus-nextcloud, corpus-wikipedia]
+  note: Extra data stored with an account by its authenticator. The caller needs a signature match with the account's authenticator, so an app with its own authenticator reads its own data; such calls are left out.
+  sources: [aosp-api-versions, aosp-annotations, corpus-nextcloud, corpus-wikipedia, android-ref-accountmanager]
   verified:
     descriptor: api-versions.xml@35
     seen_in: [nextcloud, wikipedia]
@@ -2190,6 +2219,7 @@ entries:
   api: {since: 1, deprecated: null, removed: null, effective_until: null}
   precision: low
   non_resettable: false
+  own_data: own_package_intent
   sdk_id: null
   controls_sdk_id: null
   note: Usually a check for one intent handler, not an app inventory.
@@ -2262,7 +2292,8 @@ entries:
   also_receivers: []
   requires:
     const_string_any: []
-    const_int_any: [18, 19, 21, 31]
+    const_int_any: []
+    default_sensor_any: [18, 19, 21, 31]
   reflection: null
   carriers: null
   uri_evidence: null
@@ -2277,7 +2308,7 @@ entries:
   non_resettable: false
   sdk_id: null
   controls_sdk_id: null
-  note: Matched only with a step (18, 19) or heart (21, 31) Sensor type constant in the caller.
+  note: Matched only when the caller's class gets a step (18, 19) or heart (21, 31) sensor with SensorManager.getDefaultSensor; the type is the traced constant argument, not any int in the method (21 and 31 are also common SDK_INT checks).
   sources: [aosp-api-versions, android-jar-constants, android-ref-sensor, corpus-voi, corpus-spin, corpus-nextcloud, corpus-wikipedia]
   verified:
     descriptor: api-versions.xml@35
@@ -2962,3 +2993,593 @@ entries:
   verified:
     descriptor: corpus
     seen_in: [voi]
+- id: loc.fused.legacy_api
+  label: "FusedLocationProviderApi (LocationServices.FusedLocationApi, GoogleApiClient)"
+  group: location
+  role: source
+  match: method_call
+  refs: ["Lcom/google/android/gms/location/FusedLocationProviderApi;->getLastLocation(Lcom/google/android/gms/common/api/GoogleApiClient;)Landroid/location/Location;", "Lcom/google/android/gms/location/FusedLocationProviderApi;->requestLocationUpdates(Lcom/google/android/gms/common/api/GoogleApiClient;Lcom/google/android/gms/location/LocationRequest;Lcom/google/android/gms/location/LocationListener;)Lcom/google/android/gms/common/api/PendingResult;"]
+  also_receivers: []
+  requires:
+    const_string_any: []
+    const_int_any: []
+  reflection: null
+  carriers: null
+  uri_evidence: null
+  manifest: null
+  data_types: *id001
+  type_permissions: *id002
+  permission:
+    any_of: [android.permission.ACCESS_COARSE_LOCATION, android.permission.ACCESS_FINE_LOCATION]
+  api: {since: null, deprecated: null, removed: null, effective_until: null}
+  precision: high
+  non_resettable: false
+  sdk_id: null
+  controls_sdk_id: null
+  note: "Deprecated GoogleApiClient form of the fused location provider (Mapbox and OneSignal legacy code use it)."
+  sources: [gms-ref-fused-location-api, artifact-play-services-location]
+  verified:
+    descriptor: vendor_artifact
+    artifact: "com.google.android.gms:play-services-location:21.3.0"
+    seen_in: []
+- id: loc.fused.current_location
+  label: "FusedLocationProviderClient.getCurrentLocation"
+  group: location
+  role: source
+  match: method_call
+  refs: ["Lcom/google/android/gms/location/FusedLocationProviderClient;->getCurrentLocation(ILcom/google/android/gms/tasks/CancellationToken;)Lcom/google/android/gms/tasks/Task;", "Lcom/google/android/gms/location/FusedLocationProviderClient;->getCurrentLocation(Lcom/google/android/gms/location/CurrentLocationRequest;Lcom/google/android/gms/tasks/CancellationToken;)Lcom/google/android/gms/tasks/Task;"]
+  also_receivers: []
+  requires:
+    const_string_any: []
+    const_int_any: []
+  reflection: null
+  carriers: null
+  uri_evidence: null
+  manifest: null
+  data_types: *id001
+  type_permissions: *id002
+  permission:
+    any_of: [android.permission.ACCESS_COARSE_LOCATION, android.permission.ACCESS_FINE_LOCATION]
+  api: {since: null, deprecated: null, removed: null, effective_until: null}
+  precision: high
+  non_resettable: false
+  sdk_id: null
+  controls_sdk_id: null
+  note: null
+  sources: [gms-ref-fused-location, artifact-play-services-location]
+  verified:
+    descriptor: vendor_artifact
+    artifact: "com.google.android.gms:play-services-location:21.3.0"
+    seen_in: []
+- id: loc.wifi.ssid
+  label: "WifiInfo.getSSID"
+  group: location
+  role: source
+  match: method_call
+  refs: ["Landroid/net/wifi/WifiInfo;->getSSID()Ljava/lang/String;"]
+  also_receivers: []
+  requires:
+    const_string_any: []
+    const_int_any: []
+  reflection: null
+  carriers: null
+  uri_evidence: null
+  manifest: null
+  data_types: *id001
+  type_permissions: *id002
+  permission: null
+  api: {since: 1, deprecated: null, removed: null, effective_until: null}
+  precision: low
+  non_resettable: false
+  sdk_id: null
+  controls_sdk_id: null
+  note: "The network name; returns a placeholder without a location permission."
+  sources: [aosp-api-versions, android-ref-wifiinfo]
+  verified:
+    descriptor: api-versions.xml@35
+    seen_in: []
+- id: loc.webview.geolocation
+  label: "GeolocationPermissions.Callback.invoke (WebView geolocation grant)"
+  group: location
+  role: source
+  match: method_call
+  refs: ["Landroid/webkit/GeolocationPermissions$Callback;->invoke(Ljava/lang/String;ZZ)V"]
+  also_receivers: []
+  requires:
+    const_string_any: []
+    const_int_any: []
+  reflection: null
+  carriers: null
+  uri_evidence: null
+  manifest: null
+  data_types: *id001
+  type_permissions: *id002
+  permission: null
+  api: {since: 5, deprecated: null, removed: null, effective_until: null}
+  precision: medium
+  non_resettable: false
+  sdk_id: null
+  controls_sdk_id: null
+  note: "Lets a web page in a WebView use the device location through the app's own location permission."
+  sources: [aosp-api-versions, android-ref-geolocation-callback]
+  verified:
+    descriptor: api-versions.xml@35
+    seen_in: []
+- id: ids.bt.adapter_name
+  label: "BluetoothAdapter.getName"
+  group: identifiers
+  role: source
+  match: method_call
+  refs: ["Landroid/bluetooth/BluetoothAdapter;->getName()Ljava/lang/String;"]
+  also_receivers: []
+  requires:
+    const_string_any: []
+    const_int_any: []
+  reflection: null
+  carriers: null
+  uri_evidence: null
+  manifest: null
+  data_types: [identifiers.other]
+  type_permissions: {}
+  permission:
+    any_of: [android.permission.BLUETOOTH_CONNECT]
+  api: {since: 5, deprecated: null, removed: null, effective_until: null}
+  precision: low
+  non_resettable: false
+  sdk_id: null
+  controls_sdk_id: null
+  note: "The user-visible device name, often containing the owner's name."
+  sources: [aosp-api-versions, aosp-annotations, android-ref-bluetoothadapter]
+  verified:
+    descriptor: api-versions.xml@35
+    seen_in: []
+- id: ids.bt.bonded_devices
+  label: "BluetoothAdapter.getBondedDevices"
+  group: identifiers
+  role: source
+  match: method_call
+  refs: ["Landroid/bluetooth/BluetoothAdapter;->getBondedDevices()Ljava/util/Set;"]
+  also_receivers: []
+  requires:
+    const_string_any: []
+    const_int_any: []
+  reflection: null
+  carriers: null
+  uri_evidence: null
+  manifest: null
+  data_types: [identifiers.other]
+  type_permissions: {}
+  permission:
+    any_of: [android.permission.BLUETOOTH_CONNECT]
+  api: {since: 5, deprecated: null, removed: null, effective_until: null}
+  precision: low
+  non_resettable: false
+  sdk_id: null
+  controls_sdk_id: null
+  note: "Names and addresses of paired devices (device fingerprinting signal)."
+  sources: [aosp-api-versions, aosp-annotations, android-ref-bluetoothadapter]
+  verified:
+    descriptor: api-versions.xml@35
+    seen_in: []
+- id: ids.firebase.installations_id
+  label: "FirebaseInstallations.getId"
+  group: identifiers
+  role: source
+  match: method_call
+  refs: ["Lcom/google/firebase/installations/FirebaseInstallations;->getId()Lcom/google/android/gms/tasks/Task;"]
+  also_receivers: []
+  requires:
+    const_string_any: []
+    const_int_any: []
+  reflection: null
+  carriers: null
+  uri_evidence: null
+  manifest: null
+  data_types: [identifiers.other]
+  type_permissions: {}
+  permission: null
+  api: {since: null, deprecated: null, removed: null, effective_until: null}
+  precision: high
+  non_resettable: false
+  sdk_id: firebase_installations
+  controls_sdk_id: null
+  note: null
+  sources: [firebase-ref-installations, artifact-firebase-installations]
+  verified:
+    descriptor: vendor_artifact
+    artifact: "com.google.firebase:firebase-installations:18.0.0"
+    seen_in: []
+- id: ids.firebase.fcm_token
+  label: "FirebaseMessaging.getToken"
+  group: identifiers
+  role: source
+  match: method_call
+  refs: ["Lcom/google/firebase/messaging/FirebaseMessaging;->getToken()Lcom/google/android/gms/tasks/Task;"]
+  also_receivers: []
+  requires:
+    const_string_any: []
+    const_int_any: []
+  reflection: null
+  carriers: null
+  uri_evidence: null
+  manifest: null
+  data_types: [identifiers.other]
+  type_permissions: {}
+  permission: null
+  api: {since: null, deprecated: null, removed: null, effective_until: null}
+  precision: high
+  non_resettable: false
+  sdk_id: firebase_messaging
+  controls_sdk_id: null
+  note: null
+  sources: [firebase-ref-messaging, artifact-firebase-messaging]
+  verified:
+    descriptor: vendor_artifact
+    artifact: "com.google.firebase:firebase-messaging:24.1.0"
+    seen_in: []
+- id: app.install_referrer
+  label: "InstallReferrerClient.getInstallReferrer"
+  group: app_activity
+  role: source
+  match: method_call
+  refs: ["Lcom/android/installreferrer/api/InstallReferrerClient;->getInstallReferrer()Lcom/android/installreferrer/api/ReferrerDetails;"]
+  also_receivers: []
+  requires:
+    const_string_any: []
+    const_int_any: []
+  reflection: null
+  carriers: null
+  uri_evidence: null
+  manifest: null
+  data_types: [actions_in_app.other]
+  type_permissions: {}
+  permission: null
+  api: {since: null, deprecated: null, removed: null, effective_until: null}
+  precision: medium
+  non_resettable: false
+  sdk_id: null
+  controls_sdk_id: null
+  note: "The Play Store referrer of the install (campaign attribution)."
+  sources: [android-install-referrer, artifact-installreferrer]
+  verified:
+    descriptor: vendor_artifact
+    artifact: "com.android.installreferrer:installreferrer:2.2"
+    seen_in: []
+- id: health.connect_client_read
+  label: "HealthConnectClient.readRecords / aggregate (Jetpack Health Connect)"
+  group: health
+  role: source
+  match: method_call
+  refs: ["Landroidx/health/connect/client/HealthConnectClient;->readRecords(Landroidx/health/connect/client/request/ReadRecordsRequest;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;", "Landroidx/health/connect/client/HealthConnectClient;->aggregate(Landroidx/health/connect/client/request/AggregateRequest;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;"]
+  also_receivers: []
+  requires:
+    const_string_any: []
+    const_int_any: []
+  reflection: null
+  carriers: null
+  uri_evidence: null
+  manifest: null
+  data_types: [health_fitness.fitness, health_fitness.health]
+  type_permissions: {}
+  permission: null
+  api: {since: null, deprecated: null, removed: null, effective_until: null}
+  precision: medium
+  non_resettable: false
+  sdk_id: null
+  controls_sdk_id: null
+  note: "Each record type needs its own android.permission.health.READ_* permission."
+  sources: [android-health-connect-read, artifact-health-connect-client]
+  verified:
+    descriptor: vendor_artifact
+    artifact: "androidx.health.connect:connect-client:1.1.0"
+    seen_in: []
+- id: health.activity_recognition
+  label: "ActivityRecognitionClient.requestActivityUpdates / requestActivityTransitionUpdates"
+  group: health
+  role: source
+  match: method_call
+  refs: ["Lcom/google/android/gms/location/ActivityRecognitionClient;->requestActivityUpdates(JLandroid/app/PendingIntent;)Lcom/google/android/gms/tasks/Task;", "Lcom/google/android/gms/location/ActivityRecognitionClient;->requestActivityTransitionUpdates(Lcom/google/android/gms/location/ActivityTransitionRequest;Landroid/app/PendingIntent;)Lcom/google/android/gms/tasks/Task;"]
+  also_receivers: []
+  requires:
+    const_string_any: []
+    const_int_any: []
+  reflection: null
+  carriers: null
+  uri_evidence: null
+  manifest: null
+  data_types: [health_fitness.fitness]
+  type_permissions: {}
+  permission:
+    any_of: [android.permission.ACTIVITY_RECOGNITION, com.google.android.gms.permission.ACTIVITY_RECOGNITION]
+  api: {since: null, deprecated: null, removed: null, effective_until: null}
+  precision: medium
+  non_resettable: false
+  sdk_id: null
+  controls_sdk_id: null
+  note: null
+  sources: [gms-ref-activity-recognition, artifact-play-services-location]
+  verified:
+    descriptor: vendor_artifact
+    artifact: "com.google.android.gms:play-services-location:21.3.0"
+    seen_in: []
+- id: media.camerax_bind
+  label: "ProcessCameraProvider.bindToLifecycle (CameraX)"
+  group: media
+  role: source
+  match: method_call
+  refs: ["Landroidx/camera/lifecycle/ProcessCameraProvider;->bindToLifecycle(Landroidx/lifecycle/LifecycleOwner;Landroidx/camera/core/CameraSelector;[Landroidx/camera/core/UseCase;)Landroidx/camera/core/Camera;", "Landroidx/camera/lifecycle/ProcessCameraProvider;->bindToLifecycle(Landroidx/lifecycle/LifecycleOwner;Landroidx/camera/core/CameraSelector;Landroidx/camera/core/UseCaseGroup;)Landroidx/camera/core/Camera;"]
+  also_receivers: []
+  requires:
+    const_string_any: []
+    const_int_any: []
+  reflection: null
+  carriers: null
+  uri_evidence: null
+  manifest: null
+  data_types: [photo_video.photos, photo_video.videos]
+  type_permissions: {}
+  permission:
+    any_of: [android.permission.CAMERA]
+  api: {since: null, deprecated: null, removed: null, effective_until: null}
+  precision: medium
+  non_resettable: false
+  sdk_id: null
+  controls_sdk_id: null
+  note: "Starts the camera for preview, capture or image analysis (barcode scanning included)."
+  sources: [android-camerax-lifecycle, artifact-camera-lifecycle]
+  verified:
+    descriptor: vendor_artifact
+    artifact: "androidx.camera:camera-lifecycle:1.4.1"
+    seen_in: []
+- id: sms.retriever
+  label: "SmsRetrieverClient.startSmsRetriever / startSmsUserConsent"
+  group: messages
+  role: source
+  match: method_call
+  refs: ["Lcom/google/android/gms/auth/api/phone/SmsRetrieverClient;->startSmsRetriever()Lcom/google/android/gms/tasks/Task;", "Lcom/google/android/gms/auth/api/phone/SmsRetrieverClient;->startSmsUserConsent(Ljava/lang/String;)Lcom/google/android/gms/tasks/Task;"]
+  also_receivers: []
+  requires:
+    const_string_any: []
+    const_int_any: []
+  reflection: null
+  carriers: null
+  uri_evidence: null
+  manifest: null
+  data_types: [email_text_message.text_messages]
+  type_permissions: {}
+  permission: null
+  api: {since: null, deprecated: null, removed: null, effective_until: null}
+  precision: low
+  non_resettable: false
+  sdk_id: null
+  controls_sdk_id: null
+  note: "Only one verification message: one that carries the app's hash, or one the user agrees to share."
+  sources: [gms-ref-sms-retriever, artifact-play-services-auth-api-phone]
+  verified:
+    descriptor: vendor_artifact
+    artifact: "com.google.android.gms:play-services-auth-api-phone:18.1.0"
+    seen_in: []
+- id: intent.photo_capture
+  label: "Intent ACTION_IMAGE_CAPTURE (the camera app takes a photo for the app)"
+  group: media
+  role: source
+  match: method_call
+  refs: ["Landroid/content/Intent;-><init>(Ljava/lang/String;)V", "Landroid/content/Intent;-><init>(Ljava/lang/String;Landroid/net/Uri;)V", "Landroid/content/Intent;->setAction(Ljava/lang/String;)Landroid/content/Intent;"]
+  also_receivers: []
+  requires:
+    const_string_any: ["android.media.action.IMAGE_CAPTURE"]
+    const_int_any: []
+  reflection: null
+  carriers: null
+  uri_evidence: null
+  manifest: null
+  data_types: [photo_video.photos]
+  type_permissions: {}
+  permission: null
+  api: {since: 1, deprecated: null, removed: null, effective_until: null}
+  precision: low
+  non_resettable: false
+  user_mediated: true
+  sdk_id: null
+  controls_sdk_id: null
+  note: "User-mediated: the app can receive a photo the user takes; it does not read the gallery."
+  sources: [aosp-api-versions, android-jar-constants, android-ref-mediastore-actions]
+  verified:
+    descriptor: api-versions.xml@35
+    seen_in: []
+- id: intent.video_capture
+  label: "Intent ACTION_VIDEO_CAPTURE (the camera app records a video for the app)"
+  group: media
+  role: source
+  match: method_call
+  refs: ["Landroid/content/Intent;-><init>(Ljava/lang/String;)V", "Landroid/content/Intent;-><init>(Ljava/lang/String;Landroid/net/Uri;)V", "Landroid/content/Intent;->setAction(Ljava/lang/String;)Landroid/content/Intent;"]
+  also_receivers: []
+  requires:
+    const_string_any: ["android.media.action.VIDEO_CAPTURE"]
+    const_int_any: []
+  reflection: null
+  carriers: null
+  uri_evidence: null
+  manifest: null
+  data_types: [photo_video.videos]
+  type_permissions: {}
+  permission: null
+  api: {since: 1, deprecated: null, removed: null, effective_until: null}
+  precision: low
+  non_resettable: false
+  user_mediated: true
+  sdk_id: null
+  controls_sdk_id: null
+  note: "User-mediated: the app can receive a video the user records."
+  sources: [aosp-api-versions, android-jar-constants, android-ref-mediastore-actions]
+  verified:
+    descriptor: api-versions.xml@35
+    seen_in: []
+- id: intent.media_pick
+  label: "Intent ACTION_PICK_IMAGES (system photo picker)"
+  group: media
+  role: source
+  match: method_call
+  refs: ["Landroid/content/Intent;-><init>(Ljava/lang/String;)V", "Landroid/content/Intent;-><init>(Ljava/lang/String;Landroid/net/Uri;)V", "Landroid/content/Intent;->setAction(Ljava/lang/String;)Landroid/content/Intent;"]
+  also_receivers: []
+  requires:
+    const_string_any: ["android.provider.action.PICK_IMAGES"]
+    const_int_any: []
+  reflection: null
+  carriers: null
+  uri_evidence: null
+  manifest: null
+  data_types: [photo_video.photos, photo_video.videos]
+  type_permissions: {}
+  permission: null
+  api: {since: 1, deprecated: null, removed: null, effective_until: null}
+  precision: low
+  non_resettable: false
+  user_mediated: true
+  sdk_id: null
+  controls_sdk_id: null
+  note: "User-mediated: the app can receive the photos or videos the user picks."
+  sources: [aosp-api-versions, android-jar-constants, android-ref-mediastore-actions]
+  verified:
+    descriptor: api-versions.xml@35
+    seen_in: []
+- id: intent.document_pick
+  label: "Intent ACTION_GET_CONTENT / ACTION_OPEN_DOCUMENT (the user picks a file)"
+  group: media
+  role: source
+  match: method_call
+  refs: ["Landroid/content/Intent;-><init>(Ljava/lang/String;)V", "Landroid/content/Intent;-><init>(Ljava/lang/String;Landroid/net/Uri;)V", "Landroid/content/Intent;->setAction(Ljava/lang/String;)Landroid/content/Intent;"]
+  also_receivers: []
+  requires:
+    const_string_any: ["android.intent.action.GET_CONTENT", "android.intent.action.OPEN_DOCUMENT"]
+    const_int_any: []
+  reflection: null
+  carriers: null
+  uri_evidence: null
+  manifest: null
+  data_types: [storage.files_docs]
+  type_permissions: {}
+  permission: null
+  api: {since: 1, deprecated: null, removed: null, effective_until: null}
+  precision: low
+  non_resettable: false
+  user_mediated: true
+  sdk_id: null
+  controls_sdk_id: null
+  note: "User-mediated: the app can receive a file the user picks."
+  sources: [aosp-api-versions, android-jar-constants, android-ref-intent-actions]
+  verified:
+    descriptor: api-versions.xml@35
+    seen_in: []
+- id: consent.firebase.consent_mode
+  label: "FirebaseAnalytics.setConsent (Consent Mode v2)"
+  group: consent_control
+  role: consent_control
+  match: method_call
+  refs: ["Lcom/google/firebase/analytics/FirebaseAnalytics;->setConsent(Ljava/util/Map;)V"]
+  also_receivers: []
+  requires:
+    const_string_any: []
+    const_int_any: []
+  reflection: null
+  carriers: null
+  uri_evidence: null
+  manifest: null
+  data_types: []
+  type_permissions: {}
+  permission: null
+  api: {since: null, deprecated: null, removed: null, effective_until: null}
+  precision: medium
+  non_resettable: false
+  sdk_id: firebase_analytics
+  controls_sdk_id: firebase_analytics
+  note: null
+  sources: [google-consent-mode-app, artifact-play-services-measurement-api]
+  verified:
+    descriptor: vendor_artifact
+    artifact: "com.google.android.gms:play-services-measurement-api:22.1.2"
+    seen_in: []
+- id: consent.appsflyer.consent_data
+  label: "AppsFlyerLib.setConsentData / enableTCFDataCollection / anonymizeUser (SDK v6)"
+  group: consent_control
+  role: consent_control
+  match: method_call
+  refs: ["Lcom/appsflyer/AppsFlyerLib;->setConsentData(Lcom/appsflyer/AppsFlyerConsent;)V", "Lcom/appsflyer/AppsFlyerLib;->enableTCFDataCollection(Z)V", "Lcom/appsflyer/AppsFlyerLib;->anonymizeUser(Z)V"]
+  also_receivers: []
+  requires:
+    const_string_any: []
+    const_int_any: []
+  reflection: null
+  carriers: null
+  uri_evidence: null
+  manifest: null
+  data_types: []
+  type_permissions: {}
+  permission: null
+  api: {since: null, deprecated: null, removed: null, effective_until: null}
+  precision: medium
+  non_resettable: false
+  sdk_id: appsflyer
+  controls_sdk_id: appsflyer
+  note: null
+  sources: [appsflyer-ref-consent, artifact-appsflyer]
+  verified:
+    descriptor: vendor_artifact
+    artifact: "com.appsflyer:af-android-sdk:6.15.2"
+    seen_in: []
+- id: consent.adjust.third_party_sharing
+  label: "Adjust.trackThirdPartySharing / trackMeasurementConsent"
+  group: consent_control
+  role: consent_control
+  match: method_call
+  refs: ["Lcom/adjust/sdk/Adjust;->trackThirdPartySharing(Lcom/adjust/sdk/AdjustThirdPartySharing;)V", "Lcom/adjust/sdk/Adjust;->trackMeasurementConsent(Z)V"]
+  also_receivers: []
+  requires:
+    const_string_any: []
+    const_int_any: []
+  reflection: null
+  carriers: null
+  uri_evidence: null
+  manifest: null
+  data_types: []
+  type_permissions: {}
+  permission: null
+  api: {since: null, deprecated: null, removed: null, effective_until: null}
+  precision: medium
+  non_resettable: false
+  sdk_id: adjust
+  controls_sdk_id: adjust
+  note: null
+  sources: [adjust-dev-privacy-v5, artifact-adjust]
+  verified:
+    descriptor: vendor_artifact
+    artifact: "com.adjust.sdk:adjust-android:5.0.2"
+    seen_in: []
+- id: sink.appsflyer.log_event_v6
+  label: "AppsFlyerLib.logEvent (SDK v6)"
+  group: sdk_sink
+  role: sink
+  match: method_call
+  refs: ["Lcom/appsflyer/AppsFlyerLib;->logEvent(Landroid/content/Context;Ljava/lang/String;Ljava/util/Map;)V", "Lcom/appsflyer/AppsFlyerLib;->logEvent(Landroid/content/Context;Ljava/lang/String;Ljava/util/Map;Lcom/appsflyer/attribution/AppsFlyerRequestListener;)V"]
+  also_receivers: []
+  requires:
+    const_string_any: []
+    const_int_any: []
+  reflection: null
+  carriers: null
+  uri_evidence: null
+  manifest: null
+  data_types: [actions_in_app.user_interaction]
+  type_permissions: {}
+  permission: null
+  api: {since: null, deprecated: null, removed: null, effective_until: null}
+  precision: medium
+  non_resettable: false
+  sdk_id: appsflyer
+  controls_sdk_id: null
+  note: null
+  sources: [appsflyer-ref-consent, artifact-appsflyer]
+  verified:
+    descriptor: vendor_artifact
+    artifact: "com.appsflyer:af-android-sdk:6.15.2"
+    seen_in: []

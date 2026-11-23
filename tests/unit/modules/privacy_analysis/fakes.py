@@ -51,6 +51,10 @@ class FakeIndex:
     constants: dict[str, tuple] = field(default_factory=dict)
     #: (method, offset) -> (is_static, [register values]) of the invoke there
     args: dict[tuple, tuple] = field(default_factory=dict)
+    #: class -> DEX SourceFile name
+    source_files: dict[str, str] = field(default_factory=dict)
+    #: method -> annotation class descriptors
+    annotations: dict[MRef, list[str]] = field(default_factory=dict)
 
     def add(self, ref: str, strings=(), ints=(), sgets=(), invokes=(), classes=()) -> MRef:
         """Add an internal method; ``invokes`` = ``[(callee ref, offset)]`` also become call edges."""
@@ -145,6 +149,29 @@ class FakeIndex:
             return None
         is_static, values = self.args.get((method, offset), (True, []))
         return callee, is_static, [v if isinstance(v, list) else [v] for v in values]
+
+    def source_file(self, cls):
+        return self.source_files.get(cls)
+
+    def method_annotations(self, method):
+        return sorted(self.annotations.get(method, []))
+
+    def class_referrers(self, cls):
+        out = {c.cls for c, t, _ in self.calls if t.cls == cls}
+        out |= {x.cls for x, f in self.methods.items() if any(c == cls for c, _ in f.classes)}
+        return sorted(c for c in out if c != cls and self.has_class(c))
+
+    def static_readers(self, owners, field_refs=frozenset(), only=None):
+        out = {}
+        for method, facts in self.methods.items():
+            for f, _ in facts.sgets:
+                owner = f.split("->", 1)[0]
+                if owner in owners and owner != method.cls:
+                    out.setdefault(owner, set()).add(method.cls)
+            for c, _ in facts.classes:
+                if c in owners and c != method.cls:
+                    out.setdefault(c, set()).add(method.cls)
+        return {k: sorted(v) for k, v in out.items()}
 
     def class_refs(self, cls):
         refs = set(self.class_ref_map.get(cls, []))
@@ -474,10 +501,13 @@ def check_contract(section: dict) -> None:
     for key in ("generator", "app", "coverage"):
         assert set(section[key]) == set(fixture[key]), key
     assert section["coverage"]["obfuscation_level"] in c.OBFUSCATION_LEVELS
+    assert all(r in c.COVERAGE_REDUCTIONS for r in section["coverage"]["reduced_by"])
+    assert isinstance(section["coverage"]["code_analysed"], bool)
     row_keys = set(fixture["data_safety"]["rows"][0])
     for row in section["data_safety"]["rows"]:
         assert set(row) == row_keys
         assert row["status"] in c.ROW_STATUSES and row["confidence"] in c.CONFIDENCES
+        assert row["coverage_caveat"] is None or isinstance(row["coverage_caveat"], str)
         assert all(p in c.PURPOSES for p in row["purpose_hints"])
         for o in row["origins"]:
             assert set(o) == {"type", "sdk_id", "name", "call_site_count"} and o["type"] in c.ORIGIN_TYPES
@@ -517,7 +547,12 @@ def check_contract(section: dict) -> None:
         assert site["evidence_kind"] is None or site["evidence_kind"] in c.EVIDENCE_KINDS
         assert set(site["caller"]) == {"class", "method", "descriptor", "offset"}
         assert " " not in (site["caller"]["descriptor"] or "") and " " not in site["api"]
-        assert set(site["origin"]) == {"type", "sdk_id", "name", "confidence", "rule", "via"}
+        assert set(site["origin"]) == {"type", "sdk_id", "name", "confidence", "rule", "via", "evidence"}
+        assert all(isinstance(e, str) for e in site["origin"]["evidence"])
+        if site["bridge"] is not None:
+            assert site["reachability"] == "bridge_entry"
+            assert set(site["bridge"]) == {"kind", "entry", "name_in_bundle"}
+            assert site["bridge"]["kind"] in c.BRIDGE_KINDS
         assert site["origin"]["type"] in c.ORIGIN_TYPES and site["origin"]["rule"] in c.ORIGIN_RULES
         assert set(site["permission"]) == {"required", "declared", "satisfied"}
         assert set(site["api_level"]) == set(fixture["call_sites"][0]["api_level"])
@@ -567,4 +602,5 @@ def static_texts(section: dict) -> list[str]:
         texts += [e["note"] for e in row["evidence"] if e.get("note")]
     for f in section.get("findings", []):
         texts += [f["title"], f["summary"]]
+    texts += [r["coverage_caveat"] for r in section.get("data_safety", {}).get("rows", []) if r["coverage_caveat"]]
     return texts
