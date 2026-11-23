@@ -1,12 +1,20 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Static privacy layer on real APKs (04-design §6.2, §6.3).
 
-exampleapp is in the repository; the other APKs are local-only and skip when missing.
-The exampleapp golden projection is rewritten with ``--update-privacy-golden``
-(review the diff by hand).
+exampleapp is in the repository. The other APKs are not: point the tests at them with
+environment variables and they skip when an APK is missing.
+
+* ``DEXRAY_PRIVACY_CORPUS``: a directory holding the corpus APKs under the file names
+  below (``CORPUS_FILES``);
+* ``DEXRAY_PRIVACY_APK_<NAME>`` (``VOI``, ``SPIN``, ``NEXTCLOUD``, ``WIKIPEDIA``,
+  ``GROK``, ``SUNRISE``): the path of one APK, which wins over the directory.
+
+The exampleapp golden projection is rewritten with ``--update-privacy-golden`` (review
+the diff by hand).
 """
 
 import json
+import os
 from functools import lru_cache
 from pathlib import Path
 
@@ -17,12 +25,32 @@ from dexray_insight.privacy.catalogue import DATA_DIR
 ROOT = Path(__file__).resolve().parents[2]
 EXAMPLEAPP = ROOT / "example_samples" / "exampleapp-release.apk"
 GOLDEN = ROOT / "tests" / "fixtures" / "privacy" / "exampleapp_expected.json"
-VOI = Path(
-    "/Users/jan-niclas.hilgert/Desktop/Work/micro_mobility/voi/VOI Scooters Get Magic Wheels_v2.24.2_apkpure.com.apk"
-)
-SPIN = Path("/Users/jan-niclas.hilgert/Desktop/Work/micro_mobility/spin/Spin Electric Scooters_v2.21.0_apkpure.com.apk")
-NEXTCLOUD = Path("/Users/jan-niclas.hilgert/Downloads/Installers/Nextcloud_3.31.1_APKPure.apk")
-WIKIPEDIA = Path("/Users/jan-niclas.hilgert/Desktop/Work/Sandroid/testing-2.1/apks/org.wikipedia_50616.apk")
+#: File names of the corpus APKs (as downloaded) inside ``DEXRAY_PRIVACY_CORPUS``.
+CORPUS_FILES = {
+    "VOI": "VOI Scooters Get Magic Wheels_v2.24.2_apkpure.com.apk",
+    "SPIN": "Spin Electric Scooters_v2.21.0_apkpure.com.apk",
+    "NEXTCLOUD": "Nextcloud_3.31.1_APKPure.apk",
+    "WIKIPEDIA": "org.wikipedia_50616.apk",
+    "GROK": "ai.x.grok.apk",
+    "SUNRISE": "Sunrise Resorts And Cruises_1.0.0_APKPure.apk",
+}
+
+
+def corpus_apk(name: str) -> Path:
+    """Where the corpus APK ``name`` is configured (it may not exist)."""
+    explicit = os.environ.get(f"DEXRAY_PRIVACY_APK_{name}")
+    if explicit:
+        return Path(explicit).expanduser()
+    base = os.environ.get("DEXRAY_PRIVACY_CORPUS")
+    return Path(base).expanduser() / CORPUS_FILES[name] if base else Path("/nonexistent") / CORPUS_FILES[name]
+
+
+VOI = corpus_apk("VOI")
+SPIN = corpus_apk("SPIN")
+NEXTCLOUD = corpus_apk("NEXTCLOUD")
+WIKIPEDIA = corpus_apk("WIKIPEDIA")
+GROK = corpus_apk("GROK")
+SUNRISE = corpus_apk("SUNRISE")
 
 pytestmark = [
     pytest.mark.integration,
@@ -61,7 +89,7 @@ def projection(section: dict) -> dict:
 
 def need(path: Path) -> str:
     if not path.exists():
-        pytest.skip(f"{path.name} not available")
+        pytest.skip(f"{path.name} not available (set DEXRAY_PRIVACY_CORPUS or DEXRAY_PRIVACY_APK_*)")
     return str(path)
 
 
@@ -171,15 +199,19 @@ def test_voi_build_serial_field_read(voi):
     """Review-2 B1: field reads work on real androguard (Magnes reads Build.SERIAL)."""
     serial = [s for s in voi["call_sites"] if s["api_id"] == "ids.build.serial_field"]
     assert [(s["caller"]["class"], s["caller"]["method"]) for s in serial] == [("Lq/a/a/a/a/i;", "a")]
-    assert serial[0]["match"] == "field_read" and serial[0]["origin"]["type"] == "unattributed"
+    assert serial[0]["match"] == "field_read"
+    # renamed Magnes code is placed by its own strings (magnes_guid, c.paypal.com ...), never as the app
+    assert (serial[0]["origin"]["sdk_id"], serial[0]["origin"]["rule"]) == ("paypal_magnes", "string_anchor")
 
 
 def test_voi_no_feature_conditional_or_self_call_overclaims(voi):
     rows = {r["data_type"]: r for r in voi["data_safety"]["rows"]}
     # Analytics' in-app purchase events need Play Billing, which VOI does not have
     assert rows["financial.purchase_history"]["status"] != "likely_collected"
-    # GoogleSignInAccount calling its own getters is not a data access
-    assert "personal.name" not in rows and "personal.email_address" not in rows
+    # GoogleSignInAccount calling its own getters is not a data access (SDK documentation of
+    # depends-on-usage items may still list the types, as low "sdk_present" evidence)
+    for dt in ("personal.name", "personal.email_address"):
+        assert dt not in rows or {e["kind"] for e in rows[dt]["evidence"]} <= {"sdk_present", "permission_declared"}
     flags = {(f["key"], f["sdk_id"]): f for f in voi["manifest_flags"]}
     assert flags[("firebase_crashlytics_collection_enabled", "fabric_crashlytics")]["state"] == "on"
 
@@ -276,3 +308,63 @@ def test_spin_branch_alternatives_reach_the_caller():
         ("prov.media_images", "caller"),
         ("prov.media_video", "caller"),
     ]
+
+
+# ------------------------------------------------------ assessment follow-up
+def test_voi_r8_attribution(voi):
+    """10-assessment W1: VOI's own renamed code and renamed SDK code get owners."""
+    by_class = {}
+    for site in voi["call_sites"]:
+        by_class.setdefault(site["caller"]["class"], site["origin"])
+    # c.a.a.* is VOI's repackaged code: LogaryService.kt, CameraSource, UserInfoRepository.kt
+    for cls in ("Lc/a/a/x0/l;", "Lc/a/a/j0/b;", "Lc/a/a/z0/f$a;"):
+        assert (by_class[cls]["type"], by_class[cls]["rule"], by_class[cls]["confidence"]) == (
+            "app",
+            "app_reference",
+            "medium",
+        ), cls
+    # SourceFile names: OneSignal.java (m.k.f1), PayPalDataCollector.java
+    assert (by_class["Lm/k/f1;"]["sdk_id"], by_class["Lm/k/f1;"]["rule"]) == ("onesignal", "source_file")
+    assert by_class["Lm/m/a/a/a/a/a;"]["sdk_id"] == "paypal_magnes"
+    for origin in by_class.values():
+        assert origin["confidence"] != "high" or origin["rule"] in ("sdk_prefix", "app_namespace")
+    sink = [s for s in voi["call_sites"] if s["api_id"] == "sink.braze.change_user"]
+    assert sink and all(s["origin"]["type"] == "app" for s in sink)
+    assert "sdk_sink_with_app_data" in {f["id"] for f in voi["findings"]}
+
+
+def test_spin_bridge_entries():
+    """10-assessment B W1: @ReactMethod modules are entry points, not dead code."""
+    section = section_for(need(SPIN))
+    bridged = [s for s in section["call_sites"] if s["reachability"] == "bridge_entry"]
+    assert len(bridged) >= 20 and all(s["bridge"]["kind"] == "react_native" for s in bridged)
+    unique_id = [s for s in bridged if s["caller"]["method"] == "getUniqueIdSync"]
+    assert unique_id and unique_id[0]["confidence"] == "medium"
+    assert section["coverage"]["reduced_by"] == ["react_native"]
+    assert all(r["coverage_caveat"] for r in section["data_safety"]["rows"])
+    # the RNFirebase bridge switches Analytics collection: a consent control, not "none"
+    assert section["consent"]["verdict"] == "consent_controls_only"
+
+
+def test_grok_held_out():
+    """Held-out APK: own-account reads are left out, Mixpanel is found though renamed."""
+    section = section_for(need(GROK))
+    assert section["coverage"]["own_data_reads_skipped"] >= 16
+    assert not [s for s in section["call_sites"] if s["api_id"] == "acct.user_data"]
+    sdks = {s["id"]: s["confidence"] for s in section["sdks"]}
+    assert sdks.get("mixpanel") == "low" and sdks.get("firebase_crashlytics") == "high"
+    assert "google_firebase_analytics" not in sdks and "firebase_analytics" not in sdks
+    assert "heavy_obfuscation" in section["coverage"]["reduced_by"]
+
+
+def test_grok_config_split_is_not_a_clean_result():
+    split = GROK.parent / "config.arm64_v8a.apk"
+    section = section_for(need(split))
+    assert section["status"] == "partial" and section["coverage"]["code_analysed"] is False
+    assert {"no_dex", "split_apk"} <= set(section["coverage"]["reduced_by"])
+
+
+def test_sunrise_flutter_is_flagged():
+    section = section_for(need(SUNRISE))
+    assert "flutter" in section["coverage"]["reduced_by"]
+    assert all("Flutter (Dart) code" in r["coverage_caveat"] for r in section["data_safety"]["rows"])
