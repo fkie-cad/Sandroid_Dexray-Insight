@@ -1,9 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Static checks of the bundled privacy catalogue (``src/dexray_insight/privacy/data``).
 
-Pure YAML checks: this file imports nothing from the package or the test packages, so
-it can run before the loader exists. The enum sets below mirror design §1.4/§2.2; once
-``dexray_insight.privacy.catalogue`` exists they should be imported from there.
+Pure YAML checks. The enum sets are imported from ``dexray_insight.privacy.catalogue``
+(the loader's closed enums, design §1.4/§2.2), so there is one source of truth.
 """
 
 from __future__ import annotations
@@ -14,59 +13,25 @@ from pathlib import Path
 import pytest
 import yaml
 
+from dexray_insight.privacy import catalogue
+
 DATA = Path(__file__).resolve().parents[3] / "src" / "dexray_insight" / "privacy" / "data"
 FILES = ("data_types", "permissions", "apis", "sdks", "consent", "compliance")
 CATALOGUE_VERSION = "2026.11.0"
 
-GROUPS = {
-    "location",
-    "identifiers",
-    "telephony",
-    "accounts",
-    "providers",
-    "media",
-    "app_activity",
-    "health",
-    "messages",
-    "financial",
-    "sdk_sink",
-    "consent_control",
-}
-ROLES = {"source", "sink", "consent_control"}
-MATCHES = {"method_call", "field_read", "provider_read", "manifest_component"}
-PRECISION = {"high", "medium", "low"}
-SDK_ROLES = {
-    "analytics",
-    "attribution",
-    "ads",
-    "crash",
-    "messaging",
-    "engagement",
-    "session_replay",
-    "diagnostics",
-    "identity",
-    "infra",
-    "other",
-}
-ANCHOR_KINDS = {"class_anchor", "manifest_component", "manifest_meta_data"}
-COLLECT_MODES = {"auto", "depends_on_usage"}
-SHARING = {None, "possible_sharing", "service_provider_likely"}
-FLAG_TYPES = {"bool", "string", "presence"}
+# One source of truth: the enums come from the loader module (design §3.4 step 2).
+GROUPS = set(catalogue.API_GROUPS)
+ROLES = set(catalogue.ROLES)
+MATCHES = set(catalogue.CATALOGUE_MATCHES)
+PRECISION = set(catalogue.CONFIDENCES)
+SDK_ROLES = set(catalogue.SDK_ROLES)
+ANCHOR_KINDS = set(catalogue.ANCHOR_KINDS)
+COLLECT_MODES = set(catalogue.COLLECT_MODES)
+SHARING = {None, *catalogue.SHARING_HINTS}
+FLAG_TYPES = set(catalogue.FLAG_TYPES)
 FLAG_DEFAULTS = {"on", "off", None}
-FLAG_EFFECTS = {
-    "collection_suspended_until_enabled",
-    "collection_off_permanently",
-    "adid_collection_off",
-    "ad_personalization_off",
-    "storage_denied_by_default",
-    "auto_init_off",
-    "auto_events_off",
-    "metadata_off",
-    "product_improvement_off",
-    "pii_on",
-    "presence_only",
-}
-SOURCE_USES = {"generated", "facts_cited", "reference_only", "observed"}
+FLAG_EFFECTS = set(catalogue.FLAG_EFFECTS)
+SOURCE_USES = set(catalogue.SOURCE_USES)
 CORPUS = {"voi", "spin", "nextcloud", "wikipedia", "exampleapp"}
 FRAMEWORKS = {"MASWE", "MASTG", "GDPR", "TDDDG", "BSI-TR-03161"}
 

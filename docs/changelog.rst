@@ -9,6 +9,29 @@ and this project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0
 [Unreleased]
 ------------
 
+Added
+~~~~~
+- **Static privacy layer**: the ``privacy_analysis`` module (on in the ``generic`` and
+  ``privacy`` profiles) and the ``privacy_analysis`` key of the main JSON
+  (``schema_version: 1``). It holds a draft Data safety label with per-source
+  confidence, SDK caller attribution for a curated SDK list, documented SDK facts,
+  consent/TCF detection, manifest data-collection switches, and findings with
+  MASWE/MASTG/GDPR/TDDDG §25/BSI TR-03161 references. Static texts say what code *can*
+  access and what SDKs *document*; nothing claims that data leaves the device. The
+  catalogue (``dexray_insight/privacy/data/*.yaml``) ships with a ``NOTICE``; no
+  Exodus-derived data is included. Config keys under ``modules.privacy_analysis``:
+  ``max_call_sites_per_api``, ``reachability_max_sites_per_api``,
+  ``reachability_max_depth``, ``reachability_max_nodes``, ``string_anchor_attribution``.
+  See ``docs/privacy_analysis.rst``
+- **PII validators**: ``dexray_insight.privacy.validators`` (card/Luhn, E.164, geo, SSN,
+  IMEI, IBAN, ANDROID_ID, GAID, app set ID, MAC, e-mail), standard library only;
+  ``PIIValidator`` delegates its core checks to it
+
+Changed
+~~~~~~~
+- Analysis cache schema bumped (``static-privacy-layer``); full-hit cache keys include
+  the privacy catalogue digest when ``privacy_analysis`` runs
+
 [2.1.1] - 2026-11-20
 --------------------
 

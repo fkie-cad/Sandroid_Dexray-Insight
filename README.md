@@ -20,6 +20,7 @@ Dexray Insight is part of the dynamic Sandbox Sandroid. Its purpose is to perfor
 - **Manifest Analysis Module**: Extracts intent filters, activities, services, and receivers from AndroidManifest.xml
 - **APKID Integration**: Detects packers, obfuscation, and anti-analysis techniques
 - **Kavanoz Integration**: Static unpacking of packed Android malware
+- **Static Privacy Layer**: a draft Data safety label (`privacy_analysis` key) with per-source confidence, SDK caller attribution, consent/TCF detection and manifest data-collection switches; see `docs/privacy_analysis.rst`. Licences and sources of the bundled catalogue are in [`src/dexray_insight/privacy/data/NOTICE`](src/dexray_insight/privacy/data/NOTICE).
 - **Security Analysis**: OWASP Mobile Top 10 assessment plus a validated PII/privacy taxonomy, FileProvider path-scope analysis, ad-SDK risk-surface mapping, CVE scanning of detected libraries, and (under `--deep`) xref-based data-flow and PII-flow review queues. The headline risk score is the *confirmed-subset* score; unconfirmed leads are surfaced as a separate review queue instead of inflating it.
 
 

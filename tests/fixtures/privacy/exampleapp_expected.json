@@ -1,0 +1,40 @@
+{
+  "rows": [
+    [
+      "location.approx_location",
+      "possible",
+      "low",
+      [
+        "library"
+      ]
+    ],
+    [
+      "location.precise_location",
+      "possible",
+      "low",
+      [
+        "library"
+      ]
+    ],
+    [
+      "actions_in_app.installed_apps",
+      "possible",
+      "low",
+      [
+        "library"
+      ]
+    ],
+    [
+      "identifiers.other",
+      "possible",
+      "low",
+      [
+        "library"
+      ]
+    ]
+  ],
+  "sdks": [],
+  "consent_verdict": "not_applicable",
+  "findings": [],
+  "call_site_count": 11
+}

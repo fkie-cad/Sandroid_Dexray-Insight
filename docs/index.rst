@@ -64,6 +64,7 @@ Documentation Contents
    cli_usage
    configuration
    output_format
+   privacy_analysis
 
 .. toctree::
    :maxdepth: 2

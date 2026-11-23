@@ -37,6 +37,13 @@ def pytest_addoption(parser):
         default=False,
         help="Run integration tests that make real external API calls (e.g. live OSV queries).",
     )
+    parser.addoption(
+        "--update-privacy-golden",
+        action="store_true",
+        default=False,
+        help="Rewrite tests/fixtures/privacy/exampleapp_expected.json from the current privacy_analysis output "
+        "(review the diff by hand).",
+    )
 
 
 def pytest_configure(config):
