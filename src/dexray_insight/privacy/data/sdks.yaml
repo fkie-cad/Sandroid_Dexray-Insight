@@ -78,6 +78,10 @@ meta:
     retrieved: '2026-11-23', use: facts_cited}
   - {id: vendor-appcenter-android, title: 'Microsoft Learn: App Center SDK, getting started on Android', url: 'https://learn.microsoft.com/en-us/appcenter/sdk/getting-started/android', licence: CC-BY-4.0,
     retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-applovin-demo, title: 'AppLovin MAX demo app (vendor GitHub): GlobalApplication.java (com.applovin.sdk.AppLovinSdk)', url: 'https://github.com/AppLovin/AppLovin-MAX-SDK-Android/blob/master/AppLovin%20MAX%20Demo%20App%20-%20Java/app/src/main/java/com/applovin/enterprise/apps/demoapp/GlobalApplication.java',
+    licence: NOASSERTION, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-applovin-manual, title: 'AppLovin MAX: Android manual integration (applovin.sdk.key meta-data)', url: 'https://support.applovin.com/en/max/android/overview/manual-integration', licence: LicenseRef-vendor-terms,
+    retrieved: '2026-11-23', use: facts_cited}
   - {id: vendor-appmetrica-migration, title: 'AppMetrica: migration to io.appmetrica.analytics 6.0.0 (com.yandex.metrica -> io.appmetrica.analytics, YandexMetrica -> AppMetrica)', url: 'https://appmetrica.yandex.com/docs/en/sdk/android/analytics/migration-io-6-0-0',
     licence: LicenseRef-vendor-terms, retrieved: '2026-11-23', use: facts_cited}
   - {id: vendor-appsflyer-integrate, title: 'AppsFlyer: Integrate the Android SDK (com.appsflyer.AppsFlyerLib)', url: 'https://dev.appsflyer.com/hc/docs/integrate-android-sdk', licence: LicenseRef-vendor-terms,
@@ -90,6 +94,8 @@ meta:
     use: facts_cited}
   - {id: vendor-bugsnag-src, title: 'Bugsnag bugsnag-android (vendor GitHub): Bugsnag.java', url: 'https://github.com/bugsnag/bugsnag-android/blob/main/bugsnag-android-core/src/main/java/com/bugsnag/android/Bugsnag.java',
     licence: NOASSERTION, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-chartboost-ref, title: 'Chartboost Monetization Android API reference: com.chartboost.sdk.Chartboost', url: 'https://reference.chartboost.com/monetization/android/9.8.3/-chartboost%20-monetization/com.chartboost.sdk/-chartboost/index.html',
+    licence: LicenseRef-vendor-terms, retrieved: '2026-11-23', use: facts_cited}
   - {id: vendor-clevertap-quickstart, title: 'CleverTap: Android quickstart (CLEVERTAP_ACCOUNT_ID meta-data)', url: 'https://developer.clevertap.com/docs/android-quickstart-guide', licence: LicenseRef-vendor-terms,
     retrieved: '2026-11-23', use: facts_cited}
   - {id: vendor-clevertap-src, title: 'CleverTap clevertap-android-sdk (vendor GitHub): CleverTapAPI.java', url: 'https://github.com/CleverTap/clevertap-android-sdk/blob/master/clevertap-core/src/main/java/com/clevertap/android/sdk/CleverTapAPI.java',
@@ -108,10 +114,20 @@ meta:
     retrieved: '2026-11-23', use: facts_cited}
   - {id: vendor-gms-measurement-ref, title: 'Firebase reference: com.google.android.gms.measurement package', url: 'https://firebase.google.com/docs/reference/android/com/google/android/gms/measurement/package-summary',
     licence: CC-BY-4.0, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-hms-ads-demo, title: 'Huawei HMS-Core hms-ads-demo-java (vendor GitHub): AdSampleApplication (com.huawei.hms.ads.HwAds)', url: 'https://github.com/HMS-Core/hms-ads-demo-java/blob/master/app/src/main/java/com/huawei/hms/ads/sdk/AdSampleApplication.java',
+    licence: NOASSERTION, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-hms-analytics-demo, title: 'Huawei HMS-Core hms-analytics-demo-android (vendor GitHub): MainActivity (com.huawei.hms.analytics.HiAnalytics)', url: 'https://github.com/HMS-Core/hms-analytics-demo-android/blob/master/java/app/src/main/java/com/huawei/hmsanalyticskitdemo/MainActivity.java',
+    licence: NOASSERTION, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-inmobi-sample, title: 'InMobi sdk-sample-code-android (vendor GitHub): InterstitialAdsActivity (com.inmobi.sdk.InMobiSdk, com.inmobi.ads)', url: 'https://github.com/InMobi/sdk-sample-code-android/blob/master/samples/interstitialSample/src/main/java/com/inmobi/interstitial/sample/InterstitialAdsActivity.java',
+    licence: NOASSERTION, retrieved: '2026-11-23', use: facts_cited}
   - {id: vendor-instabug-sample, title: 'Instabug-Android (vendor GitHub): SampleApplication.java (com.instabug.library.Instabug)', url: 'https://github.com/Instabug/Instabug-Android/blob/master/app/src/main/java/com/example/instabug/SampleApplication.java',
+    licence: NOASSERTION, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-ironsource-aar, title: 'ironSource mediationsdk 9.2.0 AAR on the vendor Maven host (class list: com.ironsource.mediationsdk.IronSource, com.unity3d.mediation.LevelPlay)', url: 'https://android-sdk.is.com/com/ironsource/sdk/mediationsdk/9.2.0/mediationsdk-9.2.0.aar',
     licence: NOASSERTION, retrieved: '2026-11-23', use: facts_cited}
   - {id: vendor-kochava-using-sdk, title: 'Kochava: Android SDK, using the SDK (package rename com.kochava.tracker -> com.kochava.measurement)', url: 'https://support.kochava.com/sdk-integration/android-sdk-integration/android-using-the-sdk/',
     licence: LicenseRef-vendor-terms, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-levelplay-integration, title: 'Unity LevelPlay: Android SDK integration (manual manifest entries)', url: 'https://docs.unity.com/grow/levelplay/sdk/android/sdk-integration', licence: LicenseRef-vendor-terms,
+    retrieved: '2026-11-23', use: facts_cited}
   - {id: vendor-luciq-migration, title: 'Luciq (formerly Instabug): Android migration guide (com.instabug -> ai.luciq)', url: 'https://docs.luciq.ai/docs/android-luciq-migration', licence: LicenseRef-vendor-terms,
     retrieved: '2026-11-23', use: facts_cited}
   - {id: vendor-meta-audience-network, title: 'Meta Audience Network: Android interstitial setup (AudienceNetworkAds, AudienceNetworkActivity)', url: 'https://developers.facebook.com/documentation/audience-network/setting-up/ad-setup/android/interstitial.md',
@@ -122,6 +138,8 @@ meta:
     licence: NOASSERTION, retrieved: '2026-11-23', use: facts_cited}
   - {id: vendor-meta-sdk-core-src, title: 'Meta facebook-android-sdk (vendor GitHub): facebook-core sources', url: 'https://github.com/facebook/facebook-android-sdk/blob/main/facebook-core/src/main/java/com/facebook/appevents/AppEventsLogger.kt',
     licence: NOASSERTION, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-mintegral-android, title: 'Mintegral SDK: Android integration (com.mbridge.msdk.out.MBridgeSDKFactory, manual manifest entries)', url: 'https://cdn-adn.rayjump.com/cdn-adn/v2/markdown_v2/docs/1794207045/index.md',
+    licence: LicenseRef-vendor-terms, retrieved: '2026-11-23', use: facts_cited}
   - {id: vendor-mixpanel-android, title: 'Mixpanel: Android SDK (com.mixpanel.android.mpmetrics.MixpanelAPI)', url: 'https://docs.mixpanel.com/docs/tracking-methods/sdks/android', licence: LicenseRef-vendor-terms,
     retrieved: '2026-11-23', use: facts_cited}
   - {id: vendor-moengage-init, title: 'MoEngage: Android SDK initialization (com.moengage.core.MoEngage)', url: 'https://www.moengage.com/docs/developer-guide/android-sdk/sdk-integration/basic-integration/sdk-initialization',
@@ -130,6 +148,10 @@ meta:
     licence: NOASSERTION, retrieved: '2026-11-23', use: facts_cited}
   - {id: vendor-onesignal-setup, title: 'OneSignal: Android SDK setup (com.onesignal.OneSignal)', url: 'https://documentation.onesignal.com/docs/en/android-sdk-setup.md', licence: LicenseRef-vendor-terms,
     retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-pangle-aar, title: Pangle pag-sdk-ad AAR on the vendor Maven host (class com.bytedance.sdk.openadsdk.api.init.PAGSdk), url: 'https://artifact.bytedance.com/repository/pangle/com/pangle/global/pag-sdk-ad/unfat-8405-20261021143821-release/pag-sdk-ad-unfat-8405-20261021143821-release.aar',
+    licence: NOASSERTION, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-pangle-init, title: 'Pangle: Initialize the Pangle SDK for Android (FAQ lists com.bytedance.sdk.openadsdk.activity.* activities)', url: 'https://www.pangleglobal.com/integration/android-initialize-pangle-sdk',
+    licence: LicenseRef-vendor-terms, retrieved: '2026-11-23', use: facts_cited}
   - {id: vendor-segment-android-src, title: 'Segment analytics-android (vendor GitHub): Analytics.java', url: 'https://github.com/segmentio/analytics-android/blob/master/analytics/src/main/java/com/segment/analytics/Analytics.java',
     licence: NOASSERTION, retrieved: '2026-11-23', use: facts_cited}
   - {id: vendor-segment-kotlin-src, title: 'Segment analytics-kotlin (vendor GitHub): core Analytics.kt', url: 'https://github.com/segmentio/analytics-kotlin/blob/main/core/src/main/java/com/segment/analytics/kotlin/core/Analytics.kt',
@@ -146,7 +168,15 @@ meta:
     licence: NOASSERTION, retrieved: '2026-11-23', use: facts_cited}
   - {id: vendor-smartlook-unity, title: 'Smartlook unity-bridge (vendor GitHub): Smartlook.Android.cs (com.smartlook.sdk.smartlook.Smartlook)', url: 'https://github.com/smartlook/unity-bridge', licence: NOASSERTION,
     retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-unity-ads-init, title: 'Unity Ads: Android SDK initialization (com.unity3d.ads.UnityAds)', url: 'https://docs.unity.com/en-us/grow/ads/android-sdk/initialize-sdk', licence: LicenseRef-vendor-terms,
+    retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-unity-ads-src, title: 'Unity Ads unity-ads-android (vendor GitHub): sources and SDK manifest', url: 'https://github.com/Unity-Technologies/unity-ads-android/blob/master/unity-ads/src/main/AndroidManifest.xml',
+    licence: NOASSERTION, retrieved: '2026-11-23', use: facts_cited}
   - {id: vendor-uxcam-android, title: 'UXCam: Android SDK (com.uxcam.UXCam)', url: 'https://developer.uxcam.com/docs/android', licence: LicenseRef-vendor-terms, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-vungle-v6-sample, title: 'Vungle Android-SDK 6.x (vendor GitHub, deprecated): sample MainActivity (com.vungle.warren.Vungle)', url: 'https://github.com/Vungle/Android-SDK/blob/master/app/src/main/java/com/publisher/sample/MainActivity.java',
+    licence: NOASSERTION, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-vungle-v7-sample, title: 'Liftoff/Vungle VungleAds-SDK (vendor GitHub): Kotlin sample (com.vungle.ads.VungleAds)', url: 'https://github.com/Vungle/VungleAds-SDK/blob/master/Samples/android/Kotlin/app-v7-kotlin/src/main/java/com/vungle/samples/samplekotlin/PlacementFragment.kt',
+    licence: NOASSERTION, retrieved: '2026-11-23', use: facts_cited}
 entries:
 - id: firebase_analytics
   name: Google Analytics for Firebase
@@ -705,6 +735,173 @@ entries:
   sharing_override: null
   references: {vendor_disclosure: null, play_sdk_index: null}
   sources: [vendor-uxcam-android]
+- id: applovin
+  name: AppLovin (MAX)
+  role: ads
+  tracker_db_ids: [applovin]
+  prefixes:
+  - {prefix: com.applovin., source: vendor-applovin-demo}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: com.applovin.sdk.AppLovinSdk, source: vendor-applovin-demo}
+  - {kind: manifest_meta_data, value: applovin.sdk.key, source: vendor-applovin-manual}
+  string_anchors: []
+  hosts: []
+  collects: []
+  first_party_source: false
+  sharing_override: null
+  references: {vendor_disclosure: null, play_sdk_index: null}
+  sources: [vendor-applovin-demo, vendor-applovin-manual]
+- id: unity_ads
+  name: Unity Ads
+  role: ads
+  tracker_db_ids: [unity_ads]
+  prefixes:
+  - {prefix: com.unity3d.ads., source: vendor-unity-ads-init}
+  - {prefix: com.unity3d.services., source: vendor-unity-ads-src}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: com.unity3d.ads.UnityAds, source: vendor-unity-ads-init}
+  - {kind: manifest_component, value: com.unity3d.services.ads.adunit.AdUnitActivity, source: vendor-unity-ads-src}
+  string_anchors: []
+  hosts: []
+  collects: []
+  first_party_source: false
+  sharing_override: null
+  references: {vendor_disclosure: null, play_sdk_index: null}
+  sources: [vendor-unity-ads-init, vendor-unity-ads-src]
+- id: ironsource
+  name: ironSource / Unity LevelPlay
+  role: ads
+  tracker_db_ids: [ironsource]
+  prefixes:
+  - {prefix: com.ironsource., source: vendor-ironsource-aar}
+  - {prefix: com.unity3d.mediation., source: vendor-ironsource-aar}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: com.ironsource.mediationsdk.IronSource, source: vendor-ironsource-aar}
+  - {kind: class_anchor, value: com.unity3d.mediation.LevelPlay, source: vendor-ironsource-aar}
+  - {kind: manifest_component, value: com.ironsource.sdk.controller.ControllerActivity, source: vendor-levelplay-integration}
+  string_anchors: []
+  hosts: []
+  collects: []
+  first_party_source: false
+  sharing_override: null
+  references: {vendor_disclosure: null, play_sdk_index: null}
+  sources: [vendor-ironsource-aar, vendor-levelplay-integration]
+- id: vungle
+  name: Liftoff Monetize (Vungle)
+  role: ads
+  tracker_db_ids: [vungle]
+  prefixes:
+  - {prefix: com.vungle.ads., source: vendor-vungle-v7-sample}
+  - {prefix: com.vungle.warren., source: vendor-vungle-v6-sample}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: com.vungle.ads.VungleAds, source: vendor-vungle-v7-sample}
+  - {kind: class_anchor, value: com.vungle.warren.Vungle, source: vendor-vungle-v6-sample}
+  string_anchors: []
+  hosts: []
+  collects: []
+  first_party_source: false
+  sharing_override: null
+  references: {vendor_disclosure: null, play_sdk_index: null}
+  sources: [vendor-vungle-v7-sample, vendor-vungle-v6-sample]
+- id: pangle
+  name: Pangle
+  role: ads
+  tracker_db_ids: []
+  prefixes:
+  - {prefix: com.bytedance.sdk.openadsdk., source: vendor-pangle-init}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: com.bytedance.sdk.openadsdk.api.init.PAGSdk, source: vendor-pangle-aar}
+  - {kind: manifest_component, value: com.bytedance.sdk.openadsdk.activity.TTFullScreenVideoActivity, source: vendor-pangle-init}
+  string_anchors: []
+  hosts: []
+  collects: []
+  first_party_source: false
+  sharing_override: null
+  references: {vendor_disclosure: null, play_sdk_index: null}
+  sources: [vendor-pangle-init, vendor-pangle-aar]
+- id: mintegral
+  name: Mintegral
+  role: ads
+  tracker_db_ids: []
+  prefixes:
+  - {prefix: com.mbridge.msdk., source: vendor-mintegral-android}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: com.mbridge.msdk.out.MBridgeSDKFactory, source: vendor-mintegral-android}
+  - {kind: manifest_component, value: com.mbridge.msdk.activity.MBCommonActivity, source: vendor-mintegral-android}
+  string_anchors: []
+  hosts: []
+  collects: []
+  first_party_source: false
+  sharing_override: null
+  references: {vendor_disclosure: null, play_sdk_index: null}
+  sources: [vendor-mintegral-android]
+- id: inmobi
+  name: InMobi Ads
+  role: ads
+  tracker_db_ids: []
+  prefixes:
+  - {prefix: com.inmobi.sdk., source: vendor-inmobi-sample}
+  - {prefix: com.inmobi.ads., source: vendor-inmobi-sample}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: com.inmobi.sdk.InMobiSdk, source: vendor-inmobi-sample}
+  string_anchors: []
+  hosts: []
+  collects: []
+  first_party_source: false
+  sharing_override: null
+  references: {vendor_disclosure: null, play_sdk_index: null}
+  sources: [vendor-inmobi-sample]
+- id: chartboost
+  name: Chartboost
+  role: ads
+  tracker_db_ids: [chartboost]
+  prefixes:
+  - {prefix: com.chartboost.sdk., source: vendor-chartboost-ref}
+  exclude_prefixes: []
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: com.chartboost.sdk.Chartboost, source: vendor-chartboost-ref}
+  string_anchors: []
+  hosts: []
+  collects: []
+  first_party_source: false
+  sharing_override: null
+  references: {vendor_disclosure: null, play_sdk_index: null}
+  sources: [vendor-chartboost-ref]
+- id: huawei_hms
+  name: Huawei HMS Core (Analytics, Ads)
+  role: analytics
+  tracker_db_ids: []
+  prefixes:
+  - {prefix: com.huawei.hms.analytics., source: vendor-hms-analytics-demo}
+  - {prefix: com.huawei.hms.ads., source: vendor-hms-ads-demo}
+  exclude_prefixes: [com.huawei.hms.ads.identifier.]
+  obfuscated_prefixes: []
+  anchors:
+  - {kind: class_anchor, value: com.huawei.hms.analytics.HiAnalytics, source: vendor-hms-analytics-demo}
+  - {kind: class_anchor, value: com.huawei.hms.ads.HwAds, source: vendor-hms-ads-demo}
+  string_anchors: []
+  hosts: []
+  collects: []
+  first_party_source: false
+  sharing_override: null
+  references: {vendor_disclosure: null, play_sdk_index: null}
+  sources: [vendor-hms-analytics-demo, vendor-hms-ads-demo]
+  note: The OAID identifier library (com.huawei.hms.ads.identifier.) is excluded, like the GMS ads-identifier library.
 manifest_flags:
 - key: firebase_analytics_collection_enabled
   sdk_id: firebase_analytics

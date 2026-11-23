@@ -18,8 +18,28 @@ meta:
     licence: CC-BY-3.0, retrieved: '2026-11-23', use: facts_cited}
   - {id: iab-usprivacy-api, title: 'IAB Tech Lab: USP API (IABUSPrivacy_String)', url: 'https://github.com/InteractiveAdvertisingBureau/USPrivacy/blob/master/CCPA/USP%20API.md', licence: CC-BY-3.0, retrieved: '2026-11-23',
     use: facts_cited}
+  - {id: vendor-axeptio-native, title: 'Axeptio native-android-sdk (vendor GitHub): README (io.axeptio.sdk)', url: 'https://github.com/axeptio/native-android-sdk/blob/master/README.md', licence: NOASSERTION,
+    retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-axeptio-sample, title: 'Axeptio sample-app-android (vendor GitHub): MainActivity.kt (io.axept.android.library.AxeptioSDK)', url: 'https://github.com/axeptio/sample-app-android/blob/master/samplekotlin/src/main/java/io/axept/samplekotlin/MainActivity.kt',
+    licence: NOASSERTION, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-consentmanager-v2-demo, title: 'consentmanager v2 demo app (vendor GitHub, iubenda org): CMPManagerSingleton.java (net.consentmanager.sdk.CmpManager)', url: 'https://github.com/iubenda/cm-sdk-android-v2-demoapp/blob/main/Java/app/src/main/java/net/consentmanager/kmm/cmpsdkdemoapp/CMPManagerSingleton.java',
+    licence: NOASSERTION, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-consentmanager-v3, title: 'consentmanager: Android SDK v3 integration (net.consentmanager.cm_sdk_android_v3.CMPManager)', url: 'https://help.consentmanager.net/books/cmp/page/android-1-consentmanager-sdk-integration',
+    licence: LicenseRef-vendor-terms, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-didomi-setup, title: 'Didomi: Android SDK setup (io.didomi.sdk.Didomi)', url: 'https://developers.didomi.io/cmp/mobile-sdk/android/setup', licence: LicenseRef-vendor-terms, retrieved: '2026-11-23',
+    use: facts_cited}
   - {id: vendor-google-ump-ref, title: 'Google UMP SDK reference: UserMessagingPlatform (com.google.android.ump)', url: 'https://developers.google.com/admob/android/privacy/api/reference/com/google/android/ump/UserMessagingPlatform',
     licence: CC-BY-4.0, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-inmobi-cmp, title: 'InMobi Choice: Android app implementation (com.inmobi.cmp.ChoiceCmp)', url: 'https://support.inmobi.com/choice/getting-started-cmp/implementing-cmp-via-code/mobile-app/android-app-implementation-sdk',
+    licence: LicenseRef-vendor-terms, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-iubenda-legacy, title: 'iubenda: React Native developer guide for the iubenda SDK (com.iubenda.iab.IubendaCMP)', url: 'https://www.iubenda.com/en/help/145646-react-native-developers-guide-for-iubenda-sdk-integration/',
+    licence: LicenseRef-vendor-terms, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-onetrust-import, title: 'OneTrust: Download and import the SDK (Android, next gen) (OTPublishersHeadlessSDK)', url: 'https://developer.onetrust.com/onetrust/docs/download-and-import-sdk-to-app-android-next-gen',
+    licence: LicenseRef-vendor-terms, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-sourcepoint-factory, title: 'Sourcepoint android-cmp-app (vendor GitHub): cmplibrary creation/Factory.kt (SpConsentLib)', url: 'https://github.com/SourcePointUSA/android-cmp-app/blob/develop/cmplibrary/src/main/java/com/sourcepoint/cmplibrary/creation/Factory.kt',
+    licence: NOASSERTION, retrieved: '2026-11-23', use: facts_cited}
+  - {id: vendor-usercentrics-sample, title: 'Usercentrics android-sample (vendor GitHub): MainApplication.kt (com.usercentrics.sdk.Usercentrics)', url: 'https://github.com/Usercentrics/android-sample/blob/master/app/src/main/java/com/apps/test/MainApplication.kt',
+    licence: NOASSERTION, retrieved: '2026-11-23', use: facts_cited}
 cmps:
 - id: google_ump
   name: Google User Messaging Platform
@@ -29,6 +49,82 @@ cmps:
   - {kind: class_anchor, value: com.google.android.ump.UserMessagingPlatform, source: vendor-google-ump-ref}
   tcf: true
   sources: [vendor-google-ump-ref]
+- id: onetrust
+  name: OneTrust
+  prefixes:
+  - {prefix: com.onetrust.otpublishers.headless., source: vendor-onetrust-import}
+  anchors:
+  - {kind: class_anchor, value: com.onetrust.otpublishers.headless.Public.OTPublishersHeadlessSDK, source: vendor-onetrust-import}
+  tcf: true
+  note: TCF support taken from the vendor's CMP role, not checked per SDK version; detection does not depend on it.
+  sources: [vendor-onetrust-import]
+- id: didomi
+  name: Didomi
+  prefixes:
+  - {prefix: io.didomi.sdk., source: vendor-didomi-setup}
+  anchors:
+  - {kind: class_anchor, value: io.didomi.sdk.Didomi, source: vendor-didomi-setup}
+  tcf: true
+  note: TCF support taken from the vendor's CMP role, not checked per SDK version; detection does not depend on it.
+  sources: [vendor-didomi-setup]
+- id: usercentrics
+  name: Usercentrics
+  prefixes:
+  - {prefix: com.usercentrics.sdk., source: vendor-usercentrics-sample}
+  anchors:
+  - {kind: class_anchor, value: com.usercentrics.sdk.Usercentrics, source: vendor-usercentrics-sample}
+  tcf: true
+  note: TCF support taken from the vendor's CMP role, not checked per SDK version; detection does not depend on it.
+  sources: [vendor-usercentrics-sample]
+- id: sourcepoint
+  name: Sourcepoint
+  prefixes:
+  - {prefix: com.sourcepoint.cmplibrary., source: vendor-sourcepoint-factory}
+  anchors:
+  - {kind: class_anchor, value: com.sourcepoint.cmplibrary.SpConsentLib, source: vendor-sourcepoint-factory}
+  tcf: true
+  note: TCF support taken from the vendor's CMP role, not checked per SDK version; detection does not depend on it.
+  sources: [vendor-sourcepoint-factory]
+- id: consentmanager
+  name: consentmanager
+  prefixes:
+  - {prefix: net.consentmanager.cm_sdk_android_v3., source: vendor-consentmanager-v3}
+  - {prefix: net.consentmanager.sdk., source: vendor-consentmanager-v2-demo}
+  anchors:
+  - {kind: class_anchor, value: net.consentmanager.cm_sdk_android_v3.CMPManager, source: vendor-consentmanager-v3}
+  - {kind: class_anchor, value: net.consentmanager.sdk.CmpManager, source: vendor-consentmanager-v2-demo}
+  tcf: true
+  note: The current iubenda Android SDK (v3.5) ships this same v3 package. TCF support taken from the vendor's CMP role, not checked per SDK version; detection does not depend on it.
+  sources: [vendor-consentmanager-v3, vendor-consentmanager-v2-demo]
+- id: iubenda
+  name: iubenda (legacy SDK)
+  prefixes:
+  - {prefix: com.iubenda.iab., source: vendor-iubenda-legacy}
+  anchors:
+  - {kind: class_anchor, value: com.iubenda.iab.IubendaCMP, source: vendor-iubenda-legacy}
+  tcf: true
+  note: TCF support taken from the vendor's CMP role, not checked per SDK version; detection does not depend on it.
+  sources: [vendor-iubenda-legacy]
+- id: inmobi_cmp
+  name: InMobi CMP (Choice)
+  prefixes:
+  - {prefix: com.inmobi.cmp., source: vendor-inmobi-cmp}
+  anchors:
+  - {kind: class_anchor, value: com.inmobi.cmp.ChoiceCmp, source: vendor-inmobi-cmp}
+  tcf: true
+  note: TCF support taken from the vendor's CMP role, not checked per SDK version; detection does not depend on it.
+  sources: [vendor-inmobi-cmp]
+- id: axeptio
+  name: Axeptio
+  prefixes:
+  - {prefix: io.axept.android.library., source: vendor-axeptio-sample}
+  - {prefix: io.axeptio.sdk., source: vendor-axeptio-native}
+  anchors:
+  - {kind: class_anchor, value: io.axept.android.library.AxeptioSDK, source: vendor-axeptio-sample}
+  - {kind: class_anchor, value: io.axeptio.sdk.AxeptioSDK, source: vendor-axeptio-native}
+  tcf: true
+  note: TCF support taken from the vendor's CMP role, not checked per SDK version; detection does not depend on it.
+  sources: [vendor-axeptio-sample, vendor-axeptio-native]
 iab_keys:
   tcf_prefix: IABTCF_
   gpp_prefix: IABGPP_

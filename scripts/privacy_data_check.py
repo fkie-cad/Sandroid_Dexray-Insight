@@ -421,6 +421,9 @@ def check_corpus(data: dict, apks: dict[str, str]) -> list[str]:
                 if dx.get_method_analysis_by_name(f"L{cls};", name, to_androguard(msig)):
                     found = True
                     break
+            prefixes = (e.get("uri_evidence") or {}).get("uri_prefixes") or []
+            if not found and prefixes:
+                found = any(str(s).startswith(tuple(prefixes)) for s in dx.strings)
             if not found:
                 errs.append(f"{e['id']}: no ref found by name in {label}")
     return errs
