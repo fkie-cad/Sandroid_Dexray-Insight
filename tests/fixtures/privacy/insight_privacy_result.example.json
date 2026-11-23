@@ -1,0 +1,1786 @@
+{
+  "privacy_analysis": {
+    "schema_version": 1,
+    "status": "success",
+    "errors": [],
+    "generator": {
+      "module": "privacy_analysis",
+      "insight_version": "2.1.1",
+      "catalogue_version": "2026.11.0",
+      "catalogue_digest": "3f9a1c0d5e7b2a64",
+      "android_reference_api": 35,
+      "execution_time": 1.62
+    },
+    "app": {
+      "package": "com.example.scooter",
+      "min_sdk": 23,
+      "target_sdk": 34,
+      "app_namespaces": [
+        "com.example.scooter"
+      ],
+      "application_class": "com.example.scooter.ScooterApp"
+    },
+    "disclaimer": "Draft from static analysis. It shows what the code can access and what bundled SDKs document that they collect. It does not show that data leaves the device; that needs runtime evidence.",
+    "coverage": {
+      "dex_files": 3,
+      "classes_total": 18234,
+      "classes_obfuscated": 4120,
+      "obfuscation_level": "light",
+      "secondary_code": [],
+      "code_outside_dex": [],
+      "provider_reads_unresolved": 4,
+      "limits_hit": [],
+      "notes": [
+        "Code loaded at runtime (from assets or downloads) and native code are not analysed.",
+        "SDK attribution covers the curated SDK list only; other third-party code is shown by package name."
+      ]
+    },
+    "data_safety": {
+      "rows": [
+        {
+          "data_type": "location.approx_location",
+          "category": "location",
+          "label": "Approximate location",
+          "category_label": "Location",
+          "status": "likely_collected",
+          "confidence": "high",
+          "hidden_by_default": false,
+          "origins": [
+            {
+              "type": "app",
+              "sdk_id": null,
+              "name": null,
+              "call_site_count": 1
+            }
+          ],
+          "permissions": [
+            "android.permission.ACCESS_COARSE_LOCATION",
+            "android.permission.ACCESS_FINE_LOCATION"
+          ],
+          "sdks_collecting": [
+            "google_mobile_ads"
+          ],
+          "sharing_hint": {
+            "value": "possible_sharing",
+            "confidence": "medium",
+            "sdk_ids": [
+              "google_mobile_ads"
+            ],
+            "reason": "An advertising or attribution SDK can handle this type. Google does not treat SDKs that build profiles across customers as service providers."
+          },
+          "purpose_hints": [
+            "advertising"
+          ],
+          "call_site_count": 1,
+          "evidence": [
+            {
+              "kind": "sdk_auto_collects",
+              "confidence": "high",
+              "source": "vendor:admob-play-data-disclosure",
+              "sdk_id": "google_mobile_ads",
+              "mode": "auto",
+              "collects_status": "active",
+              "note": "IP address, used to estimate the approximate location"
+            },
+            {
+              "kind": "api_call_site",
+              "confidence": "high",
+              "source": "catalogue:loc.fused.current_location",
+              "api_id": "loc.fused.current_location",
+              "origin": {
+                "type": "app",
+                "sdk_id": null,
+                "name": null
+              },
+              "count": 1,
+              "call_site_ids": [
+                "cs-0006"
+              ]
+            },
+            {
+              "kind": "permission_declared",
+              "confidence": "medium",
+              "source": "permissions:declare-data-use",
+              "permission": "android.permission.ACCESS_COARSE_LOCATION"
+            },
+            {
+              "kind": "permission_declared",
+              "confidence": "medium",
+              "source": "permissions:declare-data-use",
+              "permission": "android.permission.ACCESS_FINE_LOCATION"
+            }
+          ],
+          "compliance": [
+            "MASWE-0073",
+            "GDPR-13",
+            "BSI-O.Purp_1",
+            "MASTG-TEST-0318",
+            "TDDDG-25",
+            "BSI-O.Purp_2"
+          ]
+        },
+        {
+          "data_type": "location.precise_location",
+          "category": "location",
+          "label": "Precise location",
+          "category_label": "Location",
+          "status": "may_be_collected",
+          "confidence": "high",
+          "hidden_by_default": false,
+          "origins": [
+            {
+              "type": "app",
+              "sdk_id": null,
+              "name": null,
+              "call_site_count": 1
+            }
+          ],
+          "permissions": [
+            "android.permission.ACCESS_FINE_LOCATION"
+          ],
+          "sdks_collecting": [],
+          "sharing_hint": null,
+          "purpose_hints": [],
+          "call_site_count": 1,
+          "evidence": [
+            {
+              "kind": "api_call_site",
+              "confidence": "high",
+              "source": "catalogue:loc.fused.current_location",
+              "api_id": "loc.fused.current_location",
+              "origin": {
+                "type": "app",
+                "sdk_id": null,
+                "name": null
+              },
+              "count": 1,
+              "call_site_ids": [
+                "cs-0006"
+              ]
+            },
+            {
+              "kind": "permission_declared",
+              "confidence": "medium",
+              "source": "permissions:declare-data-use",
+              "permission": "android.permission.ACCESS_FINE_LOCATION"
+            }
+          ],
+          "compliance": [
+            "MASWE-0073",
+            "GDPR-13",
+            "BSI-O.Purp_1",
+            "MASTG-TEST-0318",
+            "TDDDG-25",
+            "BSI-O.Purp_2"
+          ]
+        },
+        {
+          "data_type": "personal.personal_identifiers",
+          "category": "personal",
+          "label": "User IDs",
+          "category_label": "Personal info",
+          "status": "may_be_collected",
+          "confidence": "medium",
+          "hidden_by_default": false,
+          "origins": [
+            {
+              "type": "app",
+              "sdk_id": null,
+              "name": null,
+              "call_site_count": 1
+            }
+          ],
+          "permissions": [],
+          "sdks_collecting": [],
+          "sharing_hint": {
+            "value": "service_provider_likely",
+            "confidence": "low",
+            "sdk_ids": [
+              "firebase_analytics"
+            ],
+            "reason": "Only analytics, crash or engagement SDKs can handle this type. They usually act as service providers, which Google exempts from sharing."
+          },
+          "purpose_hints": [
+            "analytics"
+          ],
+          "call_site_count": 1,
+          "evidence": [
+            {
+              "kind": "sdk_sink_call",
+              "confidence": "medium",
+              "source": "catalogue:sink.firebase.set_user_id",
+              "api_id": "sink.firebase.set_user_id",
+              "origin": {
+                "type": "app",
+                "sdk_id": null,
+                "name": null
+              },
+              "count": 1,
+              "call_site_ids": [
+                "cs-0008"
+              ],
+              "sdk_id": "firebase_analytics"
+            }
+          ],
+          "compliance": [
+            "MASWE-0073",
+            "GDPR-13",
+            "BSI-O.Purp_1",
+            "MASTG-TEST-0318"
+          ]
+        },
+        {
+          "data_type": "photo_video.photos",
+          "category": "photo_video",
+          "label": "Photos",
+          "category_label": "Photos and videos",
+          "status": "possible",
+          "confidence": "low",
+          "hidden_by_default": true,
+          "origins": [],
+          "permissions": [
+            "android.permission.READ_EXTERNAL_STORAGE"
+          ],
+          "sdks_collecting": [],
+          "sharing_hint": null,
+          "purpose_hints": [],
+          "call_site_count": 0,
+          "evidence": [
+            {
+              "kind": "permission_declared",
+              "confidence": "low",
+              "source": "permissions:declare-data-use",
+              "permission": "android.permission.READ_EXTERNAL_STORAGE"
+            }
+          ],
+          "compliance": [
+            "MASWE-0073",
+            "GDPR-13",
+            "BSI-O.Purp_1"
+          ]
+        },
+        {
+          "data_type": "photo_video.videos",
+          "category": "photo_video",
+          "label": "Videos",
+          "category_label": "Photos and videos",
+          "status": "possible",
+          "confidence": "low",
+          "hidden_by_default": true,
+          "origins": [],
+          "permissions": [
+            "android.permission.READ_EXTERNAL_STORAGE"
+          ],
+          "sdks_collecting": [],
+          "sharing_hint": null,
+          "purpose_hints": [],
+          "call_site_count": 0,
+          "evidence": [
+            {
+              "kind": "permission_declared",
+              "confidence": "low",
+              "source": "permissions:declare-data-use",
+              "permission": "android.permission.READ_EXTERNAL_STORAGE"
+            }
+          ],
+          "compliance": [
+            "MASWE-0073",
+            "GDPR-13",
+            "BSI-O.Purp_1"
+          ]
+        },
+        {
+          "data_type": "audio.music_files",
+          "category": "audio",
+          "label": "Music files",
+          "category_label": "Audio files",
+          "status": "possible",
+          "confidence": "low",
+          "hidden_by_default": true,
+          "origins": [],
+          "permissions": [
+            "android.permission.READ_EXTERNAL_STORAGE"
+          ],
+          "sdks_collecting": [],
+          "sharing_hint": null,
+          "purpose_hints": [],
+          "call_site_count": 0,
+          "evidence": [
+            {
+              "kind": "permission_declared",
+              "confidence": "low",
+              "source": "permissions:declare-data-use",
+              "permission": "android.permission.READ_EXTERNAL_STORAGE"
+            }
+          ],
+          "compliance": [
+            "MASWE-0073",
+            "GDPR-13",
+            "BSI-O.Purp_1"
+          ]
+        },
+        {
+          "data_type": "storage.files_docs",
+          "category": "storage",
+          "label": "Files and docs",
+          "category_label": "Files and docs",
+          "status": "possible",
+          "confidence": "low",
+          "hidden_by_default": true,
+          "origins": [],
+          "permissions": [
+            "android.permission.READ_EXTERNAL_STORAGE"
+          ],
+          "sdks_collecting": [],
+          "sharing_hint": null,
+          "purpose_hints": [],
+          "call_site_count": 0,
+          "evidence": [
+            {
+              "kind": "permission_declared",
+              "confidence": "low",
+              "source": "permissions:declare-data-use",
+              "permission": "android.permission.READ_EXTERNAL_STORAGE"
+            }
+          ],
+          "compliance": [
+            "MASWE-0073",
+            "GDPR-13",
+            "BSI-O.Purp_1"
+          ]
+        },
+        {
+          "data_type": "contacts.contacts",
+          "category": "contacts",
+          "label": "Contacts",
+          "category_label": "Contacts",
+          "status": "may_be_collected",
+          "confidence": "high",
+          "hidden_by_default": false,
+          "origins": [
+            {
+              "type": "app",
+              "sdk_id": null,
+              "name": null,
+              "call_site_count": 1
+            }
+          ],
+          "permissions": [
+            "android.permission.READ_CONTACTS"
+          ],
+          "sdks_collecting": [],
+          "sharing_hint": null,
+          "purpose_hints": [],
+          "call_site_count": 1,
+          "evidence": [
+            {
+              "kind": "content_uri",
+              "confidence": "high",
+              "source": "catalogue:prov.contacts",
+              "api_id": "prov.contacts",
+              "origin": {
+                "type": "app",
+                "sdk_id": null,
+                "name": null
+              },
+              "count": 1,
+              "call_site_ids": [
+                "cs-0007"
+              ]
+            },
+            {
+              "kind": "permission_declared",
+              "confidence": "medium",
+              "source": "permissions:declare-data-use",
+              "permission": "android.permission.READ_CONTACTS"
+            }
+          ],
+          "compliance": [
+            "MASWE-0073",
+            "GDPR-13",
+            "BSI-O.Purp_1",
+            "MASTG-TEST-0318",
+            "TDDDG-25",
+            "BSI-O.Purp_2"
+          ]
+        },
+        {
+          "data_type": "actions_in_app.user_interaction",
+          "category": "actions_in_app",
+          "label": "App interactions",
+          "category_label": "App activity",
+          "status": "likely_collected",
+          "confidence": "high",
+          "hidden_by_default": false,
+          "origins": [],
+          "permissions": [],
+          "sdks_collecting": [
+            "firebase_analytics",
+            "google_mobile_ads"
+          ],
+          "sharing_hint": {
+            "value": "possible_sharing",
+            "confidence": "medium",
+            "sdk_ids": [
+              "google_mobile_ads"
+            ],
+            "reason": "An advertising or attribution SDK can handle this type. Google does not treat SDKs that build profiles across customers as service providers."
+          },
+          "purpose_hints": [
+            "analytics",
+            "advertising"
+          ],
+          "call_site_count": 0,
+          "evidence": [
+            {
+              "kind": "sdk_auto_collects",
+              "confidence": "high",
+              "source": "vendor:admob-play-data-disclosure",
+              "sdk_id": "google_mobile_ads",
+              "mode": "auto",
+              "collects_status": "active"
+            },
+            {
+              "kind": "sdk_auto_collects",
+              "confidence": "medium",
+              "source": "vendor:google-analytics-data-disclosure",
+              "sdk_id": "firebase_analytics",
+              "mode": "auto",
+              "collects_status": "runtime_controlled"
+            }
+          ],
+          "compliance": [
+            "MASWE-0073",
+            "GDPR-13",
+            "BSI-O.Purp_1",
+            "MASTG-TEST-0318"
+          ]
+        },
+        {
+          "data_type": "app_performance.crash_logs",
+          "category": "app_performance",
+          "label": "Crash logs",
+          "category_label": "App info and performance",
+          "status": "likely_collected",
+          "confidence": "high",
+          "hidden_by_default": false,
+          "origins": [],
+          "permissions": [],
+          "sdks_collecting": [
+            "firebase_crashlytics"
+          ],
+          "sharing_hint": {
+            "value": "service_provider_likely",
+            "confidence": "low",
+            "sdk_ids": [
+              "firebase_crashlytics"
+            ],
+            "reason": "Only analytics, crash or engagement SDKs can handle this type. They usually act as service providers, which Google exempts from sharing."
+          },
+          "purpose_hints": [
+            "analytics"
+          ],
+          "call_site_count": 0,
+          "evidence": [
+            {
+              "kind": "sdk_auto_collects",
+              "confidence": "high",
+              "source": "vendor:firebase-play-data-disclosure",
+              "sdk_id": "firebase_crashlytics",
+              "mode": "auto",
+              "collects_status": "active"
+            }
+          ],
+          "compliance": [
+            "MASWE-0073",
+            "GDPR-13",
+            "BSI-O.Purp_1",
+            "MASTG-TEST-0318"
+          ]
+        },
+        {
+          "data_type": "app_performance.performance_diagnostics",
+          "category": "app_performance",
+          "label": "Diagnostics",
+          "category_label": "App info and performance",
+          "status": "likely_collected",
+          "confidence": "high",
+          "hidden_by_default": false,
+          "origins": [],
+          "permissions": [],
+          "sdks_collecting": [
+            "google_mobile_ads"
+          ],
+          "sharing_hint": {
+            "value": "possible_sharing",
+            "confidence": "medium",
+            "sdk_ids": [
+              "google_mobile_ads"
+            ],
+            "reason": "An advertising or attribution SDK can handle this type. Google does not treat SDKs that build profiles across customers as service providers."
+          },
+          "purpose_hints": [
+            "advertising"
+          ],
+          "call_site_count": 0,
+          "evidence": [
+            {
+              "kind": "sdk_auto_collects",
+              "confidence": "high",
+              "source": "vendor:admob-play-data-disclosure",
+              "sdk_id": "google_mobile_ads",
+              "mode": "auto",
+              "collects_status": "active"
+            }
+          ],
+          "compliance": [
+            "MASWE-0073",
+            "GDPR-13",
+            "BSI-O.Purp_1",
+            "MASTG-TEST-0318"
+          ]
+        },
+        {
+          "data_type": "identifiers.other",
+          "category": "identifiers",
+          "label": "Device or other IDs",
+          "category_label": "Device or other IDs",
+          "status": "likely_collected",
+          "confidence": "high",
+          "hidden_by_default": false,
+          "origins": [
+            {
+              "type": "sdk",
+              "sdk_id": "adjust",
+              "name": "Adjust",
+              "call_site_count": 2
+            },
+            {
+              "type": "sdk",
+              "sdk_id": "braze",
+              "name": "Braze",
+              "call_site_count": 1
+            },
+            {
+              "type": "unattributed",
+              "sdk_id": null,
+              "name": null,
+              "call_site_count": 1
+            }
+          ],
+          "permissions": [
+            "com.google.android.gms.permission.AD_ID"
+          ],
+          "sdks_collecting": [
+            "firebase_analytics",
+            "firebase_crashlytics",
+            "google_mobile_ads"
+          ],
+          "sharing_hint": {
+            "value": "possible_sharing",
+            "confidence": "medium",
+            "sdk_ids": [
+              "google_mobile_ads",
+              "adjust"
+            ],
+            "reason": "An advertising or attribution SDK can handle this type. Google does not treat SDKs that build profiles across customers as service providers."
+          },
+          "purpose_hints": [
+            "analytics",
+            "developer_communications",
+            "advertising"
+          ],
+          "call_site_count": 4,
+          "evidence": [
+            {
+              "kind": "sdk_auto_collects",
+              "confidence": "high",
+              "source": "vendor:admob-play-data-disclosure",
+              "sdk_id": "google_mobile_ads",
+              "mode": "auto",
+              "collects_status": "active",
+              "item": "advertising_id",
+              "note": "Advertising ID and app set ID"
+            },
+            {
+              "kind": "sdk_auto_collects",
+              "confidence": "high",
+              "source": "vendor:firebase-play-data-disclosure",
+              "sdk_id": "firebase_crashlytics",
+              "mode": "auto",
+              "collects_status": "active",
+              "item": "crashlytics_installation_uuid",
+              "note": "Crashlytics installation UUID"
+            },
+            {
+              "kind": "api_call_site",
+              "confidence": "medium",
+              "source": "catalogue:ids.settings.android_id",
+              "api_id": "ids.settings.android_id",
+              "origin": {
+                "type": "sdk",
+                "sdk_id": "braze",
+                "name": "Braze"
+              },
+              "count": 1,
+              "call_site_ids": [
+                "cs-0003"
+              ]
+            },
+            {
+              "kind": "api_call_site",
+              "confidence": "low",
+              "source": "catalogue:ids.telephony.device_id",
+              "api_id": "ids.telephony.device_id",
+              "origin": {
+                "type": "unattributed",
+                "sdk_id": null,
+                "name": null
+              },
+              "count": 1,
+              "call_site_ids": [
+                "cs-0004"
+              ]
+            },
+            {
+              "kind": "reflective_reference",
+              "confidence": "medium",
+              "source": "catalogue:ids.gms.advertising_id",
+              "api_id": "ids.gms.advertising_id",
+              "origin": {
+                "type": "sdk",
+                "sdk_id": "adjust",
+                "name": "Adjust"
+              },
+              "count": 1,
+              "call_site_ids": [
+                "cs-0002"
+              ]
+            },
+            {
+              "kind": "api_ineffective",
+              "confidence": "low",
+              "source": "catalogue:ids.wifi.mac_address",
+              "api_id": "ids.wifi.mac_address",
+              "origin": {
+                "type": "sdk",
+                "sdk_id": "adjust",
+                "name": "Adjust"
+              },
+              "count": 1,
+              "call_site_ids": [
+                "cs-0005"
+              ]
+            },
+            {
+              "kind": "sdk_configured_off",
+              "confidence": "low",
+              "source": "manifest:google_analytics_adid_collection_enabled",
+              "sdk_id": "firebase_analytics",
+              "collects_status": "configured_off",
+              "flag": "google_analytics_adid_collection_enabled",
+              "value": "false",
+              "item": "advertising_id",
+              "note": "Collection switched off in the manifest (the app can switch it on at runtime)."
+            },
+            {
+              "kind": "permission_declared",
+              "confidence": "low",
+              "source": "permissions:declare-data-use",
+              "permission": "com.google.android.gms.permission.AD_ID"
+            }
+          ],
+          "compliance": [
+            "MASWE-0073",
+            "GDPR-13",
+            "BSI-O.Purp_1",
+            "MASTG-TEST-0318",
+            "TDDDG-25",
+            "MASWE-0068",
+            "GDPR-4(1)"
+          ]
+        }
+      ]
+    },
+    "call_sites": [
+      {
+        "id": "cs-0001",
+        "api_id": "consent.firebase.analytics_collection",
+        "api_label": "FirebaseAnalytics.setAnalyticsCollectionEnabled",
+        "api": "Lcom/google/firebase/analytics/FirebaseAnalytics;->setAnalyticsCollectionEnabled(Z)V",
+        "match": "method_call",
+        "role": "consent_control",
+        "data_types": [],
+        "caller": {
+          "class": "Lcom/example/scooter/settings/ConsentGate;",
+          "method": "onConsent",
+          "descriptor": "(Z)V",
+          "offset": 8
+        },
+        "origin": {
+          "type": "app",
+          "sdk_id": null,
+          "name": null,
+          "confidence": "high",
+          "rule": "app_namespace",
+          "via": []
+        },
+        "reachability": "app_code",
+        "chain": [
+          "Lcom/example/scooter/settings/ConsentGate;->onConsent",
+          "Lcom/example/scooter/MainActivity;->onCreate"
+        ],
+        "uri_evidence": null,
+        "permission": {
+          "required": null,
+          "declared": [],
+          "satisfied": null
+        },
+        "api_level": {
+          "since": null,
+          "deprecated": null,
+          "removed": null,
+          "effective_until": null,
+          "effective_for_app": true
+        },
+        "evidence_kind": null,
+        "confidence": "high"
+      },
+      {
+        "id": "cs-0002",
+        "api_id": "ids.gms.advertising_id",
+        "api_label": "AdvertisingIdClient.getAdvertisingIdInfo (via reflection)",
+        "api": "Lcom/google/android/gms/ads/identifier/AdvertisingIdClient;->getAdvertisingIdInfo(Landroid/content/Context;)Lcom/google/android/gms/ads/identifier/AdvertisingIdClient$Info;",
+        "match": "reflective",
+        "role": "source",
+        "data_types": [
+          "identifiers.other"
+        ],
+        "caller": {
+          "class": "Lcom/adjust/sdk/Reflection;",
+          "method": "getAdvertisingInfoObject",
+          "descriptor": "(Landroid/content/Context;)Ljava/lang/Object;",
+          "offset": 12
+        },
+        "origin": {
+          "type": "sdk",
+          "sdk_id": "adjust",
+          "name": "Adjust",
+          "confidence": "high",
+          "rule": "sdk_prefix",
+          "via": []
+        },
+        "reachability": "app_code",
+        "chain": [
+          "Lcom/adjust/sdk/Reflection;->getAdvertisingInfoObject",
+          "Lcom/adjust/sdk/Util;->getGoogleAdId",
+          "Lcom/adjust/sdk/ActivityHandler;->initI",
+          "Lcom/adjust/sdk/Adjust;->onCreate",
+          "Lcom/example/scooter/ScooterApp;->onCreate"
+        ],
+        "uri_evidence": null,
+        "permission": {
+          "required": {
+            "any_of": [
+              "com.google.android.gms.permission.AD_ID"
+            ]
+          },
+          "declared": [
+            "com.google.android.gms.permission.AD_ID"
+          ],
+          "satisfied": true
+        },
+        "api_level": {
+          "since": null,
+          "deprecated": null,
+          "removed": null,
+          "effective_until": null,
+          "effective_for_app": true
+        },
+        "evidence_kind": "reflective_reference",
+        "confidence": "medium"
+      },
+      {
+        "id": "cs-0003",
+        "api_id": "ids.settings.android_id",
+        "api_label": "Settings.Secure.getString(\"android_id\")",
+        "api": "Landroid/provider/Settings$Secure;->getString(Landroid/content/ContentResolver;Ljava/lang/String;)Ljava/lang/String;",
+        "match": "method_call",
+        "role": "source",
+        "data_types": [
+          "identifiers.other"
+        ],
+        "caller": {
+          "class": "Lbo/app/bj;",
+          "method": "b",
+          "descriptor": "(Landroid/content/Context;)Ljava/lang/String;",
+          "offset": 18
+        },
+        "origin": {
+          "type": "sdk",
+          "sdk_id": "braze",
+          "name": "Braze",
+          "confidence": "medium",
+          "rule": "sdk_prefix",
+          "via": []
+        },
+        "reachability": "sdk_entry",
+        "chain": [
+          "Lbo/app/bj;->b",
+          "Lcom/appboy/Appboy;->getDeviceId",
+          "Lcom/appboy/push/AppboyFirebaseMessagingService;->onNewToken"
+        ],
+        "uri_evidence": null,
+        "permission": {
+          "required": null,
+          "declared": [],
+          "satisfied": null
+        },
+        "api_level": {
+          "since": 3,
+          "deprecated": null,
+          "removed": null,
+          "effective_until": null,
+          "effective_for_app": true
+        },
+        "evidence_kind": "api_call_site",
+        "confidence": "medium"
+      },
+      {
+        "id": "cs-0004",
+        "api_id": "ids.telephony.device_id",
+        "api_label": "TelephonyManager.getDeviceId",
+        "api": "Landroid/telephony/TelephonyManager;->getDeviceId()Ljava/lang/String;",
+        "match": "method_call",
+        "role": "source",
+        "data_types": [
+          "identifiers.other"
+        ],
+        "caller": {
+          "class": "Lq/a/a/a/a/i;",
+          "method": "a",
+          "descriptor": "(Landroid/content/Context;)Ljava/lang/String;",
+          "offset": 24
+        },
+        "origin": {
+          "type": "unattributed",
+          "sdk_id": null,
+          "name": null,
+          "confidence": "low",
+          "rule": "obfuscated",
+          "via": []
+        },
+        "reachability": "callback",
+        "chain": [
+          "Lq/a/a/a/a/i;->a",
+          "Lq/a/a/a/a/h;->run"
+        ],
+        "uri_evidence": null,
+        "permission": {
+          "required": {
+            "any_of": [
+              "android.permission.READ_PHONE_STATE",
+              "android.permission.READ_PRIVILEGED_PHONE_STATE"
+            ]
+          },
+          "declared": [],
+          "satisfied": false
+        },
+        "api_level": {
+          "since": 1,
+          "deprecated": 26,
+          "removed": null,
+          "effective_until": 29,
+          "effective_for_app": true
+        },
+        "evidence_kind": "api_call_site",
+        "confidence": "low"
+      },
+      {
+        "id": "cs-0005",
+        "api_id": "ids.wifi.mac_address",
+        "api_label": "WifiInfo.getMacAddress",
+        "api": "Landroid/net/wifi/WifiInfo;->getMacAddress()Ljava/lang/String;",
+        "match": "method_call",
+        "role": "source",
+        "data_types": [
+          "identifiers.other"
+        ],
+        "caller": {
+          "class": "Lcom/adjust/sdk/MacAddressUtil;",
+          "method": "getRawMacAddress",
+          "descriptor": "(Landroid/content/Context;)Ljava/lang/String;",
+          "offset": 30
+        },
+        "origin": {
+          "type": "sdk",
+          "sdk_id": "adjust",
+          "name": "Adjust",
+          "confidence": "high",
+          "rule": "sdk_prefix",
+          "via": []
+        },
+        "reachability": "app_code",
+        "chain": [
+          "Lcom/adjust/sdk/MacAddressUtil;->getRawMacAddress",
+          "Lcom/adjust/sdk/DeviceInfo;-><init>",
+          "Lcom/adjust/sdk/ActivityHandler;->initI",
+          "Lcom/adjust/sdk/Adjust;->onCreate",
+          "Lcom/example/scooter/ScooterApp;->onCreate"
+        ],
+        "uri_evidence": null,
+        "permission": {
+          "required": null,
+          "declared": [],
+          "satisfied": null
+        },
+        "api_level": {
+          "since": 1,
+          "deprecated": null,
+          "removed": null,
+          "effective_until": 23,
+          "effective_for_app": false
+        },
+        "evidence_kind": "api_ineffective",
+        "confidence": "low"
+      },
+      {
+        "id": "cs-0006",
+        "api_id": "loc.fused.current_location",
+        "api_label": "FusedLocationProviderClient.getCurrentLocation",
+        "api": "Lcom/google/android/gms/location/FusedLocationProviderClient;->getCurrentLocation(ILcom/google/android/gms/tasks/CancellationToken;)Lcom/google/android/gms/tasks/Task;",
+        "match": "method_call",
+        "role": "source",
+        "data_types": [
+          "location.approx_location",
+          "location.precise_location"
+        ],
+        "caller": {
+          "class": "Lcom/example/scooter/ride/LocationRepo;",
+          "method": "current",
+          "descriptor": "(Lkotlin/coroutines/Continuation;)Ljava/lang/Object;",
+          "offset": 42
+        },
+        "origin": {
+          "type": "app",
+          "sdk_id": null,
+          "name": null,
+          "confidence": "high",
+          "rule": "app_namespace",
+          "via": []
+        },
+        "reachability": "app_code",
+        "chain": [
+          "Lcom/example/scooter/ride/LocationRepo;->current",
+          "Lcom/example/scooter/ride/RideViewModel;->startRide"
+        ],
+        "uri_evidence": null,
+        "permission": {
+          "required": {
+            "any_of": [
+              "android.permission.ACCESS_COARSE_LOCATION",
+              "android.permission.ACCESS_FINE_LOCATION"
+            ]
+          },
+          "declared": [
+            "android.permission.ACCESS_COARSE_LOCATION",
+            "android.permission.ACCESS_FINE_LOCATION"
+          ],
+          "satisfied": true
+        },
+        "api_level": {
+          "since": null,
+          "deprecated": null,
+          "removed": null,
+          "effective_until": null,
+          "effective_for_app": true
+        },
+        "evidence_kind": "api_call_site",
+        "confidence": "high"
+      },
+      {
+        "id": "cs-0007",
+        "api_id": "prov.contacts",
+        "api_label": "Contacts provider read",
+        "api": "Landroid/content/ContentResolver;->query(Landroid/net/Uri;[Ljava/lang/String;Ljava/lang/String;[Ljava/lang/String;Ljava/lang/String;)Landroid/database/Cursor;",
+        "match": "provider_read",
+        "role": "source",
+        "data_types": [
+          "contacts.contacts"
+        ],
+        "caller": {
+          "class": "Lcom/example/scooter/invite/ContactPicker;",
+          "method": "load",
+          "descriptor": "()Ljava/util/List;",
+          "offset": 56
+        },
+        "origin": {
+          "type": "app",
+          "sdk_id": null,
+          "name": null,
+          "confidence": "high",
+          "rule": "app_namespace",
+          "via": []
+        },
+        "reachability": "app_code",
+        "chain": [
+          "Lcom/example/scooter/invite/ContactPicker;->load",
+          "Lcom/example/scooter/invite/InviteFragment;->onViewCreated"
+        ],
+        "uri_evidence": {
+          "kind": "static_field",
+          "value": "Landroid/provider/ContactsContract$Contacts;->CONTENT_URI:Landroid/net/Uri;",
+          "where": "same_method"
+        },
+        "permission": {
+          "required": {
+            "any_of": [
+              "android.permission.READ_CONTACTS"
+            ]
+          },
+          "declared": [
+            "android.permission.READ_CONTACTS"
+          ],
+          "satisfied": true
+        },
+        "api_level": {
+          "since": 1,
+          "deprecated": null,
+          "removed": null,
+          "effective_until": null,
+          "effective_for_app": true
+        },
+        "evidence_kind": "content_uri",
+        "confidence": "high"
+      },
+      {
+        "id": "cs-0008",
+        "api_id": "sink.firebase.set_user_id",
+        "api_label": "FirebaseAnalytics.setUserId",
+        "api": "Lcom/google/firebase/analytics/FirebaseAnalytics;->setUserId(Ljava/lang/String;)V",
+        "match": "method_call",
+        "role": "sink",
+        "data_types": [
+          "personal.personal_identifiers"
+        ],
+        "caller": {
+          "class": "Lcom/example/scooter/auth/Session;",
+          "method": "onLogin",
+          "descriptor": "(Ljava/lang/String;)V",
+          "offset": 20
+        },
+        "origin": {
+          "type": "app",
+          "sdk_id": null,
+          "name": null,
+          "confidence": "high",
+          "rule": "app_namespace",
+          "via": []
+        },
+        "reachability": "app_code",
+        "chain": [
+          "Lcom/example/scooter/auth/Session;->onLogin",
+          "Lcom/example/scooter/auth/LoginViewModel;->submit"
+        ],
+        "uri_evidence": null,
+        "permission": {
+          "required": null,
+          "declared": [],
+          "satisfied": null
+        },
+        "api_level": {
+          "since": null,
+          "deprecated": null,
+          "removed": null,
+          "effective_until": null,
+          "effective_for_app": true
+        },
+        "evidence_kind": "sdk_sink_call",
+        "confidence": "medium"
+      }
+    ],
+    "sdks": [
+      {
+        "id": "firebase_analytics",
+        "name": "Google Analytics for Firebase",
+        "role": "analytics",
+        "confidence": "high",
+        "detection": [
+          {
+            "kind": "class_prefix",
+            "value": "com.google.android.gms.measurement.",
+            "count": 194
+          },
+          {
+            "kind": "class_prefix",
+            "value": "com.google.firebase.analytics.",
+            "count": 41
+          },
+          {
+            "kind": "manifest_meta_data",
+            "value": "com.google.firebase.components:com.google.firebase.analytics.connector.internal.AnalyticsConnectorRegistrar"
+          },
+          {
+            "kind": "tracker_analysis",
+            "value": "google_firebase_analytics"
+          }
+        ],
+        "recipient_labels": [
+          "Google Analytics"
+        ],
+        "tracker_db_ids": [
+          "google_firebase_analytics"
+        ],
+        "collects": [
+          {
+            "data_type": "actions_in_app.user_interaction",
+            "item": null,
+            "mode": "auto",
+            "status": "runtime_controlled",
+            "source": "vendor:google-analytics-data-disclosure"
+          },
+          {
+            "data_type": "identifiers.other",
+            "item": "advertising_id",
+            "mode": "auto",
+            "status": "configured_off",
+            "source": "vendor:google-analytics-data-disclosure"
+          }
+        ],
+        "flags": [
+          "firebase_analytics_collection_enabled",
+          "google_analytics_adid_collection_enabled"
+        ],
+        "call_site_count": 0,
+        "sharing_hint": "service_provider_likely",
+        "references": {
+          "vendor_disclosure": "https://support.google.com/analytics/answer/11582702",
+          "play_sdk_index": "https://play.google.com/sdks/details/com-google-firebase-firebase-analytics"
+        },
+        "prefix_sources": [
+          "vendor-firebase-analytics-ref",
+          "vendor-gms-measurement-ref"
+        ]
+      },
+      {
+        "id": "firebase_crashlytics",
+        "name": "Firebase Crashlytics",
+        "role": "crash",
+        "confidence": "high",
+        "detection": [
+          {
+            "kind": "class_prefix",
+            "value": "com.google.firebase.crashlytics.",
+            "count": 120
+          },
+          {
+            "kind": "manifest_meta_data",
+            "value": "com.google.firebase.components:com.google.firebase.crashlytics.CrashlyticsRegistrar"
+          },
+          {
+            "kind": "tracker_analysis",
+            "value": "firebase_crashlytics"
+          }
+        ],
+        "recipient_labels": [
+          "Crashlytics"
+        ],
+        "tracker_db_ids": [
+          "firebase_crashlytics"
+        ],
+        "collects": [
+          {
+            "data_type": "app_performance.crash_logs",
+            "item": null,
+            "mode": "auto",
+            "status": "active",
+            "source": "vendor:firebase-play-data-disclosure"
+          },
+          {
+            "data_type": "identifiers.other",
+            "item": "crashlytics_installation_uuid",
+            "mode": "auto",
+            "status": "active",
+            "source": "vendor:firebase-play-data-disclosure"
+          }
+        ],
+        "flags": [
+          "firebase_crashlytics_collection_enabled"
+        ],
+        "call_site_count": 0,
+        "sharing_hint": "service_provider_likely",
+        "references": {
+          "vendor_disclosure": "https://firebase.google.com/docs/android/play-data-disclosure",
+          "play_sdk_index": "https://play.google.com/sdks/details/com-google-firebase-firebase-crashlytics"
+        },
+        "prefix_sources": [
+          "vendor-firebase-crashlytics-ref"
+        ]
+      },
+      {
+        "id": "google_mobile_ads",
+        "name": "Google Mobile Ads (AdMob)",
+        "role": "ads",
+        "confidence": "high",
+        "detection": [
+          {
+            "kind": "class_prefix",
+            "value": "com.google.android.gms.ads.",
+            "count": 812
+          },
+          {
+            "kind": "manifest_component",
+            "value": "com.google.android.gms.ads.AdActivity"
+          },
+          {
+            "kind": "manifest_meta_data",
+            "value": "com.google.android.gms.ads.APPLICATION_ID"
+          },
+          {
+            "kind": "tracker_analysis",
+            "value": "google_admob"
+          }
+        ],
+        "recipient_labels": [
+          "Google Ads"
+        ],
+        "tracker_db_ids": [
+          "google_admob",
+          "google_doubleclick"
+        ],
+        "collects": [
+          {
+            "data_type": "location.approx_location",
+            "item": null,
+            "mode": "auto",
+            "status": "active",
+            "source": "vendor:admob-play-data-disclosure"
+          },
+          {
+            "data_type": "actions_in_app.user_interaction",
+            "item": null,
+            "mode": "auto",
+            "status": "active",
+            "source": "vendor:admob-play-data-disclosure"
+          },
+          {
+            "data_type": "app_performance.performance_diagnostics",
+            "item": null,
+            "mode": "auto",
+            "status": "active",
+            "source": "vendor:admob-play-data-disclosure"
+          },
+          {
+            "data_type": "identifiers.other",
+            "item": "advertising_id",
+            "mode": "auto",
+            "status": "active",
+            "source": "vendor:admob-play-data-disclosure"
+          }
+        ],
+        "flags": [
+          "com.google.android.gms.ads.APPLICATION_ID"
+        ],
+        "call_site_count": 0,
+        "sharing_hint": "possible_sharing",
+        "references": {
+          "vendor_disclosure": "https://developers.google.com/admob/android/privacy/play-data-disclosure",
+          "play_sdk_index": "https://play.google.com/sdks/details/com-google-android-gms-play-services-ads"
+        },
+        "prefix_sources": [
+          "vendor-admob-ref"
+        ]
+      },
+      {
+        "id": "adjust",
+        "name": "Adjust",
+        "role": "attribution",
+        "confidence": "high",
+        "detection": [
+          {
+            "kind": "class_prefix",
+            "value": "com.adjust.sdk.",
+            "count": 154
+          },
+          {
+            "kind": "class_anchor",
+            "value": "com.adjust.sdk.Adjust"
+          },
+          {
+            "kind": "manifest_component",
+            "value": "com.adjust.sdk.AdjustReferrerReceiver"
+          }
+        ],
+        "recipient_labels": [
+          "Adjust"
+        ],
+        "tracker_db_ids": [
+          "adjust"
+        ],
+        "collects": [],
+        "flags": [],
+        "call_site_count": 2,
+        "sharing_hint": "possible_sharing",
+        "references": {
+          "vendor_disclosure": "https://dev.adjust.com/en/sdk/android/features/privacy",
+          "play_sdk_index": "https://play.google.com/sdks/details/com-adjust-sdk-adjust-android"
+        },
+        "prefix_sources": [
+          "vendor-adjust-android-ref"
+        ]
+      },
+      {
+        "id": "braze",
+        "name": "Braze",
+        "role": "engagement",
+        "confidence": "high",
+        "detection": [
+          {
+            "kind": "class_prefix",
+            "value": "bo.app.",
+            "count": 263
+          },
+          {
+            "kind": "class_prefix",
+            "value": "com.appboy.",
+            "count": 311
+          },
+          {
+            "kind": "class_anchor",
+            "value": "com.appboy.Appboy"
+          },
+          {
+            "kind": "manifest_component",
+            "value": "com.appboy.push.AppboyFirebaseMessagingService"
+          }
+        ],
+        "recipient_labels": [
+          "Braze"
+        ],
+        "tracker_db_ids": [
+          "braze"
+        ],
+        "collects": [],
+        "flags": [],
+        "call_site_count": 1,
+        "sharing_hint": "service_provider_likely",
+        "references": {
+          "vendor_disclosure": null,
+          "play_sdk_index": "https://play.google.com/sdks/details/com-braze-android-sdk-ui"
+        },
+        "prefix_sources": [
+          "observed-voi-2.24.2",
+          "vendor-braze-appboy-migration"
+        ]
+      }
+    ],
+    "permissions": [
+      {
+        "permission": "android.permission.ACCESS_COARSE_LOCATION",
+        "max_sdk_version": null,
+        "data_types": [
+          "location.approx_location"
+        ],
+        "strength": "medium",
+        "dangerous": true,
+        "call_site_count": 1,
+        "source": "permissions:declare-data-use"
+      },
+      {
+        "permission": "android.permission.ACCESS_FINE_LOCATION",
+        "max_sdk_version": null,
+        "data_types": [
+          "location.approx_location",
+          "location.precise_location"
+        ],
+        "strength": "medium",
+        "dangerous": true,
+        "call_site_count": 1,
+        "source": "permissions:declare-data-use"
+      },
+      {
+        "permission": "android.permission.READ_CONTACTS",
+        "max_sdk_version": null,
+        "data_types": [
+          "contacts.contacts"
+        ],
+        "strength": "medium",
+        "dangerous": true,
+        "call_site_count": 1,
+        "source": "permissions:declare-data-use"
+      },
+      {
+        "permission": "android.permission.READ_EXTERNAL_STORAGE",
+        "max_sdk_version": 32,
+        "data_types": [
+          "audio.music_files",
+          "photo_video.photos",
+          "photo_video.videos",
+          "storage.files_docs"
+        ],
+        "strength": "low",
+        "dangerous": true,
+        "call_site_count": 0,
+        "source": "permissions:declare-data-use"
+      },
+      {
+        "permission": "com.google.android.gms.permission.AD_ID",
+        "max_sdk_version": null,
+        "data_types": [
+          "identifiers.other"
+        ],
+        "strength": "low",
+        "dangerous": false,
+        "call_site_count": 1,
+        "source": "permissions:declare-data-use"
+      }
+    ],
+    "manifest_flags": [
+      {
+        "key": "firebase_analytics_collection_enabled",
+        "sdk_id": "firebase_analytics",
+        "value": "false",
+        "resolved": true,
+        "scope": "application",
+        "state": "off",
+        "effect": "collection_suspended_until_enabled",
+        "default_when_absent": "on",
+        "data_types": [
+          "*"
+        ],
+        "items": null,
+        "source": "docs:firebase-configure-data-collection"
+      },
+      {
+        "key": "google_analytics_adid_collection_enabled",
+        "sdk_id": "firebase_analytics",
+        "value": "false",
+        "resolved": true,
+        "scope": "application",
+        "state": "off",
+        "effect": "adid_collection_off",
+        "default_when_absent": "on",
+        "data_types": [
+          "identifiers.other"
+        ],
+        "items": [
+          "advertising_id"
+        ],
+        "source": "docs:firebase-configure-data-collection"
+      },
+      {
+        "key": "firebase_crashlytics_collection_enabled",
+        "sdk_id": "firebase_crashlytics",
+        "value": null,
+        "resolved": true,
+        "scope": "application",
+        "state": "default",
+        "effect": "collection_suspended_until_enabled",
+        "default_when_absent": "on",
+        "data_types": [
+          "*"
+        ],
+        "items": null,
+        "source": "docs:crashlytics-customize-reports"
+      },
+      {
+        "key": "com.google.android.gms.ads.APPLICATION_ID",
+        "sdk_id": "google_mobile_ads",
+        "value": "ca-app-pub-0000000000000000~0000000000",
+        "resolved": true,
+        "scope": "application",
+        "state": "on",
+        "effect": "presence_only",
+        "default_when_absent": null,
+        "data_types": [],
+        "items": null,
+        "source": "docs:admob-quick-start"
+      }
+    ],
+    "consent": {
+      "verdict": "tcf_reader_only",
+      "cmps": [],
+      "tcf": {
+        "keys": [
+          "IABTCF_TCString",
+          "IABTCF_gdprApplies"
+        ],
+        "reads": true,
+        "writes": false,
+        "readers": [
+          {
+            "origin": {
+              "type": "sdk",
+              "sdk_id": "google_mobile_ads",
+              "name": "Google Mobile Ads (AdMob)"
+            },
+            "count": 3
+          }
+        ],
+        "writers": []
+      },
+      "gpp": {
+        "keys": [],
+        "reads": false,
+        "writes": false,
+        "readers": [],
+        "writers": []
+      },
+      "us_privacy": {
+        "keys": [
+          "IABUSPrivacy_String"
+        ],
+        "reads": true,
+        "writes": false,
+        "readers": [
+          {
+            "origin": {
+              "type": "sdk",
+              "sdk_id": "google_mobile_ads",
+              "name": "Google Mobile Ads (AdMob)"
+            },
+            "count": 1
+          }
+        ],
+        "writers": []
+      },
+      "google_additional_consent": true,
+      "controls": [
+        {
+          "api_id": "consent.firebase.analytics_collection",
+          "label": "FirebaseAnalytics.setAnalyticsCollectionEnabled",
+          "origin": {
+            "type": "app",
+            "sdk_id": null,
+            "name": null
+          },
+          "call_site_ids": [
+            "cs-0001"
+          ]
+        }
+      ]
+    },
+    "findings": [
+      {
+        "id": "no_consent_mechanism",
+        "title": "Advertising or attribution SDKs, but no consent mechanism found",
+        "severity": "medium",
+        "confidence": "medium",
+        "summary": "Google Mobile Ads (AdMob) and Adjust are present. No consent SDK (CMP) and no code that writes IAB TCF consent keys was found. A custom or server-driven consent screen is possible.",
+        "evidence": {
+          "call_site_ids": [],
+          "sdk_ids": [
+            "adjust",
+            "google_mobile_ads"
+          ],
+          "permissions": [],
+          "data_types": []
+        },
+        "compliance": [
+          "MASWE-0078",
+          "GDPR-6(1)(a)",
+          "GDPR-7",
+          "TDDDG-25",
+          "BSI-O.Purp_3"
+        ]
+      },
+      {
+        "id": "sdk_identifier_access_without_consent",
+        "title": "SDK code that can read a device identifier, and no consent mechanism found",
+        "severity": "medium",
+        "confidence": "medium",
+        "summary": "Adjust contains code that can read the advertising ID (through reflection), reachable from app start-up. Potential TDDDG §25 issue.",
+        "evidence": {
+          "call_site_ids": [
+            "cs-0002"
+          ],
+          "sdk_ids": [
+            "adjust"
+          ],
+          "permissions": [],
+          "data_types": [
+            "identifiers.other"
+          ]
+        },
+        "compliance": [
+          "TDDDG-25",
+          "MASWE-0078",
+          "BSI-O.Purp_4"
+        ]
+      },
+      {
+        "id": "non_resettable_identifier",
+        "title": "Code that can read non-resettable device identifiers",
+        "severity": "medium",
+        "confidence": "medium",
+        "summary": "Braze contains code that can read ANDROID_ID. One more site (IMEI or device ID, unattributed code) is left out because the required permission is not declared. Google recommends resettable identifiers for tracking.",
+        "evidence": {
+          "call_site_ids": [
+            "cs-0003"
+          ],
+          "sdk_ids": [
+            "braze"
+          ],
+          "permissions": [],
+          "data_types": [
+            "identifiers.other"
+          ]
+        },
+        "compliance": [
+          "MASWE-0068",
+          "GDPR-4(1)"
+        ]
+      },
+      {
+        "id": "sdk_collection_default_on",
+        "title": "SDK data collection left at its documented default (on)",
+        "severity": "low",
+        "confidence": "medium",
+        "summary": "Firebase Crashlytics documents automatic collection of crash reports; firebase_crashlytics_collection_enabled is not set.",
+        "evidence": {
+          "call_site_ids": [],
+          "sdk_ids": [
+            "firebase_crashlytics"
+          ],
+          "permissions": [],
+          "data_types": [
+            "app_performance.crash_logs",
+            "identifiers.other"
+          ]
+        },
+        "compliance": [
+          "MASWE-0071",
+          "GDPR-25",
+          "BSI-O.Purp_7"
+        ]
+      },
+      {
+        "id": "sdk_sink_with_app_data",
+        "title": "App contains code that can pass data to an analytics SDK",
+        "severity": "medium",
+        "confidence": "medium",
+        "summary": "App code contains a call to FirebaseAnalytics.setUserId. Check which value it can pass.",
+        "evidence": {
+          "call_site_ids": [
+            "cs-0008"
+          ],
+          "sdk_ids": [
+            "firebase_analytics"
+          ],
+          "permissions": [],
+          "data_types": [
+            "personal.personal_identifiers"
+          ]
+        },
+        "compliance": [
+          "MASTG-TEST-0318",
+          "BSI-O.Purp_8"
+        ]
+      }
+    ],
+    "compliance_refs": {
+      "BSI-O.Purp_1": {
+        "framework": "BSI-TR-03161",
+        "display": "BSI TR-03161 O.Purp_1",
+        "title": "Disclose purposes and processing before installation",
+        "url": "https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TR03161/TR-03161-1.pdf"
+      },
+      "BSI-O.Purp_2": {
+        "framework": "BSI-TR-03161",
+        "display": "BSI TR-03161 O.Purp_2",
+        "title": "Collect only data that serves the legitimate purpose",
+        "url": "https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TR03161/TR-03161-1.pdf"
+      },
+      "BSI-O.Purp_3": {
+        "framework": "BSI-TR-03161",
+        "display": "BSI TR-03161 O.Purp_3",
+        "title": "Obtain active consent before collecting personal data",
+        "url": "https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TR03161/TR-03161-1.pdf"
+      },
+      "BSI-O.Purp_4": {
+        "framework": "BSI-TR-03161",
+        "display": "BSI TR-03161 O.Purp_4",
+        "title": "No collection without express consent",
+        "url": "https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TR03161/TR-03161-1.pdf"
+      },
+      "BSI-O.Purp_7": {
+        "framework": "BSI-TR-03161",
+        "display": "BSI TR-03161 O.Purp_7",
+        "title": "Third-party software: only necessary functions, others disabled",
+        "url": "https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TR03161/TR-03161-1.pdf"
+      },
+      "BSI-O.Purp_8": {
+        "framework": "BSI-TR-03161",
+        "display": "BSI TR-03161 O.Purp_8",
+        "title": "No sharing of sensitive data with third parties",
+        "url": "https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TR03161/TR-03161-1.pdf"
+      },
+      "GDPR-13": {
+        "framework": "GDPR",
+        "display": "GDPR Art. 13",
+        "title": "Information to be provided where personal data are collected from the data subject",
+        "url": "https://gdpr-info.eu/art-13-gdpr/"
+      },
+      "GDPR-25": {
+        "framework": "GDPR",
+        "display": "GDPR Art. 25",
+        "title": "Data protection by design and by default",
+        "url": "https://gdpr-info.eu/art-25-gdpr/"
+      },
+      "GDPR-4(1)": {
+        "framework": "GDPR",
+        "display": "GDPR Art. 4(1)",
+        "title": "Definitions: personal data",
+        "url": "https://gdpr-info.eu/art-4-gdpr/"
+      },
+      "GDPR-6(1)(a)": {
+        "framework": "GDPR",
+        "display": "GDPR Art. 6(1)(a)",
+        "title": "Lawfulness of processing: consent",
+        "url": "https://gdpr-info.eu/art-6-gdpr/"
+      },
+      "GDPR-7": {
+        "framework": "GDPR",
+        "display": "GDPR Art. 7",
+        "title": "Conditions for consent",
+        "url": "https://gdpr-info.eu/art-7-gdpr/"
+      },
+      "MASTG-TEST-0318": {
+        "framework": "MASTG",
+        "display": "MASTG-TEST-0318",
+        "title": "References to SDK APIs Known to Handle Sensitive User Data",
+        "url": "https://mas.owasp.org/MASTG/tests-beta/android/MASVS-PRIVACY/MASTG-TEST-0318/"
+      },
+      "MASWE-0068": {
+        "framework": "MASWE",
+        "display": "MASWE-0068",
+        "title": "Incorrect Use of Identifiers for User Tracking",
+        "url": "https://mas.owasp.org/MASWE/MASVS-PRIVACY/MASWE-0068/"
+      },
+      "MASWE-0071": {
+        "framework": "MASWE",
+        "display": "MASWE-0071",
+        "title": "Inadequate Defaults for Privacy Relevant Actions",
+        "url": "https://mas.owasp.org/MASWE/MASVS-PRIVACY/MASWE-0071/"
+      },
+      "MASWE-0073": {
+        "framework": "MASWE",
+        "display": "MASWE-0073",
+        "title": "Inadequate Data Collection Declarations",
+        "url": "https://mas.owasp.org/MASWE/MASVS-PRIVACY/MASWE-0073/"
+      },
+      "MASWE-0078": {
+        "framework": "MASWE",
+        "display": "MASWE-0078",
+        "title": "Inadequate or Ambiguous User Consent Mechanisms",
+        "url": "https://mas.owasp.org/MASWE/MASVS-PRIVACY/MASWE-0078/"
+      },
+      "TDDDG-25": {
+        "framework": "TDDDG",
+        "display": "TDDDG §25",
+        "title": "Consent for storing or reading information on the end device",
+        "url": "https://www.gesetze-im-internet.de/ttdsg/__25.html"
+      }
+    }
+  }
+}

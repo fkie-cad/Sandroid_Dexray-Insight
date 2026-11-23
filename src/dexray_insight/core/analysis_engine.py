@@ -333,6 +333,11 @@ class AnalysisEngine:
             # Tracker results depend on the signature database, not just config.
             if "tracker_analysis" in requested_modules and self.cache_manager is not None:
                 keyed["signature_db"] = self.cache_manager.signature_db_key()
+            # The privacy layer depends on its catalogue files, not just config.
+            if "privacy_analysis" in requested_modules and self.cache_manager is not None:
+                keyed["privacy_catalogue"] = self.cache_manager.privacy_catalogue_key(
+                    (self.config.get_module_config("privacy_analysis") or {}).get("catalogue_dir")
+                )
             self._config_hash_cache[key] = hash_config(keyed)
         return self._config_hash_cache[key]
 
@@ -1235,6 +1240,22 @@ class AnalysisEngine:
                 enabled_tools.append(tool_name)
         return enabled_tools
 
+    @staticmethod
+    def _privacy_section(result: Any) -> dict[str, Any] | None:
+        """The ``privacy_analysis`` section of a module result (None when skipped or absent).
+
+        A FAILURE without a section yields the stub ``{schema_version, status, errors}``.
+        """
+        if result is None or getattr(result, "status", None) == AnalysisStatus.SKIPPED:
+            return None
+        section = getattr(result, "section", None)
+        if isinstance(section, dict) and section:
+            return section
+        if getattr(result, "status", None) == AnalysisStatus.FAILURE:
+            message = getattr(result, "error_message", None) or "privacy analysis failed"
+            return {"schema_version": 1, "status": "failure", "errors": [str(message)]}
+        return None
+
     def _create_full_results(
         self,
         module_results: dict[str, BaseResult],
@@ -1290,6 +1311,7 @@ class AnalysisEngine:
             full_results.tracker_analysis = None
 
         full_results.behaviour_analysis = module_results.get("behaviour_analysis")
+        full_results.privacy_analysis = self._privacy_section(module_results.get("privacy_analysis"))
 
         # Add security results if available
         if security_results:

@@ -96,7 +96,7 @@ CACHE_SCHEMA_VERSION = 2
 # on the same tool version silently serves stale results (the package `tool_version` in the
 # fingerprint does not move during in-place development). This is the shallow-cache analog
 # of security/deep_cache.py's DEEP_SCHEMA_VERSION.
-ANALYSIS_SCHEMA_VERSION = "2026-11-20-requested-permissions-sdk23-maxsdk"
+ANALYSIS_SCHEMA_VERSION = "2026-11-23-static-privacy-layer"
 
 #: Prefix of the per-environment (fingerprint) subdirectories of ``cache_dir``.
 ENV_DIR_PREFIX = "env-"
@@ -244,6 +244,7 @@ class AnalysisCacheManager:
         # Signature database digest, computed lazily once per manager (run).
         self.tracker_db_path = tracker_db_path
         self._signature_db_hash: str | None = None
+        self._privacy_catalogue_hash: dict[str, str] = {}
 
         # Guards metadata read-modify-write across parallel module threads.
         self._metadata_lock = threading.Lock()
@@ -350,6 +351,22 @@ class AnalysisCacheManager:
         if self._signature_db_hash is None:
             self._signature_db_hash = signature_db_digest(self.tracker_db_path)[:16]
         return self._signature_db_hash
+
+    def privacy_catalogue_key(self, catalogue_dir: str | Path | None = None) -> str:
+        """Digest of the privacy catalogue files (memoized; folded into full-hit keys).
+
+        Args:
+            catalogue_dir: Optional catalogue directory override (``None`` = bundled data).
+        """
+        key = str(catalogue_dir or "")
+        if key not in self._privacy_catalogue_hash:
+            try:
+                from ..privacy.catalogue import catalogue_digest
+
+                self._privacy_catalogue_hash[key] = catalogue_digest(catalogue_dir)
+            except Exception:
+                self._privacy_catalogue_hash[key] = "unavailable"
+        return self._privacy_catalogue_hash[key]
 
     def _full_result_path(self, md5: str, config_hash: str) -> Path:
         return self._apk_dir(md5) / f"full_result__{config_hash}.json"

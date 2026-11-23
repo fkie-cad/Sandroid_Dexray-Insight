@@ -62,6 +62,8 @@ class FullAnalysisResults:
     behaviour_analysis: BehaviourAnalysisResults | None = None
     library_detection: LibraryDetectionResults | None = None
     deep_analysis: Optional["DeepAnalysisResults"] = None
+    #: ``privacy_analysis`` section (contract dict); None when the module did not run.
+    privacy_analysis: dict[str, Any] | None = None
 
     def __post_init__(self):
         """Ensure fields are initialized to empty objects if they are None."""
@@ -107,6 +109,10 @@ class FullAnalysisResults:
         # Include deep analysis results if available
         if self.deep_analysis:
             result["deep_analysis"] = self.deep_analysis.to_dict()
+
+        # Static privacy layer (absent key = the module did not run)
+        if self.privacy_analysis is not None:
+            result["privacy_analysis"] = self.privacy_analysis
 
         return result
 
@@ -168,7 +174,19 @@ class FullAnalysisResults:
         self._print_security_assessment_summary()
         self._print_tool_analysis_summary()
         self._print_component_behavior_summary()
+        self._print_privacy_summary_line()
         self._print_summary_footer()
+
+    def _print_privacy_summary_line(self):
+        """Print the one-line static privacy summary (nothing when the module did not run)."""
+        try:
+            from ..modules.privacy_analysis.module import summary_line
+
+            line = summary_line(self.privacy_analysis)
+        except Exception:
+            line = None
+        if line:
+            print(f"\n🔏 {line}")
 
     def print_cached_summary(self, verbose: bool = False, config: Any = None):
         """Print the analyst summary for a full-hit cache re-emit.

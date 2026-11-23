@@ -106,6 +106,18 @@ modules:
     # the DEX string pool). Leave false unless you need per-string method locations.
     deep_string_location_analysis: false
     
+  privacy_analysis:
+    # Static privacy layer: draft Data safety label, SDK attribution for a curated SDK
+    # list, consent/TCF detection, manifest data-collection switches, findings.
+    # Output: the "privacy_analysis" key of the main JSON (docs/privacy_analysis.rst).
+    enabled: true
+    priority: 45                          # unused by the engine; parity only
+    max_call_sites_per_api: 1000          # emitted per API; the rest are counted in limits_hit
+    reachability_max_sites_per_api: 200   # later sites get reachability "not_checked"
+    reachability_max_depth: 6
+    reachability_max_nodes: 200
+    string_anchor_attribution: true       # attribute obfuscated code by cited SDK strings/hosts
+
   behaviour_analysis:
     enabled: true  # Enabled by default in fast mode
     priority: 1000  # Lowest priority to run last

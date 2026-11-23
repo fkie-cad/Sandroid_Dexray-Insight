@@ -292,6 +292,9 @@ class Catalogue:
     compliance_refs: dict[str, dict[str, Any]]
     compliance_rules: dict[str, Any]
     sources: dict[str, dict[str, Any]] = field(default_factory=dict)
+    fd_carriers: list[str] = field(default_factory=list)
+    insert_calls: list[str] = field(default_factory=list)
+    transparent_wrappers: list[str] = field(default_factory=list)
     data_type_by_id: dict[str, dict[str, Any]] = field(default_factory=dict)
     api_by_id: dict[str, dict[str, Any]] = field(default_factory=dict)
     sdk_by_id: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -711,6 +714,17 @@ def _build(base: Path) -> Catalogue:
     _req(len(api_by_id) == len(apis), "apis.yaml: duplicate ids")
     carriers_raw = dict(apis_raw.get("carriers") or {})
     write_modes = [str(m) for m in _list(carriers_raw.pop("write_mode_strings", None))]
+    # Metadata lists next to the carrier sets (refs, but not carrier sets themselves).
+    carrier_meta = {
+        key: [str(r) for r in _list(carriers_raw.pop(key, None))]
+        for key in ("fd_carriers", "insert_calls", "transparent_wrappers")
+    }
+    for key, refs in carrier_meta.items():
+        for ref in refs:
+            try:
+                split_method_ref(ref)
+            except ValueError as exc:
+                raise CatalogueError(f"apis.yaml: carriers.{key}: {exc}") from exc
     carriers: dict[str, list[str]] = {}
     for cname, refs in carriers_raw.items():
         carriers[str(cname)] = [str(r) for r in _list(refs)]
@@ -781,6 +795,9 @@ def _build(base: Path) -> Catalogue:
         compliance_refs=refs,
         compliance_rules=rules,
         sources=sources,
+        fd_carriers=carrier_meta["fd_carriers"],
+        insert_calls=carrier_meta["insert_calls"],
+        transparent_wrappers=carrier_meta["transparent_wrappers"],
         data_type_by_id=type_by_id,
         api_by_id=api_by_id,
         sdk_by_id=sdk_by_id,

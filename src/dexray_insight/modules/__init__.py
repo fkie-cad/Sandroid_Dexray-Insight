@@ -31,6 +31,7 @@ from . import library_detection
 from . import manifest_analysis
 from . import native  # Native binary analysis modules
 from . import permission_analysis
+from . import privacy_analysis
 from . import signature_analysis
 from . import string_analysis
 from . import tracker_analysis
@@ -47,4 +48,5 @@ __all__ = [
     "dotnet_analysis",
     "library_detection",
     "native",
+    "privacy_analysis",
 ]

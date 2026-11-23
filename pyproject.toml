@@ -108,6 +108,8 @@ where = ["src"]
     "modules/string_analysis/resources/*.dat",
     "security/data/*.yaml",
     "modules/tracker_analysis/databases/*.json",
+    "privacy/data/*.yaml",
+    "privacy/data/NOTICE",
 ]
 
 # Ruff configuration

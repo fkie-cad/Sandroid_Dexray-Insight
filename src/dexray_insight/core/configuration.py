@@ -130,6 +130,18 @@ class Configuration:
                 # tracker detection; disabled by default.
                 "deep_string_location_analysis": False,
             },
+            "privacy_analysis": {
+                "enabled": True,
+                "priority": 45,  # unused by the engine (ordering is by dependencies); parity only
+                # Call sites emitted per catalogued API; the rest are counted in coverage.limits_hit.
+                "max_call_sites_per_api": 1000,
+                # Later sites of an API keep reachability "not_checked".
+                "reachability_max_sites_per_api": 200,
+                "reachability_max_depth": 6,
+                "reachability_max_nodes": 200,
+                # Attribute obfuscated code to an SDK by its cited strings/hosts.
+                "string_anchor_attribution": True,
+            },
             "behaviour_analysis": {
                 "enabled": True,
                 "priority": 1000,  # Lowest priority to run last

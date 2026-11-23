@@ -77,6 +77,7 @@ _PRIVACY_OVERRIDES: dict[str, Any] = {
         "manifest_analysis": {"enabled": True},
         "permission_analysis": {"enabled": True},
         "api_invocation": {"enabled": True},
+        "privacy_analysis": {"enabled": True},
         "string_analysis": {"enabled": True},
         "tracker_analysis": {"enabled": True},
         "behaviour_analysis": {"enabled": True, "deep_mode": False},
