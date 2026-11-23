@@ -138,8 +138,10 @@ def test_terminal_line(capsys):
 
 
 # ------------------------------------------------------------- config / profile
-def test_enabled_in_both_profiles():
-    assert Configuration().get_module_config("privacy_analysis")["enabled"] is True
+def test_off_in_generic_on_in_privacy():
+    """Generic leaves it off (it forces the xref build); the privacy profile turns it on."""
+    assert Configuration().get_module_config("privacy_analysis")["enabled"] is False
+    assert Configuration(profile="generic").get_module_config("privacy_analysis")["enabled"] is False
     overrides = get_profile_overrides("privacy")
     assert overrides["modules"]["privacy_analysis"] == {"enabled": True}
     cfg = Configuration(profile="privacy").get_module_config("privacy_analysis")
@@ -301,3 +303,76 @@ def test_near_miss_meta_key_is_noted():
 )
 def test_code_outside_dex(files, expected):
     assert mod._framework_words(files) == expected
+
+
+# ------------------------------------------------------- review fixes
+def test_signature_db_in_key_when_only_privacy_runs(tmp_path):
+    """Review-2 S3: privacy reads the signature DB (recipient labels), so it keys the full-hit cache too."""
+    engine = _engine(tmp_path, CATALOGUE_MIN)
+    with mock.patch.object(engine.cache_manager, "signature_db_key", return_value="db-a"):
+        engine._config_hash_cache = {}
+        a = engine._full_hit_config_hash(["privacy_analysis"])
+    with mock.patch.object(engine.cache_manager, "signature_db_key", return_value="db-b"):
+        engine._config_hash_cache = {}
+        b = engine._full_hit_config_hash(["privacy_analysis"])
+    assert a != b
+
+
+def test_one_bad_entry_does_not_fail_the_section(monkeypatch):
+    """Review-2 S2: the per-site emission is isolated; errors are de-duplicated with a count."""
+    from dexray_insight.privacy.catalogue import load_catalogue
+
+    real = mod.api_level_object
+
+    def flaky(api, min_sdk):
+        if api.get("since") == 3:  # Settings.Secure.getString
+            raise TypeError("'<' not supported between instances of 'int' and 'str'")
+        return real(api, min_sdk)
+
+    monkeypatch.setattr(mod, "api_level_object", flaky)
+    x, man, names = scooter_scenario()
+    x.add(
+        "Lbo/app/bk;->c(Landroid/content/Context;)Ljava/lang/String;",
+        strings=["android_id"],
+        invokes=[
+            (
+                "Landroid/provider/Settings$Secure;->getString(Landroid/content/ContentResolver;"
+                "Ljava/lang/String;)Ljava/lang/String;",
+                4,
+            )
+        ],
+    )
+    section = mod.analyse(x, man, load_catalogue(CATALOGUE_MIN), {}, names)
+    assert section["status"] == "partial"
+    assert section["errors"] == [
+        "call_site ids.settings.android_id: TypeError: '<' not supported between instances of 'int' and 'str' (x2)"
+    ]
+    assert len(section["call_sites"]) == 7
+    assert [s["id"] for s in section["call_sites"]] == [f"cs-{i:04d}" for i in range(1, 8)]
+
+
+def test_error_messages_have_no_addresses():
+    steps = mod._Steps()
+    steps.record("x", ValueError("bad <object at 0x10a2b3c4d>"))
+    assert steps.errors == ["x: ValueError: bad <object>"]
+
+
+def test_repeated_meta_data_last_value_wins():
+    flag = {
+        "key": "k",
+        "sdk_id": "s",
+        "type": "bool",
+        "off_when": ["false"],
+        "effect": "metadata_off",
+        "default_when_absent": "on",
+        "data_types": ["*"],
+        "items": None,
+        "sources": ["src"],
+    }
+    meta = [
+        {"name": "k", "value": "true", "resolved": True, "scope": "application", "component": None},
+        {"name": "k", "value": "false", "resolved": True, "scope": "application", "component": None},
+    ]
+    assert mod._flag_state(flag, meta)["state"] == "off"
+    meta.reverse()
+    assert mod._flag_state(flag, meta)["state"] == "on"

@@ -330,8 +330,10 @@ class AnalysisEngine:
                 "modules": sorted(requested_modules),
                 "schema": ANALYSIS_SCHEMA_VERSION,
             }
-            # Tracker results depend on the signature database, not just config.
-            if "tracker_analysis" in requested_modules and self.cache_manager is not None:
+            # Tracker results depend on the signature database, not just config; the
+            # privacy layer reads it too (recipient labels, tracker ids).
+            reads_db = {"tracker_analysis", "privacy_analysis"} & set(requested_modules)
+            if reads_db and self.cache_manager is not None:
                 keyed["signature_db"] = self.cache_manager.signature_db_key()
             # The privacy layer depends on its catalogue files, not just config.
             if "privacy_analysis" in requested_modules and self.cache_manager is not None:

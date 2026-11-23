@@ -131,7 +131,9 @@ class Configuration:
                 "deep_string_location_analysis": False,
             },
             "privacy_analysis": {
-                "enabled": True,
+                # Off in the generic profile: it forces the androguard xref build (+20-30 % wall
+                # time when nothing else needs it). The privacy profile switches it on.
+                "enabled": False,
                 "priority": 45,  # unused by the engine (ordering is by dependencies); parity only
                 # Call sites emitted per catalogued API; the rest are counted in coverage.limits_hit.
                 "max_call_sites_per_api": 1000,

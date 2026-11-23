@@ -110,7 +110,8 @@ modules:
     # Static privacy layer: draft Data safety label, SDK attribution for a curated SDK
     # list, consent/TCF detection, manifest data-collection switches, findings.
     # Output: the "privacy_analysis" key of the main JSON (docs/privacy_analysis.rst).
-    enabled: true
+    # Off in the generic profile (it forces the xref build); the privacy profile turns it on.
+    enabled: false
     priority: 45                          # unused by the engine; parity only
     max_call_sites_per_api: 1000          # emitted per API; the rest are counted in limits_hit
     reachability_max_sites_per_api: 200   # later sites get reachability "not_checked"
