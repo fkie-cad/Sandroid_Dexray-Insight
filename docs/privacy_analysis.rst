@@ -89,9 +89,21 @@ only after one of these qualifiers. The unit tests enforce this.
 Matching and attribution
 ------------------------
 
-* Only URI evidence in the reading method itself types a content-provider read. Evidence
-  found elsewhere in the class or in a caller is counted in ``coverage`` (a note and
-  ``provider_reads_unresolved``) but never creates or types a row.
+* A content-provider read is typed only by precise URI evidence:
+
+  - **same method**: a catalogued URI field, URI string or authority in the reading
+    method, including a ``static final`` constant it reads whose own ``<clinit>``
+    assigns a catalogued URI (``static final Uri X = MediaStore...EXTERNAL_CONTENT_URI``
+    or ``Uri.parse("content://sms/inbox")``);
+  - **caller** (one level, at most 20 callers): the reading method passes its own
+    ``Uri`` parameter unchanged to the carrier, and a direct caller passes a catalogued
+    URI (a field, a constant or ``Uri.parse``) into it; the site is attributed to that
+    caller. Registers are traced in code order; values assigned in alternative branches
+    are all kept.
+
+  Evidence found only elsewhere in the class is never used; such reads are counted in
+  ``coverage`` (a note and ``provider_reads_unresolved``). Deeper helper chains (for
+  example Kotlin ``$default`` overload chains) stay unresolved.
 * A library or SDK calling its own API (``GoogleSignInAccount`` reading its own fields) is
   not a data access and gives no call site. ``requires`` conditions apply to every match
   kind, provider reads and reflection included.
@@ -112,6 +124,10 @@ Matching and attribution
   (``collection_*``, ``auto_init_off``, ``auto_events_off``) and that the SDK reads.
 * A catalogued SDK API that is not found by name is listed in ``coverage.notes``
   ("removed or renamed by R8, or not bundled").
+* **R8 class merging** is a known limit: R8 can move app code into library classes (in
+  Wikipedia, app methods live inside ``okhttp3.internal.Tags``). Attribution works by
+  class name, so such code is labelled with the host library; merged library code is
+  likewise named after its host class.
 * Code loaded at runtime and native code are not analysed.
 
 Configuration

@@ -81,6 +81,12 @@ class MethodFacts:
 EMPTY_FACTS = MethodFacts()
 
 
+#: A traced register value: ``("param", i)``, ``("field", ref)``, ``("string", s)``.
+Value = tuple[str, Any]
+#: ``(callee, is_static, [argument values per register])``.
+InvokeArgs = tuple["MRef", bool, list["Value | None"]]
+
+
 class CodeIndex(Protocol):
     """What the privacy layer needs from the code (androguard or a fake)."""
 
@@ -129,6 +135,22 @@ class CodeIndex(Protocol):
     def class_refs(self, cls: str) -> list[MRef]:
         """Methods that reference ``cls`` (const-class, new-instance or a call to it), sorted."""
 
+    def static_constant(self, field_ref: str) -> Value | None:
+        """The value of an internal ``static final`` field, read from its own ``<clinit>``.
+
+        ``("field", ref)`` when it is assigned from another static field, ``("string", s)``
+        when assigned ``Uri.parse(s)``; None when it is not such a constant (assigned more
+        than once, from anything else, or not static final).
+        """
+
+    def invoke_args(self, method: MRef, offset: int) -> InvokeArgs | None:
+        """The invoke at ``offset`` in ``method``: ``(callee, is_static, argument values)``.
+
+        An argument value is ``("param", i)`` (the method's own parameter ``i``, unchanged),
+        ``("field", ref)``, ``("string", s)`` (``Uri.parse`` of a const string) or None.
+        Registers are traced linearly from the method start (no branches merged).
+        """
+
 
 # ----------------------------------------------------------------- androguard
 _INVOKE_OPS = frozenset(range(0x6E, 0x73)) | frozenset(range(0x74, 0x79))
@@ -166,6 +188,7 @@ class AndroguardIndex:
         self._class_methods: dict[str, list[MRef]] = {}
         self._field_ids: set[str] | None = None
         self._strings: dict[str, Any] | None = None
+        self._constants: dict[str, Any] = {}
 
     def _ref(self, ma: Any) -> MRef:
         ref = MRef(str(ma.class_name), str(ma.name), to_jvm(str(ma.descriptor)))
@@ -353,6 +376,159 @@ class AndroguardIndex:
             except Exception:  # noqa: S112
                 continue
         return sorted(out)
+
+    def _encoded(self, method: MRef) -> Any:
+        ma = self._analysis(method)
+        try:
+            return ma.get_method() if ma is not None and not ma.is_external() else None
+        except Exception:
+            return None
+
+    def static_constant(self, field_ref: str) -> Value | None:
+        cached = self._constants.get(field_ref, False)
+        if cached is not False:
+            return cached
+        value = None
+        try:
+            cls, rest = field_ref.split("->", 1)
+            name, typ = rest.split(":", 1)
+            ca = self._internal.get(cls)
+            final_static = False
+            if ca is not None:
+                for ef in ca.get_vm_class().get_fields():
+                    if ef.get_name() == name and ef.get_descriptor() == typ:
+                        flags = ef.get_access_flags()
+                        final_static = bool(flags & 0x8) and bool(flags & 0x10)
+            clinit = next((m for m in self.class_methods(cls) if m.name == "<clinit>"), None)
+            em = self._encoded(clinit) if final_static and clinit else None
+            if em is not None:
+                stored = trace_registers(em, sput_field=field_ref)
+                if len(stored) == 1 and len(stored[0]) == 1 and stored[0][0] and stored[0][0][0] in ("field", "string"):
+                    value = stored[0][0]
+        except Exception:
+            value = None
+        self._constants[field_ref] = value
+        return value
+
+    def invoke_args(self, method: MRef, offset: int) -> InvokeArgs | None:
+        em = self._encoded(method)
+        if em is None:
+            return None
+        try:
+            return trace_registers(em, stop_offset=offset)
+        except Exception:
+            return None
+
+
+_STATIC_INVOKES = (0x71, 0x77)
+_MOVE_OBJECT = (0x07, 0x08, 0x09)
+#: Opcodes whose first register operand is NOT written (branches, stores, invokes, ...).
+_NO_DEST = (
+    frozenset(range(0x32, 0x3E))  # if-*
+    | frozenset(range(0x4B, 0x52))  # aput*
+    | frozenset(range(0x59, 0x60))  # iput*
+    | frozenset(range(0x67, 0x6E))  # sput*
+    | _INVOKE_OPS
+    | frozenset({0x0E, 0x0F, 0x10, 0x11, 0x1D, 0x1E, 0x1F, 0x26, 0x27, 0x28, 0x29, 0x2A, 0x2B, 0x2C})
+)
+_URI_PASSTHROUGH = {
+    ("Landroid/net/Uri;", "parse"): "string",
+    ("Landroid/net/Uri;", "withAppendedPath"): "any",
+    ("Landroid/content/ContentUris;", "withAppendedId"): "any",
+}
+
+
+def param_types(desc: str) -> list[str]:
+    """Parameter types of a JVM method descriptor."""
+    import re as _re
+
+    return _re.findall(r"\[*(?:L[^;]+;|[ZBSCIJFDV])", desc[1 : desc.index(")")])
+
+
+def _registers(ins: Any) -> list[int]:
+    return [v for k, v, *_ in ins.get_operands() if getattr(k, "name", None) == "REGISTER"]
+
+
+def trace_registers(em: Any, stop_offset: int | None = None, sput_field: str | None = None) -> Any:
+    """Register trace of one ``EncodedMethod`` in code order.
+
+    Each register holds the list of values that can reach a use: a write after the
+    register was read replaces it, while a write with no read in between (another
+    branch, e.g. ``if image: uri = Images... elif audio: uri = Audio...``) adds an
+    alternative. ``None`` stands for an unknown value.
+
+    With ``stop_offset``: returns ``(callee, is_static, args)`` for the invoke there (or
+    None), ``args`` being one list of alternatives per register. With ``sput_field``:
+    returns one list of alternatives per store into that static field.
+    """
+    regs: dict[int, list[Value | None]] = {}
+    read: set[int] = set()
+
+    def write(reg: int, values: list[Value | None]) -> None:
+        if reg in regs and reg not in read:
+            merged = list(regs[reg])
+            for v in values:
+                if v not in merged:
+                    merged.append(v)
+            regs[reg] = merged
+        else:
+            regs[reg] = list(values)
+        read.discard(reg)
+
+    code = em.get_code()
+    if code is not None:
+        size, ins_size = code.get_registers_size(), code.get_ins_size()
+        reg = size - ins_size
+        if "static" not in (em.get_access_flags_string() or ""):
+            regs[reg] = [("this", None)]
+            reg += 1
+        for i, typ in enumerate(param_types(to_jvm(em.get_descriptor()))):
+            regs[reg] = [("param", i)]
+            reg += 2 if typ in ("J", "D") else 1
+    pending: list[Value | None] = [None]
+    stored: list[list[Value | None]] = []
+    offset = 0
+    for ins in em.get_instructions():
+        op = ins.get_op_value()
+        regs_used = _registers(ins)
+        sources = regs_used if op in _NO_DEST else regs_used[1:]
+        if op in _INVOKE_OPS:
+            cls, name, proto = ins.cm.vm.get_cm_method(ins.get_ref_kind())
+            callee = MRef(str(cls), str(name), _desc_from_proto(proto))
+            args = [list(regs.get(r, [None])) for r in regs_used]
+            if stop_offset is not None and offset == stop_offset:
+                return callee, op in _STATIC_INVOKES, args
+            rule = _URI_PASSTHROUGH.get((callee.cls, callee.name))
+            first = args[0] if args else [None]
+            if rule == "string":
+                pending = [v if v and v[0] == "string" else None for v in first]
+            elif rule == "any":
+                pending = [v if v and v[0] in ("field", "string") else None for v in first]
+            else:
+                pending = [None]
+        elif op == 0x0C:  # move-result-object
+            if regs_used:
+                write(regs_used[0], pending)
+            pending = [None]
+        else:
+            pending = [None]
+            if op in _CONST_STRING_OPS:
+                write(regs_used[0], [("string", str(ins.cm.vm.get_cm_string(ins.get_ref_kind())))])
+            elif op == 0x62:  # sget-object
+                cls, typ, name = ins.cm.vm.get_cm_field(ins.get_ref_kind())
+                write(regs_used[0], [("field", f"{cls}->{name}:{typ}")])
+            elif op == 0x69:  # sput-object
+                if sput_field is not None:
+                    cls, typ, name = ins.cm.vm.get_cm_field(ins.get_ref_kind())
+                    if f"{cls}->{name}:{typ}" == sput_field:
+                        stored.append(list(regs.get(regs_used[0], [None])) if regs_used else [None])
+            elif op in _MOVE_OBJECT and len(regs_used) >= 2:
+                write(regs_used[0], list(regs.get(regs_used[1], [None])))
+            elif op not in _NO_DEST and regs_used:
+                write(regs_used[0], [None])
+        read.update(sources)
+        offset += ins.get_length()
+    return stored if sput_field is not None else None
 
 
 def _decode(method: Any) -> MethodFacts:
@@ -708,9 +884,14 @@ class Matcher:
             return bool(inserts & set(self.cat.insert_calls))
         return any(m.cls == "Landroid/content/ContentResolver;" and m.name == "insert" for m, _ in facts.invokes)
 
-    def _uri_matches(self, facts_list: list[MethodFacts], entries: list[dict[str, Any]]) -> list[tuple[dict, dict]]:
-        sgets = sorted({f for facts in facts_list for f in facts.sget_set})
-        strings = sorted({s for facts in facts_list for s in facts.string_set})
+    def _uri_matches(
+        self, facts_list: list[MethodFacts], entries: list[dict[str, Any]], extra: list[Value] | None = None
+    ) -> list[tuple[dict, dict]]:
+        sget_set = {f for facts in facts_list for f in facts.sget_set}
+        string_set = {s for facts in facts_list for s in facts.string_set}
+        for kind, value in extra or []:
+            (sget_set if kind == "field" else string_set).add(value)
+        sgets, strings = sorted(sget_set), sorted(string_set)
         best_prefix: dict[str, int] = {}
         for s in strings:
             for entry in entries:
@@ -735,24 +916,99 @@ class Matcher:
                 out.append((entry, {"kind": "authority_string", "value": auths[0]}))
         return out
 
-    def _resolve_uri(self, frame: MRef, entries: list[dict[str, Any]]) -> tuple[list[tuple[dict, dict]], str]:
-        """URI evidence of a provider read. Only evidence in the reading method types a site.
+    def _constants_of(self, facts: MethodFacts) -> list[Value]:
+        """Values of the internal static final fields a method reads (from their own initialisers)."""
+        out: list[Value] = []
+        for field_ref in sorted(facts.sget_set):
+            if not self.index.has_class(field_ref.split("->", 1)[0]):
+                continue
+            value = self.index.static_constant(field_ref)
+            if value is not None:
+                out.append(value)
+        return out
 
-        Evidence found only elsewhere in the class (or in a caller) is too weak: classes
-        that insert into or delete from MediaStore also query their own providers, and
-        generic loaders handle every URI. Such reads are counted, never typed.
-        """
-        found = self._uri_matches([self.index.facts(frame)], entries)
-        if found:
-            return found, "same_method"
+    def _resolved(self, values: list[Value | None]) -> list[Value]:
+        """Traced argument alternatives as URI evidence (framework fields, constants, ``Uri.parse``)."""
+        out: list[Value] = []
+        for value in values:
+            if not value or value[0] not in ("field", "string"):
+                continue
+            if value[0] == "field" and self.index.has_class(value[1].split("->", 1)[0]):
+                constant = self.index.static_constant(value[1])
+                if constant is not None:
+                    out.append(constant)
+            else:
+                out.append(value)
+        return out
+
+    @staticmethod
+    def _arg_register(desc: str, param: int, is_static: bool) -> int:
+        """Register position (in the invoke's register list) of parameter ``param``."""
+        pos = 0 if is_static else 1
+        for typ in param_types(desc)[:param]:
+            pos += 2 if typ in ("J", "D") else 1
+        return pos
+
+    def _uri_params(self, frame: MRef, offset: int) -> list[int]:
+        """Parameters of ``frame`` passed unchanged as the URI argument of the call at ``offset``."""
+        info = self.index.invoke_args(frame, offset)
+        if info is None:
+            return []
+        callee, is_static, args = info
+        out = []
+        for i, typ in enumerate(param_types(callee.desc)):
+            if typ != "Landroid/net/Uri;":
+                continue
+            pos = self._arg_register(callee.desc, i, is_static)
+            for value in args[pos] if pos < len(args) else []:
+                if value and value[0] == "param" and param_types(frame.desc)[value[1]] == "Landroid/net/Uri;":
+                    out.append(value[1])
+        return sorted(set(out))
+
+    def _caller_evidence(
+        self, frame: MRef, offset: int, entries: list[dict[str, Any]], max_callers: int = 20
+    ) -> list[tuple[MRef, int, list[tuple[dict, dict]]]]:
+        """One level up: direct callers that pass a catalogued URI into the frame's URI parameter."""
+        params = self._uri_params(frame, offset)
+        if not params:
+            return []
+        out = []
+        for caller, call_offset in self.index.callers(frame)[:max_callers]:
+            info = self.index.invoke_args(caller, call_offset)
+            if info is None or info[0] != frame:
+                continue
+            _callee, is_static, args = info
+            values: list[Value] = []
+            for param in params:
+                pos = self._arg_register(frame.desc, param, is_static)
+                values += self._resolved(args[pos] if pos < len(args) else [])
+            found = self._uri_matches([], entries, values) if values else []
+            if found:
+                out.append((caller, call_offset, found))
+        return out
+
+    def _count_untyped(self, frame: MRef, entries: list[dict[str, Any]]) -> None:
         siblings = [m for cls in self._class_siblings(frame.cls) for m in self.index.class_methods(cls)]
         callers = [c for c, _ in self.index.callers(frame)][:20]
         if self._uri_matches([self.index.facts(m) for m in siblings + callers], entries):
             self.provider_reads_untyped += 1
-        return [], "none"
 
     def provider_reads(self) -> list[RawSite]:
-        """Content-provider reads with URI evidence; the rest is counted as unresolved."""
+        """Content-provider reads with URI evidence; the rest is counted as unresolved.
+
+        Evidence, strongest first:
+
+        * **same method**: a catalogued URI field, URI string or authority in the reading
+          method, including a ``static final`` constant it reads whose own initialiser
+          holds a catalogued URI (``static final Uri X = MediaStore...EXTERNAL_CONTENT_URI``
+          or ``Uri.parse("content://sms/inbox")``);
+        * **caller** (one level): the reading method passes its own ``Uri`` parameter to the
+          carrier, and a direct caller passes a catalogued URI into that parameter; the site
+          is attributed to that caller.
+
+        Evidence found only elsewhere in the class is never used to type a read (classes
+        that insert into MediaStore also query their own providers); it is only counted.
+        """
         from ...privacy.catalogue import split_method_ref
 
         by_carrier: dict[str, list[dict[str, Any]]] = {}
@@ -767,37 +1023,65 @@ class Matcher:
             method = self.index.find_method(cls, name, desc)
             if method is None:
                 continue
+            api = f"{cls}->{name}{desc}"
             fd_carrier = ref in self.cat.fd_carriers if self.cat.fd_carriers else "FileDescriptor" in name
             for caller, offset in self.index.callers(method):
                 if fd_carrier and self._write_mode(caller):
                     continue
                 for frame, frame_offset, origin, via in self.attr.site_frames(caller, offset):
-                    found, where = self._resolve_uri(frame, entries)
-                    if not found:
-                        self.provider_reads_unresolved += 1
-                        continue
-                    frame_facts = self.index.facts(frame)
-                    for entry, ev in found:
-                        if entry["sdk_id"] and origin.sdk_id == entry["sdk_id"]:
-                            continue
-                        if not self._requires_ok(entry, frame_facts):
-                            continue  # e.g. a gservices flag read is not the GSF ID
-                        strong = where == "same_method" and ev["kind"] in ("static_field", "uri_string")
-                        out.append(
-                            RawSite(
-                                entry,
-                                f"{cls}->{name}{desc}",
-                                entry["label"],
-                                "provider_read",
-                                frame.cls,
-                                frame,
-                                frame_offset,
-                                origin,
-                                via,
-                                uri_evidence={**ev, "where": where},
-                                uri_confidence="high" if strong else "medium",
+                    facts = self.index.facts(frame)
+                    found = self._uri_matches([facts], entries, self._constants_of(facts))
+                    if found:
+                        out.extend(
+                            self._provider_sites(
+                                api, entries, found, frame, frame_offset, origin, via, "same_method", [facts]
                             )
                         )
+                        continue
+                    upstream = self._caller_evidence(frame, frame_offset, entries)
+                    for up, up_offset, up_found in upstream:
+                        up_origin = self.attr.frame_origin(up)
+                        out.extend(
+                            self._provider_sites(
+                                api,
+                                entries,
+                                up_found,
+                                up,
+                                up_offset,
+                                up_origin,
+                                [frame.frame(), *via],
+                                "caller",
+                                [facts, self.index.facts(up)],
+                            )
+                        )
+                    if not upstream:
+                        self.provider_reads_unresolved += 1
+                        self._count_untyped(frame, entries)
+        return out
+
+    def _provider_sites(self, api, entries, found, frame, offset, origin, via, where, facts_list) -> list[RawSite]:
+        out = []
+        for entry, ev in found:
+            if entry["sdk_id"] and origin.sdk_id == entry["sdk_id"]:
+                continue
+            if not any(self._requires_ok(entry, f) for f in facts_list):
+                continue  # e.g. a gservices flag read is not the GSF ID
+            strong = where == "same_method" and ev["kind"] in ("static_field", "uri_string")
+            out.append(
+                RawSite(
+                    entry,
+                    api,
+                    entry["label"],
+                    "provider_read",
+                    frame.cls,
+                    frame,
+                    offset,
+                    origin,
+                    via,
+                    uri_evidence={**ev, "where": where},
+                    uri_confidence="high" if strong else "medium",
+                )
+            )
         return out
 
     # -- step 8: framework field reads

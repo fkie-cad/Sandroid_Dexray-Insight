@@ -571,3 +571,188 @@ def test_androguard_sget_scan_on_real_dex():
     assert found  # before the fix: always empty
     method, offset = found[0]
     assert any(f == field and off == offset for f, off in idx.facts(method).sgets)
+
+
+# --------------------------------------------- recovered provider reads (follow-up)
+SMS_INBOX_CONST = "Lcom/ex/app/SmsReader;->INCOMING_SMS:Landroid/net/Uri;"
+HELPER = "Lcom/ex/app/Resolver;->query(Landroid/content/ContentResolver;Landroid/net/Uri;)Landroid/database/Cursor;"
+
+
+def test_static_final_uri_constant_is_same_method_evidence(cat, tmp_path):
+    """Appium SmsReader: static final Uri INCOMING_SMS = Uri.parse("content://sms/inbox")."""
+    c2 = _catalogue_with(
+        tmp_path,
+        "apis.yaml",
+        "  - id: prov.media_images",
+        """  - id: prov.sms
+    label: "SMS provider read"
+    group: providers
+    role: source
+    match: provider_read
+    refs: []
+    carriers: content_resolver_read
+    uri_evidence: {static_fields: [], uri_prefixes: ["content://sms"], authority_strings: []}
+    data_types: [email_text_message.text_messages]
+    permission: {any_of: [android.permission.READ_SMS]}
+    api: {since: 1, deprecated: null, removed: null, effective_until: null}
+    precision: high
+    sources: [aosp-api-versions]
+  - id: prov.media_images""",
+    )
+    x = FakeIndex()
+    x.add("Lcom/ex/app/SmsReader;->listSms()V", sgets=[SMS_INBOX_CONST], invokes=[(QUERY, 12)])
+    x.constants[SMS_INBOX_CONST] = ("string", "content://sms/inbox")
+    # a constant of another class initialised from a framework field
+    x.add(
+        "Lcom/ex/app/Media;->folders()V", sgets=["Lcom/ex/app/Const;->IMAGES:Landroid/net/Uri;"], invokes=[(QUERY, 8)]
+    )
+    x.constants["Lcom/ex/app/Const;->IMAGES:Landroid/net/Uri;"] = ("field", IMAGES_URI)
+    x.classes.add("Lcom/ex/app/Const;")
+    got, _ = sites(c2, x, manifest([P + "READ_SMS", P + "READ_EXTERNAL_STORAGE"]))
+    assert [(s["api_id"], s["caller"]["class"], s["uri_evidence"]) for s in got] == [
+        (
+            "prov.media_images",
+            "Lcom/ex/app/Media;",
+            {"kind": "static_field", "value": IMAGES_URI, "where": "same_method"},
+        ),
+        (
+            "prov.sms",
+            "Lcom/ex/app/SmsReader;",
+            {"kind": "uri_string", "value": "content://sms/inbox", "where": "same_method"},
+        ),
+    ]
+    assert all(s["confidence"] == "high" for s in got)
+
+
+def test_non_constant_field_is_not_evidence(cat):
+    """A Uri field that is not a resolved static final constant gives nothing (no class-wide scan)."""
+    x = FakeIndex()
+    x.add(
+        "Lcom/ex/app/Own;->q()V", sgets=["Lcom/ex/app/Meta;->CONTENT_URI_CAP:Landroid/net/Uri;"], invokes=[(QUERY, 4)]
+    )
+    x.add("Lcom/ex/app/Own;->other()V", sgets=[IMAGES_URI])  # same class, never used
+    got, section = sites(cat, x)
+    assert got == [] and section["coverage"]["provider_reads_unresolved"] == 1
+
+
+def _helper_index():
+    x = FakeIndex()
+    x.add(HELPER, invokes=[(QUERY, 6)])
+    # the helper passes its own Uri parameter (param 1) to query(): register 1 of query is the Uri
+    x.args[(m(HELPER), 6)] = (False, [("param", 0), ("param", 1), None, None, None, None])
+    return x
+
+
+def test_caller_passing_a_catalogued_uri_types_the_read_at_the_caller(cat):
+    x = _helper_index()
+    x.add("Lcom/ex/app/Contacts;->load()V", sgets=[CONTACTS_URI], invokes=[(HELPER, 20)])
+    x.args[(m("Lcom/ex/app/Contacts;->load()V"), 20)] = (True, [None, ("field", CONTACTS_URI)])
+    x.add("Lcom/ex/app/Images;->load()V", invokes=[(HELPER, 30)])
+    x.args[(m("Lcom/ex/app/Images;->load()V"), 30)] = (True, [None, ("field", "Lcom/ex/app/C;->IMG:Landroid/net/Uri;")])
+    x.constants["Lcom/ex/app/C;->IMG:Landroid/net/Uri;"] = ("field", IMAGES_URI)
+    x.classes.update({"Lcom/ex/app/C;", "Lcom/ex/app/Meta;"})
+    x.add("Lcom/ex/app/Own;->load()V", invokes=[(HELPER, 40)])  # passes something else
+    x.args[(m("Lcom/ex/app/Own;->load()V"), 40)] = (True, [None, ("field", "Lcom/ex/app/Meta;->OWN:Landroid/net/Uri;")])
+    got, section = sites(cat, x, manifest([P + "READ_CONTACTS", P + "READ_EXTERNAL_STORAGE"]))
+    assert [
+        (
+            s["api_id"],
+            s["caller"]["class"],
+            s["caller"]["offset"],
+            s["uri_evidence"]["where"],
+            s["confidence"],
+            s["origin"]["via"],
+        )
+        for s in got
+    ] == [
+        ("prov.contacts", "Lcom/ex/app/Contacts;", 20, "caller", "medium", ["Lcom/ex/app/Resolver;->query"]),
+        ("prov.media_images", "Lcom/ex/app/Images;", 30, "caller", "medium", ["Lcom/ex/app/Resolver;->query"]),
+    ]
+    assert section["coverage"]["provider_reads_unresolved"] == 0
+
+
+def test_caller_step_needs_the_unchanged_uri_parameter(cat):
+    """If the helper does not pass its own Uri parameter to the carrier, callers are not consulted."""
+    x = FakeIndex()
+    x.add(HELPER, invokes=[(QUERY, 6)])
+    x.args[(m(HELPER), 6)] = (False, [("param", 0), None, None, None, None, None])  # Uri reassigned
+    x.add("Lcom/ex/app/Contacts;->load()V", invokes=[(HELPER, 20)])
+    x.args[(m("Lcom/ex/app/Contacts;->load()V"), 20)] = (True, [None, ("field", CONTACTS_URI)])
+    got, section = sites(cat, x)
+    assert got == [] and section["coverage"]["provider_reads_unresolved"] == 1
+
+
+def test_trace_registers_on_androguard_shaped_code():
+    """The register trace resolves sget, Uri.parse, moves, parameters and <clinit> stores."""
+    from dexray_insight.modules.privacy_analysis.scanner import trace_registers
+
+    def ins(op, regs, length=2, string=None, field=None, method=None):
+        i = MagicMock()
+        i.get_op_value.return_value = op
+        i.get_length.return_value = length
+        reg_kind = MagicMock()
+        reg_kind.name = "REGISTER"
+        i.get_operands.return_value = [(reg_kind, r) for r in regs]
+        i.cm.vm.get_cm_string.return_value = string
+        i.cm.vm.get_cm_field.return_value = field
+        i.cm.vm.get_cm_method.return_value = method
+        return i
+
+    parse = ["Landroid/net/Uri;", "parse", ["(Ljava/lang/String;)", "Landroid/net/Uri;"]]
+    query = [
+        "Landroid/content/ContentResolver;",
+        "query",
+        [
+            "(Landroid/net/Uri; [Ljava/lang/String; Ljava/lang/String;" " [Ljava/lang/String; Ljava/lang/String;)",
+            "Landroid/database/Cursor;",
+        ],
+    ]
+    em = MagicMock()
+    em.get_code.return_value.get_registers_size.return_value = 8
+    em.get_code.return_value.get_ins_size.return_value = 2
+    em.get_access_flags_string.return_value = "public"
+    em.get_descriptor.return_value = "(Landroid/net/Uri;)V"
+    code = [
+        ins(0x1A, [0], 4, string="content://sms/inbox"),  # 0
+        ins(0x71, [0], 6, method=parse),  # 4
+        ins(0x0C, [1]),  # 10 move-result-object v1
+        ins(0x07, [2, 1]),  # 12 move-object v2, v1
+        ins(0x6E, [6, 2, 3, 3, 3, 3], 6, method=query),  # 14 query(v2 = parsed)
+        ins(0x6E, [6, 7, 3, 3, 3, 3], 6, method=query),  # 20 query(v7 = the Uri parameter)
+    ]
+    em.get_instructions.return_value = code
+    callee, is_static, args = trace_registers(em, stop_offset=14)
+    assert (callee.name, is_static, args[1]) == ("query", False, [("string", "content://sms/inbox")])
+    assert trace_registers(em, stop_offset=20)[2][1] == [("param", 0)]
+    clinit = MagicMock()
+    clinit.get_code.return_value = None
+    field = ["Lcom/ex/app/C;", "Landroid/net/Uri;", "IMG"]
+    clinit.get_instructions.return_value = [
+        ins(
+            0x62,
+            [0],
+            4,
+            field=["Landroid/provider/MediaStore$Images$Media;", "Landroid/net/Uri;", "EXTERNAL_CONTENT_URI"],
+        ),
+        ins(0x69, [0], 4, field=field),
+    ]
+    assert trace_registers(clinit, sput_field="Lcom/ex/app/C;->IMG:Landroid/net/Uri;") == [[("field", IMAGES_URI)]]
+    # branch alternatives (imagepicker getRealPathFromURI): writes without a read in between merge;
+    # a write after a read replaces (a reused register does not leak values)
+    video = ["Landroid/provider/MediaStore$Video$Media;", "Landroid/net/Uri;", "EXTERNAL_CONTENT_URI"]
+    images = ["Landroid/provider/MediaStore$Images$Media;", "Landroid/net/Uri;", "EXTERNAL_CONTENT_URI"]
+    branchy = MagicMock()
+    branchy.get_code.return_value = None
+    branchy.get_instructions.return_value = [
+        ins(0x62, [0], 4, field=images),  # 0  v0 = Images
+        ins(0x28, [], 2),  # 4  goto
+        ins(0x62, [0], 4, field=video),  # 6  v0 = Video (other branch)
+        ins(0x6E, [6, 0, 3, 3, 3, 3], 6, method=query),  # 10 query(v0)
+        ins(0x1A, [0], 4, string="x"),  # 16 v0 reused after the read
+        ins(0x6E, [6, 0, 3, 3, 3, 3], 6, method=query),  # 20
+    ]
+    assert trace_registers(branchy, stop_offset=10)[2][1] == [
+        ("field", IMAGES_URI),
+        ("field", "Landroid/provider/MediaStore$Video$Media;->EXTERNAL_CONTENT_URI:Landroid/net/Uri;"),
+    ]
+    assert trace_registers(branchy, stop_offset=20)[2][1] == [("string", "x")]

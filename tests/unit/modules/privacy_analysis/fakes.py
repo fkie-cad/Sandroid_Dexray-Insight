@@ -47,6 +47,10 @@ class FakeIndex:
     dex: int = 1
     fields: set[str] = field(default_factory=set)
     class_ref_map: dict[str, list[MRef]] = field(default_factory=dict)
+    #: static final field -> ("field", ref) | ("string", s), as read from its <clinit>
+    constants: dict[str, tuple] = field(default_factory=dict)
+    #: (method, offset) -> (is_static, [register values]) of the invoke there
+    args: dict[tuple, tuple] = field(default_factory=dict)
 
     def add(self, ref: str, strings=(), ints=(), sgets=(), invokes=(), classes=()) -> MRef:
         """Add an internal method; ``invokes`` = ``[(callee ref, offset)]`` also become call edges."""
@@ -131,6 +135,16 @@ class FakeIndex:
                 if f in field_refs:
                     out.setdefault(f, []).append((method, off))
         return {k: sorted(v) for k, v in out.items()}
+
+    def static_constant(self, field_ref):
+        return self.constants.get(field_ref)
+
+    def invoke_args(self, method, offset):
+        callee = next((c for c, off in self.facts(method).invokes if off == offset), None)
+        if callee is None:
+            return None
+        is_static, values = self.args.get((method, offset), (True, []))
+        return callee, is_static, [v if isinstance(v, list) else [v] for v in values]
 
     def class_refs(self, cls):
         refs = set(self.class_ref_map.get(cls, []))

@@ -206,7 +206,7 @@ def test_wikipedia_app_sites_are_app_code():
 def test_nextcloud_provider_reads_and_namespace():
     section = section_for(need(NEXTCLOUD))
     prov = [s for s in section["call_sites"] if s["match"] == "provider_read"]
-    assert prov and all(s["uri_evidence"]["where"] == "same_method" for s in prov)
+    assert prov and all(s["uri_evidence"]["where"] in ("same_method", "caller") for s in prov)  # never same_class
     # own-provider queries next to MediaStore inserts/deletes no longer type audio rows
     types = {r["data_type"]: r for r in section["data_safety"]["rows"]}
     for dt in ("audio.sound_recordings", "audio.music_files"):
@@ -235,3 +235,44 @@ def test_wikipedia_appcompat_location_is_not_app():
     for site in section["call_sites"]:
         if site["api_id"] == "loc.lm.last_known" and site["origin"]["type"] == "app":
             assert not site["origin"]["via"], site  # no app origin through AppCompat internals
+
+
+def _prov(section, cls, method):
+    return sorted(
+        (s["api_id"], s["uri_evidence"]["where"])
+        for s in section["call_sites"]
+        if s["match"] == "provider_read" and s["caller"]["class"] == cls and s["caller"]["method"] == method
+    )
+
+
+def test_nextcloud_recovered_provider_reads():
+    """Constants, the VCard URIs and one level of caller evidence recover true reads (08-precision re-run)."""
+    section = section_for(need(NEXTCLOUD))
+    # Contacts.CONTENT_VCARD_URI (newly catalogued), inside Uri.withAppendedPath
+    for cls in ("Lcom/nextcloud/client/jobs/ContactsBackupWork;", "Lcom/nextcloud/client/jobs/ContactsImportWork;"):
+        assert _prov(section, cls, "getContactFromCursor") == [("prov.contacts", "same_method")]
+    # static final Uri IMAGES_MEDIA_URI = MediaStore.Images.Media.EXTERNAL_CONTENT_URI, read in the method
+    assert ("prov.media_images", "same_method") in _prov(
+        section, "Lcom/owncloud/android/datamodel/MediaProvider;", "getImageFolders"
+    )
+    # insertContentIntoDB(Uri, ...) queries its parameter; the caller passes the MediaStore URIs
+    assert _prov(section, "Lcom/owncloud/android/utils/FilesSyncHelper;", "insertAllDBEntriesForSyncedFolder") == [
+        ("prov.media_images", "caller"),
+        ("prov.media_images", "caller"),
+        ("prov.media_video", "caller"),
+        ("prov.media_video", "caller"),
+    ]
+    # FileDataStorageManager's own-provider queries stay untyped
+    assert not _prov(
+        section, "Lcom/owncloud/android/datamodel/FileDataStorageManager;", "getCapabilityCursorForAccount"
+    )
+
+
+def test_spin_branch_alternatives_reach_the_caller():
+    """imagepicker getRealPathFromURI picks Images/Video/Audio in branches, then calls getDataColumn(uri)."""
+    section = section_for(need(SPIN))
+    assert _prov(section, "Lcom/imagepicker/utils/RealPathUtil;", "getRealPathFromURI") == [
+        ("prov.media_audio", "caller"),
+        ("prov.media_images", "caller"),
+        ("prov.media_video", "caller"),
+    ]
