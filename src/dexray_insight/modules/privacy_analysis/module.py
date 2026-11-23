@@ -91,9 +91,10 @@ _FRAMEWORKS = {
 }
 _SECONDARY_CODE = re.compile(r"^assets/.+\.(dex|jar|apk)$", re.IGNORECASE)
 #: Where JavaScript or Dart code that calls a bridge method lives (supporting evidence only).
+#: Only React Native calls a bridge method by its own name; a Flutter handler is always
+#: ``onMethodCall`` (Dart names the channel method, not the Java one), so it gets None.
 _BRIDGE_BUNDLES = {
     "react_native": re.compile(r"^assets/index\.android\.bundle$"),
-    "flutter": re.compile(r"^lib/[^/]+/libapp\.so$"),
 }
 
 
@@ -884,6 +885,7 @@ def analyse(
     def emit(pos: int, site: Any) -> tuple[dict[str, Any], dict[str, Any], bool]:
         entry = site.entry
         bridge = None
+        bridge_absent = False
         if site.match == "manifest_component":
             perm = {"required": None, "declared": [], "satisfied": None}
             reachability = "app_code" if site.origin.type == "app" else "sdk_entry"
@@ -903,6 +905,11 @@ def analyse(
                             "entry": deciding.frame(),
                             "name_in_bundle": bundle_has(result.bridge, deciding.name),
                         }
+                        if bridge["name_in_bundle"] is False:
+                            # React Native calls a module method by its name (Hermes
+                            # included): absent from the bundle, no JS caller exists
+                            reachability, chain, bridge = "no_caller_found", [site.caller.frame()], None
+                            bridge_absent = True
             else:
                 reachability, chain, deciding = "not_checked", [], None
         level = api_level_object(entry["api"], manifest.min_sdk)
@@ -933,6 +940,7 @@ def analyse(
             "non_resettable": entry["non_resettable"],
             "deciding_app_class": bool(deciding is not None and app_class_jvm and deciding.cls == app_class_jvm),
             "controls_sdk_id": entry["controls_sdk_id"],
+            "bridge_absent": bridge_absent,
         }
         return (
             {
@@ -999,6 +1007,7 @@ def analyse(
         if s["role"] == "consent_control"
         and site_meta[s["id"]]["controls_sdk_id"]
         and s["origin"]["sdk_id"] != site_meta[s["id"]]["controls_sdk_id"]
+        and not site_meta[s["id"]]["bridge_absent"]  # a bridge method its JS never calls
     }
     class_list = sorted(cen["classes"])
 

@@ -58,6 +58,13 @@ Added
     vendor's Maven artefact;
   - the real-APK tests read ``DEXRAY_PRIVACY_CORPUS`` / ``DEXRAY_PRIVACY_APK_<NAME>``
     instead of local paths
+  - verification fixes: user-mediated intents match per intent (traced action, no
+    double counts); ``called_only_by_sdk`` is ``low`` through renamed frames and low SDK
+    origins drive no sharing or purpose hints; a React Native method missing from the
+    bundle stays ``no_caller_found`` and its consent control does not count;
+    ``consent_controls_only`` only replaces ``none_detected``; ``app_reference`` skips
+    R8-merged classes; catalogue items read from vendor AAR/JAR files are labelled with
+    the new source use ``artifact`` (URL and SHA-256), and the ``NOTICE`` says so
 
 Changed
 ~~~~~~~

@@ -338,8 +338,12 @@ def test_spin_bridge_entries():
     section = section_for(need(SPIN))
     bridged = [s for s in section["call_sites"] if s["reachability"] == "bridge_entry"]
     assert len(bridged) >= 20 and all(s["bridge"]["kind"] == "react_native" for s in bridged)
-    unique_id = [s for s in bridged if s["caller"]["method"] == "getUniqueIdSync"]
-    assert unique_id and unique_id[0]["confidence"] == "medium"
+    assert all(s["bridge"]["name_in_bundle"] is not False for s in bridged)  # None: name too short to search
+    serial = [s for s in bridged if s["caller"]["method"] == "getSerialNumberSync"]
+    assert serial  # the Hermes bundle names it
+    # getUniqueIdSync is absent from the Hermes bundle: no JS caller, so no bridge entry (12-verify)
+    unique_id = [s for s in section["call_sites"] if s["caller"]["method"] == "getUniqueIdSync"]
+    assert unique_id and all(s["reachability"] == "no_caller_found" for s in unique_id)
     assert section["coverage"]["reduced_by"] == ["react_native"]
     assert all(r["coverage_caveat"] for r in section["data_safety"]["rows"])
     # the RNFirebase bridge switches Analytics collection: a consent control, not "none"
@@ -355,6 +359,26 @@ def test_grok_held_out():
     assert sdks.get("mixpanel") == "low" and sdks.get("firebase_crashlytics") == "high"
     assert "google_firebase_analytics" not in sdks and "firebase_analytics" not in sdks
     assert "heavy_obfuscation" in section["coverage"]["reduced_by"]
+    # AppCompat's TwilightManager (R8-merged y/e) is reached from Intercom only through
+    # renamed frames: at most a low-confidence guess, and no Intercom sharing hint (12-verify)
+    for site in section["call_sites"]:
+        if site["caller"]["class"] == "Ly/e;":
+            assert site["origin"]["confidence"] == "low"
+    for row in section["data_safety"]["rows"]:
+        if row["data_type"].startswith("location."):
+            assert "intercom" not in ((row["sharing_hint"] or {}).get("sdk_ids") or [])
+    # w/c.createIntent: INTENT_SENDER_REQUEST and REQUEST_PERMISSIONS are no picker sites
+    wc = [s for s in section["call_sites"] if s["caller"]["class"] == "Lw/c;" and s["api_id"].startswith("intent.")]
+    assert {s["caller"]["offset"] for s in wc}.isdisjoint({22, 46})
+
+
+def test_nextcloud_camera_intents_are_not_double_counted():
+    section = section_for(need(NEXTCLOUD))
+    seen = {}
+    for s in section["call_sites"]:
+        if s["api_id"].startswith("intent.") and s["caller"]["method"] == "uploadFromCamera":
+            seen.setdefault(s["caller"]["offset"], []).append(s["api_id"])
+    assert seen and all(len(v) == 1 for v in seen.values()), seen
 
 
 def test_grok_config_split_is_not_a_clean_result():

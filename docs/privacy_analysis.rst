@@ -124,7 +124,8 @@ Matching and attribution
   ``coverage`` (a note and ``provider_reads_unresolved``). Deeper helper chains (for
   example Kotlin ``$default`` overload chains) stay unresolved.
 * A library or SDK calling its own API (``GoogleSignInAccount`` reading its own fields) is
-  not a data access and gives no call site.
+  not a data access and gives no call site. ``requires`` conditions apply to every match
+  kind, provider reads and reflection included.
 * Reads of the app's own data are left out and counted in
   ``coverage.own_data_reads_skipped``: ``getAccountsByType`` with the app's own account
   type (its package, a type under it, the type of its own authenticator, also through a
@@ -134,8 +135,11 @@ Matching and attribution
   ``setPackage(getPackageName())``.
 * ``sensor.body`` needs the caller's class to get a step or heart-rate sensor from
   ``SensorManager.getDefaultSensor`` with a traced constant type; an int elsewhere in
-  the method (``SDK_INT`` checks use 21 and 31 too) does not count. ``requires`` conditions apply to every match
-  kind, provider reads and reflection included.
+  the method (``SDK_INT`` checks use 21 and 31 too) does not count.
+* User-mediated intents are matched per intent: the action argument of
+  ``Intent(String[, Uri])``/``setAction`` is traced and must be a catalogued action
+  (``IMAGE_CAPTURE``, ...). Only an action that cannot be traced falls back to the
+  method-wide check.
 * Only the pure API shims listed in ``apis.yaml`` (``markers.transparent_wrappers``:
   ``ContentResolverCompat``, ``TelephonyManagerCompat``, ``LocationManagerCompat``) are
   transparent: a call inside them is attributed to **each** code location that calls the
@@ -153,8 +157,10 @@ Matching and attribution
   - ``app_reference``: a renamed class that itself references a kept app class or the
     app's own ``R``/``BuildConfig`` is app code (libraries are compiled without the
     app). Only direct references count, because R8 merges classes; a class that also
-    reads another package's ``R``, or whose SourceFile names a curated SDK file, is
-    left out. Confidence ``medium``.
+    reads another package's ``R``, whose SourceFile names a curated SDK file or an R8/D8
+    merge or synthetic group (``java-style lambda group``, ``R8$$SyntheticClass``), or
+    that SDK string anchors or a Firebase registrar point at, is left out. Confidence
+    ``medium``.
   - ``source_file``: the DEX ``SourceFile`` attribute names a file listed for one SDK
     (``OneSignal.java``, ``PayPalDataCollector.java``). ``medium`` only when the SDK is
     detected by other evidence or by ``tracker_analysis``, otherwise ``low``; a
@@ -170,9 +176,17 @@ Matching and attribution
 * Bridge entry points: methods that JavaScript or Dart code calls directly
   (``@ReactMethod``, ``@JavascriptInterface``, Capacitor ``@PluginMethod``,
   ``CordovaPlugin.execute``, Flutter ``MethodCallHandler.onMethodCall``) are
-  ``bridge_entry``, ranked like ``sdk_entry``, instead of "no caller found". When the
-  React Native bundle or the Flutter ``libapp.so`` contains the method name,
-  ``bridge.name_in_bundle`` is ``true`` (supporting evidence only).
+  ``bridge_entry``, ranked like ``sdk_entry``, instead of "no caller found". React
+  Native calls a module method by its name, so the bundle (Hermes included) is
+  searched: ``bridge.name_in_bundle`` is ``true`` when it holds the name; when it does
+  not, no JavaScript caller exists and the site stays ``no_caller_found`` (low), and a
+  consent control reached that way does not count. Flutter handlers are always
+  ``onMethodCall``, so ``name_in_bundle`` is ``null`` for them.
+* ``called_only_by_sdk`` (rule 5) climbs at most three caller levels and claims
+  nothing when it runs out of budget. It is ``medium`` only when SDK frames call the
+  code directly; through other renamed frames, which can be R8-merged library code, it
+  is ``low``. A ``low`` SDK origin never feeds a row's ``sharing_hint`` or
+  ``purpose_hints``.
 * ``sdk_collection_default_on`` considers only switches that turn collection off
   (``collection_*``, ``auto_init_off``, ``auto_events_off``) and that the SDK reads.
 * A catalogued SDK API that is not found by name is listed in ``coverage.notes``
@@ -209,8 +223,10 @@ Catalogue and licences
 
 The catalogue is six YAML files in ``dexray_insight/privacy/data/`` (data types,
 permissions, APIs, SDKs, consent, compliance) plus a ``NOTICE``. Every SDK prefix,
-host and anchor cites its own source: a vendor document, the vendor's own Maven
-artefact or public repository, or an observed corpus record with the APK's SHA-256.
+host and anchor cites its own source: a vendor document, the vendor's public
+repository, an ``artifact`` record (short identifiers read from the vendor's published
+AAR/JAR, pinned by URL and SHA-256), or an observed corpus record with the APK's
+SHA-256.
 Framework API signatures are checked against the API 35 SDK data, vendor API signatures
 against the vendor artefact (``scripts/privacy_data_check.py --jar
 group:name:version=classes.jar``) or a corpus APK (``--apk``). Only facts and short identifiers are taken, never prose. No

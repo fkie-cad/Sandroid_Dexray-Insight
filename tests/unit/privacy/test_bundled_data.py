@@ -94,6 +94,9 @@ def test_sources_well_formed(cat):
         for s in doc["meta"]["sources"]:
             assert s["use"] in SOURCE_USES, (name, s["id"])
             assert s["title"] and s["retrieved"], (name, s["id"])
+            if s["use"] == "artifact":
+                # identifiers read from a vendor binary: the exact file is pinned by its hash
+                assert s["url"].startswith("https://") and SHA_RE.match(s["sha256"]), s["id"]
             if s["use"] == "observed":
                 assert s["url"] is None, s["id"]
                 assert SHA_RE.match(s["apk_sha256"]), s["id"]

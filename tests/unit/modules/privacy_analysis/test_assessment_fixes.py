@@ -459,3 +459,118 @@ def test_catalogue_rejects_unknown_own_data_and_duplicate_source_files(tmp_path)
         (d2 / "sdks.yaml").write_text(sdks)
         with pytest.raises(CatalogueError, match=match):
             load_catalogue(d2)
+
+
+# ---------------------------------------------------- verification round (12)
+def test_artifact_sources_need_url_and_sha256(tmp_path):
+    for extra, ok in (("", False), (", sha256: " + "a" * 64, True)):
+        d = tmp_path / ("ok" if ok else "bad")
+        shutil.copytree(CATALOGUE_MIN, d)
+        path = d / "sdks.yaml"
+        text = path.read_text()
+        marker = "  sources:\n"
+        source = (
+            "  sources:\n    - {id: art-x, title: x.aar, url: 'https://repo.example/x.aar', licence: NOASSERTION,"
+            f" retrieved: '2026-11-23', use: artifact{extra}}}\n"
+        )
+        path.write_text(text.replace(marker, source, 1))
+        if ok:
+            assert load_catalogue(d).sources["art-x"]["use"] == "artifact"
+        else:
+            with pytest.raises(CatalogueError, match="sha256"):
+                load_catalogue(d)
+
+
+def test_user_mediated_intents_match_per_intent(bundled):
+    """Grok w/c / Nextcloud uploadFromCamera: each Intent counts once, for its own action."""
+    x = FakeIndex()
+    method = x.add(
+        "Lcom/ex/app/Up;->camera()V",
+        strings=[
+            "android.media.action.IMAGE_CAPTURE",
+            "android.media.action.VIDEO_CAPTURE",
+            "androidx.activity.result.contract.action.REQUEST_PERMISSIONS",
+        ],
+        invokes=[(NEW_INTENT, 4), (NEW_INTENT, 10), (NEW_INTENT, 16)],
+    )
+    x.args[(method, 4)] = (False, [None, ("string", "android.media.action.IMAGE_CAPTURE")])
+    x.args[(method, 10)] = (False, [None, ("string", "android.media.action.VIDEO_CAPTURE")])
+    x.args[(method, 16)] = (False, [None, ("string", "androidx.activity.result.contract.action.REQUEST_PERMISSIONS")])
+    section = run(bundled, x)
+    assert [s["caller"]["offset"] for s in by_api(section, "intent.photo_capture")] == [4]
+    assert [s["caller"]["offset"] for s in by_api(section, "intent.video_capture")] == [10]
+    # an action that cannot be traced (a parameter) falls back to the method-wide check
+    helper = x.add(
+        "Lcom/ex/app/Up;->make(Ljava/lang/String;)V",
+        strings=["android.media.action.IMAGE_CAPTURE"],
+        invokes=[(NEW_INTENT, 4)],
+    )
+    x.args[(helper, 4)] = (False, [None, ("param", 0)])
+    sites = by_api(run(bundled, x), "intent.photo_capture")
+    assert [s["caller"]["method"] for s in sites] == ["camera", "make"]
+    assert all(s["confidence"] == "low" for s in sites)
+
+
+def test_called_only_by_sdk_is_low_through_renamed_frames(cat):
+    x = FakeIndex()
+    _android_id_reader(x, "Ly/e;->z()V")
+    x.add("Lk/a;->b()V", invokes=[("Ly/e;->z()V", 2)])  # renamed intermediate (merged library code)
+    x.add("Lcom/adjust/sdk/Util;->go()V", invokes=[("Lk/a;->b()V", 2)])
+    section = run(cat, x)
+    [site] = section["call_sites"]
+    assert (site["origin"]["sdk_id"], site["origin"]["confidence"]) == ("adjust", "low")
+    assert site["origin"]["evidence"] == ["callers:only_sdk:via_renamed:1"]
+    # a low-confidence SDK origin drives no sharing or purpose hint
+    [row] = [r for r in section["data_safety"]["rows"] if r["data_type"] == "identifiers.other"]
+    assert row["sharing_hint"] is None and row["purpose_hints"] == []
+    # a direct SDK caller stays medium
+    y = FakeIndex()
+    _android_id_reader(y, "Ly/e;->z()V")
+    y.add("Lcom/adjust/sdk/Util;->go()V", invokes=[("Ly/e;->z()V", 2)])
+    [site] = run(cat, y)["call_sites"]
+    assert site["origin"]["confidence"] == "medium"
+
+
+def test_consent_controls_only_only_replaces_none_detected():
+    empty = {"tcf": {"writes": False, "reads": False}}
+    assert consent_verdict([], empty, [{"role": "messaging"}], {"firebase_messaging"}) == "not_applicable"
+
+
+def test_react_method_missing_from_the_bundle_has_no_caller(bundled):
+    x = FakeIndex()
+    reader = _android_id_reader(x, "Lorg/rn/Dev;->getUniqueIdSync()Ljava/lang/String;")
+    x.annotations[reader] = ["Lcom/facebook/react/bridge/ReactMethod;"]
+    control = x.add(
+        "Lorg/rn/Fire;->setAnalyticsCollectionEnabled(Z)V",
+        invokes=[("Lcom/google/firebase/analytics/FirebaseAnalytics;->setAnalyticsCollectionEnabled(Z)V", 4)],
+    )
+    x.annotations[control] = ["Lcom/facebook/react/bridge/ReactMethod;"]
+    x.classes.update({"Lcom/google/firebase/analytics/FirebaseAnalytics;", "Lcom/google/android/gms/measurement/A;"})
+    files = ["assets/index.android.bundle"]
+    section = run(bundled, x, man(files=files, read_file=lambda p: b"NativeModules.Other.call()"))
+    [site] = by_api(section, "ids.settings.android_id")
+    assert (site["reachability"], site["bridge"], site["confidence"]) == ("no_caller_found", None, "low")
+    # a bridge consent control the JS never calls does not count as the app's control
+    assert section["consent"]["verdict"] == "none_detected"
+
+
+def test_flutter_bridge_has_no_bundle_evidence(cat):
+    x = FakeIndex()
+    _android_id_reader(
+        x,
+        "Lorg/plug/Chan;->onMethodCall(Lio/flutter/plugin/common/MethodCall;Lio/flutter/plugin/common/MethodChannel$Result;)V",
+    )
+    files = ["lib/arm64-v8a/libapp.so"]
+    [site] = run(cat, x, man(files=files, read_file=lambda p: b"nothing"))["call_sites"]
+    assert site["reachability"] == "bridge_entry" and site["bridge"]["name_in_bundle"] is None
+
+
+@pytest.mark.parametrize("source_file", ["java-style lambda group", "R8$$SyntheticClass"])
+def test_app_reference_skips_merged_classes(cat, source_file):
+    x = FakeIndex()
+    x.add("Lcom/ex/app/MainActivity;->go()V")
+    _android_id_reader(x, "La;->id()V")
+    x.call("La;->id()V", "Lcom/ex/app/MainActivity;->go()V", 8)
+    x.source_files["La;"] = source_file
+    [site] = run(cat, x)["call_sites"]
+    assert site["origin"]["type"] == "unattributed"

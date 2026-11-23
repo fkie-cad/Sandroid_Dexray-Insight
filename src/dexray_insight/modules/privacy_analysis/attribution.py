@@ -10,11 +10,13 @@ that answers wins:
 3. under an app namespace: app, high (medium when the tail looks obfuscated)
 3b. obfuscated, and the class itself references a kept app-namespace class or the app's
    own ``R``/``BuildConfig`` (libraries cannot depend on the app): app, medium
-   (``app_reference``); never when its SourceFile names a curated SDK file
+   (``app_reference``); never when its SourceFile names a curated SDK file or an R8
+   merge/synthetic group, or SDK string anchors or a Firebase registrar point at it
 4. inside a listed transparent wrapper (``ContentResolverCompat``, ...): walk up to the
    first non-wrapper callers and attribute each of them; other library code (androidx
    included) stays attributed to its library
-5. obfuscated, and only frames of one SDK call it: sdk, medium (``called_only_by_sdk``)
+5. obfuscated, and only frames of one SDK call it: sdk, medium when they call it
+   directly, low through other renamed frames (``called_only_by_sdk``)
 6. obfuscated, with string anchors of one SDK: sdk, medium (``string_anchor``)
 7. obfuscated, in the package of one SDK's manifest component: sdk, medium
 7b. obfuscated, with a DEX ``SourceFile`` name listed for one SDK: sdk, medium when the
@@ -43,6 +45,10 @@ from .scanner import MRef
 #: Callee packages that belong to the platform, never to a library (self-call check).
 FRAMEWORK_CLASS_PREFIXES = ("Landroid/", "Ljava/", "Ljavax/", "Ldalvik/", "Lorg/json/", "Lorg/w3c/", "Lorg/xml/")
 TYPE_ORDER = {"app": 0, "sdk": 1, "library": 2, "unattributed": 3}
+#: SourceFile values of classes that R8/D8 build from several origins.
+MERGED_SOURCE_FILES = frozenset(
+    {"java-style lambda group", "kotlin-style lambda group", "R8$$SyntheticClass", "D8$$SyntheticClass"}
+)
 _SHORT_SEGMENT = re.compile(r"^[a-z0-9_$]{1,2}$")
 
 
@@ -293,6 +299,19 @@ class Attributor:
             value = getter(desynth(cls))
         return value if value and value not in GENERIC_SOURCE_FILES else None
 
+    def _mixed_owner(self, cls: str) -> bool:
+        """True when a class may hold code of more than one owner (rule 3b is skipped).
+
+        Its SourceFile names a curated SDK file or an R8/D8 merge or synthetic group
+        (lambda groups collect lambdas of several origins), or SDK string anchors or a
+        Firebase registrar point at it.
+        """
+        getter = getattr(self.index, "source_file", None)
+        raw = (getter(cls) or getter(desynth(cls)) or "") if getter else ""
+        if raw in MERGED_SOURCE_FILES or self.source_file_sdk(cls) is not None:
+            return True
+        return bool(self._class_hits.get(desynth(cls))) or desynth(cls) in self.registrar_refs
+
     def source_file_sdk(self, cls: str) -> str | None:
         """The curated SDK whose source file list holds the class's SourceFile name."""
         name = self.source_file(cls)
@@ -319,7 +338,7 @@ class Attributor:
                         origin = Origin("app", None, None, conf, "app_namespace", (f"namespace:{ns}",))
                         break
                 refs = self.app_refs.get(desynth(cls))
-                if origin is None and refs and is_obfuscated(cls) and self.source_file_sdk(cls) is None:
+                if origin is None and refs and is_obfuscated(cls) and not self._mixed_owner(cls):
                     evidence = tuple(refs)
                     name = self.source_file(cls)
                     if name:
@@ -423,10 +442,19 @@ class Attributor:
         sdk_id, registrar = hit
         return self._sdk(sdk_id, "medium", "component_registrar", (f"registrar:{dotted_class(registrar)}",))
 
-    def _rule5(self, method: MRef, max_depth: int = 4, max_nodes: int = 50) -> Origin | None:
-        """Obfuscated code called only from frames of one SDK."""
+    def _rule5(self, method: MRef, max_depth: int = 3, max_nodes: int = 50) -> Origin | None:
+        """Obfuscated code called only from frames of one SDK.
+
+        ``medium`` only when the SDK frames call it directly. A chain through other
+        renamed frames can pass R8-merged library code (Grok: AppCompat's
+        TwilightManager, reached through renamed AppCompat frames from Intercom's
+        activities), so it gives ``low``; a search that hits its depth or node budget
+        claims nothing.
+        """
         found: set[str] = set()
         other = False
+        exhausted = False
+        deepest = 0
         queue = deque([(method, 0)])
         seen = {method}
         while queue:
@@ -439,6 +467,7 @@ class Attributor:
                 if origin is not None:
                     if origin.type == "sdk":
                         found.add(origin.sdk_id or "")
+                        deepest = max(deepest, depth)
                     else:
                         other = True
                     continue
@@ -447,8 +476,14 @@ class Attributor:
                     continue
                 if depth + 1 < max_depth and len(seen) < max_nodes:
                     queue.append((caller, depth + 1))
-        if len(found) == 1 and not other:
-            return self._sdk(next(iter(found)), "medium", "called_only_by_sdk", ("callers:only_sdk",))
+                else:
+                    exhausted = True
+        if len(found) == 1 and not other and not exhausted:
+            if deepest == 0:
+                return self._sdk(next(iter(found)), "medium", "called_only_by_sdk", ("callers:only_sdk:direct",))
+            return self._sdk(
+                next(iter(found)), "low", "called_only_by_sdk", (f"callers:only_sdk:via_renamed:{deepest}",)
+            )
         return None
 
     def _rule6(self, cls: str) -> Origin | None:

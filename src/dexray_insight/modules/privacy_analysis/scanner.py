@@ -1109,6 +1109,8 @@ class Matcher:
                     if entry.get("own_data") and self.is_own_data(entry["own_data"], caller, offset):
                         self.own_data_skipped += 1
                         continue
+                    if entry.get("user_mediated") and not self.intent_action_ok(entry, caller, offset):
+                        continue
                     out.extend(self._sites_for(entry, caller, offset, api, entry["label"], "method_call", cls))
             if not found and entry["sdk_id"]:
                 self.missing_sdk_apis.append(entry["id"])
@@ -1175,6 +1177,21 @@ class Matcher:
                     return False
             return True
         return False
+
+    def intent_action_ok(self, entry: dict[str, Any], caller: MRef, offset: int) -> bool:
+        """Per-intent check of a user-mediated entry: the traced action argument.
+
+        ``Intent(String[, Uri])`` and ``setAction(String)`` take the action as parameter
+        0. When it traces to constant strings, one of them must be a catalogued action,
+        so a method that builds a camera intent and a permission intent gives one site,
+        not two. Only when the argument cannot be traced does the method-wide
+        ``const_string_any`` check (already passed) decide.
+        """
+        values = self._arg_values(caller, offset, 0)
+        strings = [v[1] for v in values or [] if v and v[0] == "string"]
+        if not strings:
+            return True
+        return bool(set(strings) & set(entry["requires"]["const_string_any"]))
 
     def sensor_types(self, caller: MRef) -> frozenset[int]:
         """Sensor types passed as constants to ``SensorManager.getDefaultSensor`` in the caller's class."""

@@ -289,6 +289,9 @@ def build_rows(
     sdk_order = {s["id"]: i for i, s in enumerate(sdks)}
     by_type: dict[str, list[dict[str, Any]]] = {}
     hidden_ok: dict[int, bool] = {}
+    #: call-site groups whose every site has a low-confidence origin: their SDK is a
+    #: guess and must not drive sharing or purpose hints
+    weak_origin: dict[int, bool] = {}
 
     # call-site evidence, grouped per (kind, api_id, origin)
     groups: dict[tuple, dict[str, Any]] = {}
@@ -317,6 +320,9 @@ def build_rows(
                 groups[key] = group
                 by_type.setdefault(dt, []).append(group)
                 hidden_ok[id(group)] = True
+                weak_origin[id(group)] = True
+            if o["confidence"] != "low":
+                weak_origin[id(group)] = False
             group["confidence"] = max_conf([group["confidence"], conf])
             group["call_site_ids"].append(site["id"])
             group["count"] = len(group["call_site_ids"])
@@ -377,7 +383,7 @@ def build_rows(
         origin_list.sort(key=lambda o: (-o["call_site_count"], o["_key"]))
         for o in origin_list:
             o.pop("_key")
-        contributing = _contributing_sdks(evidence, sdk_order)
+        contributing = _contributing_sdks(evidence, sdk_order, {id(e) for e in evidence if weak_origin.get(id(e))})
         sharing = _sharing_hint(evidence, contributing, sdk_by_id)
         purposes = set()
         for sdk_id in contributing:
@@ -443,13 +449,20 @@ def _row_status(evidence: list[dict[str, Any]]) -> str:
     return "switched_off_in_manifest"
 
 
-def _contributing_sdks(evidence: list[dict[str, Any]], sdk_order: dict[str, int]) -> list[str]:
+def _contributing_sdks(
+    evidence: list[dict[str, Any]], sdk_order: dict[str, int], weak: set[int] | None = None
+) -> list[str]:
+    """SDKs behind a row: SDK evidence, sink targets and call-site origins.
+
+    ``weak`` are evidence groups whose origin SDK rests only on low-confidence
+    attribution; that origin does not count.
+    """
     ids = set()
     for e in evidence:
         if e.get("sdk_id"):
             ids.add(e["sdk_id"])
         origin = e.get("origin")
-        if origin and origin.get("sdk_id"):
+        if origin and origin.get("sdk_id") and id(e) not in (weak or set()):
             ids.add(origin["sdk_id"])
     return sorted((i for i in ids if i in sdk_order), key=sdk_order.__getitem__)
 
@@ -600,7 +613,8 @@ def consent_verdict(
     """The consent verdict (04-design §1.3 order).
 
     ``controlled`` are SDKs whose consent controls (``setAnalyticsCollectionEnabled``,
-    ``setConsent``, ...) the app itself calls; without a CMP or TCF keys that gives
+    ``setConsent``, ...) the app itself calls; where ``none_detected`` would apply (no
+    CMP, no TCF keys, an ads/attribution/analytics SDK), that gives
     ``consent_controls_only``: the app switches SDK collection at runtime, possibly
     from its own consent screen.
     """
@@ -610,9 +624,10 @@ def consent_verdict(
         return "tcf_writer_without_known_cmp"
     if any(ch["reads"] for ch in channels.values()):
         return "tcf_reader_only"
-    if controlled:
-        return "consent_controls_only"
     if any(s["role"] in ("ads", "attribution", "analytics") for s in sdks):
+        # only where "none_detected" would apply (an FCM-only app stays not_applicable)
+        if controlled:
+            return "consent_controls_only"
         return "none_detected"
     return "not_applicable"
 

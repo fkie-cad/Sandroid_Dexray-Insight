@@ -200,7 +200,10 @@ CATEGORY_ORDER = (
     "app_performance",
     "identifiers",
 )
-SOURCE_USES = ("generated", "facts_cited", "reference_only", "observed")
+#: ``artifact``: short identifiers (host names, class, file and meta-data key names, method
+#: descriptors) read from a vendor's published binary (AAR/JAR); the source records the
+#: download ``url`` and the file's ``sha256``.
+SOURCE_USES = ("generated", "facts_cited", "reference_only", "observed", "artifact")
 PERMISSION_STRENGTHS = ("medium", "low")
 
 #: Rank of a confidence level (higher is stronger).
@@ -394,6 +397,12 @@ def _check_sources(file: str, meta: dict[str, Any], sources: dict[str, dict[str,
                 f"{file}: observed source {sid} needs apk_sha256",
             )
             _req(bool(src.get("example_class")), f"{file}: observed source {sid} needs example_class")
+        if src.get("use") == "artifact":
+            _req(
+                bool(_SHA256_RE.match(str(src.get("sha256") or ""))),
+                f"{file}: artifact source {sid} needs the sha256 of the file",
+            )
+            _req(str(src.get("url") or "").startswith("https://"), f"{file}: artifact source {sid} needs its url")
         sources[sid] = {**src, "_file": file}
 
 

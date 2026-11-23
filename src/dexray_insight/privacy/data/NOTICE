@@ -3,9 +3,9 @@ Dexray Insight privacy catalogue: licences, attribution and provenance
 
 The six YAML files in this directory hold facts and short identifiers only, never
 prose copied from a source. Each file lists its sources in `meta.sources`; every
-SDK prefix, host and anchor in sdks.yaml and consent.yaml cites its own source,
-either a vendor document (URL) or an observation in a corpus APK (sha256 and an
-example class). No data from Exodus Privacy (ODbL/DbCL) or from MobSF's copy of it
+SDK prefix, host and anchor in sdks.yaml and consent.yaml cites its own source:
+a vendor document (URL), a vendor's published binary (URL and sha256 of the file), or
+an observation in a corpus APK (sha256 and an example class). No data from Exodus Privacy (ODbL/DbCL) or from MobSF's copy of it
 is included. The surrounding code is GPL-3.0-only.
 
 Use values in `meta.sources`:
@@ -13,6 +13,13 @@ Use values in `meta.sources`:
   facts_cited     facts taken from the page and restated in our own words
   reference_only  linked for the reader; no text taken
   observed        seen in a corpus APK (url null, apk_sha256 + example_class given)
+  artifact        short identifiers read from a vendor's published binary (an AAR or
+                  JAR from the vendor's Maven repository or GitHub organisation; url
+                  and the file's sha256 given): host names, class, file and meta-data
+                  key names, method descriptors. Nothing else is taken from the file,
+                  and the file is not redistributed. Several of these binaries carry
+                  vendor terms or no stated licence; only these identifiers, as
+                  facts, are used.
 
 data_types.yaml
 ---------------
@@ -45,8 +52,10 @@ notes are cited from the Android developer documentation (CC BY 2.5).
 Google Play services and Firebase method names are cited from the Google reference
 pages (CC BY 4.0). Other vendor SDK method names (Meta, AppsFlyer, Adjust, Braze,
 Huawei) are cited from the vendor's documentation or the vendor's own GitHub
-organisation, as facts only. Every non-framework descriptor was also checked by name
-with androguard in at least one corpus APK (`verified.seen_in`).
+organisation, as facts only. Every non-framework descriptor was also checked: by name
+with androguard in at least one corpus APK (`verified.seen_in`), or with `javap` against
+the vendor's Maven artefact (`verified.artifact`, an `artifact` source with the file's
+sha256; scripts/privacy_data_check.py --jar re-runs the check).
 Cross-reference (not copied): Matcha's PersonalDataSourceAPIList (Apache-2.0),
 https://github.com/Matcha-IDE/Matcha-IDE .
 
@@ -54,7 +63,11 @@ sdks.yaml
 ---------
 Own curation. Package prefixes, anchor classes, manifest components and meta-data
 keys are cited per item from vendor API references, integration or migration guides,
-vendor GitHub organisations, or an `observed` corpus record. `collects` lists only
+vendor GitHub organisations, an `artifact` record or an `observed` corpus record.
+Hosts, string anchors and SourceFile names (the DEX debug attribute naming a source
+file) come from vendor documentation, the vendor's public source repositories, or are
+read as short identifiers from the vendor's published AAR/JAR (`artifact`); values
+shared by two SDKs, bare registrable domains and generic file names are not used. `collects` lists only
 facts the vendor itself discloses: Google/Firebase "Play data disclosure" pages are
 CC BY 4.0 (attribution: Google LLC, licensed under CC BY 4.0); other vendor pages
 (Google Analytics Help, AppMetrica) are cited as references and their facts are
