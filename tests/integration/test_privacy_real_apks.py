@@ -341,9 +341,17 @@ def test_spin_bridge_entries():
     assert all(s["bridge"]["name_in_bundle"] is not False for s in bridged)  # None: name too short to search
     serial = [s for s in bridged if s["caller"]["method"] == "getSerialNumberSync"]
     assert serial  # the Hermes bundle names it
-    # getUniqueIdSync is absent from the Hermes bundle: no JS caller, so no bridge entry (12-verify)
+    # getUniqueIdSync is absent from the Hermes bundle, but getAndroidIdSync (in it) calls it
     unique_id = [s for s in section["call_sites"] if s["caller"]["method"] == "getUniqueIdSync"]
-    assert unique_id and all(s["reachability"] == "no_caller_found" for s in unique_id)
+    assert unique_id and all(s["bridge"]["entry"].endswith("->getAndroidIdSync") for s in unique_id)
+    # AndroidInfoModule.getAndroidID: no named bridge method reaches it (12-verify)
+    android_id = [s for s in section["call_sites"] if s["caller"]["method"] == "getAndroidID"]
+    assert android_id and all(s["reachability"] == "no_caller_found" for s in android_id)
+    # RCTCamera.acquireCameraInstance: hasFlash is not in the bundle, capture is; the search
+    # must go past hasFlash and find capture (12-verify, re-verify regression)
+    acquire = [s for s in section["call_sites"] if s["caller"]["method"] == "acquireCameraInstance"]
+    assert acquire and all(s["reachability"] != "no_caller_found" for s in acquire)
+    assert all(s["confidence"] == "medium" for s in acquire)
     assert section["coverage"]["reduced_by"] == ["react_native"]
     assert all(r["coverage_caveat"] for r in section["data_safety"]["rows"])
     # the RNFirebase bridge switches Analytics collection: a consent control, not "none"

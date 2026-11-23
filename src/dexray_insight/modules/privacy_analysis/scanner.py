@@ -761,6 +761,8 @@ class ReachResult:
     #: For ``bridge_entry``: the bridge kind (``react_native``, ``javascript_interface``,
     #: ``capacitor``, ``cordova``, ``flutter``).
     bridge: str | None = None
+    #: A bridge method on the way had no caller in the JS bundle and was passed over.
+    rejected_bridge: bool = False
 
 
 class Reachability:
@@ -782,8 +784,15 @@ class Reachability:
         entry_classes: set[str],
         max_depth: int = 6,
         max_nodes: int = 200,
+        bridge_ok: Callable[[str, MRef], bool | None] | None = None,
     ):
-        """Set up the search."""
+        """Set up the search.
+
+        ``bridge_ok(kind, method)`` says whether JavaScript/Dart code names a bridge
+        method (``False``: it cannot call it, so the method is no entry and the search
+        goes on past it to its other callers; ``None``: unknown, counts as an entry).
+        """
+        self.bridge_ok = bridge_ok
         self.index = index
         self.is_app_class = is_app_class
         self.entry_classes = entry_classes
@@ -884,6 +893,7 @@ class Reachability:
         visited = {start}
         best: tuple[str, list[MRef]] | None = None
         bridge: str | None = None
+        rejected = False
         exhausted = False
         while queue:
             node, path, depth = queue.popleft()
@@ -902,7 +912,9 @@ class Reachability:
                 best = ("sdk_entry", path)
             if best is None or _RANK[best[0]] < _RANK["bridge_entry"]:
                 kind = self.bridge_kind(node)
-                if kind is not None:
+                if kind is not None and self.bridge_ok is not None and self.bridge_ok(kind, node) is False:
+                    rejected = True  # e.g. hasFlash, not in the bundle: keep looking (capture is)
+                elif kind is not None:
                     best = ("bridge_entry", path)
                     bridge = kind
             if not callers and not bases and best is None and self.is_callback(node):
@@ -916,10 +928,13 @@ class Reachability:
                 visited.add(nxt)
                 queue.append((nxt, path + [nxt], depth + 1))
         if best is not None:
-            return ReachResult(best[0], _chain(best[1]), best[1][-1], bridge if best[0] == "bridge_entry" else None)
+            is_bridge = best[0] == "bridge_entry"
+            return ReachResult(
+                best[0], _chain(best[1]), best[1][-1], bridge if is_bridge else None, rejected and not is_bridge
+            )
         if exhausted:
-            return ReachResult("unknown", [start.frame()], None)
-        return ReachResult("no_caller_found", [start.frame()], None)
+            return ReachResult("unknown", [start.frame()], None, None, rejected)
+        return ReachResult("no_caller_found", [start.frame()], None, None, rejected)
 
 
 def _chain(path: list[MRef], limit: int = 6) -> list[str]:

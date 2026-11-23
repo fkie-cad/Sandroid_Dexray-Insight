@@ -574,3 +574,17 @@ def test_app_reference_skips_merged_classes(cat, source_file):
     x.source_files["La;"] = source_file
     [site] = run(cat, x)["call_sites"]
     assert site["origin"]["type"] == "unattributed"
+
+
+def test_search_goes_past_a_bridge_method_missing_from_the_bundle(cat):
+    """Spin RCTCamera: hasFlash (not in the bundle) and capture (in it) both reach the camera."""
+    x = FakeIndex()
+    _android_id_reader(x, "Lorg/rn/Cam;->acquire()V")
+    for name in ("hasFlash", "capture"):
+        entry = x.add(f"Lorg/rn/CamModule;->{name}()V")
+        x.call(f"Lorg/rn/CamModule;->{name}()V", "Lorg/rn/Cam;->acquire()V", 2)
+        x.annotations[entry] = ["Lcom/facebook/react/bridge/ReactMethod;"]
+    files = ["assets/index.android.bundle"]
+    [site] = run(cat, x, man(files=files, read_file=lambda p: b"NativeModules.Cam.capture()"))["call_sites"]
+    assert site["reachability"] == "bridge_entry"
+    assert site["bridge"]["entry"] == "Lorg/rn/CamModule;->capture" and site["bridge"]["name_in_bundle"] is True

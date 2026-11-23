@@ -179,8 +179,10 @@ Matching and attribution
   ``bridge_entry``, ranked like ``sdk_entry``, instead of "no caller found". React
   Native calls a module method by its name, so the bundle (Hermes included) is
   searched: ``bridge.name_in_bundle`` is ``true`` when it holds the name; when it does
-  not, no JavaScript caller exists and the site stays ``no_caller_found`` (low), and a
-  consent control reached that way does not count. Flutter handlers are always
+  not, no JavaScript caller exists: the search goes on past that method to its other
+  callers (another bridge method that the bundle names still counts) and otherwise
+  ends ``no_caller_found`` (low); a consent control reached only that way does not
+  count. Flutter handlers are always
   ``onMethodCall``, so ``name_in_bundle`` is ``null`` for them.
 * ``called_only_by_sdk`` (rule 5) climbs at most three caller levels and claims
   nothing when it runs out of budget. It is ``medium`` only when SDK frames call the

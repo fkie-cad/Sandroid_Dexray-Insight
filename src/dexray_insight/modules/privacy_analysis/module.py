@@ -808,7 +808,12 @@ def analyse(
     if app_class_jvm:
         entry_classes.add(app_class_jvm)
     reach = Reachability(
-        index, attributor.is_app_class, entry_classes, cfg["reachability_max_depth"], cfg["reachability_max_nodes"]
+        index,
+        attributor.is_app_class,
+        entry_classes,
+        cfg["reachability_max_depth"],
+        cfg["reachability_max_nodes"],
+        lambda kind, method: bundle_has(kind, method.name),
     )
 
     # matching
@@ -899,17 +904,16 @@ def analyse(
                     reachability, chain, deciding = "unknown", [site.caller.frame()], None
                 else:
                     reachability, chain, deciding = result.reachability, result.chain, result.deciding
+                    # React Native calls a module method by its name (Hermes included): a
+                    # bridge method absent from the bundle has no JS caller; the search
+                    # passed over it (and may still find one that is named)
+                    bridge_absent = result.rejected_bridge
                     if result.bridge and deciding is not None:
                         bridge = {
                             "kind": result.bridge,
                             "entry": deciding.frame(),
                             "name_in_bundle": bundle_has(result.bridge, deciding.name),
                         }
-                        if bridge["name_in_bundle"] is False:
-                            # React Native calls a module method by its name (Hermes
-                            # included): absent from the bundle, no JS caller exists
-                            reachability, chain, bridge = "no_caller_found", [site.caller.frame()], None
-                            bridge_absent = True
             else:
                 reachability, chain, deciding = "not_checked", [], None
         level = api_level_object(entry["api"], manifest.min_sdk)
